@@ -1,0 +1,168 @@
+import http from 'node:http';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { spawn } from 'node:child_process';
+
+const PORT = Number(process.env.MVP_PRINT_AGENT_PORT || 17658);
+const PRINTER_NAME = process.env.MVP_PRINTER_NAME || '';
+const LABEL_PRINTER_NAME = process.env.MVP_LABEL_PRINTER_NAME || '';
+const ALLOWED_ORIGINS = new Set(
+  (process.env.MVP_ALLOWED_ORIGINS || 'http://localhost:3000,http://127.0.0.1:3000,https://app.example.com')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean),
+);
+const MAX_BODY_BYTES = 512 * 1024;
+
+const json = (res, statusCode, payload) => {
+  const body = Buffer.from(JSON.stringify(payload));
+  res.writeHead(statusCode, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Content-Length': body.length,
+  });
+  res.end(body);
+};
+
+const run = (command, args, input = null) =>
+  new Promise((resolve, reject) => {
+    const child = spawn(command, args, { stdio: ['pipe', 'pipe', 'pipe'] });
+    const stderr = [];
+    child.stderr.on('data', (chunk) => stderr.push(chunk));
+    child.on('error', reject);
+    child.on('close', (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`${command} exited ${code}: ${Buffer.concat(stderr).toString('utf8')}`));
+    });
+    if (input) child.stdin.end(input);
+    else child.stdin.end();
+  });
+
+const printWithCups = async (buffer, printerName) => {
+  const target = printerName || PRINTER_NAME;
+  const file = path.join(os.tmpdir(), `mvp-print-${Date.now()}-${Math.random().toString(16).slice(2)}.bin`);
+  await fs.writeFile(file, buffer);
+  try {
+    const args = [];
+    if (target) args.push('-d', target);
+    args.push('-o', 'raw', file);
+    await run('/usr/bin/lp', args, null);
+  } finally {
+    await fs.unlink(file).catch(() => {});
+  }
+};
+
+const printWithWindows = async (text, printerName) => {
+  const target = printerName || PRINTER_NAME;
+  const file = path.join(os.tmpdir(), `mvp-print-${Date.now()}.txt`);
+  await fs.writeFile(file, text, 'utf8');
+  const quotedFile = file.replaceAll("'", "''");
+  const psCommand = target
+    ? `Get-Content -LiteralPath '${quotedFile}' | Out-Printer -Name '${target.replaceAll("'", "''")}'`
+    : `Get-Content -LiteralPath '${quotedFile}' | Out-Printer`;
+  try {
+    await run('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', psCommand], null);
+  } finally {
+    await fs.unlink(file).catch(() => {});
+  }
+};
+
+const normalizeReceiptText = (payload) => {
+  if (typeof payload.text === 'string' && payload.text.trim()) return payload.text;
+  if (Array.isArray(payload.lines)) return payload.lines.join('\n');
+  return 'Receipt\n';
+};
+
+const printReceipt = async (payload) => {
+  const text = normalizeReceiptText(payload);
+  if (process.platform === 'win32') {
+    await printWithWindows(text, payload.printerName);
+    return;
+  }
+  await printWithCups(Buffer.from(text, 'utf8'), payload.printerName);
+};
+
+const printLabel = async (payload) => {
+  const text = normalizeReceiptText(payload);
+  if (process.platform === 'win32') {
+    await printWithWindows(text, payload.printerName || LABEL_PRINTER_NAME);
+    return;
+  }
+  await printWithCups(Buffer.from(text, 'utf8'), payload.printerName || LABEL_PRINTER_NAME);
+};
+
+const parseBody = async (req) => {
+  const chunks = [];
+  let total = 0;
+  for await (const chunk of req) {
+    total += chunk.length;
+    if (total > MAX_BODY_BYTES) {
+      const error = new Error('Request body too large');
+      error.statusCode = 413;
+      throw error;
+    }
+    chunks.push(chunk);
+  }
+  if (chunks.length === 0) return {};
+  return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+};
+
+const allowCors = (req, res) => {
+  const origin = req.headers.origin;
+  if (origin && ALLOWED_ORIGINS.has(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+};
+
+const server = http.createServer(async (req, res) => {
+  allowCors(req, res);
+
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204);
+    res.end();
+    return;
+  }
+
+  if (req.method === 'GET' && req.url === '/health') {
+    json(res, 200, {
+      ok: true,
+      service: 'multivendor-print-agent',
+      port: PORT,
+      platform: process.platform,
+      printerName: PRINTER_NAME || null,
+      labelPrinterName: LABEL_PRINTER_NAME || null,
+    });
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/print/receipt') {
+    try {
+      const payload = await parseBody(req);
+      await printReceipt(payload);
+      json(res, 200, { ok: true });
+    } catch (error) {
+      json(res, error.statusCode || 500, { ok: false, error: String(error.message || error) });
+    }
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/print/label') {
+    try {
+      const payload = await parseBody(req);
+      await printLabel(payload);
+      json(res, 200, { ok: true });
+    } catch (error) {
+      json(res, error.statusCode || 500, { ok: false, error: String(error.message || error) });
+    }
+    return;
+  }
+
+  json(res, 404, { ok: false, error: 'Not found' });
+});
+
+server.listen(PORT, '127.0.0.1', () => {
+  console.log(`Multi Vendor print agent listening on http://127.0.0.1:${PORT}`);
+});

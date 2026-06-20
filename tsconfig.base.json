@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": ".",
+    "paths": {
+      "@mvp/types": [
+        "packages/types/src/index.ts"
+      ],
+      "@mvp/config": [
+        "packages/config/src/index.ts"
+      ],
+      "@mvp/auth": [
+        "packages/auth/src/index.ts"
+      ],
+      "@mvp/rbac": [
+        "packages/rbac/src/index.ts"
+      ],
+      "@mvp/database": [
+        "packages/database/src/index.ts"
+      ]
+    }
+  }
+}

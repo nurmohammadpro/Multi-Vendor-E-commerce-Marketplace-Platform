@@ -1,0 +1,13 @@
+{
+  "name": "@mvp/database",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "migrate": "node src/migrate.mjs",
+    "seed:bootstrap": "node src/seed.mjs"
+  },
+  "dependencies": {
+    "pg": "^8.12.0"
+  }
+}
