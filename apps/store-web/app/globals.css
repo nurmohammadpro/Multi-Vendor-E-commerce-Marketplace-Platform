@@ -1,0 +1,108 @@
+:root {
+  color-scheme: light;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background:
+    radial-gradient(circle at top left, rgba(37, 99, 235, 0.08), transparent 28%),
+    radial-gradient(circle at top right, rgba(37, 99, 235, 0.04), transparent 24%),
+    linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
+  color: #0f172a;
+  font-family:
+    var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    sans-serif;
+}
+
+body {
+  background-attachment: fixed;
+}
+
+.workspace-shell * {
+  box-sizing: border-box;
+  font-family:
+    var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    sans-serif;
+}
+
+.workspace-shell main {
+  color: #0f172a;
+}
+
+.workspace-shell .workspace-main article {
+  background: rgba(255, 255, 255, 0.96) !important;
+  border: 1px solid rgba(148, 163, 184, 0.22) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04) !important;
+}
+
+.workspace-shell .workspace-main a[href] {
+  color: inherit;
+}
+
+.workspace-shell .workspace-main a[href],
+.workspace-shell .workspace-main button {
+  border-radius: 6px !important;
+}
+
+.workspace-shell .workspace-main button,
+.workspace-shell .workspace-main select,
+.workspace-shell .workspace-main input,
+.workspace-shell .workspace-main textarea {
+  border: 1px solid rgba(148, 163, 184, 0.22) !important;
+  background: rgba(255, 255, 255, 0.96) !important;
+  color: #0f172a !important;
+  box-shadow: none !important;
+}
+
+.workspace-shell .workspace-main button {
+  min-height: 32px;
+  padding: 6px 12px;
+}
+
+.workspace-shell .workspace-main input,
+.workspace-shell .workspace-main select,
+.workspace-shell .workspace-main textarea {
+  padding: 8px 12px;
+  min-height: 32px;
+}
+
+.workspace-shell .workspace-main h1,
+.workspace-shell .workspace-main h2,
+.workspace-shell .workspace-main h3 {
+  letter-spacing: -0.03em;
+  color: #0f172a;
+  font-weight: 500;
+}
+
+.workspace-shell .workspace-main p,
+.workspace-shell .workspace-main li,
+.workspace-shell .workspace-main span,
+.workspace-shell .workspace-main div {
+  color: inherit;
+}
+
+.workspace-shell .workspace-main .token-muted,
+.workspace-shell .workspace-main [data-muted='true'] {
+  color: #475569 !important;
+}
+
+.workspace-shell .workspace-main .token-subtle,
+.workspace-shell .workspace-main [data-subtle='true'] {
+  color: #64748b !important;
+}
+
+.workspace-shell .workspace-main .token-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(255, 255, 255, 0.96);
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 500;
+}
