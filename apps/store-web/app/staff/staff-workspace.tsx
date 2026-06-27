@@ -3,10 +3,12 @@
 import { useEffect, useState } from 'react';
 
 import {
+  emptyStateStyle,
   fieldStyle,
   pageShellStyle,
   secondaryButtonStyle,
   surfaceCardStyle,
+  tokenMutedStyle,
 } from '../motocore-theme';
 
 type StaffMember = {
@@ -18,14 +20,6 @@ type StaffMember = {
   email?: string | null;
   phone?: string | null;
   full_name?: string | null;
-};
-
-const emptyStateStyle: React.CSSProperties = {
-  padding: 16,
-  borderRadius: 14,
-  border: '1px dashed rgba(82, 56, 30, 0.16)',
-  color: '#6f685f',
-  lineHeight: 1.6,
 };
 
 async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
@@ -125,11 +119,11 @@ export function StaffWorkspace() {
             <article key={member.id} style={surfaceCardStyle}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
                 <div>
-                  <div style={{ fontWeight: 700 }}>{member.full_name || member.email || member.phone || member.user_id}</div>
-                  <div style={{ color: '#6f685f' }}>
+                  <div style={{ fontWeight: 600 }}>{member.full_name || member.email || member.phone || member.user_id}</div>
+                  <div style={{ color: '#475569' }}>
                     {member.role_code} · {member.status}
                   </div>
-                  <div style={{ color: '#857b6f' }}>
+                  <div style={{ color: '#64748b' }}>
                     {member.email || '—'} · {member.phone || '—'}
                   </div>
                 </div>
@@ -150,7 +144,7 @@ export function StaffWorkspace() {
 
       <article style={surfaceCardStyle}>
         <h3 style={{ marginTop: 0 }}>Operator Notes</h3>
-        <p style={{ marginBottom: 0, color: '#6f685f' }}>{message}</p>
+        <p style={tokenMutedStyle}>{message}</p>
       </article>
     </section>
   );

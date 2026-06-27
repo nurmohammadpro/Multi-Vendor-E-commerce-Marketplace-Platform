@@ -8,6 +8,7 @@ import {
   pageShellStyle,
   secondaryButtonStyle,
   surfaceCardStyle,
+  tokenMutedStyle,
 } from '../motocore-theme';
 
 type Location = {
@@ -260,11 +261,11 @@ export function InventoryWorkspace() {
             {balances.length ? (
               balances.map((balance) => (
                 <article key={`${balance.location_id}-${balance.sku_id}`} style={{ ...surfaceCardStyle, padding: 14 }}>
-                  <div style={{ fontWeight: 700 }}>{balance.product_name}</div>
-                  <div style={{ color: '#6f685f' }}>
+                  <div style={{ fontWeight: 600 }}>{balance.product_name}</div>
+                  <div style={{ color: '#475569' }}>
                     {balance.sku_code} · {balance.location_name}
                   </div>
-                  <div style={{ color: '#857b6f' }}>
+                  <div style={{ color: '#64748b' }}>
                     On hand: {Number(balance.on_hand_qty)} · Available: {Number(balance.available_qty)} · Reserved: {Number(balance.reserved_qty)}
                   </div>
                 </article>
@@ -314,7 +315,7 @@ export function InventoryWorkspace() {
             </button>
           </div>
           {selectedSku ? (
-            <p style={{ marginTop: 12, marginBottom: 0, color: '#6f685f' }}>
+            <p style={{ marginTop: 12, marginBottom: 0, color: '#475569' }}>
               Selected: {selectedSku.product_name} · {selectedSku.sku_code}
             </p>
           ) : null}
@@ -331,14 +332,14 @@ export function InventoryWorkspace() {
                 <article key={request.id} style={{ ...surfaceCardStyle, padding: 14 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                     <div>
-                      <div style={{ fontWeight: 700 }}>{request.product_name}</div>
-                      <div style={{ color: '#6f685f' }}>
+                      <div style={{ fontWeight: 600 }}>{request.product_name}</div>
+                      <div style={{ color: '#475569' }}>
                         {request.sku_code} · {request.location_name}
                       </div>
-                      <div style={{ color: '#857b6f' }}>
+                      <div style={{ color: '#64748b' }}>
                         Current: {Number(request.current_qty)} → Requested: {Number(request.requested_qty)} ({Number(request.qty_delta) >= 0 ? '+' : ''}{Number(request.qty_delta)})
                       </div>
-                      <div style={{ color: '#6f685f' }}>Reason: {request.reason}</div>
+                      <div style={{ color: '#475569' }}>Reason: {request.reason}</div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <div style={{ marginBottom: 8 }}>{request.status}</div>
@@ -368,14 +369,14 @@ export function InventoryWorkspace() {
             {ledger.length ? (
               ledger.slice(0, 12).map((entry) => (
                 <article key={entry.id} style={{ ...surfaceCardStyle, padding: 14 }}>
-                  <div style={{ fontWeight: 700 }}>{entry.product_name}</div>
-                  <div style={{ color: '#6f685f' }}>
+                  <div style={{ fontWeight: 600 }}>{entry.product_name}</div>
+                  <div style={{ color: '#475569' }}>
                     {entry.sku_code} · {entry.location_name}
                   </div>
-                  <div style={{ color: '#857b6f' }}>
+                  <div style={{ color: '#64748b' }}>
                     {entry.movement_type} · {Number(entry.qty_delta) >= 0 ? '+' : ''}{Number(entry.qty_delta)}
                   </div>
-                  <div style={{ color: '#6f685f' }}>
+                  <div style={{ color: '#475569' }}>
                     {entry.actor_name || 'System'} · {new Date(entry.created_at).toLocaleString()}
                   </div>
                 </article>
@@ -389,7 +390,7 @@ export function InventoryWorkspace() {
 
       <article style={surfaceCardStyle}>
         <h3 style={{ marginTop: 0 }}>Operator Notes</h3>
-        <p style={{ marginBottom: 0, color: '#6f685f' }}>{message}</p>
+        <p style={tokenMutedStyle}>{message}</p>
       </article>
     </section>
   );

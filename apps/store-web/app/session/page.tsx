@@ -10,6 +10,7 @@ import {
   sectionIntroStyle,
   sectionLabelStyle,
   pillStyle,
+  tokenMutedStyle,
   surfaceCardStyle,
 } from '../motocore-theme';
 
@@ -34,13 +35,6 @@ type SessionProfile = {
   };
 };
 
-const cardStyle: React.CSSProperties = {
-  padding: 18,
-  borderRadius: 16,
-  background: '#111827',
-  border: '1px solid #1f2937',
-};
-
 export default async function StoreSessionPage() {
   const profile = await fetchStoreApi<SessionProfile>('/auth/me');
   const configured = isStoreApiConfigured();
@@ -55,7 +49,7 @@ export default async function StoreSessionPage() {
         <p style={pageLeadStyle}>
           This closes the last UX gap by making the auth/session state visible to the operator instead of hidden.
         </p>
-        <p style={{ margin: 0, color: '#6f685f' }}>
+        <p style={tokenMutedStyle}>
           {configured
             ? 'The session endpoint is reachable.'
             : 'Set `API_BASE_URL`, `STORE_DEMO_BEARER_TOKEN`, and `STORE_DEMO_STORE_ID` to inspect a live session.'}
@@ -101,10 +95,10 @@ export default async function StoreSessionPage() {
           <div style={{ display: 'grid', gap: 10 }}>
             {profile?.contexts?.length ? (
               profile.contexts.map((context, index) => (
-                <article key={`${context.type}-${context.storeId || index}`} style={{ ...surfaceCardStyle, padding: 14 }}>
-                  <div style={{ fontWeight: 700 }}>{context.type}</div>
-                  <div style={{ color: '#6f685f' }}>{context.storeName || context.storeId || 'No store selected'}</div>
-                  <div style={{ color: '#857b6f' }}>{context.roles?.join(', ') || 'No roles'}</div>
+                <article key={`${context.type}-${context.storeId || index}`} style={{ ...surfaceCardStyle, padding: 12 }}>
+                  <div style={{ fontWeight: 600 }}>{context.type}</div>
+                  <div style={{ color: '#475569' }}>{context.storeName || context.storeId || 'No store selected'}</div>
+                  <div style={{ color: '#64748b' }}>{context.roles?.join(', ') || 'No roles'}</div>
                 </article>
               ))
             ) : (
@@ -132,7 +126,7 @@ export default async function StoreSessionPage() {
 
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>What this tells us</h3>
-          <p style={{ marginBottom: 0, lineHeight: 1.6, color: '#6f685f' }}>
+          <p style={tokenMutedStyle}>
             The session view makes auth state visible, which helps operators debug context issues, expired tokens, and
             permission mismatches without leaving the workspace.
           </p>

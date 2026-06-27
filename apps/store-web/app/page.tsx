@@ -11,6 +11,7 @@ import {
   metricLabelStyle,
   metricValueStyle,
   metricNoteStyle,
+  tokenMutedStyle,
 } from './motocore-theme';
 
 const quickActions = [
@@ -47,7 +48,7 @@ export default async function StoreDashboardPage() {
           The store shell is now wired for mobile and desktop, with quick access to POS, catalog, inventory,
           shipping, billing, and reporting.
         </p>
-        <p style={{ margin: 0, color: '#6f685f' }}>
+        <p style={tokenMutedStyle}>
           {isStoreApiConfigured()
             ? 'Live API demo mode is active and the dashboard is reading from the backend.'
             : 'Set `API_BASE_URL`, `STORE_DEMO_BEARER_TOKEN`, and `STORE_DEMO_STORE_ID` to enable live API data.'}
@@ -75,8 +76,8 @@ export default async function StoreDashboardPage() {
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 }}>
         {quickActions.map((action) => (
           <a key={action.href} href={action.href} style={{ ...surfaceCardStyle, textDecoration: 'none', color: 'inherit' }}>
-            <div style={{ fontWeight: 800, marginBottom: 8 }}>{action.title}</div>
-            <p style={{ margin: 0, lineHeight: 1.55, color: '#6f685f' }}>{action.detail}</p>
+            <div style={{ fontWeight: 600, marginBottom: 8 }}>{action.title}</div>
+            <p style={{ margin: 0, lineHeight: 1.55, color: '#475569' }}>{action.detail}</p>
           </a>
         ))}
       </section>
@@ -84,7 +85,7 @@ export default async function StoreDashboardPage() {
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16 }}>
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Readiness gaps left</h3>
-          <p style={{ marginBottom: 0, lineHeight: 1.6, color: '#6f685f' }}>
+          <p style={{ marginBottom: 0, lineHeight: 1.6, color: '#475569' }}>
             We still need deeper workflow coverage, stronger validation feedback, and richer production monitoring
             before the store app is truly “done.” The shell and primary screens are now much closer to a real operator
             experience.
@@ -92,7 +93,7 @@ export default async function StoreDashboardPage() {
         </article>
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>What improved this pass</h3>
-          <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.8, color: '#6f685f' }}>
+          <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.8, color: '#475569' }}>
             <li>Mobile drawer navigation and route highlighting.</li>
             <li>Downloadable code archive from the workspace shell.</li>
             <li>Responsive dashboards and workspace sections.</li>

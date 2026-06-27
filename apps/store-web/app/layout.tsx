@@ -34,8 +34,8 @@ export default function StoreLayout({ children }: { children: ReactNode }) {
     <html lang="en">
       <body className={geistSans.variable}>
         <WorkspaceShell
-          accent="motocore"
-          badge="MotoCore"
+          accent="blue"
+          badge="AxiomPOS"
           description="Owner, manager, and cashier workflows"
           navItems={navItems}
           title="Store Console"

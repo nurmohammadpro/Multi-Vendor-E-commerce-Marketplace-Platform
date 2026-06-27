@@ -3,11 +3,13 @@
 import { useEffect, useState } from 'react';
 
 import {
+  emptyStateStyle,
   fieldStyle,
   metricLabelStyle,
   metricValueStyle,
   pageShellStyle,
   secondaryButtonStyle,
+  tokenMutedStyle,
   surfaceCardStyle,
 } from '../motocore-theme';
 
@@ -61,14 +63,6 @@ type InvoiceDetail = {
     status: string;
     paid_at?: string | null;
   }>;
-};
-
-const emptyStateStyle: React.CSSProperties = {
-  padding: 16,
-  borderRadius: 14,
-  border: '1px dashed rgba(82, 56, 30, 0.16)',
-  color: '#6f685f',
-  lineHeight: 1.6,
 };
 
 async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
@@ -178,16 +172,16 @@ export function BillingWorkspace() {
           <h3 style={{ marginTop: 0 }}>Current Subscription</h3>
           {subscription ? (
             <>
-              <div style={{ fontSize: 22, fontWeight: 700 }}>{subscription.plan_name}</div>
-              <div style={{ color: '#6f685f' }}>
+              <div style={{ fontSize: 20, fontWeight: 600 }}>{subscription.plan_name}</div>
+              <div style={tokenMutedStyle}>
                 {subscription.status} · {subscription.price_amount} / {subscription.billing_cycle}
               </div>
-              <div style={{ color: '#857b6f' }}>
+              <div style={{ color: '#64748b' }}>
                 Renewal: {subscription.renewal_at ? new Date(subscription.renewal_at).toLocaleString() : '—'}
               </div>
             </>
           ) : (
-            <p style={{ marginBottom: 0, color: '#6f685f' }}>No active subscription found.</p>
+            <p style={tokenMutedStyle}>No active subscription found.</p>
           )}
         </article>
 
@@ -223,11 +217,11 @@ export function BillingWorkspace() {
             {plans.length ? (
               plans.map((plan) => (
                 <article key={plan.id} style={{ ...surfaceCardStyle, padding: 14 }}>
-                  <div style={{ fontWeight: 700 }}>{plan.name}</div>
-                  <div style={{ color: '#6f685f' }}>
+                  <div style={{ fontWeight: 600 }}>{plan.name}</div>
+                  <div style={{ color: '#475569' }}>
                     {plan.price_amount} / {plan.billing_cycle}
                   </div>
-                  <div style={{ color: '#857b6f' }}>
+                  <div style={{ color: '#64748b' }}>
                     {Array.isArray(plan.features_json) ? plan.features_json.join(', ') : 'Feature set configured'}
                   </div>
                 </article>
@@ -244,11 +238,11 @@ export function BillingWorkspace() {
             {invoices.length ? (
               invoices.map((invoice) => (
                 <article key={invoice.id} onClick={() => loadInvoice(invoice.id)} style={{ ...surfaceCardStyle, padding: 14, cursor: 'pointer' }}>
-                  <div style={{ fontWeight: 700 }}>{invoice.invoice_no}</div>
-                  <div style={{ color: '#6f685f' }}>
+                  <div style={{ fontWeight: 600 }}>{invoice.invoice_no}</div>
+                  <div style={{ color: '#475569' }}>
                     {invoice.invoice_type} · {invoice.status}
                   </div>
-                  <div style={{ color: '#857b6f' }}>
+                  <div style={{ color: '#64748b' }}>
                     Total: {invoice.total_amount} · Paid: {invoice.paid_amount}
                   </div>
                 </article>
@@ -263,15 +257,15 @@ export function BillingWorkspace() {
       <article style={surfaceCardStyle}>
         <h3 style={{ marginTop: 0 }}>Invoice Detail</h3>
         {!selectedInvoice ? (
-          <p style={{ marginBottom: 0, color: '#6f685f' }}>Select an invoice to review payments or record a new payment.</p>
+          <p style={tokenMutedStyle}>Select an invoice to review payments or record a new payment.</p>
         ) : (
           <section style={{ display: 'grid', gap: 12 }}>
             <div>
-              <div style={{ fontWeight: 700 }}>{selectedInvoice.invoice.invoice_no}</div>
-              <div style={{ color: '#6f685f' }}>
+              <div style={{ fontWeight: 600 }}>{selectedInvoice.invoice.invoice_no}</div>
+              <div style={{ color: '#475569' }}>
                 {selectedInvoice.invoice.status} · Total: {selectedInvoice.invoice.total_amount}
               </div>
-              <div style={{ color: '#857b6f' }}>Remaining balance: {remainingAmount}</div>
+              <div style={{ color: '#64748b' }}>Remaining balance: {remainingAmount}</div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
               <select value={paymentForm.paymentMethod} onChange={(e) => setPaymentForm((v) => ({ ...v, paymentMethod: e.target.value }))} style={fieldStyle}>
@@ -290,11 +284,11 @@ export function BillingWorkspace() {
               {selectedInvoice.payments.length ? (
                 selectedInvoice.payments.map((payment) => (
                   <article key={payment.id} style={{ ...surfaceCardStyle, padding: 14 }}>
-                    <div style={{ fontWeight: 700 }}>{payment.payment_method}</div>
-                    <div style={{ color: '#6f685f' }}>
+                    <div style={{ fontWeight: 600 }}>{payment.payment_method}</div>
+                    <div style={{ color: '#475569' }}>
                       {payment.status} · {payment.amount}
                     </div>
-                    <div style={{ color: '#857b6f' }}>{payment.reference_no || 'No reference'}</div>
+                    <div style={{ color: '#64748b' }}>{payment.reference_no || 'No reference'}</div>
                   </article>
                 ))
               ) : (
@@ -307,7 +301,7 @@ export function BillingWorkspace() {
 
       <article style={surfaceCardStyle}>
         <h3 style={{ marginTop: 0 }}>Operator Notes</h3>
-        <p style={{ marginBottom: 0, color: '#6f685f' }}>{message}</p>
+        <p style={tokenMutedStyle}>{message}</p>
       </article>
     </section>
   );

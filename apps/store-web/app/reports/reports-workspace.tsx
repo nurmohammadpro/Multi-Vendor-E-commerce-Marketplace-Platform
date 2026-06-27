@@ -13,6 +13,7 @@ import {
   sectionLabelStyle,
   secondaryButtonStyle,
   surfaceCardStyle,
+  tokenMutedStyle,
 } from '../motocore-theme';
 
 type SalesReport = {
@@ -118,13 +119,13 @@ export function ReportsWorkspace() {
           <div style={{ display: 'grid', gap: 10 }}>
             {sales?.recentSales.map((sale) => (
               <article key={sale.sale_no} style={{ ...surfaceCardStyle, padding: 14 }}>
-                <div style={{ fontWeight: 700 }}>{sale.sale_no}</div>
-                <div style={{ color: '#6f685f' }}>
+                <div style={{ fontWeight: 600 }}>{sale.sale_no}</div>
+                <div style={{ color: '#475569' }}>
                   {sale.total_amount} · {sale.payment_status} · {sale.fulfillment_status}
                 </div>
-                <div style={{ color: '#857b6f' }}>{new Date(sale.created_at).toLocaleString()}</div>
+                <div style={{ color: '#64748b' }}>{new Date(sale.created_at).toLocaleString()}</div>
               </article>
-            )) ?? <p style={{ marginBottom: 0, color: '#6f685f' }}>No sales data yet.</p>}
+            )) ?? <p style={tokenMutedStyle}>No sales data yet.</p>}
           </div>
         </article>
 
@@ -133,15 +134,15 @@ export function ReportsWorkspace() {
           <div style={{ display: 'grid', gap: 10 }}>
             {inventory?.balances.map((balance) => (
               <article key={`${balance.location_name}-${balance.sku_code}`} style={{ ...surfaceCardStyle, padding: 14 }}>
-                <div style={{ fontWeight: 700 }}>{balance.product_name}</div>
-                <div style={{ color: '#6f685f' }}>
+                <div style={{ fontWeight: 600 }}>{balance.product_name}</div>
+                <div style={{ color: '#475569' }}>
                   {balance.sku_code} · {balance.location_name}
                 </div>
-                <div style={{ color: '#857b6f' }}>
+                <div style={{ color: '#64748b' }}>
                   On hand: {balance.on_hand_qty} · Available: {balance.available_qty}
                 </div>
               </article>
-            )) ?? <p style={{ marginBottom: 0, color: '#6f685f' }}>No inventory data yet.</p>}
+            )) ?? <p style={tokenMutedStyle}>No inventory data yet.</p>}
           </div>
         </article>
       </section>
@@ -158,7 +159,7 @@ export function ReportsWorkspace() {
 
       <article style={surfaceCardStyle}>
         <h3 style={{ marginTop: 0 }}>Operator Notes</h3>
-        <p style={{ marginBottom: 0, color: '#6f685f' }}>{message}</p>
+        <p style={tokenMutedStyle}>{message}</p>
       </article>
     </section>
   );

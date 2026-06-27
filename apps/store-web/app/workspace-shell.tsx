@@ -146,8 +146,8 @@ export function WorkspaceShell({ accent, badge, description, navItems, title, ch
           margin: 0;
           min-height: 100%;
           background:
-            radial-gradient(circle at top left, rgba(180, 83, 9, 0.16), transparent 30%),
-            radial-gradient(circle at top right, rgba(120, 53, 15, 0.08), transparent 26%),
+            radial-gradient(circle at top left, rgba(37, 99, 235, 0.1), transparent 28%),
+            radial-gradient(circle at top right, rgba(37, 99, 235, 0.05), transparent 24%),
             linear-gradient(180deg, ${motocoreColors.background} 0%, ${motocoreColors.backgroundAlt} 100%);
           color: ${motocoreColors.ink};
           font-family:
@@ -159,22 +159,7 @@ export function WorkspaceShell({ accent, badge, description, navItems, title, ch
           color: inherit;
         }
 
-        .theme-blue .workspace-download {
-          border-color: rgba(96, 165, 250, 0.35);
-          background: linear-gradient(135deg, rgba(37, 99, 235, 0.28), rgba(14, 165, 233, 0.2));
-        }
-
-        .theme-rose .workspace-download {
-          border-color: rgba(244, 114, 182, 0.35);
-          background: linear-gradient(135deg, rgba(190, 24, 93, 0.26), rgba(249, 115, 22, 0.2));
-        }
-
-        .theme-motocore .workspace-download {
-          border-color: rgba(180, 83, 9, 0.22);
-          background: linear-gradient(135deg, rgba(180, 83, 9, 0.12), rgba(234, 88, 12, 0.08));
-        }
-
-        .theme-motocore {
+        .theme-blue {
           --shell-ink: ${motocoreColors.ink};
           --shell-muted: ${motocoreColors.muted};
           --shell-surface: ${motocoreColors.surface};
@@ -182,13 +167,23 @@ export function WorkspaceShell({ accent, badge, description, navItems, title, ch
           --shell-border: ${motocoreColors.border};
           --shell-accent: ${motocoreColors.accent};
           --shell-accent-soft: ${motocoreColors.accentSoft};
-          --shell-active: rgba(180, 83, 9, 0.18);
+          --shell-active: rgba(37, 99, 235, 0.08);
           --shell-shadow: ${motocoreColors.shadowStrong};
+        }
+
+        .theme-blue .workspace-download {
+          border-color: rgba(37, 99, 235, 0.26);
+          background: linear-gradient(135deg, rgba(37, 99, 235, 0.12), rgba(37, 99, 235, 0.06));
+        }
+
+        .theme-rose .workspace-download {
+          border-color: rgba(244, 114, 182, 0.26);
+          background: linear-gradient(135deg, rgba(190, 24, 93, 0.12), rgba(249, 115, 22, 0.06));
         }
 
         .workspace-shell {
           display: grid;
-          grid-template-columns: 272px minmax(0, 1fr);
+          grid-template-columns: 256px minmax(0, 1fr);
           min-height: 100dvh;
         }
 
@@ -201,15 +196,15 @@ export function WorkspaceShell({ accent, badge, description, navItems, title, ch
           top: 0;
           align-self: start;
           min-height: 100dvh;
-          padding: 24px;
+          padding: 20px;
           border-right: 1px solid var(--shell-border, rgba(148, 163, 184, 0.16));
-          background: var(--shell-surface, rgba(15, 23, 42, 0.94));
+          background: linear-gradient(180deg, var(--shell-surface, rgba(255, 255, 255, 0.96)), rgba(248, 250, 252, 0.92));
           display: flex;
           flex-direction: column;
         }
 
         .workspace-brand {
-          margin-bottom: 24px;
+          margin-bottom: 20px;
         }
 
         .workspace-brand-kicker,
@@ -218,8 +213,8 @@ export function WorkspaceShell({ accent, badge, description, navItems, title, ch
           align-items: center;
           width: fit-content;
           margin-bottom: 8px;
-          font-size: 12px;
-          font-weight: 800;
+          font-size: 10px;
+          font-weight: 600;
           letter-spacing: 0.16em;
           text-transform: uppercase;
         }
@@ -241,20 +236,22 @@ export function WorkspaceShell({ accent, badge, description, navItems, title, ch
 
         .workspace-brand strong {
           display: block;
-          font-size: 24px;
-          line-height: 1.1;
-          color: var(--shell-ink, #f8fafc);
+          font-size: 20px;
+          line-height: 1.15;
+          letter-spacing: -0.03em;
+          color: var(--shell-ink, #0f172a);
         }
 
         .workspace-brand p {
-          margin: 10px 0 0;
-          color: var(--shell-muted, rgba(226, 232, 240, 0.74));
-          line-height: 1.5;
+          margin: 8px 0 0;
+          color: var(--shell-muted, #475569);
+          line-height: 1.45;
+          font-size: 13px;
         }
 
         .workspace-nav {
           display: grid;
-          gap: 10px;
+          gap: 8px;
         }
 
         .workspace-nav a {
@@ -262,12 +259,12 @@ export function WorkspaceShell({ accent, badge, description, navItems, title, ch
           align-items: center;
           justify-content: space-between;
           gap: 12px;
-          padding: 12px 14px;
-          border-radius: 12px;
+          padding: 10px 12px;
+          border-radius: 8px;
           border: 1px solid var(--shell-border, rgba(148, 163, 184, 0.16));
-          background: var(--shell-surface-strong, rgba(15, 23, 42, 0.72));
+          background: var(--shell-surface-strong, rgba(248, 250, 252, 0.96));
           text-decoration: none;
-          font-weight: 600;
+          font-weight: 500;
           color: var(--shell-ink, rgba(226, 232, 240, 0.95));
           transition:
             transform 0.18s ease,
@@ -278,50 +275,50 @@ export function WorkspaceShell({ accent, badge, description, navItems, title, ch
         .workspace-nav a:hover {
           transform: translateY(-1px);
           border-color: var(--shell-accent-soft, rgba(96, 165, 250, 0.5));
-          background: rgba(255, 250, 243, 0.98);
+          background: #fff;
         }
 
         .workspace-nav a[data-active='true'] {
           border-color: var(--shell-accent, rgba(96, 165, 250, 0.56));
-          background: var(--shell-active, rgba(30, 41, 59, 0.98));
+          background: var(--shell-active, rgba(37, 99, 235, 0.08));
         }
 
         .workspace-nav-indicator {
-          font-size: 12px;
-          font-weight: 700;
+          font-size: 11px;
+          font-weight: 600;
           color: var(--shell-muted, rgba(148, 163, 184, 0.84));
         }
 
         .workspace-sidebar-footer {
           margin-top: auto;
-          padding-top: 18px;
+          padding-top: 16px;
           display: grid;
-          gap: 10px;
+          gap: 8px;
         }
 
         .workspace-sidebar-footer p {
           margin: 0;
-          color: var(--shell-muted, rgba(226, 232, 240, 0.68));
+          color: var(--shell-muted, #64748b);
           font-size: 13px;
-          line-height: 1.5;
+          line-height: 1.45;
         }
 
         .workspace-main {
           min-width: 0;
-          padding: 32px;
+          padding: 24px;
         }
 
         .workspace-current {
           display: inline-flex;
           align-items: center;
-          margin-bottom: 22px;
-          padding: 8px 12px;
-          border-radius: 999px;
+          margin-bottom: 18px;
+          padding: 6px 10px;
+          border-radius: 6px;
           background: var(--shell-surface-strong, rgba(15, 23, 42, 0.72));
           border: 1px solid var(--shell-border, rgba(148, 163, 184, 0.16));
-          color: var(--shell-muted, rgba(226, 232, 240, 0.78));
-          font-size: 13px;
-          font-weight: 600;
+          color: var(--shell-muted, #475569);
+          font-size: 12px;
+          font-weight: 500;
         }
 
         .workspace-download,
@@ -329,18 +326,18 @@ export function WorkspaceShell({ accent, badge, description, navItems, title, ch
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          min-height: 44px;
-          padding: 10px 14px;
-          border-radius: 12px;
+          min-height: 32px;
+          padding: 6px 12px;
+          border-radius: 6px;
           border: 1px solid var(--shell-border, rgba(148, 163, 184, 0.16));
           text-decoration: none;
-          font-weight: 700;
-          color: var(--shell-ink, #f8fafc);
+          font-weight: 500;
+          color: var(--shell-ink, #0f172a);
         }
 
         .workspace-menu-button {
           display: none;
-          background: var(--shell-surface-strong, rgba(15, 23, 42, 0.82));
+          background: var(--shell-surface-strong, rgba(248, 250, 252, 0.96));
         }
 
         .workspace-download {
@@ -369,9 +366,9 @@ export function WorkspaceShell({ accent, badge, description, navItems, title, ch
             align-items: center;
             justify-content: space-between;
             gap: 12px;
-            padding: 16px;
+            padding: 14px 16px;
             border-bottom: 1px solid var(--shell-border, rgba(148, 163, 184, 0.16));
-            background: rgba(255, 249, 242, 0.92);
+            background: rgba(248, 250, 252, 0.92);
             position: sticky;
             top: 0;
             z-index: 20;
@@ -387,12 +384,14 @@ export function WorkspaceShell({ accent, badge, description, navItems, title, ch
 
           .workspace-topbar-copy h1 {
             margin: 0;
-            font-size: 18px;
+            font-size: 16px;
+            line-height: 1.2;
+            letter-spacing: -0.03em;
           }
 
           .workspace-topbar-copy p {
-            margin: 4px 0 0;
-            color: var(--shell-muted, rgba(226, 232, 240, 0.74));
+            margin: 3px 0 0;
+            color: var(--shell-muted, #64748b);
             font-size: 13px;
             line-height: 1.4;
           }
@@ -414,7 +413,7 @@ export function WorkspaceShell({ accent, badge, description, navItems, title, ch
             transform: translateX(-102%);
             transition: transform 0.22s ease;
             z-index: 30;
-            box-shadow: 0 24px 80px var(--shell-shadow, rgba(2, 6, 23, 0.45));
+            box-shadow: 0 20px 50px var(--shell-shadow, rgba(2, 6, 23, 0.18));
           }
 
           .workspace-sidebar.is-open {
@@ -427,7 +426,7 @@ export function WorkspaceShell({ accent, badge, description, navItems, title, ch
             inset: 0;
             border: 0;
             padding: 0;
-            background: rgba(68, 41, 10, 0.24);
+            background: rgba(15, 23, 42, 0.16);
             opacity: 0;
             pointer-events: none;
             transition: opacity 0.22s ease;
