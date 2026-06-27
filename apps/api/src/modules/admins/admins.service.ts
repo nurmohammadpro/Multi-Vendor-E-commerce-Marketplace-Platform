@@ -224,4 +224,86 @@ export class AdminsService {
       client.release();
     }
   }
+
+  async promoteAdminToOwner(tenantId: string, membershipId: string) {
+    const result = await this.pool.query<{
+      id: string;
+      user_id: string;
+    }>(
+      `
+        update access.admin_memberships am
+        set base_role_id = owner_role.id,
+            updated_at = now()
+        from access.roles owner_role
+        where am.id = $1
+          and am.tenant_id = $2
+          and owner_role.code = 'platform_owner'
+        returning am.id, am.user_id
+      `,
+      [membershipId, tenantId],
+    );
+
+    const row = result.rows[0];
+    if (!row) {
+      throw new BadRequestException('Platform admin membership not found');
+    }
+
+    await this.pool.query(
+      `
+        update identity.users
+        set status = 'active',
+            updated_at = now()
+        where id = $1
+      `,
+      [row.user_id],
+    );
+
+    return {
+      admin: {
+        membershipId: row.id,
+        userId: row.user_id,
+        baseRoleCode: 'platform_owner',
+      },
+    };
+  }
+
+  async resetAdminPassword(tenantId: string, membershipId: string, password: string) {
+    if (password.length < 10) {
+      throw new BadRequestException('Password must be at least 10 characters');
+    }
+
+    const memberResult = await this.pool.query<{
+      user_id: string;
+    }>(
+      `
+        select user_id
+        from access.admin_memberships
+        where id = $1
+          and tenant_id = $2
+        limit 1
+      `,
+      [membershipId, tenantId],
+    );
+
+    const member = memberResult.rows[0];
+    if (!member) {
+      throw new BadRequestException('Platform admin membership not found');
+    }
+
+    const passwordHash = await hashPassword(password);
+    await this.pool.query(
+      `
+        update identity.users
+        set password_hash = $2,
+            updated_at = now()
+        where id = $1
+      `,
+      [member.user_id, passwordHash],
+    );
+
+    return {
+      success: true,
+      membershipId,
+    };
+  }
 }

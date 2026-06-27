@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 type PlatformAdminRow = {
   membershipId: string;
@@ -58,10 +58,25 @@ export default function AdminSettingsPage() {
     phone: '',
     password: '',
   });
+  const [ownerForm, setOwnerForm] = useState({
+    membershipId: '',
+  });
+  const [passwordForm, setPasswordForm] = useState({
+    membershipId: '',
+    password: '',
+  });
 
   const refresh = async () => {
     const payload = await readJson<{ admins: PlatformAdminRow[] }>('/api/admins');
     setAdmins(payload.admins ?? []);
+    setOwnerForm((current) => ({
+      ...current,
+      membershipId: current.membershipId || payload.admins?.find((admin) => admin.baseRoleCode !== 'platform_owner')?.membershipId || payload.admins?.[0]?.membershipId || '',
+    }));
+    setPasswordForm((current) => ({
+      ...current,
+      membershipId: current.membershipId || payload.admins?.[0]?.membershipId || '',
+    }));
   };
 
   useEffect(() => {
@@ -69,6 +84,8 @@ export default function AdminSettingsPage() {
   }, []);
 
   const canCreateAdmin = Boolean(form.fullName.trim() && form.email.trim() && form.password.length >= 10 && !loading);
+  const canPromote = Boolean(ownerForm.membershipId && !loading);
+  const canResetPassword = Boolean(passwordForm.membershipId && passwordForm.password.length >= 10 && !loading);
 
   const createAdmin = async () => {
     if (!form.fullName.trim() || !form.email.trim() || form.password.length < 10) {
@@ -90,13 +107,60 @@ export default function AdminSettingsPage() {
       });
       await refresh();
       setForm({ fullName: '', email: '', phone: '', password: '' });
-      setMessage('Platform admin created.');
+      setMessage('Platform admin created. That password is the login password for the dashboard.');
     } catch (error) {
       setMessage((error as Error).message);
     } finally {
       setLoading(false);
     }
   };
+
+  const promoteToOwner = async () => {
+    if (!ownerForm.membershipId) {
+      setMessage('Select a platform admin to promote.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await readJson(`/api/admins/${ownerForm.membershipId}/promote-owner`, {
+        method: 'POST',
+      });
+      await refresh();
+      setMessage('Platform admin promoted to platform owner.');
+    } catch (error) {
+      setMessage((error as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetPassword = async () => {
+    if (!passwordForm.membershipId || passwordForm.password.length < 10) {
+      setMessage('Select a platform admin and enter a password of at least 10 characters.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await readJson(`/api/admins/${passwordForm.membershipId}/password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: passwordForm.password }),
+      });
+      setPasswordForm((current) => ({ ...current, password: '' }));
+      setMessage('Platform admin password updated.');
+    } catch (error) {
+      setMessage((error as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const selectedOwner = useMemo(
+    () => admins.find((admin) => admin.membershipId === ownerForm.membershipId) ?? null,
+    [admins, ownerForm.membershipId],
+  );
 
   return (
     <main>
@@ -121,6 +185,53 @@ export default function AdminSettingsPage() {
             <input value={form.password} onChange={(e) => setForm((v) => ({ ...v, password: e.target.value }))} style={inputStyle} type="password" placeholder="Temporary password" />
             <button onClick={createAdmin} style={buttonStyle} disabled={!canCreateAdmin}>Create Admin</button>
           </div>
+          <p style={{ marginTop: 10, marginBottom: 0, opacity: 0.74, lineHeight: 1.5 }}>
+            Use this password as the dashboard login password for the new platform admin.
+          </p>
+        </article>
+
+        <article style={cardStyle}>
+          <h3 style={{ marginTop: 0 }}>Promote to Platform Owner</h3>
+          <div style={{ display: 'grid', gap: 10 }}>
+            <select value={ownerForm.membershipId} onChange={(e) => setOwnerForm({ membershipId: e.target.value })} style={inputStyle}>
+              {admins.map((admin) => (
+                <option key={admin.membershipId} value={admin.membershipId}>
+                  {admin.fullName || admin.email || admin.userId} · {admin.baseRoleCode}
+                </option>
+              ))}
+            </select>
+            <button onClick={promoteToOwner} style={buttonStyle} disabled={!canPromote}>
+              Promote Selected Admin
+            </button>
+          </div>
+          <p style={{ marginTop: 10, marginBottom: 0, opacity: 0.74, lineHeight: 1.5 }}>
+            Use this during handover to make the real owner a platform owner.
+          </p>
+          {selectedOwner ? (
+            <p style={{ marginTop: 8, marginBottom: 0, opacity: 0.78, lineHeight: 1.5 }}>
+              Selected: {selectedOwner.fullName || selectedOwner.email || selectedOwner.userId}
+            </p>
+          ) : null}
+        </article>
+
+        <article style={cardStyle}>
+          <h3 style={{ marginTop: 0 }}>Reset Platform Admin Password</h3>
+          <div style={{ display: 'grid', gap: 10 }}>
+            <select value={passwordForm.membershipId} onChange={(e) => setPasswordForm((v) => ({ ...v, membershipId: e.target.value }))} style={inputStyle}>
+              {admins.map((admin) => (
+                <option key={admin.membershipId} value={admin.membershipId}>
+                  {admin.fullName || admin.email || admin.userId} · {admin.baseRoleCode}
+                </option>
+              ))}
+            </select>
+            <input value={passwordForm.password} onChange={(e) => setPasswordForm((v) => ({ ...v, password: e.target.value }))} style={inputStyle} type="password" placeholder="New password" />
+            <button onClick={resetPassword} style={buttonStyle} disabled={!canResetPassword}>
+              Update Password
+            </button>
+          </div>
+          <p style={{ marginTop: 10, marginBottom: 0, opacity: 0.74, lineHeight: 1.5 }}>
+            This is the password the admin uses to sign into the login screen.
+          </p>
         </article>
 
         <article style={cardStyle}>
