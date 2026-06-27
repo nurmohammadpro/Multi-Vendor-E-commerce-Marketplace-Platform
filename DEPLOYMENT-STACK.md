@@ -13,7 +13,13 @@ For Phase 1, the best production setup is:
 - `pgAdmin` for admin access
 - scheduled PostgreSQL backups
 
-The compose file is available at [deploy/docker-compose.phase1.yml](/Users/nur/Documents/Multi-Vendor%20Platform/deploy/docker-compose.phase1.yml:1) and the environment template is at [deploy/.env.phase1.example](/Users/nur/Documents/Multi-Vendor%20Platform/deploy/.env.phase1.example:1).
+The canonical compose file is [`docker-compose.yml`](/Users/nur/Documents/Multi-Vendor%20Platform/docker-compose.yml:1) and the environment template is at [deploy/.env.phase1.example](/Users/nur/Documents/Multi-Vendor%20Platform/deploy/.env.phase1.example:1).
+
+For dual-mode work, use:
+
+- `deploy/.env.dev.example` for local development
+- `deploy/.env.prod.example` for the Hostinger KVM2 + Easypanel VPS
+- `deploy/EASYPANEL.md` for the exact split-stack workflow
 
 ---
 
@@ -166,6 +172,7 @@ The production compose stack currently includes:
 - `pgadmin`
 - `minio`
 - `postgres_backup`
+- `login_web`
 - `api`
 - `store_web`
 - `admin_web`
