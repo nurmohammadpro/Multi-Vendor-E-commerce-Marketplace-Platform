@@ -1,0 +1,14 @@
+import { NextResponse } from 'next/server';
+
+import { requestStoreApi } from '../../../../../lib/api';
+
+type RouteContext = {
+  params: Promise<{ shipmentId: string }>;
+};
+
+export async function GET(_: Request, context: RouteContext) {
+  const { shipmentId } = await context.params;
+  const response = await requestStoreApi(`/shipping/shipments/${shipmentId}`);
+  const payload = await response.json().catch(() => ({ ok: false, error: 'Invalid upstream response' }));
+  return NextResponse.json(payload, { status: response.status });
+}

@@ -41,6 +41,49 @@ Recommended order:
 9. support and notifications
 10. reports and dashboards
 
+## Demo API Wiring
+
+For the current store and admin app shells, live server-rendered API cards can be enabled with:
+
+```bash
+API_BASE_URL=https://api.example.com/v1
+STORE_DEMO_BEARER_TOKEN=...
+STORE_DEMO_STORE_ID=...
+ADMIN_DEMO_BEARER_TOKEN=...
+NEXT_PUBLIC_PRINT_AGENT_URL=http://127.0.0.1:17658
+```
+
+If these are not set, the dashboards fall back safely and still build successfully.
+
+For local bootstrap, create the platform admin seed account with:
+
+```bash
+BOOTSTRAP_PLATFORM_ADMIN_NAME=...
+BOOTSTRAP_PLATFORM_ADMIN_EMAIL=...
+BOOTSTRAP_PLATFORM_ADMIN_PASSWORD=...
+```
+
+That user should be seeded with the `regular_admin` role so the admin console has a real platform-admin login.
+
+For the store POS screen, the browser uses internal Next route handlers for store API calls and talks directly to the
+local print agent only for workstation capabilities.
+
+POS proxy routes now cover:
+
+- `GET /api/pos/registers`
+- `GET /api/pos/locations`
+- `GET /api/pos/search`
+- `POST /api/pos/shifts/open`
+- `POST /api/pos/shifts/:shiftId/close`
+- `POST /api/pos/sales`
+- `POST /api/pos/sales/:saleId/reprint`
+
+Local workstation calls remain:
+
+- `GET {NEXT_PUBLIC_PRINT_AGENT_URL}/health`
+- `POST {NEXT_PUBLIC_PRINT_AGENT_URL}/print/receipt`
+- `POST {NEXT_PUBLIC_PRINT_AGENT_URL}/print/label`
+
 Each slice should include:
 
 - DB tables
