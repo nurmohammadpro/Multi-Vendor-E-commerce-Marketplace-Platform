@@ -96,6 +96,79 @@ platform_owner_membership as (
   on conflict do nothing
   returning user_id
 ),
+platform_admin_user as (
+  insert into identity.users (
+    id,
+    tenant_id,
+    email,
+    phone,
+    password_hash,
+    status,
+    preferred_locale,
+    created_at,
+    updated_at
+  )
+  select
+    coalesce(nullif(current_setting('app.platform_admin_user_id', true), ''), gen_random_uuid()::text)::uuid,
+    tenant_row.id,
+    nullif(current_setting('app.platform_admin_email', true), '')::citext,
+    nullif(current_setting('app.platform_admin_phone', true), ''),
+    current_setting('app.platform_admin_password_hash', true),
+    'active',
+    coalesce(nullif(current_setting('app.platform_admin_locale', true), ''), 'en'),
+    now(),
+    now()
+  from tenant_row
+  on conflict (email)
+  do update set
+    phone = excluded.phone,
+    password_hash = excluded.password_hash,
+    status = 'active',
+    updated_at = now()
+  returning id, tenant_id
+),
+platform_admin_profile as (
+  insert into identity.user_profiles (
+    user_id,
+    full_name,
+    created_at,
+    updated_at
+  )
+  select
+    platform_admin_user.id,
+    current_setting('app.platform_admin_name', true),
+    now(),
+    now()
+  from platform_admin_user
+  on conflict (user_id)
+  do update set
+    full_name = excluded.full_name,
+    updated_at = now()
+  returning user_id
+),
+platform_admin_membership as (
+  insert into access.admin_memberships (
+    id,
+    tenant_id,
+    user_id,
+    base_role_id,
+    status,
+    created_at,
+    updated_at
+  )
+  select
+    gen_random_uuid(),
+    platform_admin_user.tenant_id,
+    platform_admin_user.id,
+    roles.id,
+    'active',
+    now(),
+    now()
+  from platform_admin_user
+  join access.roles roles on roles.code = 'regular_admin'
+  on conflict do nothing
+  returning user_id
+),
 store_owner_user as (
   insert into identity.users (
     id,
@@ -392,6 +465,7 @@ store_owner_membership as (
 select
   tenant_row.id as tenant_id,
   (select id from platform_owner_user) as platform_owner_user_id,
+  (select id from platform_admin_user) as platform_admin_user_id,
   (select id from store_owner_user) as store_owner_user_id,
   (select id from store_row) as store_id,
   (select id from default_location_row limit 1) as default_location_id,

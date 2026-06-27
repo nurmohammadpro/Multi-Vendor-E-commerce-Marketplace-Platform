@@ -43,6 +43,7 @@ async function main() {
 
   try {
     const platformOwnerPasswordHash = await hashPassword(required('BOOTSTRAP_PLATFORM_OWNER_PASSWORD'));
+    const platformAdminPasswordHash = await hashPassword(required('BOOTSTRAP_PLATFORM_ADMIN_PASSWORD'));
     const storeOwnerPasswordHash = await hashPassword(required('BOOTSTRAP_STORE_OWNER_PASSWORD'));
 
     const settings = {
@@ -53,6 +54,11 @@ async function main() {
       'app.platform_owner_phone': process.env.BOOTSTRAP_PLATFORM_OWNER_PHONE || '',
       'app.platform_owner_password_hash': platformOwnerPasswordHash,
       'app.platform_owner_locale': process.env.BOOTSTRAP_PLATFORM_OWNER_LOCALE || 'en',
+      'app.platform_admin_name': required('BOOTSTRAP_PLATFORM_ADMIN_NAME'),
+      'app.platform_admin_email': required('BOOTSTRAP_PLATFORM_ADMIN_EMAIL'),
+      'app.platform_admin_phone': process.env.BOOTSTRAP_PLATFORM_ADMIN_PHONE || '',
+      'app.platform_admin_password_hash': platformAdminPasswordHash,
+      'app.platform_admin_locale': process.env.BOOTSTRAP_PLATFORM_ADMIN_LOCALE || 'en',
       'app.store_owner_name': required('BOOTSTRAP_STORE_OWNER_NAME'),
       'app.store_owner_email': required('BOOTSTRAP_STORE_OWNER_EMAIL'),
       'app.store_owner_phone': required('BOOTSTRAP_STORE_OWNER_PHONE'),
