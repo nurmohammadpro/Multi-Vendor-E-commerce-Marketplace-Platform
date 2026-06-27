@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Loader2, Mail, Lock } from 'lucide-react';
 
-import { login, storeToken } from '@/lib/auth';
+import { getWorkspaceUrl, hasOnlyAdminContext, hasOnlyStoreContext, login, storeToken } from '@/lib/auth';
 
 type FormErrors = {
   identifier?: string;
@@ -14,6 +15,7 @@ type FormErrors = {
 type LoginRole = 'admin' | 'store';
 
 export default function LoginPage() {
+  const router = useRouter();
   const [loginRole, setLoginRole] = useState<LoginRole>('admin');
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
@@ -49,11 +51,17 @@ export default function LoginPage() {
       const data = await login(identifier, password);
       storeToken(data.accessToken);
 
-      if (loginRole === 'admin') {
-        window.location.href = `http://localhost:3001/?token=${data.accessToken}`;
-      } else {
-        window.location.href = `http://localhost:3002/?token=${data.accessToken}`;
+      if (loginRole === 'admin' && hasOnlyAdminContext(data.contexts)) {
+        window.location.href = `${getWorkspaceUrl('admin')}?token=${data.accessToken}`;
+        return;
       }
+
+      if (loginRole === 'store' && hasOnlyStoreContext(data.contexts)) {
+        window.location.href = `${getWorkspaceUrl('store')}?token=${data.accessToken}`;
+        return;
+      }
+
+      router.push('/select-context');
     } catch (err) {
       setErrors({
         general: err instanceof Error ? err.message : 'Login failed. Please try again.',

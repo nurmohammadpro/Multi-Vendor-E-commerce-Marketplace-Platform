@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { getStoredToken, type AuthContext } from '@/lib/auth';
+import { getStoredToken, getWorkspaceUrl, type AuthContext } from '@/lib/auth';
 
 export default function SelectContextPage() {
   const router = useRouter();
@@ -30,6 +30,9 @@ export default function SelectContextPage() {
       .then((data) => {
         if (data.contexts?.length > 0) {
           setContexts(data.contexts);
+          if (data.contexts.length === 1) {
+            void handleSelect(data.contexts[0]);
+          }
         } else {
           router.push('/');
         }
@@ -62,10 +65,7 @@ export default function SelectContextPage() {
         return;
       }
 
-      const redirectUrl =
-        ctx.type === 'admin'
-          ? `http://localhost:3001/?token=${token}`
-          : `http://localhost:3002/?token=${token}`;
+      const redirectUrl = `${getWorkspaceUrl(ctx.type)}?token=${token}`;
 
       window.location.href = redirectUrl;
     } catch {
