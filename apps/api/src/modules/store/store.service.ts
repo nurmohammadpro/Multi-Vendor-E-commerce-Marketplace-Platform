@@ -20,14 +20,21 @@ type UpdateMembershipPayload = {
 };
 
 type CreateStorePayload = {
-  storeCode: string;
   name: string;
   nameBn?: string;
-  slug: string;
   phone: string;
   email?: string;
   timezone: string;
   locale: 'en' | 'bn';
+  storeCode?: string;
+  slug?: string;
+};
+
+type AdminCreateStorePayload = CreateStorePayload & {
+  ownerFullName: string;
+  ownerEmail?: string;
+  ownerPhone?: string;
+  ownerPassword: string;
 };
 
 type UpdateStorePayload = {
@@ -64,6 +71,8 @@ export class StoreService {
   async createStore(session: AuthSession | null, payload: CreateStorePayload) {
     const userId = this.requireUserId(session);
     const tenantId = session?.user.tenantId ?? '';
+    const storeCode = await this.resolveStoreCode(tenantId, payload.storeCode, payload.name);
+    const slug = await this.resolveStoreSlug(payload.slug, payload.name);
 
     const result = await this.pool.query<{
       id: string;
@@ -162,10 +171,10 @@ export class StoreService {
       `,
       [
         userId,
-        payload.storeCode,
+        storeCode,
         payload.name,
         payload.nameBn ?? null,
-        payload.slug,
+        slug,
         payload.phone,
         payload.email ?? null,
         payload.timezone,
@@ -185,6 +194,263 @@ export class StoreService {
     });
 
     return { store };
+  }
+
+  async adminCreateStore(session: AuthSession | null, payload: AdminCreateStorePayload) {
+    const userId = this.requireUserId(session);
+    const tenantId = session?.user.tenantId ?? '';
+    const storeCode = await this.resolveStoreCode(tenantId, payload.storeCode, payload.name);
+    const slug = await this.resolveStoreSlug(payload.slug, payload.name);
+    const ownerFullName = payload.ownerFullName.trim();
+    const ownerEmail = payload.ownerEmail?.trim().toLowerCase() || null;
+    const ownerPhone = payload.ownerPhone?.trim() || null;
+    const ownerPassword = payload.ownerPassword;
+    const passwordHash = await hashPassword(ownerPassword);
+
+    const client = await this.pool.connect();
+
+    try {
+      await client.query('begin');
+
+      let ownerUserId: string | null = null;
+
+      if (ownerEmail) {
+        const existingUser = await client.query<{ id: string }>(
+          `select id from identity.users where email = $1::citext limit 1`,
+          [ownerEmail],
+        );
+        ownerUserId = existingUser.rows[0]?.id ?? null;
+      }
+
+      if (!ownerUserId && ownerPhone) {
+        const existingUser = await client.query<{ id: string }>(
+          `select id from identity.users where phone = $1 limit 1`,
+          [ownerPhone],
+        );
+        ownerUserId = existingUser.rows[0]?.id ?? null;
+      }
+
+      if (ownerUserId) {
+        await client.query(
+          `
+            update identity.users
+            set email = coalesce($2::citext, email),
+                phone = coalesce($3, phone),
+                password_hash = $4,
+                status = 'active',
+                updated_at = now()
+            where id = $1
+          `,
+          [ownerUserId, ownerEmail, ownerPhone, passwordHash],
+        );
+      } else {
+        const insertResult = await client.query<{ id: string }>(
+          `
+            insert into identity.users (
+              id,
+              tenant_id,
+              email,
+              phone,
+              password_hash,
+              status,
+              preferred_locale,
+              created_at,
+              updated_at
+            )
+            values (
+              gen_random_uuid(),
+              $1,
+              $2::citext,
+              $3,
+              $4,
+              'active',
+              'en',
+              now(),
+              now()
+            )
+            returning id
+          `,
+          [tenantId, ownerEmail, ownerPhone, passwordHash],
+        );
+        ownerUserId = insertResult.rows[0]?.id ?? null;
+      }
+
+      if (!ownerUserId) {
+        throw new Error('Unable to create store owner');
+      }
+
+      await client.query(
+        `
+          insert into identity.user_profiles (
+            user_id,
+            full_name,
+            created_at,
+            updated_at
+          )
+          values ($1, $2, now(), now())
+          on conflict (user_id) do update set
+            full_name = excluded.full_name,
+            updated_at = now()
+        `,
+        [ownerUserId, ownerFullName],
+      );
+
+      const storeResult = await client.query<{
+        id: string;
+        store_code: string;
+        name: string;
+        slug: string;
+        status: string;
+      }>(
+        `
+          insert into store.stores (
+            id,
+            tenant_id,
+            owner_user_id,
+            store_code,
+            name,
+            name_bn,
+            slug,
+            phone,
+            email,
+            status,
+            subscription_status,
+            created_at,
+            updated_at
+          )
+          values (
+            gen_random_uuid(),
+            $1,
+            $2,
+            $3,
+            $4,
+            $5,
+            $6,
+            $7,
+            $8::citext,
+            'active',
+            'active',
+            now(),
+            now()
+          )
+          returning id, store_code, name, slug, status
+        `,
+        [
+          tenantId,
+          ownerUserId,
+          storeCode,
+          payload.name,
+          payload.nameBn ?? null,
+          slug,
+          payload.phone,
+          payload.email ?? null,
+        ],
+      );
+
+      const store = storeResult.rows[0];
+
+      await client.query(
+        `
+          insert into store.store_settings (
+            store_id,
+            timezone,
+            currency_code,
+            locale,
+            allow_negative_stock,
+            created_at,
+            updated_at
+          )
+          values (
+            $1,
+            $2,
+            'BDT',
+            $3,
+            false,
+            now(),
+            now()
+          )
+        `,
+        [store.id, payload.timezone, payload.locale],
+      );
+
+      const roleResult = await client.query<{ id: string }>(
+        `select id from access.roles where code = 'store_owner' limit 1`,
+      );
+      const roleId = roleResult.rows[0]?.id;
+      if (!roleId) {
+        throw new Error('Store owner role is missing');
+      }
+
+      await client.query(
+        `
+          insert into access.store_memberships (
+            id,
+            tenant_id,
+            store_id,
+            user_id,
+            role_id,
+            status,
+            joined_at,
+            created_at,
+            updated_at
+          )
+          values (
+            gen_random_uuid(),
+            $1,
+            $2,
+            $3,
+            $4,
+            'active',
+            now(),
+            now(),
+            now()
+          )
+          on conflict (store_id, user_id) where status in ('active', 'invited', 'suspended')
+          do update set
+            role_id = excluded.role_id,
+            status = 'active',
+            joined_at = now(),
+            updated_at = now()
+        `,
+        [tenantId, store.id, ownerUserId, roleId],
+      );
+
+      await client.query('commit');
+
+      await this.auditService.recordUserAction({
+        tenantId,
+        actorUserId: userId,
+        storeId: store.id,
+        actionCode: 'platform.store.create',
+        resourceType: 'store',
+        resourceId: store.id,
+        after: {
+          ...store,
+          ownerFullName,
+          ownerEmail,
+          ownerPhone,
+        },
+      });
+
+      return {
+        store,
+        owner: {
+          userId: ownerUserId,
+          fullName: ownerFullName,
+          email: ownerEmail,
+          phone: ownerPhone,
+        },
+        login: {
+          identifier: ownerEmail || ownerPhone,
+          password: ownerPassword,
+        },
+      };
+    } catch (error) {
+      await client.query('rollback').catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async getMyStores(session: AuthSession | null) {
@@ -1068,5 +1334,83 @@ export class StoreService {
     }
 
     return session.user.id;
+  }
+
+  private normalizeStoreCodeFragment(input: string) {
+    const fragment = input
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+
+    return fragment || 'STORE';
+  }
+
+  private normalizeSlugFragment(input: string) {
+    const fragment = input
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-+|-+$/g, '');
+
+    return fragment || 'store';
+  }
+
+  private buildStoreCode(name: string) {
+    const fragment = this.normalizeStoreCodeFragment(name).slice(0, 18);
+    const suffix = randomBytes(2).toString('hex').toUpperCase();
+    return `${fragment}-${suffix}`.slice(0, 50);
+  }
+
+  private buildStoreSlug(name: string) {
+    const fragment = this.normalizeSlugFragment(name).slice(0, 180);
+    const suffix = randomBytes(2).toString('hex').toLowerCase();
+    return `${fragment}-${suffix}`.slice(0, 200);
+  }
+
+  private async resolveStoreCode(tenantId: string, requestedCode: string | undefined, name: string) {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const candidate = (requestedCode?.trim() || this.buildStoreCode(name)).slice(0, 50);
+      const existing = await this.pool.query<{ id: string }>(
+        `
+          select id
+          from store.stores
+          where tenant_id = $1
+            and store_code = $2
+          limit 1
+        `,
+        [tenantId, candidate],
+      );
+
+      if (!existing.rowCount) {
+        return candidate;
+      }
+      requestedCode = undefined;
+    }
+
+    throw new Error('Unable to generate a unique store code');
+  }
+
+  private async resolveStoreSlug(requestedSlug: string | undefined, name: string) {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const candidate = (requestedSlug?.trim() || this.buildStoreSlug(name)).slice(0, 200);
+      const existing = await this.pool.query<{ id: string }>(
+        `
+          select id
+          from store.stores
+          where slug = $1
+          limit 1
+        `,
+        [candidate],
+      );
+
+      if (!existing.rowCount) {
+        return candidate;
+      }
+      requestedSlug = undefined;
+    }
+
+    throw new Error('Unable to generate a unique store slug');
   }
 }

@@ -41,25 +41,29 @@ type StoreRow = {
 };
 
 type StoreFormState = {
-  storeCode: string;
   name: string;
   nameBn: string;
-  slug: string;
   phone: string;
   email: string;
   timezone: string;
   locale: StoreLocale;
+  ownerFullName: string;
+  ownerEmail: string;
+  ownerPhone: string;
+  ownerPassword: string;
 };
 
 const emptyForm: StoreFormState = {
-  storeCode: '',
   name: '',
   nameBn: '',
-  slug: '',
   phone: '',
   email: '',
   timezone: 'Asia/Dhaka',
   locale: 'en',
+  ownerFullName: '',
+  ownerEmail: '',
+  ownerPhone: '',
+  ownerPassword: '',
 };
 
 async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
@@ -96,6 +100,13 @@ export function StoresWorkspace() {
   const [statusFilter, setStatusFilter] = useState<'all' | StoreStatus>('all');
   const [editingStoreId, setEditingStoreId] = useState<string | null>(null);
   const [form, setForm] = useState<StoreFormState>(emptyForm);
+  const [createdLogin, setCreatedLogin] = useState<{
+    storeName: string;
+    storeCode: string;
+    slug: string;
+    identifier: string;
+    password: string;
+  } | null>(null);
 
   const refresh = async () => {
     const payload = await readJson<{ stores: StoreRow[] }>('/api/stores');
@@ -121,20 +132,28 @@ export function StoresWorkspace() {
   const resetForm = () => {
     setEditingStoreId(null);
     setForm(emptyForm);
+    setCreatedLogin(null);
     setMessage('Ready to add a new store.');
+  };
+
+  const clearFormState = () => {
+    setEditingStoreId(null);
+    setForm(emptyForm);
   };
 
   const beginEdit = (store: StoreRow) => {
     setEditingStoreId(store.id);
     setForm({
-      storeCode: store.store_code,
       name: store.name,
       nameBn: '',
-      slug: store.slug,
       phone: store.phone,
       email: store.email || '',
       timezone: 'Asia/Dhaka',
       locale: 'en',
+      ownerFullName: store.owner_name || '',
+      ownerEmail: store.owner_email || '',
+      ownerPhone: '',
+      ownerPassword: '',
     });
     setMessage(`Editing ${store.name}.`);
   };
@@ -143,14 +162,16 @@ export function StoresWorkspace() {
     setSaving(true);
     try {
       const payload = {
-        storeCode: form.storeCode.trim(),
         name: form.name.trim(),
         nameBn: form.nameBn.trim() || undefined,
-        slug: form.slug.trim(),
         phone: form.phone.trim(),
         email: form.email.trim() || undefined,
         timezone: form.timezone.trim() || 'Asia/Dhaka',
         locale: form.locale,
+        ownerFullName: form.ownerFullName.trim(),
+        ownerEmail: form.ownerEmail.trim() || undefined,
+        ownerPhone: form.ownerPhone.trim() || undefined,
+        ownerPassword: form.ownerPassword,
       };
 
       if (editingStoreId) {
@@ -166,16 +187,27 @@ export function StoresWorkspace() {
         });
         setMessage(`Updated ${payload.name}.`);
       } else {
-        await readJson('/api/stores', {
+        const created = await readJson<{ store: StoreRow; owner?: { fullName: string; email?: string | null; phone?: string | null }; login?: { identifier: string; password: string } }>('/api/stores', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
+        });
+        setCreatedLogin({
+          storeName: created.store.name,
+          storeCode: created.store.store_code,
+          slug: created.store.slug,
+          identifier: created.login?.identifier || payload.ownerEmail || payload.ownerPhone || '',
+          password: created.login?.password || payload.ownerPassword,
         });
         setMessage(`Created ${payload.name}.`);
       }
 
       await refresh();
-      resetForm();
+      if (editingStoreId) {
+        resetForm();
+      } else {
+        clearFormState();
+      }
     } catch (error) {
       setMessage((error as Error).message);
     } finally {
@@ -250,16 +282,6 @@ export function StoresWorkspace() {
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="space-y-2">
-              <Label htmlFor="storeCode">Store code</Label>
-              <Input
-                id="storeCode"
-                value={form.storeCode}
-                disabled={Boolean(editingStoreId)}
-                onChange={(event) => setForm((current) => ({ ...current, storeCode: event.target.value }))}
-                placeholder="STORE001"
-              />
-            </div>
-            <div className="space-y-2">
               <Label htmlFor="storeName">Store name</Label>
               <Input
                 id="storeName"
@@ -275,16 +297,6 @@ export function StoresWorkspace() {
                 value={form.nameBn}
                 onChange={(event) => setForm((current) => ({ ...current, nameBn: event.target.value }))}
                 placeholder="ডেমো স্টোর"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="storeSlug">Slug</Label>
-              <Input
-                id="storeSlug"
-                value={form.slug}
-                disabled={Boolean(editingStoreId)}
-                onChange={(event) => setForm((current) => ({ ...current, slug: event.target.value }))}
-                placeholder="demo-store"
               />
             </div>
             <div className="space-y-2">
@@ -306,6 +318,56 @@ export function StoresWorkspace() {
                 placeholder="owner@example.com"
               />
             </div>
+            {!editingStoreId ? (
+              <div className="rounded-md border border-border/60 bg-muted/40 p-3 space-y-3">
+                <div className="text-sm font-medium">Store owner login</div>
+                <p className="text-xs text-muted-foreground">
+                  These credentials are used for the store console. Use at least one login identifier.
+                </p>
+                <div className="space-y-2">
+                  <Label htmlFor="ownerFullName">Owner full name</Label>
+                  <Input
+                    id="ownerFullName"
+                    value={form.ownerFullName}
+                    onChange={(event) => setForm((current) => ({ ...current, ownerFullName: event.target.value }))}
+                    placeholder="Store Owner"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="ownerEmail">Owner email</Label>
+                  <Input
+                    id="ownerEmail"
+                    type="email"
+                    value={form.ownerEmail}
+                    onChange={(event) => setForm((current) => ({ ...current, ownerEmail: event.target.value }))}
+                    placeholder="owner@example.com"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="ownerPhone">Owner phone</Label>
+                  <Input
+                    id="ownerPhone"
+                    value={form.ownerPhone}
+                    onChange={(event) => setForm((current) => ({ ...current, ownerPhone: event.target.value }))}
+                    placeholder="+8801000000000"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="ownerPassword">Initial password</Label>
+                  <Input
+                    id="ownerPassword"
+                    type="password"
+                    value={form.ownerPassword}
+                    onChange={(event) => setForm((current) => ({ ...current, ownerPassword: event.target.value }))}
+                    placeholder="Create a strong password"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-md border border-border/60 bg-muted/40 p-3 text-xs text-muted-foreground">
+                Owner login details are edited from the owner record, not the store profile.
+              </div>
+            )}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="storeTimezone">Timezone</Label>
@@ -340,8 +402,31 @@ export function StoresWorkspace() {
                 Clear
               </Button>
             </div>
+            {!editingStoreId ? (
+              <p className="text-xs text-muted-foreground">
+                Store code and slug are generated automatically when you save the store.
+              </p>
+            ) : null}
           </CardContent>
-        </Card>
+          </Card>
+
+          {createdLogin ? (
+            <Card className="border-amber-500/30 bg-amber-500/5">
+              <CardHeader className="space-y-1">
+                <CardTitle className="text-sm">Created login details</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Share these with the store owner once. The password is shown here for this session only.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <div><span className="font-medium">Store:</span> {createdLogin.storeName}</div>
+                <div><span className="font-medium">Code:</span> {createdLogin.storeCode}</div>
+                <div><span className="font-medium">Slug:</span> {createdLogin.slug}</div>
+                <div><span className="font-medium">Login:</span> {createdLogin.identifier}</div>
+                <div><span className="font-medium">Password:</span> {createdLogin.password}</div>
+              </CardContent>
+            </Card>
+          ) : null}
 
         <div className="flex flex-col gap-4">
           <Card>
