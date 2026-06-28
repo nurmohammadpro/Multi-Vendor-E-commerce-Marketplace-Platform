@@ -8,6 +8,7 @@ It is used for:
 
 - silent receipt printing
 - local label printing
+- cash drawer open commands
 - startup-time local print availability after user login
 
 ## Why This Exists
@@ -30,6 +31,7 @@ Store Web POS -> http://127.0.0.1:17658 -> local print agent -> local printer
 - Node.js `18+`
 - printer installed in the operating system
 - receipt printer should be `ESC/POS-compatible`
+- label printer should accept raw label output
 - barcode scanners should be `USB HID` keyboard-mode devices
 
 ## Start Manually
@@ -50,6 +52,7 @@ http://127.0.0.1:17658/health
 - `GET /health`
 - `POST /print/receipt`
 - `POST /print/label`
+- `POST /hardware/drawer-open`
 
 Example payload:
 
