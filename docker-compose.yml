@@ -212,7 +212,7 @@ networks:
     driver: bridge
   dokploy:
     external: true
-    name: dokploy
+    name: dokploy-network
 
 volumes:
   postgres_data:
