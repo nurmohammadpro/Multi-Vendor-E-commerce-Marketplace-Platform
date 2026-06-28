@@ -4,7 +4,7 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Theme configuration — MotoCore design tokens */
+/* Theme configuration — app design tokens */
 @theme inline {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
@@ -84,7 +84,7 @@
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
 
-  /* MotoCore density tokens */
+  /* Density tokens */
   --erp-card-px: 1rem;
   --erp-card-py: 1rem;
   --erp-card-gap: 1rem;

@@ -15,6 +15,8 @@ import {
   LifeBuoy,
   Wrench,
   Headphones,
+  BookOpen,
+  LogOut,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -67,6 +69,7 @@ const iconMap: Record<string, typeof LayoutDashboard> = {
   '/notifications': Bell,
   '/support': Headphones,
   '/settings': Settings,
+  '/help': BookOpen,
 };
 
 export function WorkspaceShell({ navItems, title, badge, children }: WorkspaceShellProps) {
@@ -160,10 +163,10 @@ function AppSidebar({
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild tooltip="Get Help">
-                  <a href="#" onClick={(e) => e.preventDefault()}>
+                  <Link href="/help">
                     <LifeBuoy className="size-3.5" />
                     <span className="text-xs font-normal">Help & Reference</span>
-                  </a>
+                  </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
@@ -178,6 +181,17 @@ function AppSidebar({
 
 function Header() {
   const pathname = usePathname();
+  const loginUrl = process.env.NEXT_PUBLIC_LOGIN_APP_URL || process.env.NEXT_PUBLIC_APP_URL || '/';
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } finally {
+      if (typeof window !== 'undefined') {
+        window.location.href = loginUrl;
+      }
+    }
+  };
 
   const getPageTitle = () => {
     if (pathname === '/') return 'Dashboard';
@@ -221,6 +235,10 @@ function Header() {
                 <Settings className="mr-2 size-4" />
                 <span>Settings</span>
               </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => void handleLogout()}>
+              <LogOut className="mr-2 size-4" />
+              <span>Log out</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

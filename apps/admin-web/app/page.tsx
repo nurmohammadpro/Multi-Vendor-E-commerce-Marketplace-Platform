@@ -96,7 +96,7 @@ export default async function AdminDashboardPage() {
           <CardContent>
             <ul className="text-sm text-muted-foreground leading-relaxed space-y-2 list-disc pl-4">
               <li>Responsive sidebar with collapsible icon mode.</li>
-              <li>MotoCore density tokens for consistent spacing.</li>
+              <li>Dense spacing and restrained type scale for faster scanning.</li>
               <li>Clean, minimal design with proper design system.</li>
               <li>Light/dark mode support via CSS variables.</li>
             </ul>
