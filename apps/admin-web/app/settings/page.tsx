@@ -1,6 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 type PlatformAdminRow = {
   membershipId: string;
@@ -12,31 +15,6 @@ type PlatformAdminRow = {
   baseRoleCode: string;
   bundleRoleCodes: string[];
   createdAt: string;
-};
-
-const cardStyle: React.CSSProperties = {
-  padding: 18,
-  borderRadius: 16,
-  background: '#111827',
-  border: '1px solid #1f2937',
-};
-
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '12px 14px',
-  borderRadius: 12,
-  border: '1px solid #374151',
-  background: '#0b1220',
-  color: '#f9fafb',
-};
-
-const buttonStyle: React.CSSProperties = {
-  border: '1px solid #374151',
-  background: '#1f2937',
-  color: '#f9fafb',
-  borderRadius: 12,
-  padding: '10px 14px',
-  cursor: 'pointer',
 };
 
 async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
@@ -164,129 +142,169 @@ export default function AdminSettingsPage() {
 
   return (
     <main>
-      <section style={{ marginBottom: 24, maxWidth: 820 }}>
-        <h2 style={{ margin: 0, fontSize: 32 }}>Platform Settings</h2>
-        <p style={{ marginTop: 10, lineHeight: 1.6, opacity: 0.8 }}>
+      <section className="mb-6 max-w-[820px]">
+        <h2 className="m-0 text-3xl font-semibold tracking-tight">Platform Settings</h2>
+        <p className="mt-2.5 leading-relaxed text-muted-foreground">
           Restricted owner-level and scoped admin configuration changes belong in this settings area.
         </p>
-        <p style={{ marginTop: 8, lineHeight: 1.6, opacity: 0.8 }}>
+        <p className="mt-2 leading-relaxed text-muted-foreground">
           Bootstrap the first admin with a custom email such as <code>nurprodev@gmail.com</code>, then add more platform
           admins here later during handover.
         </p>
       </section>
 
-      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
-        <article style={cardStyle}>
-          <h3 style={{ marginTop: 0 }}>Add Platform Admin</h3>
-          <div style={{ display: 'grid', gap: 10 }}>
-            <input value={form.fullName} onChange={(e) => setForm((v) => ({ ...v, fullName: e.target.value }))} style={inputStyle} placeholder="Full name" />
-            <input value={form.email} onChange={(e) => setForm((v) => ({ ...v, email: e.target.value }))} style={inputStyle} placeholder="Email" />
-            <input value={form.phone} onChange={(e) => setForm((v) => ({ ...v, phone: e.target.value }))} style={inputStyle} placeholder="Phone (optional)" />
-            <input value={form.password} onChange={(e) => setForm((v) => ({ ...v, password: e.target.value }))} style={inputStyle} type="password" placeholder="Temporary password" />
-            <button onClick={createAdmin} style={buttonStyle} disabled={!canCreateAdmin}>Create Admin</button>
-          </div>
-          <p style={{ marginTop: 10, marginBottom: 0, opacity: 0.74, lineHeight: 1.5 }}>
-            Use this password as the dashboard login password for the new platform admin.
-          </p>
-        </article>
-
-        <article style={cardStyle}>
-          <h3 style={{ marginTop: 0 }}>Promote to Platform Owner</h3>
-          <div style={{ display: 'grid', gap: 10 }}>
-            <select value={ownerForm.membershipId} onChange={(e) => setOwnerForm({ membershipId: e.target.value })} style={inputStyle}>
-              {admins.map((admin) => (
-                <option key={admin.membershipId} value={admin.membershipId}>
-                  {admin.fullName || admin.email || admin.userId} · {admin.baseRoleCode}
-                </option>
-              ))}
-            </select>
-            <button onClick={promoteToOwner} style={buttonStyle} disabled={!canPromote}>
-              Promote Selected Admin
-            </button>
-          </div>
-          <p style={{ marginTop: 10, marginBottom: 0, opacity: 0.74, lineHeight: 1.5 }}>
-            Use this during handover to make the real owner a platform owner.
-          </p>
-          {selectedOwner ? (
-            <p style={{ marginTop: 8, marginBottom: 0, opacity: 0.78, lineHeight: 1.5 }}>
-              Selected: {selectedOwner.fullName || selectedOwner.email || selectedOwner.userId}
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Add Platform Admin</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col gap-2.5">
+              <Input value={form.fullName} onChange={(e) => setForm((v) => ({ ...v, fullName: e.target.value }))} placeholder="Full name" />
+              <Input value={form.email} onChange={(e) => setForm((v) => ({ ...v, email: e.target.value }))} placeholder="Email" />
+              <Input value={form.phone} onChange={(e) => setForm((v) => ({ ...v, phone: e.target.value }))} placeholder="Phone (optional)" />
+              <Input value={form.password} onChange={(e) => setForm((v) => ({ ...v, password: e.target.value }))} type="password" placeholder="Temporary password" />
+              <Button onClick={createAdmin} disabled={!canCreateAdmin}>Create Admin</Button>
+            </div>
+            <p className="mt-2.5 text-xs text-muted-foreground leading-relaxed">
+              Use this password as the dashboard login password for the new platform admin.
             </p>
-          ) : null}
-        </article>
+          </CardContent>
+        </Card>
 
-        <article style={cardStyle}>
-          <h3 style={{ marginTop: 0 }}>Reset Platform Admin Password</h3>
-          <div style={{ display: 'grid', gap: 10 }}>
-            <select value={passwordForm.membershipId} onChange={(e) => setPasswordForm((v) => ({ ...v, membershipId: e.target.value }))} style={inputStyle}>
-              {admins.map((admin) => (
-                <option key={admin.membershipId} value={admin.membershipId}>
-                  {admin.fullName || admin.email || admin.userId} · {admin.baseRoleCode}
-                </option>
-              ))}
-            </select>
-            <input value={passwordForm.password} onChange={(e) => setPasswordForm((v) => ({ ...v, password: e.target.value }))} style={inputStyle} type="password" placeholder="New password" />
-            <button onClick={resetPassword} style={buttonStyle} disabled={!canResetPassword}>
-              Update Password
-            </button>
-          </div>
-          <p style={{ marginTop: 10, marginBottom: 0, opacity: 0.74, lineHeight: 1.5 }}>
-            This is the password the admin uses to sign into the login screen.
-          </p>
-        </article>
+        <Card>
+          <CardHeader>
+            <CardTitle>Promote to Platform Owner</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col gap-2.5">
+              <select
+                value={ownerForm.membershipId}
+                onChange={(e) => setOwnerForm({ membershipId: e.target.value })}
+                className="border-input w-full min-w-0 rounded-md border bg-transparent px-3 py-1.5 text-sm shadow-xs h-10"
+              >
+                {admins.map((admin) => (
+                  <option key={admin.membershipId} value={admin.membershipId}>
+                    {admin.fullName || admin.email || admin.userId} · {admin.baseRoleCode}
+                  </option>
+                ))}
+              </select>
+              <Button onClick={promoteToOwner} disabled={!canPromote} variant="outline">
+                Promote Selected Admin
+              </Button>
+            </div>
+            <p className="mt-2.5 text-xs text-muted-foreground leading-relaxed">
+              Use this during handover to make the real owner a platform owner.
+            </p>
+            {selectedOwner ? (
+              <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
+                Selected: {selectedOwner.fullName || selectedOwner.email || selectedOwner.userId}
+              </p>
+            ) : null}
+          </CardContent>
+        </Card>
 
-        <article style={cardStyle}>
-          <h3 style={{ marginTop: 0 }}>Access policy</h3>
-          <p style={{ marginBottom: 0, lineHeight: 1.6, opacity: 0.78 }}>
-            Manage owner privileges, scoped admin roles, and any restrictions around destructive platform actions.
-          </p>
-        </article>
-        <article style={cardStyle}>
-          <h3 style={{ marginTop: 0 }}>Platform defaults</h3>
-          <p style={{ marginBottom: 0, lineHeight: 1.6, opacity: 0.78 }}>
-            Set default operating hours, communication preferences, and systemwide naming so admin output stays
-            coherent across teams.
-          </p>
-        </article>
-        <article style={cardStyle}>
-          <h3 style={{ marginTop: 0 }}>Governance</h3>
-          <p style={{ marginBottom: 0, lineHeight: 1.6, opacity: 0.78 }}>
-            Keep sensitive controls visible but deliberate, with audit-friendly settings flows and clear change
-            expectations.
-          </p>
-        </article>
+        <Card>
+          <CardHeader>
+            <CardTitle>Reset Platform Admin Password</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col gap-2.5">
+              <select
+                value={passwordForm.membershipId}
+                onChange={(e) => setPasswordForm((v) => ({ ...v, membershipId: e.target.value }))}
+                className="border-input w-full min-w-0 rounded-md border bg-transparent px-3 py-1.5 text-sm shadow-xs h-10"
+              >
+                {admins.map((admin) => (
+                  <option key={admin.membershipId} value={admin.membershipId}>
+                    {admin.fullName || admin.email || admin.userId} · {admin.baseRoleCode}
+                  </option>
+                ))}
+              </select>
+              <Input value={passwordForm.password} onChange={(e) => setPasswordForm((v) => ({ ...v, password: e.target.value }))} type="password" placeholder="New password" />
+              <Button onClick={resetPassword} disabled={!canResetPassword} variant="outline">
+                Update Password
+              </Button>
+            </div>
+            <p className="mt-2.5 text-xs text-muted-foreground leading-relaxed">
+              This is the password the admin uses to sign into the login screen.
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Access policy</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Manage owner privileges, scoped admin roles, and any restrictions around destructive platform actions.
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Platform defaults</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Set default operating hours, communication preferences, and systemwide naming so admin output stays
+              coherent across teams.
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Governance</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Keep sensitive controls visible but deliberate, with audit-friendly settings flows and clear change
+              expectations.
+            </p>
+          </CardContent>
+        </Card>
       </section>
 
-      <section style={{ marginTop: 20, display: 'grid', gap: 12 }}>
-        <h3 style={{ margin: 0 }}>Current Platform Admins</h3>
+      <section className="mt-5 flex flex-col gap-3">
+        <h3 className="m-0 text-lg font-semibold">Current Platform Admins</h3>
         {admins.length ? (
           admins.map((admin) => (
-            <article key={admin.membershipId} style={cardStyle}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-                <div>
-                  <div style={{ fontSize: 18, fontWeight: 700 }}>{admin.fullName || admin.email || admin.userId}</div>
-                  <div style={{ opacity: 0.75 }}>{admin.email || '—'} · {admin.phone || '—'}</div>
-                  <div style={{ opacity: 0.8 }}>
-                    Base role: {admin.baseRoleCode} · Status: {admin.status}
+            <Card key={admin.membershipId}>
+              <CardContent className="pt-[var(--erp-card-py)]">
+                <div className="flex justify-between gap-3 flex-wrap">
+                  <div>
+                    <div className="text-lg font-semibold">{admin.fullName || admin.email || admin.userId}</div>
+                    <div className="text-sm text-muted-foreground">{admin.email || '—'} · {admin.phone || '—'}</div>
+                    <div className="text-sm text-muted-foreground">
+                      Base role: {admin.baseRoleCode} · Status: {admin.status}
+                    </div>
+                  </div>
+                  <div className="text-xs text-muted-foreground text-right">
+                    <div>{new Date(admin.createdAt).toLocaleString()}</div>
+                    <div>{admin.bundleRoleCodes.length ? admin.bundleRoleCodes.join(', ') : 'No bundles'}</div>
                   </div>
                 </div>
-                <div style={{ opacity: 0.72, textAlign: 'right' }}>
-                  <div>{new Date(admin.createdAt).toLocaleString()}</div>
-                  <div>{admin.bundleRoleCodes.length ? admin.bundleRoleCodes.join(', ') : 'No bundles'}</div>
-                </div>
-              </div>
-            </article>
+              </CardContent>
+            </Card>
           ))
         ) : (
-          <article style={cardStyle}>
-            <p style={{ marginBottom: 0, opacity: 0.78 }}>No platform admins found yet.</p>
-          </article>
+          <Card>
+            <CardContent className="pt-[var(--erp-card-py)]">
+              <p className="text-sm text-muted-foreground">No platform admins found yet.</p>
+            </CardContent>
+          </Card>
         )}
       </section>
 
-      <article style={{ ...cardStyle, marginTop: 20 }}>
-        <h3 style={{ marginTop: 0 }}>Operator Notes</h3>
-        <p style={{ marginBottom: 0, opacity: 0.8 }}>{message}</p>
-      </article>
+      <Card className="mt-5">
+        <CardHeader>
+          <CardTitle>Operator Notes</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">{message}</p>
+        </CardContent>
+      </Card>
     </main>
   );
 }
