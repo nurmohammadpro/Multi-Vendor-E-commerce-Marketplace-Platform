@@ -23,6 +23,13 @@ export class AdminSupportController {
     return this.supportService.getAdminTickets();
   }
 
+  @Get('tickets/:ticketId')
+  @RequireContext('admin')
+  @RequirePermissions('platform.support.manage')
+  getTicket(@Param('ticketId') ticketId: string) {
+    return this.supportService.getAdminTicket(ticketId);
+  }
+
   @Post('tickets/:ticketId/status')
   @RequireContext('admin')
   @RequirePermissions('platform.support.manage')

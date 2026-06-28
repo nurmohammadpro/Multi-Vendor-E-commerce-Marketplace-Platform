@@ -239,13 +239,64 @@ export class StoreService {
           u.email as owner_email,
           u.phone as owner_phone,
           up.full_name as owner_name,
-          coalesce(count(distinct sm.id), 0)::int as staff_count
+          coalesce(count(distinct sm.id), 0)::int as staff_count,
+          sub.id as subscription_id,
+          sub.status as billing_status,
+          sub.start_at as subscription_start_at,
+          sub.end_at as subscription_end_at,
+          sub.renewal_at as billing_due_at,
+          sub.auto_renew as subscription_auto_renew,
+          case
+            when coalesce(sub.renewal_at, sub.end_at) is null then null
+            else coalesce(sub.renewal_at, sub.end_at) + interval '7 days'
+          end as deactivation_review_at,
+          case
+            when coalesce(sub.renewal_at, sub.end_at) is null then null
+            else coalesce(sub.renewal_at, sub.end_at) + interval '3 months'
+          end as delete_eligible_at,
+          case
+            when s.status = 'inactive'
+              and coalesce(sub.renewal_at, sub.end_at) is not null
+              and now() >= coalesce(sub.renewal_at, sub.end_at) + interval '3 months'
+            then true
+            else false
+          end as can_delete,
+          case
+            when s.status <> 'inactive'
+              and coalesce(sub.renewal_at, sub.end_at) is not null
+              and now() >= coalesce(sub.renewal_at, sub.end_at) + interval '7 days'
+            then true
+            else false
+          end as should_deactivate_review
         from store.stores s
         left join store.store_settings ss on ss.store_id = s.id
         left join identity.users u on u.id = s.owner_user_id
         left join identity.user_profiles up on up.user_id = u.id
         left join access.store_memberships sm on sm.store_id = s.id and sm.status = 'active'
-        group by s.id, ss.store_id, u.id, up.user_id
+        left join lateral (
+          select
+            sub.id,
+            sub.status,
+            sub.start_at,
+            sub.end_at,
+            sub.renewal_at,
+            sub.auto_renew
+          from billing.subscriptions sub
+          where sub.store_id = s.id
+          order by coalesce(sub.renewal_at, sub.end_at, sub.start_at) desc nulls last, sub.created_at desc
+          limit 1
+        ) sub on true
+        group by
+          s.id,
+          ss.store_id,
+          u.id,
+          up.user_id,
+          sub.id,
+          sub.status,
+          sub.start_at,
+          sub.end_at,
+          sub.renewal_at,
+          sub.auto_renew
         order by s.created_at desc
       `,
     );
@@ -295,6 +346,156 @@ export class StoreService {
     });
 
     return { store };
+  }
+
+  async adminUpdateStore(
+    storeId: string,
+    authContext: AdminAuthContext | null,
+    session: AuthSession | null,
+    payload: UpdateStorePayload,
+  ) {
+    this.assertAdminContext(authContext);
+    const userId = this.requireUserId(session);
+
+    const result = await this.pool.query<{
+      id: string;
+      store_code: string;
+      name: string;
+      slug: string;
+      phone: string;
+      email: string | null;
+      status: string;
+      updated_at: string;
+    }>(
+      `
+        update store.stores
+        set
+          name = coalesce($2, name),
+          name_bn = case when $3::text is null then name_bn else $3 end,
+          phone = coalesce($4, phone),
+          email = case when $5::citext is null then email else $5::citext end,
+          status = coalesce($6, status),
+          updated_at = now()
+        where id = $1
+        returning id, store_code, name, slug, phone, email, status, updated_at
+      `,
+      [
+        storeId,
+        payload.name ?? null,
+        payload.nameBn === undefined ? null : payload.nameBn,
+        payload.phone ?? null,
+        payload.email === undefined ? null : payload.email,
+        payload.status ?? null,
+      ],
+    );
+
+    const store = result.rows[0];
+    if (!store) {
+      throw new NotFoundException('Store not found');
+    }
+
+    await this.auditService.recordUserAction({
+      tenantId: session?.user.tenantId ?? '',
+      actorUserId: userId,
+      storeId,
+      actionCode: 'platform.store.update',
+      resourceType: 'store',
+      resourceId: storeId,
+      after: store,
+    });
+
+    return { store };
+  }
+
+  async adminDeleteStore(storeId: string, authContext: AdminAuthContext | null, session: AuthSession | null) {
+    this.assertAdminContext(authContext);
+    const userId = this.requireUserId(session);
+
+    const storeResult = await this.pool.query<{
+      id: string;
+      tenant_id: string;
+      store_code: string;
+      name: string;
+      status: string;
+      subscription_status: string;
+      delete_eligible_at: string | null;
+      deactivation_review_at: string | null;
+      billing_due_at: string | null;
+    }>(
+      `
+        select
+          s.id,
+          s.tenant_id,
+          s.store_code,
+          s.name,
+          s.status,
+          s.subscription_status,
+          case
+            when coalesce(sub.renewal_at, sub.end_at) is null then null
+            else coalesce(sub.renewal_at, sub.end_at) + interval '3 months'
+          end as delete_eligible_at,
+          case
+            when coalesce(sub.renewal_at, sub.end_at) is null then null
+            else coalesce(sub.renewal_at, sub.end_at) + interval '7 days'
+          end as deactivation_review_at,
+          coalesce(sub.renewal_at, sub.end_at) as billing_due_at
+        from store.stores s
+        left join lateral (
+          select
+            sub.end_at,
+            sub.renewal_at
+          from billing.subscriptions sub
+          where sub.store_id = s.id
+          order by coalesce(sub.renewal_at, sub.end_at, sub.start_at) desc nulls last, sub.created_at desc
+          limit 1
+        ) sub on true
+        where s.id = $1
+        limit 1
+      `,
+      [storeId],
+    );
+
+    const store = storeResult.rows[0];
+    if (!store) {
+      throw new NotFoundException('Store not found');
+    }
+
+    if (store.status !== 'inactive') {
+      throw new ForbiddenException('Store must be inactive before deletion');
+    }
+
+    if (!store.delete_eligible_at) {
+      throw new ForbiddenException('Store does not have a deletion window yet');
+    }
+
+    if (new Date(store.delete_eligible_at).getTime() > Date.now()) {
+      throw new ForbiddenException('Store is not yet eligible for deletion');
+    }
+
+    await this.pool.query('delete from store.stores where id = $1', [storeId]);
+
+    await this.auditService.recordUserAction({
+      tenantId: store.tenant_id,
+      actorUserId: userId,
+      storeId,
+      actionCode: 'platform.store.delete',
+      resourceType: 'store',
+      resourceId: storeId,
+      after: {
+        storeId,
+        storeCode: store.store_code,
+        storeName: store.name,
+        deletedAt: new Date().toISOString(),
+      },
+    });
+
+    return {
+      deleted: true,
+      storeId,
+      canDeleteAt: store.delete_eligible_at,
+      deactivationReviewAt: store.deactivation_review_at,
+      billingDueAt: store.billing_due_at,
+    };
   }
 
   async getStore(storeId: string, headerStoreId: string | undefined, authContext: StoreAuthContext | null) {

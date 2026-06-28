@@ -149,6 +149,10 @@ export class SupportService {
     return { tickets: result.rows };
   }
 
+  async getAdminTicket(ticketId: string) {
+    return this.getTicketDetail(ticketId, {});
+  }
+
   async updateAdminTicketStatus(
     ticketId: string,
     session: AuthSession | null,

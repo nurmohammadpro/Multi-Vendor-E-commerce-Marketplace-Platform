@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 
 import { CurrentAuthContext, CurrentAuthSession } from '../auth/current-auth.decorator.js';
@@ -200,6 +200,25 @@ export class AdminStoreController {
     return this.storeService.listPlatformStores(authContext);
   }
 
+  @Post()
+  @RequireContext('admin')
+  @RequirePermissions('platform.store.manage')
+  createStore(@CurrentAuthSession() session: AuthSession | null, @Body() payload: unknown) {
+    return this.storeService.createStore(session, createStoreSchema.parse(payload));
+  }
+
+  @Patch(':storeId')
+  @RequireContext('admin')
+  @RequirePermissions('platform.store.manage')
+  updateStore(
+    @Param('storeId') storeId: string,
+    @CurrentAuthContext() authContext: AdminAuthContext | null,
+    @CurrentAuthSession() session: AuthSession | null,
+    @Body() payload: unknown,
+  ) {
+    return this.storeService.adminUpdateStore(storeId, authContext, session, updateStoreSchema.parse(payload));
+  }
+
   @Patch(':storeId/status')
   @RequireContext('admin')
   @RequirePermissions('platform.store.manage')
@@ -214,6 +233,17 @@ export class AdminStoreController {
     }).parse(payload);
 
     return this.storeService.adminUpdateStoreStatus(storeId, authContext, session, parsed.status);
+  }
+
+  @Delete(':storeId')
+  @RequireContext('admin')
+  @RequirePermissions('platform.store.manage')
+  deleteStore(
+    @Param('storeId') storeId: string,
+    @CurrentAuthContext() authContext: AdminAuthContext | null,
+    @CurrentAuthSession() session: AuthSession | null,
+  ) {
+    return this.storeService.adminDeleteStore(storeId, authContext, session);
   }
 }
 
