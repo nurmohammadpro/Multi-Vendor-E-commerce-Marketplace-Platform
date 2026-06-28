@@ -5,20 +5,17 @@ const apiBaseUrl =
   process.env.NEXT_PUBLIC_API_BASE_URL ||
   '';
 
-function getTokenFromCookies(): string {
+async function getTokenFromCookies(): Promise<string> {
   try {
-    const store = cookies();
+    const store = await cookies();
     return store.get('auth_token')?.value || '';
   } catch {
     return '';
   }
 }
 
-function getAuthToken(): string {
-  if (typeof window === 'undefined') {
-    return getTokenFromCookies();
-  }
-  // Client-side: get from URL param first, then localStorage
+function getAuthTokenClient(): string {
+  if (typeof window === 'undefined') return '';
   const params = new URLSearchParams(window.location.search);
   const urlToken = params.get('token');
   if (urlToken) {
@@ -29,16 +26,25 @@ function getAuthToken(): string {
     window.history.replaceState({}, '', url.toString());
     return urlToken;
   }
-  return localStorage.getItem('auth_token') || getTokenFromCookies();
+  return localStorage.getItem('auth_token') || '';
 }
 
-export function isAdminApiConfigured() {
-  return Boolean(apiBaseUrl && getAuthToken());
+async function getAuthToken(): Promise<string> {
+  if (typeof window === 'undefined') {
+    return getTokenFromCookies();
+  }
+  const client = getAuthTokenClient();
+  if (client) return client;
+  return getTokenFromCookies();
 }
 
-export function getAdminApiHeaders(additionalHeaders?: HeadersInit) {
+export async function isAdminApiConfigured(): Promise<boolean> {
+  return Boolean(apiBaseUrl && await getAuthToken());
+}
+
+export async function getAdminApiHeaders(additionalHeaders?: HeadersInit) {
   return {
-    Authorization: `Bearer ${getAuthToken()}`,
+    Authorization: `Bearer ${await getAuthToken()}`,
     ...(additionalHeaders ?? {}),
   };
 }
@@ -48,12 +54,12 @@ export function buildAdminApiUrl(path: string) {
 }
 
 export async function fetchAdminApi<T>(path: string): Promise<T | null> {
-  if (!isAdminApiConfigured()) {
+  if (!await isAdminApiConfigured()) {
     return null;
   }
 
   const response = await fetch(buildAdminApiUrl(path), {
-    headers: getAdminApiHeaders(),
+    headers: await getAdminApiHeaders(),
     cache: 'no-store',
   });
 
@@ -65,7 +71,7 @@ export async function fetchAdminApi<T>(path: string): Promise<T | null> {
 }
 
 export async function requestAdminApi(path: string, init?: RequestInit) {
-  if (!isAdminApiConfigured()) {
+  if (!await isAdminApiConfigured()) {
     return new Response(JSON.stringify({ ok: false, error: 'Admin API is not configured' }), {
       status: 503,
       headers: { 'Content-Type': 'application/json; charset=utf-8' },
@@ -74,7 +80,7 @@ export async function requestAdminApi(path: string, init?: RequestInit) {
 
   return fetch(buildAdminApiUrl(path), {
     ...init,
-    headers: getAdminApiHeaders(init?.headers),
+    headers: await getAdminApiHeaders(init?.headers),
     cache: 'no-store',
   });
 }

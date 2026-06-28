@@ -25,7 +25,7 @@ type SessionProfile = {
 
 export default async function AdminSessionPage() {
   const profile = await fetchAdminApi<SessionProfile>('/auth/me');
-  const configured = isAdminApiConfigured();
+  const configured = await isAdminApiConfigured();
 
   return (
     <main className="flex flex-col gap-6">

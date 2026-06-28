@@ -32,7 +32,7 @@ type SessionProfile = {
 
 export default async function StoreSessionPage() {
   const profile = await fetchStoreApi<SessionProfile>('/auth/me');
-  const configured = isStoreApiConfigured();
+  const configured = await isStoreApiConfigured();
 
   return (
     <div className="flex flex-col gap-6">

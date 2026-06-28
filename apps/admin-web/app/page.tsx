@@ -43,7 +43,7 @@ export default async function AdminDashboardPage() {
           state, and direct access to operational surfaces.
         </p>
         <p className="text-sm text-muted-foreground mt-2">
-          {isAdminApiConfigured()
+          {await isAdminApiConfigured()
             ? 'Live API demo mode is active and the dashboard is reading from the backend.'
             : 'Set API_BASE_URL and ADMIN_DEMO_BEARER_TOKEN to enable live admin dashboard data.'}
         </p>
