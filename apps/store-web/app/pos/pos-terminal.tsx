@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   DEFAULT_PRINT_AGENT_URL,
   fetchPrintAgentHealth,
+  openCashDrawer,
   printLabel,
   printReceipt,
   type PrintAgentHealth,
@@ -338,7 +339,13 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
         setLastReceiptText(JSON.stringify(reprintPayload.receipt, null, 2));
         try {
           await printReceipt(reprintPayload.receipt);
-          setMessage(`Sale ${salePayload.sale?.saleNo ?? ''} completed and receipt printed.`);
+          let drawerWarning = '';
+          if (Number(total) > 0) {
+            await openCashDrawer({}).catch(() => {
+              drawerWarning = ' The cash drawer did not open.';
+            });
+          }
+          setMessage(`Sale ${salePayload.sale?.saleNo ?? ''} completed and receipt printed.${drawerWarning}`);
         } catch (printFailure) {
           setMessage(
             `Sale ${salePayload.sale?.saleNo ?? ''} completed. Silent print failed: ${(printFailure as Error).message}`,
@@ -377,6 +384,15 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
     }
   };
 
+  const handleOpenDrawer = async () => {
+    try {
+      await openCashDrawer({});
+      setMessage('Cash drawer command sent.');
+    } catch (error) {
+      setMessage(`Cash drawer failed: ${(error as Error).message}`);
+    }
+  };
+
   if (!canUsePos) {
     return (
       <section style={{ display: 'grid', gap: 20 }}>
@@ -402,6 +418,12 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
           </p>
           <p style={{ margin: 0, color: printError ? '#fca5a5' : '#86efac' }}>
             {printError ? `Unavailable: ${printError}` : 'Silent print agent reachable'}
+          </p>
+          <button onClick={handleOpenDrawer} style={{ ...buttonStyle, marginTop: 12 }} disabled={Boolean(printError)}>
+            Test Cash Drawer
+          </button>
+          <p style={{ marginTop: 8, marginBottom: 0, color: '#64748b' }}>
+            ESC/POS receipt, barcode, label, and cash drawer commands are enabled when the local print agent is running.
           </p>
         </article>
 

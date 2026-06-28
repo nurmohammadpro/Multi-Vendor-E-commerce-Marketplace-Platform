@@ -67,6 +67,99 @@ const printWithWindows = async (text, printerName) => {
   }
 };
 
+const RAW_PRINTER_HELPER_PS = `
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+
+public static class RawPrinterHelper
+{
+    [StructLayout(LayoutKind.Sequential, CharSet=CharSet.Unicode)]
+    private class DOCINFO
+    {
+        [MarshalAs(UnmanagedType.LPWStr)]
+        public string pDocName;
+        [MarshalAs(UnmanagedType.LPWStr)]
+        public string pOutputFile;
+        [MarshalAs(UnmanagedType.LPWStr)]
+        public string pDataType;
+    }
+
+    [DllImport("winspool.Drv", EntryPoint = "OpenPrinterW", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern bool OpenPrinter(string szPrinter, out IntPtr hPrinter, IntPtr pd);
+
+    [DllImport("winspool.Drv", SetLastError = true)]
+    private static extern bool ClosePrinter(IntPtr hPrinter);
+
+    [DllImport("winspool.Drv", EntryPoint = "StartDocPrinterW", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern bool StartDocPrinter(IntPtr hPrinter, int level, [In] DOCINFO di);
+
+    [DllImport("winspool.Drv", SetLastError = true)]
+    private static extern bool EndDocPrinter(IntPtr hPrinter);
+
+    [DllImport("winspool.Drv", SetLastError = true)]
+    private static extern bool StartPagePrinter(IntPtr hPrinter);
+
+    [DllImport("winspool.Drv", SetLastError = true)]
+    private static extern bool EndPagePrinter(IntPtr hPrinter);
+
+    [DllImport("winspool.Drv", SetLastError = true)]
+    private static extern bool WritePrinter(IntPtr hPrinter, IntPtr pBytes, int dwCount, out int dwWritten);
+
+    public static bool SendBytesToPrinter(string printerName, byte[] bytes)
+    {
+        IntPtr hPrinter = IntPtr.Zero;
+        IntPtr pUnmanagedBytes = IntPtr.Zero;
+        var docInfo = new DOCINFO
+        {
+            pDocName = "Multi Vendor Print Job",
+            pDataType = "RAW"
+        };
+
+        try
+        {
+            if (!OpenPrinter(printerName, out hPrinter, IntPtr.Zero))
+            {
+                return false;
+            }
+
+            if (!StartDocPrinter(hPrinter, 1, docInfo))
+            {
+                return false;
+            }
+
+            if (!StartPagePrinter(hPrinter))
+            {
+                return false;
+            }
+
+            pUnmanagedBytes = Marshal.AllocCoTaskMem(bytes.Length);
+            Marshal.Copy(bytes, 0, pUnmanagedBytes, bytes.Length);
+
+            int written;
+            var ok = WritePrinter(hPrinter, pUnmanagedBytes, bytes.Length, out written);
+            EndPagePrinter(hPrinter);
+            EndDocPrinter(hPrinter);
+
+            return ok && written == bytes.Length;
+        }
+        finally
+        {
+            if (pUnmanagedBytes != IntPtr.Zero)
+            {
+                Marshal.FreeCoTaskMem(pUnmanagedBytes);
+            }
+
+            if (hPrinter != IntPtr.Zero)
+            {
+                ClosePrinter(hPrinter);
+            }
+        }
+    }
+}
+"@
+`;
+
 const normalizeReceiptText = (payload) => {
   if (typeof payload.text === 'string' && payload.text.trim()) return payload.text;
   if (Array.isArray(payload.lines)) return payload.lines.join('\n');
@@ -80,6 +173,32 @@ const printReceipt = async (payload) => {
     return;
   }
   await printWithCups(Buffer.from(text, 'utf8'), payload.printerName);
+};
+
+const printRawBytes = async (bytes, printerName) => {
+  if (process.platform === 'win32') {
+    const file = path.join(os.tmpdir(), `mvp-print-${Date.now()}.bin`);
+    await fs.writeFile(file, bytes);
+    const target = printerName || PRINTER_NAME;
+    const quotedFile = file.replaceAll("'", "''");
+    const selectedPrinter = target ? `'${target.replaceAll("'", "''")}'` : `((Get-CimInstance Win32_Printer | Where-Object { $_.Default -eq $true } | Select-Object -First 1 -ExpandProperty Name))`;
+    const psCommand = `
+${RAW_PRINTER_HELPER_PS}
+$printerName = ${selectedPrinter}
+if ([string]::IsNullOrWhiteSpace($printerName)) { throw "No Windows printer selected or default printer configured." }
+$bytes = [System.IO.File]::ReadAllBytes('${quotedFile}')
+if (-not [RawPrinterHelper]::SendBytesToPrinter($printerName, $bytes)) {
+  throw "Failed to send raw bytes to printer: $printerName"
+}
+`;
+    try {
+      await run('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', psCommand], null);
+    } finally {
+      await fs.unlink(file).catch(() => {});
+    }
+    return;
+  }
+  await printWithCups(bytes, printerName || PRINTER_NAME);
 };
 
 const printLabel = async (payload) => {
@@ -134,6 +253,12 @@ const server = http.createServer(async (req, res) => {
       platform: process.platform,
       printerName: PRINTER_NAME || null,
       labelPrinterName: LABEL_PRINTER_NAME || null,
+      features: {
+        receiptPrinting: true,
+        labelPrinting: true,
+        cashDrawer: true,
+        barcodePrinting: true,
+      },
     });
     return;
   }
@@ -154,6 +279,22 @@ const server = http.createServer(async (req, res) => {
       const payload = await parseBody(req);
       await printLabel(payload);
       json(res, 200, { ok: true });
+    } catch (error) {
+      json(res, error.statusCode || 500, { ok: false, error: String(error.message || error) });
+    }
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/hardware/drawer-open') {
+    try {
+      const payload = await parseBody(req);
+      const pin = payload.pin === 5 ? 5 : 2;
+      const printerName = payload.printerName || PRINTER_NAME;
+      const drawerBytes = pin === 5
+        ? Buffer.from([0x1b, 0x70, 0x01, 0x19, 0xfa])
+        : Buffer.from([0x1b, 0x70, 0x00, 0x19, 0xfa]);
+      await printRawBytes(drawerBytes, printerName);
+      json(res, 200, { ok: true, pin, printerName: printerName || null });
     } catch (error) {
       json(res, error.statusCode || 500, { ok: false, error: String(error.message || error) });
     }

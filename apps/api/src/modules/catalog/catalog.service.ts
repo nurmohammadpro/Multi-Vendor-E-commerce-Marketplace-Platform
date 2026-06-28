@@ -989,6 +989,7 @@ export class CatalogService {
   async createSku(
     headerStoreId: string | undefined,
     authContext: StoreAuthContext | null,
+    session: AuthSession | null,
     payload: {
       productId: string;
       skuCode: string;
@@ -998,10 +999,16 @@ export class CatalogService {
       unitName?: string;
       weightValue?: number;
       weightUnit?: string;
+      costPrice?: number | null;
+      salePrice?: number;
+      compareAtPrice?: number | null;
+      effectiveFrom?: string;
+      effectiveTo?: string | null;
       status: string;
     },
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const userId = this.requireUserId(session);
     const client = await this.pool.connect();
 
     try {
@@ -1081,8 +1088,55 @@ export class CatalogService {
       const sku = result.rows[0];
       await this.insertSkuVariantOptions(client, sku.id, variantSelection.options);
 
+      let price = null;
+      if (payload.salePrice !== undefined) {
+        const priceResult = await client.query(
+          `
+            insert into catalog.prices (
+              id,
+              tenant_id,
+              store_id,
+              sku_id,
+              cost_price,
+              sale_price,
+              compare_at_price,
+              effective_from,
+              effective_to,
+              created_at,
+              created_by
+            )
+            select
+              gen_random_uuid(),
+              s.tenant_id,
+              s.id,
+              $2,
+              $3,
+              $4,
+              $5,
+              $6,
+              $7,
+              now(),
+              $8
+            from store.stores s
+            where s.id = $1
+            returning id, sku_id, sale_price, effective_from, effective_to
+          `,
+          [
+            storeId,
+            sku.id,
+            payload.costPrice ?? null,
+            payload.salePrice,
+            payload.compareAtPrice ?? null,
+            payload.effectiveFrom ?? new Date().toISOString(),
+            payload.effectiveTo ?? null,
+            userId,
+          ],
+        );
+        price = priceResult.rows[0] ?? null;
+      }
+
       await client.query('commit');
-      return { sku };
+      return { sku, price };
     } catch (error) {
       await client.query('rollback').catch(() => {});
       throw error;

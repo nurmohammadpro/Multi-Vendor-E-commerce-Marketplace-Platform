@@ -78,6 +78,11 @@ const createSkuSchema = z.object({
   unitName: z.string().max(50).optional(),
   weightValue: z.number().nonnegative().optional(),
   weightUnit: z.string().max(20).optional(),
+  costPrice: z.number().nonnegative().nullable().optional(),
+  salePrice: z.number().nonnegative().optional(),
+  compareAtPrice: z.number().nonnegative().nullable().optional(),
+  effectiveFrom: z.string().datetime().optional(),
+  effectiveTo: z.string().datetime().nullable().optional(),
   status: z.enum(['active', 'inactive', 'archived']).default('active'),
 });
 
@@ -346,9 +351,10 @@ export class CatalogController {
   createSku(
     @Headers('x-store-id') headerStoreId: string | undefined,
     @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @CurrentAuthSession() session: AuthSession | null,
     @Body() payload: unknown,
   ) {
-    return this.catalogService.createSku(headerStoreId, authContext, createSkuSchema.parse(payload));
+    return this.catalogService.createSku(headerStoreId, authContext, session, createSkuSchema.parse(payload));
   }
 
   @Patch('skus/:skuId')

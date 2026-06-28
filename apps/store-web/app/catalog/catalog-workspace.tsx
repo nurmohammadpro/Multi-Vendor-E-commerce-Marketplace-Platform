@@ -63,9 +63,71 @@ type ProductDetail = {
   }>;
 };
 
+type VariantMatrixRow = {
+  key: string;
+  skuCode: string;
+  barcode: string;
+  variantLabel: string;
+  variantOptionIds: string[];
+  salePrice: string;
+  costPrice: string;
+  compareAtPrice: string;
+};
+
 const cardStyle = surfaceCardStyle;
 const inputStyle = fieldStyle;
 const buttonStyle = secondaryButtonStyle;
+
+const sanitizeSkuToken = (value: string) =>
+  value
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+
+const buildVariantCombinations = (groups: VariantGroup[], selectionMap: Record<string, string[]>) => {
+  const selectedGroups = groups
+    .map((group) => {
+      const selectedIds = selectionMap[group.id] !== undefined
+        ? selectionMap[group.id]
+        : group.options.map((option) => option.id);
+      return {
+        group,
+        options: group.options.filter((option) => selectedIds.includes(option.id)),
+      };
+    })
+    .filter((entry) => entry.options.length > 0);
+
+  if (selectedGroups.length === 0) {
+    return [];
+  }
+
+  return selectedGroups.reduce<Array<Array<{ group: VariantGroup; option: VariantOption }>>>(
+    (accumulator, entry) => {
+      if (accumulator.length === 0) {
+        return entry.options.map((option) => [{ group: entry.group, option }]);
+      }
+
+      const next: Array<Array<{ group: VariantGroup; option: VariantOption }>> = [];
+      for (const combo of accumulator) {
+        for (const option of entry.options) {
+          next.push([...combo, { group: entry.group, option }]);
+        }
+      }
+      return next;
+    },
+    [],
+  );
+};
+
+const buildVariantSkuCode = (baseCode: string, combo: Array<{ group: VariantGroup; option: VariantOption }>) => {
+  const suffix = combo.map((entry) => entry.option.code || entry.option.label).join('-');
+  return sanitizeSkuToken([baseCode, suffix].filter(Boolean).join('-')).slice(0, 80);
+};
+
+const buildVariantLabel = (combo: Array<{ group: VariantGroup; option: VariantOption }>) =>
+  combo.map((entry) => `${entry.group.name}: ${entry.option.label}`).join(' / ');
 
 async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
   const response = await fetch(input, init);
@@ -122,6 +184,12 @@ export function CatalogWorkspace({ canManageCatalog }: { canManageCatalog: boole
     salePrice: '',
     compareAtPrice: '',
   });
+  const [variantSelection, setVariantSelection] = useState<Record<string, string[]>>({});
+  const [variantRows, setVariantRows] = useState<VariantMatrixRow[]>([]);
+  const [variantPricing, setVariantPricing] = useState({
+    baseSalePrice: '',
+    priceStep: '',
+  });
 
   const variantOptionsFlat = useMemo(
     () =>
@@ -163,6 +231,33 @@ export function CatalogWorkspace({ canManageCatalog }: { canManageCatalog: boole
       void refreshDetail(selectedProductId).catch((error: Error) => setMessage(error.message));
     }
   }, [selectedProductId]);
+
+  useEffect(() => {
+    if (!productDetail) {
+      setVariantSelection({});
+      setVariantRows([]);
+      setVariantPricing({ baseSalePrice: '', priceStep: '' });
+      return;
+    }
+
+    setVariantSelection((current) => {
+      const next: Record<string, string[]> = {};
+      for (const group of productDetail.groups) {
+        const selectedIds = current[group.id] !== undefined
+          ? current[group.id]
+          : group.options.map((option) => option.id);
+        next[group.id] = selectedIds.filter((optionId) =>
+          group.options.some((option) => option.id === optionId),
+        );
+      }
+      return next;
+    });
+
+    setVariantPricing((current) => ({
+      baseSalePrice: current.baseSalePrice || String(productDetail.skus[0]?.sale_price ?? ''),
+      priceStep: current.priceStep,
+    }));
+  }, [productDetail]);
 
   const createCategory = async () => {
     if (!categoryForm.code || !categoryForm.name) return;
@@ -359,6 +454,94 @@ export function CatalogWorkspace({ canManageCatalog }: { canManageCatalog: boole
     }
   };
 
+  const buildVariantMatrix = () => {
+    if (!productDetail) {
+      setMessage('Select a product first.');
+      return;
+    }
+
+    const combos = buildVariantCombinations(productDetail.groups, variantSelection);
+    if (!combos.length) {
+      setVariantRows([]);
+      setMessage('Select at least one option in each group to build the matrix.');
+      return;
+    }
+
+    const baseSalePrice = Number(variantPricing.baseSalePrice || 0);
+    const priceStep = Number(variantPricing.priceStep || 0);
+
+    const rows = combos.map((combo, index) => {
+      const variantOptionIds = combo.map((entry) => entry.option.id);
+      const skuCode = buildVariantSkuCode(productDetail.product.product_code, combo);
+      const variantLabel = buildVariantLabel(combo);
+      const nextSalePrice = Number.isFinite(baseSalePrice) ? baseSalePrice + priceStep * index : 0;
+
+      return {
+        key: variantOptionIds.join('|'),
+        skuCode,
+        barcode: '',
+        variantLabel,
+        variantOptionIds,
+        salePrice: nextSalePrice > 0 ? String(nextSalePrice.toFixed(2)) : '',
+        costPrice: '',
+        compareAtPrice: '',
+      };
+    });
+
+    setVariantRows(rows);
+    setMessage(`Built ${rows.length} variant combination(s).`);
+  };
+
+  const updateVariantRow = (
+    key: string,
+    field: 'skuCode' | 'barcode' | 'salePrice' | 'costPrice' | 'compareAtPrice',
+    value: string,
+  ) => {
+    setVariantRows((current) =>
+      current.map((row) => (row.key === key ? { ...row, [field]: value } : row)),
+    );
+  };
+
+  const createVariantRows = async () => {
+    if (!productDetail || !variantRows.length) {
+      setMessage('Build the variant matrix first.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      let createdCount = 0;
+      for (const row of variantRows) {
+        const skuPayload = {
+          productId: productDetail.product.id,
+          skuCode: row.skuCode,
+          barcode: row.barcode || undefined,
+          variantOptionIds: row.variantOptionIds,
+          status: 'active',
+          salePrice: row.salePrice ? Number(row.salePrice) : undefined,
+          costPrice: row.costPrice ? Number(row.costPrice) : undefined,
+          compareAtPrice: row.compareAtPrice ? Number(row.compareAtPrice) : undefined,
+        };
+        const created = await readJson<{ sku?: { id: string; sku_code: string } }>('/api/catalog/skus', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(skuPayload),
+        });
+        if (created?.sku?.id) {
+          createdCount += 1;
+        }
+      }
+      await refreshDetail(productDetail.product.id);
+      await refreshBase();
+      setVariantRows([]);
+      setMessage(`Created ${createdCount} variant SKU(s) with pricing.`);
+    } catch (error) {
+      setMessage((error as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <section style={{ display: 'grid', gap: 20 }}>
       {canManageCatalog ? (
@@ -494,6 +677,96 @@ export function CatalogWorkspace({ canManageCatalog }: { canManageCatalog: boole
                   </article>
                 ))}
               </div>
+
+              {canManageCatalog ? (
+                <article style={{ ...cardStyle, padding: 14 }}>
+                  <h4 style={{ marginTop: 0 }}>Variant Matrix</h4>
+                  <p style={{ marginTop: 0, color: '#475569' }}>
+                    Pick the options that should form variant combinations, then generate SKU rows with variant-specific prices.
+                  </p>
+
+                  <div style={{ display: 'grid', gap: 14 }}>
+                    {productDetail.groups.map((group) => (
+                      <div key={group.id} style={{ display: 'grid', gap: 8 }}>
+                        <div style={{ fontWeight: 600 }}>{group.name}</div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                          {group.options.map((option) => {
+                            const selectedIds = variantSelection[group.id] ?? group.options.map((item) => item.id);
+                            const checked = selectedIds.includes(option.id);
+                            return (
+                              <label
+                                key={option.id}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 8,
+                                  padding: '6px 10px',
+                                  borderRadius: 8,
+                                  border: checked ? '1px solid #2563eb' : '1px solid rgba(148, 163, 184, 0.22)',
+                                  background: checked ? 'rgba(37, 99, 235, 0.06)' : '#fff',
+                                }}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={(event) =>
+                                    setVariantSelection((current) => ({
+                                      ...current,
+                                      [group.id]: event.target.checked
+                                        ? [...selectedIds, option.id]
+                                        : selectedIds.filter((id) => id !== option.id),
+                                    }))
+                                  }
+                                />
+                                <span>{option.label}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginTop: 14 }}>
+                    <input
+                      value={variantPricing.baseSalePrice}
+                      onChange={(event) => setVariantPricing((current) => ({ ...current, baseSalePrice: event.target.value }))}
+                      style={inputStyle}
+                      placeholder="Base sale price"
+                    />
+                    <input
+                      value={variantPricing.priceStep}
+                      onChange={(event) => setVariantPricing((current) => ({ ...current, priceStep: event.target.value }))}
+                      style={inputStyle}
+                      placeholder="Price step per combo"
+                    />
+                    <button onClick={buildVariantMatrix} style={buttonStyle} disabled={loading}>
+                      Build Matrix
+                    </button>
+                    <button onClick={createVariantRows} style={buttonStyle} disabled={loading || variantRows.length === 0}>
+                      Create All SKUs
+                    </button>
+                  </div>
+
+                  {variantRows.length > 0 ? (
+                    <div style={{ display: 'grid', gap: 10, marginTop: 14 }}>
+                      {variantRows.map((row) => (
+                        <article key={row.key} style={{ ...cardStyle, padding: 12 }}>
+                          <div style={{ fontWeight: 600, marginBottom: 4 }}>{row.variantLabel}</div>
+                          <div style={{ color: '#64748b', marginBottom: 10 }}>{row.variantOptionIds.length} option(s) · {row.key}</div>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 8 }}>
+                            <input value={row.skuCode} onChange={(event) => updateVariantRow(row.key, 'skuCode', event.target.value)} style={inputStyle} placeholder="SKU code" />
+                            <input value={row.barcode} onChange={(event) => updateVariantRow(row.key, 'barcode', event.target.value)} style={inputStyle} placeholder="Barcode" />
+                            <input value={row.salePrice} onChange={(event) => updateVariantRow(row.key, 'salePrice', event.target.value)} style={inputStyle} placeholder="Sale price" />
+                            <input value={row.costPrice} onChange={(event) => updateVariantRow(row.key, 'costPrice', event.target.value)} style={inputStyle} placeholder="Cost price" />
+                            <input value={row.compareAtPrice} onChange={(event) => updateVariantRow(row.key, 'compareAtPrice', event.target.value)} style={inputStyle} placeholder="Compare at price" />
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  ) : null}
+                </article>
+              ) : null}
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
                 {canManageCatalog ? (

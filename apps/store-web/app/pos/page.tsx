@@ -12,7 +12,7 @@ export default async function StorePosPage() {
         <Badge variant="secondary" className="mb-3">POS</Badge>
         <h2 className="text-xl sm:text-2xl font-medium tracking-tight mb-2">POS terminal</h2>
         <p className="text-sm text-muted-foreground leading-relaxed">
-          This POS surface talks to the live backend, supports shift control, barcode lookup, and local printing.
+          This POS surface talks to the live backend, supports shift control, barcode lookup, local printing, and cash drawer triggers.
         </p>
       </section>
       <PosTerminal canUsePos={access.canUsePos} />

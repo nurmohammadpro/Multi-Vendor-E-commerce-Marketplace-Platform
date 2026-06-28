@@ -8,6 +8,12 @@ export type PrintAgentHealth = {
   platform?: string;
   printerName?: string | null;
   labelPrinterName?: string | null;
+  features?: {
+    receiptPrinting?: boolean;
+    labelPrinting?: boolean;
+    cashDrawer?: boolean;
+    barcodePrinting?: boolean;
+  };
 };
 
 export type ReceiptPayload = {
@@ -125,6 +131,26 @@ export async function printLabel(payload: {
   if (!response.ok) {
     const result = (await response.json().catch(() => null)) as { error?: string } | null;
     throw new Error(result?.error || `Label print failed with ${response.status}`);
+  }
+
+  return response.json().catch(() => ({ ok: true }));
+}
+
+export async function openCashDrawer(payload: {
+  printerName?: string;
+  pin?: 2 | 5;
+}) {
+  const response = await fetch(`${DEFAULT_PRINT_AGENT_URL}/hardware/drawer-open`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const result = (await response.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(result?.error || `Cash drawer failed with ${response.status}`);
   }
 
   return response.json().catch(() => ({ ok: true }));
