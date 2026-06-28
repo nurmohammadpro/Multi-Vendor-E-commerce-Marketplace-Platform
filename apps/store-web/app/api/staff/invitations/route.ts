@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getStoreApiConfig, requestStoreApi } from '../../../../lib/api';
 
 export async function POST(request: NextRequest) {
-  const { storeId } = getStoreApiConfig();
+  const { storeId } = await getStoreApiConfig();
   const body = await request.json().catch(() => ({}));
   const response = await requestStoreApi(`/stores/${storeId}/invitations`, {
     method: 'POST',
