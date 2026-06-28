@@ -57,8 +57,10 @@ export default function LoginPage() {
       }
 
       if (loginRole === 'store' && hasOnlyStoreContext(data.contexts)) {
-        window.location.href = `${getWorkspaceUrl('store')}?token=${data.accessToken}`;
+        const ctx = data.contexts[0];
+        window.location.href = `${getWorkspaceUrl('store')}?token=${data.accessToken}&storeId=${ctx.type === 'store' ? ctx.storeId : ""}`;
         return;
+      }
       }
 
       router.push('/select-context');
