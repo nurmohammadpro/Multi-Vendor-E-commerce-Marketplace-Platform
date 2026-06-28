@@ -74,7 +74,7 @@ async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
   return payload as T;
 }
 
-export function BillingWorkspace() {
+export function BillingWorkspace({ canManageBilling }: { canManageBilling: boolean }) {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [subscription, setSubscription] = useState<Subscription>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -164,6 +164,17 @@ export function BillingWorkspace() {
       setLoading(false);
     }
   };
+
+  if (!canManageBilling) {
+    return (
+      <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
+        <article style={surfaceCardStyle}>
+          <h3 style={{ marginTop: 0 }}>Billing access limited</h3>
+          <p style={tokenMutedStyle}>Only the store owner can manage billing, plans, and invoice payments.</p>
+        </article>
+      </section>
+    );
+  }
 
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>

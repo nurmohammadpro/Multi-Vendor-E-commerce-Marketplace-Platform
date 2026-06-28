@@ -1,8 +1,11 @@
 import { Badge } from '@/components/ui/badge';
+import { getStoreConsoleAccess } from '../../lib/access';
 
 import { InventoryWorkspace } from './inventory-workspace';
 
-export default function StoreInventoryPage() {
+export default async function StoreInventoryPage() {
+  const access = await getStoreConsoleAccess();
+
   return (
     <div className="flex flex-col gap-6">
       <section className="max-w-[900px]">
@@ -12,7 +15,11 @@ export default function StoreInventoryPage() {
           Use live inventory APIs for balances, adjustments, approvals, and ledger history.
         </p>
       </section>
-      <InventoryWorkspace />
+      <InventoryWorkspace
+        canApproveInventory={access.canApproveInventory}
+        canAdjustInventory={access.canAdjustInventory}
+        canViewInventory={access.canViewInventory}
+      />
     </div>
   );
 }

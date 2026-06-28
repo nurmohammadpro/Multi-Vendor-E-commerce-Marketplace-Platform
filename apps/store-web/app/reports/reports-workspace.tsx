@@ -57,7 +57,7 @@ async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
   return payload as T;
 }
 
-export function ReportsWorkspace() {
+export function ReportsWorkspace({ canViewReports }: { canViewReports: boolean }) {
   const [sales, setSales] = useState<SalesReport | null>(null);
   const [inventory, setInventory] = useState<InventoryReport | null>(null);
   const [message, setMessage] = useState('Reports workspace is ready.');
@@ -91,6 +91,17 @@ export function ReportsWorkspace() {
       setLoading(false);
     }
   };
+
+  if (!canViewReports) {
+    return (
+      <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
+        <article style={surfaceCardStyle}>
+          <h3 style={{ marginTop: 0 }}>Reports access limited</h3>
+          <p style={tokenMutedStyle}>Your role can’t view sales reports or export jobs.</p>
+        </article>
+      </section>
+    );
+  }
 
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>

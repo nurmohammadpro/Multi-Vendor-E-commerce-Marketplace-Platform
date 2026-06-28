@@ -5,8 +5,11 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { getStoreConsoleAccess } from '../../lib/access';
 
-export default function StoreSettingsPage() {
+export default async function StoreSettingsPage() {
+  const access = await getStoreConsoleAccess();
+
   return (
     <div className="flex flex-col gap-6">
       <section className="max-w-[900px]">
@@ -19,41 +22,54 @@ export default function StoreSettingsPage() {
         </p>
       </section>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      {access.canManageSettings ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Operational defaults</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                Store timezone, base currency, invoice numbering, and receipt footer text are set here so the POS and
+                billing flows stay consistent.
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Policy controls</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                Approval thresholds, low-stock alerts, and stock adjustment behavior belong here, with tighter control for
+                managers and owners.
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Print and receipt</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                Keep receipt format, footer copy, printer routing, and label defaults in one place so POS output stays
+                predictable in every lane.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      ) : (
         <Card>
           <CardHeader>
-            <CardTitle>Operational defaults</CardTitle>
+            <CardTitle>Settings locked</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Store timezone, base currency, invoice numbering, and receipt footer text are set here so the POS and
-              billing flows stay consistent.
+              Only the store owner can change operational defaults and policy settings.
             </p>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Policy controls</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              Approval thresholds, low-stock alerts, and stock adjustment behavior belong here, with tighter control for
-              managers and owners.
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Print and receipt</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              Keep receipt format, footer copy, printer routing, and label defaults in one place so POS output stays
-              predictable in every lane.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      )}
     </div>
   );
 }

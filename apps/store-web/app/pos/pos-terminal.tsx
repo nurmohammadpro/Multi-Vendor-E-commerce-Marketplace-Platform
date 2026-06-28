@@ -90,7 +90,7 @@ async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
   return payload as T;
 }
 
-export function PosTerminal() {
+export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
   const [registers, setRegisters] = useState<Register[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
   const [selectedRegisterId, setSelectedRegisterId] = useState('');
@@ -376,6 +376,17 @@ export function PosTerminal() {
       setMessage(`Label print failed: ${(error as Error).message}`);
     }
   };
+
+  if (!canUsePos) {
+    return (
+      <section style={{ display: 'grid', gap: 20 }}>
+        <article style={cardStyle}>
+          <h3 style={{ marginTop: 0 }}>POS access limited</h3>
+          <p style={tokenMutedStyle}>Your role does not have permission to create sales or use the POS terminal.</p>
+        </article>
+      </section>
+    );
+  }
 
   return (
     <section style={{ display: 'grid', gap: 20 }}>
