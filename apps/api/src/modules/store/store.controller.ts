@@ -152,8 +152,9 @@ export class StoreController {
     @Param('storeId') storeId: string,
     @Headers('x-store-id') headerStoreId: string | undefined,
     @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @CurrentAuthSession() session: AuthSession | null,
   ) {
-    return this.storeService.getStaff(storeId, headerStoreId, authContext);
+    return this.storeService.getStaff(storeId, headerStoreId, authContext, session);
   }
 
   @Post(':storeId/invitations')

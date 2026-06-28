@@ -61,6 +61,8 @@ type AcceptInvitationPayload = {
   password: string;
 };
 
+type StoreStaffRole = 'store_owner' | 'store_manager' | 'store_salesman';
+
 @Injectable()
 export class StoreService {
   constructor(
@@ -965,8 +967,14 @@ export class StoreService {
     return { settings };
   }
 
-  async getStaff(storeId: string, headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
+  async getStaff(
+    storeId: string,
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    session: AuthSession | null,
+  ) {
     this.assertStoreAccess(storeId, headerStoreId, authContext);
+    const actorRole = this.requireStoreActorRole(authContext);
 
     const result = await this.pool.query(
       `
@@ -992,6 +1000,8 @@ export class StoreService {
 
     return {
       staff: result.rows,
+      actorRole,
+      capabilities: this.getStaffCapabilities(actorRole),
     };
   }
 
@@ -1006,6 +1016,9 @@ export class StoreService {
     if (!session) {
       throw new UnauthorizedException('Missing auth session');
     }
+
+    const actorRole = this.requireStoreActorRole(authContext);
+    this.assertCanInviteStaff(actorRole, payload.roleCode);
 
     const roleId = await this.findRoleId(payload.roleCode);
     const invitationToken = randomBytes(24).toString('hex');
@@ -1072,6 +1085,8 @@ export class StoreService {
       throw new UnauthorizedException('Missing auth session');
     }
 
+    const actorRole = this.requireStoreActorRole(authContext);
+
     const membership = await this.pool.query<{
       id: string;
       user_id: string;
@@ -1092,6 +1107,9 @@ export class StoreService {
     if (!currentMembership) {
       throw new NotFoundException('Store membership not found');
     }
+
+    const targetRole = await this.getRoleCodeById(currentMembership.role_id);
+    this.assertCanUpdateMembership(actorRole, targetRole, payload);
 
     const nextRoleId = payload.roleCode ? await this.findRoleId(payload.roleCode) : currentMembership.role_id;
     const nextStatus = payload.status ?? currentMembership.status;
@@ -1326,6 +1344,86 @@ export class StoreService {
     }
 
     return role.id;
+  }
+
+  private async getRoleCodeById(roleId: string) {
+    const result = await this.pool.query<{ code: string }>(
+      `
+        select code
+        from access.roles
+        where id = $1
+        limit 1
+      `,
+      [roleId],
+    );
+
+    const role = result.rows[0];
+    if (!role) {
+      throw new NotFoundException('Role not found');
+    }
+
+    return role.code as StoreStaffRole;
+  }
+
+  private requireStoreActorRole(authContext: StoreAuthContext | null): StoreStaffRole {
+    if (!authContext || authContext.type !== 'store') {
+      throw new ForbiddenException('Store context is required');
+    }
+
+    if (authContext.roles.includes('store_owner')) {
+      return 'store_owner';
+    }
+
+    if (authContext.roles.includes('store_manager')) {
+      return 'store_manager';
+    }
+
+    return 'store_salesman';
+  }
+
+  private getStaffCapabilities(actorRole: StoreStaffRole) {
+    return {
+      canInviteManager: actorRole === 'store_owner',
+      canInviteSalesman: actorRole === 'store_owner' || actorRole === 'store_manager',
+      canUpdateManager: actorRole === 'store_owner',
+      canUpdateSalesman: actorRole === 'store_owner' || actorRole === 'store_manager',
+      canRemoveManager: actorRole === 'store_owner',
+      canRemoveSalesman: actorRole === 'store_owner',
+    };
+  }
+
+  private assertCanInviteStaff(actorRole: StoreStaffRole, inviteRole: 'store_owner' | 'store_manager' | 'store_salesman') {
+    if (inviteRole === 'store_owner') {
+      throw new ForbiddenException('Store owner invitations are not allowed');
+    }
+
+    if (actorRole === 'store_manager' && inviteRole !== 'store_salesman') {
+      throw new ForbiddenException('Managers can only invite salesmen');
+    }
+  }
+
+  private assertCanUpdateMembership(
+    actorRole: StoreStaffRole,
+    targetRole: StoreStaffRole,
+    payload: UpdateMembershipPayload,
+  ) {
+    if (targetRole === 'store_owner') {
+      throw new ForbiddenException('Store owner membership cannot be changed here');
+    }
+
+    if (actorRole === 'store_manager') {
+      if (targetRole !== 'store_salesman') {
+        throw new ForbiddenException('Managers can only manage salesmen');
+      }
+
+      if (payload.roleCode && payload.roleCode !== 'store_salesman') {
+        throw new ForbiddenException('Managers can only keep salesmen as salesmen');
+      }
+
+      if (payload.status === 'removed') {
+        throw new ForbiddenException('Managers cannot remove salesmen');
+      }
+    }
   }
 
   private requireUserId(session: AuthSession | null) {

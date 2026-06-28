@@ -22,6 +22,15 @@ type StaffMember = {
   full_name?: string | null;
 };
 
+type StaffCapabilities = {
+  canInviteManager: boolean;
+  canInviteSalesman: boolean;
+  canUpdateManager: boolean;
+  canUpdateSalesman: boolean;
+  canRemoveManager: boolean;
+  canRemoveSalesman: boolean;
+};
+
 async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
   const response = await fetch(input, init);
   const payload = (await response.json().catch(() => null)) as T | { error?: string } | null;
@@ -33,6 +42,7 @@ async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
 
 export function StaffWorkspace() {
   const [staff, setStaff] = useState<StaffMember[]>([]);
+  const [capabilities, setCapabilities] = useState<StaffCapabilities | null>(null);
   const [message, setMessage] = useState('Staff management is ready.');
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
@@ -40,11 +50,12 @@ export function StaffWorkspace() {
     invitedPhone: '',
     roleCode: 'store_salesman',
   });
-  const canInvite = Boolean((form.invitedEmail.trim() || form.invitedPhone.trim()) && !loading);
+  const canSubmitInvite = Boolean((form.invitedEmail.trim() || form.invitedPhone.trim()) && !loading);
 
   const refresh = async () => {
-    const payload = await readJson<{ staff: StaffMember[] }>('/api/staff');
+    const payload = await readJson<{ staff: StaffMember[]; capabilities?: StaffCapabilities }>('/api/staff');
     setStaff(payload.staff ?? []);
+    setCapabilities(payload.capabilities ?? null);
   };
 
   useEffect(() => {
@@ -77,6 +88,10 @@ export function StaffWorkspace() {
     }
   };
 
+  const canInvite =
+    (form.roleCode === 'store_manager' && Boolean(capabilities?.canInviteManager))
+    || (form.roleCode === 'store_salesman' && Boolean(capabilities?.canInviteSalesman));
+
   const updateMembership = async (membershipId: string, payload: Partial<Pick<StaffMember, 'status' | 'role_code'>>) => {
     setLoading(true);
     try {
@@ -101,15 +116,21 @@ export function StaffWorkspace() {
     <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
       <article style={surfaceCardStyle}>
         <h3 style={{ marginTop: 0 }}>Invite Staff</h3>
+        <p style={tokenMutedStyle}>
+          {capabilities?.canInviteManager
+            ? 'You can invite managers and salesmen.'
+            : capabilities?.canInviteSalesman
+              ? 'You can invite salesmen only.'
+              : 'You do not have staff invitation rights.'}
+        </p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
           <input value={form.invitedEmail} onChange={(e) => setForm((v) => ({ ...v, invitedEmail: e.target.value }))} style={fieldStyle} placeholder="Email" />
           <input value={form.invitedPhone} onChange={(e) => setForm((v) => ({ ...v, invitedPhone: e.target.value }))} style={fieldStyle} placeholder="Phone" />
           <select value={form.roleCode} onChange={(e) => setForm((v) => ({ ...v, roleCode: e.target.value }))} style={fieldStyle}>
-            <option value="store_owner">Owner</option>
-            <option value="store_manager">Manager</option>
+            {capabilities?.canInviteManager ? <option value="store_manager">Manager</option> : null}
             <option value="store_salesman">Salesman</option>
           </select>
-          <button onClick={invite} style={secondaryButtonStyle} disabled={!canInvite}>Invite</button>
+          <button onClick={invite} style={secondaryButtonStyle} disabled={!canSubmitInvite || !canInvite}>Invite</button>
         </div>
       </article>
 
@@ -128,11 +149,39 @@ export function StaffWorkspace() {
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  <button onClick={() => updateMembership(member.id, { role_code: 'store_manager' })} style={secondaryButtonStyle} disabled={loading}>Make Manager</button>
-                  <button onClick={() => updateMembership(member.id, { role_code: 'store_salesman' })} style={secondaryButtonStyle} disabled={loading}>Make Salesman</button>
-                  <button onClick={() => updateMembership(member.id, { status: member.status === 'suspended' ? 'active' : 'suspended' })} style={secondaryButtonStyle} disabled={loading}>
-                    {member.status === 'suspended' ? 'Activate' : 'Suspend'}
-                  </button>
+                  {capabilities?.canUpdateManager && member.role_code === 'store_salesman' ? (
+                    <button onClick={() => updateMembership(member.id, { role_code: 'store_manager' })} style={secondaryButtonStyle} disabled={loading}>
+                      Make Manager
+                    </button>
+                  ) : null}
+                  {capabilities?.canUpdateManager && member.role_code === 'store_manager' ? (
+                    <button onClick={() => updateMembership(member.id, { role_code: 'store_salesman' })} style={secondaryButtonStyle} disabled={loading}>
+                      Make Salesman
+                    </button>
+                  ) : null}
+                  {member.role_code !== 'store_owner' ? (
+                    <button onClick={() => updateMembership(member.id, { status: member.status === 'suspended' ? 'active' : 'suspended' })} style={secondaryButtonStyle} disabled={loading}>
+                      {member.status === 'suspended' ? 'Activate' : 'Suspend'}
+                    </button>
+                  ) : null}
+                  {member.role_code === 'store_manager' && capabilities?.canRemoveManager ? (
+                    <button
+                      onClick={() => updateMembership(member.id, { status: 'removed' })}
+                      style={secondaryButtonStyle}
+                      disabled={loading}
+                    >
+                      Remove
+                    </button>
+                  ) : null}
+                  {member.role_code === 'store_salesman' && capabilities?.canRemoveSalesman ? (
+                    <button
+                      onClick={() => updateMembership(member.id, { status: 'removed' })}
+                      style={secondaryButtonStyle}
+                      disabled={loading}
+                    >
+                      Remove
+                    </button>
+                  ) : null}
                 </div>
               </div>
             </article>
