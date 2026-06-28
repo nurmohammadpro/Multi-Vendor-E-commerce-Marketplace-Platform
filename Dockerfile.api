@@ -29,4 +29,4 @@ COPY --from=deps /app/tsconfig.base.json ./
 
 EXPOSE 4000
 
-CMD ["sh", "-c", "node packages/database/src/migrate.mjs && node --loader ts-node/esm apps/api/src/main.ts"]
+CMD ["sh", "-c", "node packages/database/src/migrate.mjs && node packages/database/src/seed.mjs && node --loader ts-node/esm apps/api/src/main.ts"]
