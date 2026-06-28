@@ -1,26 +1,15 @@
-import type { CSSProperties } from 'react';
-
+import { Badge } from '@/components/ui/badge';
 import {
-  compactSurfaceCardStyle,
-  metricLabelStyle,
-  metricNoteStyle,
-  metricValueStyle,
-  motocoreColors,
-  pageFrameStyle,
-  pageLeadStyle,
-  pageShellStyle,
-  pageTitleStyle,
-  sectionIntroStyle,
-  sectionLabelStyle,
-  surfaceCardStyle,
-  tokenMutedStyle,
-} from '../motocore-theme';
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 
 type Demo = {
   eyebrow: string;
   name: string;
   note: string;
-  accent: string;
 };
 
 const demos: Demo[] = [
@@ -28,102 +17,82 @@ const demos: Demo[] = [
     eyebrow: 'Token direction',
     name: 'Compact commerce',
     note: 'Blue-only accents, low radius, tighter spacing, and lighter type for calm scan speed.',
-    accent: motocoreColors.accent,
   },
   {
     eyebrow: 'Surface direction',
     name: 'Quiet panels',
     note: '1px borders and small shadows replace heavy cards so the UI feels focused, not bulky.',
-    accent: '#1d4ed8',
   },
   {
     eyebrow: 'Control direction',
     name: 'Short controls',
     note: 'Inputs and buttons stay small, clear, and aligned to the same compact rhythm everywhere.',
-    accent: '#3b82f6',
   },
 ];
 
-const demoGridStyle: CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-  gap: 12,
-};
-
-const demoCardStyle: CSSProperties = {
-  ...surfaceCardStyle,
-  display: 'grid',
-  gap: 10,
-  borderRadius: 8,
-  padding: 16,
-};
-
-const compactRowStyle: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: 10,
-};
-
 export default function DesignDemosPage() {
   return (
-    <main style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
-      <section style={sectionIntroStyle}>
-        <span style={sectionLabelStyle}>Design demos</span>
-        <h2 style={pageTitleStyle}>Compact MotoCore-inspired UI, with our blue palette kept intact.</h2>
-        <p style={pageLeadStyle}>
-          This page now shows the actual direction we wanted: smaller spacing, lighter typography, tighter radii, and
-          minimal surfaces instead of the older oversized showcase.
-        </p>
-        <p style={tokenMutedStyle}>
+    <div className="flex flex-col gap-6">
+      <section className="max-w-[900px]">
+        <Badge variant="secondary" className="mb-3">Design demos</Badge>
+        <h2 className="text-xl sm:text-2xl font-medium tracking-tight mb-2">
+          Compact MotoCore-inspired UI, with our blue palette kept intact.
+        </h2>
+        <p className="text-sm text-muted-foreground leading-relaxed">
           The visual language is intentionally restrained so the store app reads like an operator console instead of a
           generic SaaS dashboard.
         </p>
       </section>
 
-      <section style={demoGridStyle}>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {demos.map((demo) => (
-          <article key={demo.name} style={demoCardStyle}>
-            <div style={compactRowStyle}>
-              <span style={{ ...sectionLabelStyle, color: demo.accent }}>{demo.eyebrow}</span>
-              <span style={{ ...metricLabelStyle, color: demo.accent, marginBottom: 0 }}>active</span>
-            </div>
-            <div style={{ display: 'grid', gap: 4 }}>
-              <h3 style={{ margin: 0, fontSize: 18, lineHeight: 1.15, letterSpacing: '-0.03em', fontWeight: 500 }}>
-                {demo.name}
-              </h3>
-              <p style={{ margin: 0, color: '#475569', lineHeight: 1.55 }}>{demo.note}</p>
-            </div>
-            <div style={compactSurfaceCardStyle}>
-              <div style={compactRowStyle}>
-                <span style={metricLabelStyle}>Primary action</span>
-                <span style={{ ...metricValueStyle, fontSize: 18, color: demo.accent }}>32px</span>
-              </div>
-              <p style={{ ...metricNoteStyle, marginTop: 6 }}>
-                Buttons, inputs, and chips share the same compact height and border radius.
-              </p>
-            </div>
-          </article>
+          <Card key={demo.name}>
+            <CardHeader>
+              <Badge variant="outline" className="w-fit text-xs">{demo.eyebrow}</Badge>
+              <CardTitle className="text-lg">{demo.name}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground leading-relaxed">{demo.note}</p>
+            </CardContent>
+          </Card>
         ))}
-      </section>
+      </div>
 
-      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
-        <article style={compactSurfaceCardStyle}>
-          <div style={metricLabelStyle}>Radius</div>
-          <div style={metricValueStyle}>6–8px</div>
-          <p style={metricNoteStyle}>Keeps the interface crisp and controlled.</p>
-        </article>
-        <article style={compactSurfaceCardStyle}>
-          <div style={metricLabelStyle}>Type</div>
-          <div style={metricValueStyle}>500–600</div>
-          <p style={metricNoteStyle}>Lighter weights reduce visual noise.</p>
-        </article>
-        <article style={compactSurfaceCardStyle}>
-          <div style={metricLabelStyle}>Spacing</div>
-          <div style={metricValueStyle}>Tight</div>
-          <p style={metricNoteStyle}>Smaller paddings keep the workflow focused.</p>
-        </article>
-      </section>
-    </main>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+              Radius
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="text-2xl font-semibold tracking-tight">6–8px</div>
+            <p className="text-xs text-muted-foreground mt-1">Keeps the interface crisp and controlled.</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+              Type
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="text-2xl font-semibold tracking-tight">500–600</div>
+            <p className="text-xs text-muted-foreground mt-1">Lighter weights reduce visual noise.</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+              Spacing
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="text-2xl font-semibold tracking-tight">Tight</div>
+            <p className="text-xs text-muted-foreground mt-1">Smaller paddings keep the workflow focused.</p>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
   );
 }

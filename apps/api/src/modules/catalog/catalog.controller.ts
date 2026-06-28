@@ -100,10 +100,74 @@ const createPriceSchema = z.object({
   effectiveTo: z.string().datetime().nullable().optional(),
 });
 
+const createCategorySchema = z.object({
+  parentId: z.string().uuid().optional(),
+  code: z.string().min(1).max(50),
+  name: z.string().min(1).max(150),
+  nameBn: z.string().max(150).optional(),
+  status: z.enum(['active', 'inactive']).default('active'),
+  sortOrder: z.number().int().nonnegative().default(0),
+});
+
+const createBrandSchema = z.object({
+  name: z.string().min(1).max(150),
+  nameBn: z.string().max(150).optional(),
+  status: z.enum(['active', 'inactive']).default('active'),
+});
+
+const createProductMediaSchema = z.object({
+  mediaType: z.enum(['image', 'document']),
+  storagePath: z.string().min(1),
+  isPrimary: z.boolean().default(false),
+  sortOrder: z.number().int().nonnegative().default(0),
+});
+
 @Controller('catalog')
 @UseGuards(PermissionsGuard)
 export class CatalogController {
   constructor(private readonly catalogService: CatalogService) {}
+
+  @Get('categories')
+  @RequireContext('store')
+  @RequirePermissions('inventory.view')
+  listCategories(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+  ) {
+    return this.catalogService.listCategories(headerStoreId, authContext);
+  }
+
+  @Post('categories')
+  @RequireContext('store')
+  @RequirePermissions('catalog.manage')
+  createCategory(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @Body() payload: unknown,
+  ) {
+    return this.catalogService.createCategory(headerStoreId, authContext, createCategorySchema.parse(payload));
+  }
+
+  @Get('brands')
+  @RequireContext('store')
+  @RequirePermissions('inventory.view')
+  listBrands(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+  ) {
+    return this.catalogService.listBrands(headerStoreId, authContext);
+  }
+
+  @Post('brands')
+  @RequireContext('store')
+  @RequirePermissions('catalog.manage')
+  createBrand(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @Body() payload: unknown,
+  ) {
+    return this.catalogService.createBrand(headerStoreId, authContext, createBrandSchema.parse(payload));
+  }
 
   @Get('skus/search')
   @RequireContext('store')
@@ -256,6 +320,23 @@ export class CatalogController {
       headerStoreId,
       authContext,
       updateVariantOptionSchema.parse(payload),
+    );
+  }
+
+  @Post('products/:productId/media')
+  @RequireContext('store')
+  @RequirePermissions('catalog.manage')
+  addProductMedia(
+    @Param('productId') productId: string,
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @Body() payload: unknown,
+  ) {
+    return this.catalogService.addProductMedia(
+      productId,
+      headerStoreId,
+      authContext,
+      createProductMediaSchema.parse(payload),
     );
   }
 

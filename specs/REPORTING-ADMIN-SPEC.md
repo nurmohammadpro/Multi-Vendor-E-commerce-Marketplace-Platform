@@ -23,6 +23,10 @@
 - `GET /v1/reports/platform/payments`
 - `GET /v1/audit/logs`
 - `POST /v1/reports/exports`
+- `GET /v1/admin/ops/outbox`
+- `POST /v1/admin/ops/outbox/process`
+- `GET /v1/admin/ops/exports`
+- `POST /v1/admin/ops/exports/:id/process`
 
 ## Rules
 
@@ -30,6 +34,7 @@
 - admin dashboard access is permission-based
 - audit logs are immutable
 - exports run asynchronously
+- outbox processing should stay batch-friendly and observable
 
 ## UI Screens
 

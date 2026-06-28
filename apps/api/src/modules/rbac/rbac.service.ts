@@ -26,6 +26,7 @@ const roleToPermissions: Record<string, string[]> = {
   store_salesman: ['inventory.view', 'sales.pos.create', 'sales.report.view'],
   platform_owner: [
     'platform.store.review',
+    'platform.store.manage',
     'platform.payment.monitor',
     'platform.support.manage',
     'platform.notification.manage',
@@ -36,9 +37,11 @@ const roleToPermissions: Record<string, string[]> = {
   ],
   regular_admin: [
     'platform.store.review',
+    'platform.store.manage',
     'platform.payment.monitor',
     'platform.support.manage',
     'platform.notification.manage',
+    'platform.broadcast.send',
     'platform.report.view',
   ],
   operations_admin: ['platform.store.review'],

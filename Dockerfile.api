@@ -5,6 +5,7 @@ COPY package*.json turbo.json tsconfig.base.json ./
 COPY apps ./apps
 COPY packages ./packages
 COPY scripts ./scripts
+COPY database ./database
 
 RUN npm ci
 
@@ -20,10 +21,12 @@ ENV TS_NODE_TRANSPILE_ONLY=true
 
 COPY --from=builder /app/apps ./apps
 COPY --from=builder /app/packages ./packages
+COPY --from=builder /app/database ./database
+COPY --from=builder /app/scripts ./scripts
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/package*.json ./
 COPY --from=deps /app/tsconfig.base.json ./
 
 EXPOSE 4000
 
-CMD ["node", "--loader", "ts-node/esm", "apps/api/src/main.ts"]
+CMD ["sh", "-c", "node packages/database/src/migrate.mjs && node --loader ts-node/esm apps/api/src/main.ts"]

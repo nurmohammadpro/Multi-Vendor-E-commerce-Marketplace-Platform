@@ -8,6 +8,114 @@ import { DATABASE_POOL } from '../database/database.constants.js';
 export class PosService {
   constructor(@Inject(DATABASE_POOL) private readonly pool: Pool) {}
 
+  async getRegisters(headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+
+    const result = await this.pool.query(
+      `
+        select
+          r.id,
+          r.code,
+          r.name,
+          r.status,
+          rs.id as open_shift_id,
+          rs.opened_at as open_shift_opened_at,
+          rs.opening_cash as open_shift_opening_cash,
+          up.full_name as open_shift_opened_by_name
+        from sales.registers r
+        left join sales.register_shifts rs
+          on rs.register_id = r.id
+          and rs.status = 'open'
+        left join identity.user_profiles up on up.user_id = rs.opened_by
+        where r.store_id = $1
+        order by r.created_at asc
+      `,
+      [storeId],
+    );
+
+    return {
+      registers: result.rows,
+    };
+  }
+
+  async searchCatalog(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    payload: { barcode?: string; q?: string; limit: number },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+
+    const result = await this.pool.query(
+      `
+        with latest_prices as (
+          select distinct on (pr.sku_id)
+            pr.sku_id,
+            pr.sale_price,
+            pr.compare_at_price
+          from catalog.prices pr
+          join catalog.skus sku on sku.id = pr.sku_id
+          where sku.store_id = $1
+          order by pr.sku_id, pr.effective_from desc, pr.created_at desc
+        ),
+        stock_totals as (
+          select
+            b.sku_id,
+            coalesce(sum(b.on_hand_qty), 0) as on_hand_qty,
+            coalesce(sum(b.available_qty), 0) as available_qty
+          from inventory.balances b
+          where b.store_id = $1
+          group by b.sku_id
+        )
+        select
+          sku.id,
+          sku.product_id,
+          sku.sku_code,
+          sku.barcode,
+          sku.variant_label,
+          sku.variant_json,
+          sku.unit_name,
+          sku.status,
+          p.product_code,
+          p.name as product_name,
+          p.has_variants,
+          p.variant_mode,
+          lp.sale_price,
+          lp.compare_at_price,
+          st.on_hand_qty,
+          st.available_qty
+        from catalog.skus sku
+        join catalog.products p on p.id = sku.product_id
+        left join latest_prices lp on lp.sku_id = sku.id
+        left join stock_totals st on st.sku_id = sku.id
+        where sku.store_id = $1
+          and sku.status = 'active'
+          and (
+            $2::varchar is null
+            or sku.barcode = $2::varchar
+          )
+          and (
+            ($3::text is null and $2::varchar is not null)
+            or $3::text is null
+            or p.name ilike '%' || $3::text || '%'
+            or sku.sku_code ilike '%' || $3::text || '%'
+            or coalesce(sku.barcode, '') ilike '%' || $3::text || '%'
+            or coalesce(sku.variant_label, '') ilike '%' || $3::text || '%'
+          )
+        order by
+          case when $2::varchar is not null and sku.barcode = $2::varchar then 0 else 1 end,
+          p.name asc,
+          sku.variant_label asc nulls first,
+          sku.created_at asc
+        limit $4
+      `,
+      [storeId, payload.barcode ?? null, payload.q ?? null, payload.limit],
+    );
+
+    return {
+      skus: result.rows,
+    };
+  }
+
   async openShift(
     headerStoreId: string | undefined,
     authContext: StoreAuthContext | null,
@@ -356,48 +464,32 @@ export class PosService {
 
   async getSale(saleId: string, headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
-
-    const saleResult = await this.pool.query(
-      `
-        select *
-        from sales.sales
-        where id = $1
-          and store_id = $2
-        limit 1
-      `,
-      [saleId, storeId],
-    );
-
-    const sale = saleResult.rows[0];
-    if (!sale) {
-      throw new NotFoundException('Sale not found');
-    }
-
-    const [items, payments] = await Promise.all([
-      this.pool.query(
-        `
-          select id, sku_id, product_name_snapshot, sku_code_snapshot, qty, unit_price, discount_amount, tax_amount, line_total
-          from sales.sale_items
-          where sale_id = $1
-          order by created_at asc
-        `,
-        [saleId],
-      ),
-      this.pool.query(
-        `
-          select id, payment_method, gateway_provider, amount, reference_no, status, paid_at
-          from sales.sale_payments
-          where sale_id = $1
-          order by created_at asc
-        `,
-        [saleId],
-      ),
-    ]);
+    const { sale, items, payments } = await this.getSaleAggregate(saleId, storeId);
 
     return {
       sale,
       items: items.rows,
       payments: payments.rows,
+    };
+  }
+
+  async reprintSaleReceipt(saleId: string, headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const { sale, items, payments } = await this.getSaleAggregate(saleId, storeId);
+    const receipt = await this.buildReceiptPayload(sale, items.rows, payments.rows, storeId);
+
+    return {
+      sale: {
+        id: sale.id,
+        saleNo: sale.sale_no,
+        totalAmount: sale.total_amount,
+        createdAt: sale.created_at,
+      },
+      receipt,
+      printIntent: {
+        agentPath: '/print/receipt',
+        suggestedPrinterType: 'receipt',
+      },
     };
   }
 
@@ -611,6 +703,112 @@ export class PosService {
       note: `POS sale ${saleNo}`,
       actorId,
     });
+  }
+
+  private async getSaleAggregate(saleId: string, storeId: string) {
+    const saleResult = await this.pool.query(
+      `
+        select *
+        from sales.sales
+        where id = $1
+          and store_id = $2
+        limit 1
+      `,
+      [saleId, storeId],
+    );
+
+    const sale = saleResult.rows[0];
+    if (!sale) {
+      throw new NotFoundException('Sale not found');
+    }
+
+    const [items, payments] = await Promise.all([
+      this.pool.query(
+        `
+          select id, sku_id, product_name_snapshot, sku_code_snapshot, qty, unit_price, discount_amount, tax_amount, line_total
+          from sales.sale_items
+          where sale_id = $1
+          order by created_at asc
+        `,
+        [saleId],
+      ),
+      this.pool.query(
+        `
+          select id, payment_method, gateway_provider, amount, reference_no, status, paid_at
+          from sales.sale_payments
+          where sale_id = $1
+          order by created_at asc
+        `,
+        [saleId],
+      ),
+    ]);
+
+    return { sale, items, payments };
+  }
+
+  private async buildReceiptPayload(
+    sale: Record<string, unknown>,
+    items: Array<Record<string, unknown>>,
+    payments: Array<Record<string, unknown>>,
+    storeId: string,
+  ) {
+    const storeResult = await this.pool.query(
+      `
+        select
+          s.name,
+          s.phone,
+          ss.receipt_footer
+        from store.stores s
+        left join store.store_settings ss on ss.store_id = s.id
+        where s.id = $1
+        limit 1
+      `,
+      [storeId],
+    );
+
+    const store = storeResult.rows[0] ?? {};
+    const paidAmount = payments.reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0);
+
+    return {
+      saleId: sale.id ?? null,
+      saleNo: sale.sale_no ?? null,
+      store: {
+        name: store.name ?? null,
+        phone: store.phone ?? null,
+        footer: store.receipt_footer ?? null,
+      },
+      customer: {
+        name: sale.customer_name ?? null,
+        phone: sale.customer_phone ?? null,
+      },
+      items: items.map((item) => ({
+        name: item.product_name_snapshot ?? null,
+        skuCode: item.sku_code_snapshot ?? null,
+        qty: Number(item.qty ?? 0),
+        unitPrice: Number(item.unit_price ?? 0),
+        discountAmount: Number(item.discount_amount ?? 0),
+        taxAmount: Number(item.tax_amount ?? 0),
+        lineTotal: Number(item.line_total ?? 0),
+      })),
+      totals: {
+        subtotal: Number(sale.subtotal_amount ?? 0),
+        discount: Number(sale.discount_amount ?? 0),
+        tax: Number(sale.tax_amount ?? 0),
+        shipping: Number(sale.shipping_amount ?? 0),
+        total: Number(sale.total_amount ?? 0),
+        paid: paidAmount,
+        change: Math.max(paidAmount - Number(sale.total_amount ?? 0), 0),
+      },
+      payments: payments.map((payment) => ({
+        paymentMethod: payment.payment_method ?? null,
+        gatewayProvider: payment.gateway_provider ?? null,
+        amount: Number(payment.amount ?? 0),
+        referenceNo: payment.reference_no ?? null,
+        status: payment.status ?? null,
+        paidAt: payment.paid_at ?? null,
+      })),
+      printedAt: new Date().toISOString(),
+    };
   }
 
   private async getSkuSnapshot(client: PoolClient, skuId: string, storeId: string) {

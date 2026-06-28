@@ -8,13 +8,13 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "turbo build",
-    "dev": "turbo dev",
-    "lint": "turbo lint",
-    "typecheck": "turbo typecheck",
-    "db:migrate": "node packages/database/src/migrate.mjs",
-    "db:migrate:status": "node packages/database/src/migrate.mjs --status",
-    "db:seed:bootstrap": "node packages/database/src/seed.mjs"
+    "build": "bash ./scripts/with-root-env.sh turbo build",
+    "dev": "bash ./scripts/with-root-env.sh turbo dev",
+    "lint": "bash ./scripts/with-root-env.sh turbo lint",
+    "typecheck": "bash ./scripts/with-root-env.sh turbo typecheck",
+    "db:migrate": "bash ./scripts/with-root-env.sh node packages/database/src/migrate.mjs",
+    "db:migrate:status": "bash ./scripts/with-root-env.sh node packages/database/src/migrate.mjs --status",
+    "db:seed:bootstrap": "bash ./scripts/with-root-env.sh node packages/database/src/seed.mjs"
   },
   "devDependencies": {
     "turbo": "^2.0.14",

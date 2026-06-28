@@ -6,6 +6,7 @@
 - store subscriptions
 - invoices
 - invoice payments
+- store payment gateways
 
 ## Core Tables
 
@@ -22,6 +23,9 @@
 - `GET /v1/billing/invoices`
 - `GET /v1/billing/invoices/:id`
 - `POST /v1/billing/invoices/:id/payments`
+- `GET /v1/payments/gateways`
+- `POST /v1/payments/gateways`
+- `PATCH /v1/payments/gateways/:id`
 
 ## Rules
 
@@ -30,6 +34,7 @@
 - invoices are append-safe
 - finance admins can monitor all subscription payments
 - store owner manages own subscription context
+- store owner manages own payment gateway records
 
 ## UI Screens
 

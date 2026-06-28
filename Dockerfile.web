@@ -43,12 +43,12 @@ ARG PORT
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV APP_DIR=${APP_DIR}
 ENV PORT=${PORT}
 
-COPY --from=builder /app/apps ./apps
-COPY --from=builder /app/packages ./packages
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/package*.json ./
+COPY --from=builder /app/${APP_DIR}/.next/standalone ./
+COPY --from=builder /app/${APP_DIR}/.next/static ./${APP_DIR}/.next/static
+COPY --from=builder /app/${APP_DIR}/public ./${APP_DIR}/public
 
-CMD ["sh", "-c", "npx next start \"$APP_DIR\" -H 0.0.0.0 -p \"${PORT:-3000}\""]
+EXPOSE ${PORT}
+
+CMD ["sh", "-c", "node ${APP_DIR}/server.js"]

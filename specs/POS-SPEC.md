@@ -23,6 +23,7 @@
 ## Endpoints
 
 - `GET /v1/pos/registers`
+- `GET /v1/pos/catalog/search`
 - `POST /v1/pos/shifts/open`
 - `POST /v1/pos/shifts/:id/close`
 - `POST /v1/pos/sales`
@@ -55,3 +56,5 @@ sale commit must atomically:
 - receipt printer uses localhost print agent
 - label printer uses localhost print agent
 - print failure must not block completed sale
+- barcode lookup should be exact-match first, then fallback to text search
+- reprint should return structured receipt data for the local print agent

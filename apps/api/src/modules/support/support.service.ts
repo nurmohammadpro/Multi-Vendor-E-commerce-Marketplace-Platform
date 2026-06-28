@@ -249,8 +249,8 @@ export class SupportService {
           $4,
           $5,
           $6,
-          case when $7 is null then 'draft' else 'scheduled' end,
-          $7,
+          case when $7::timestamptz is null then 'draft' else 'scheduled' end,
+          $7::timestamptz,
           now(),
           now()
         from identity.users u
@@ -269,6 +269,21 @@ export class SupportService {
     );
 
     return { broadcast: result.rows[0] };
+  }
+
+  async listBroadcasts(session: AuthSession | null) {
+    this.requireUserId(session);
+
+    const result = await this.pool.query(
+      `
+        select id, audience_type, channel, title, body, status, scheduled_at, created_at, updated_at
+        from comms.broadcasts
+        order by created_at desc
+        limit 100
+      `,
+    );
+
+    return { broadcasts: result.rows };
   }
 
   private async getTicketDetail(ticketId: string, scope: { storeId?: string }) {

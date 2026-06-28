@@ -11,7 +11,11 @@ const { Pool } = pg;
     {
       provide: DATABASE_POOL,
       useFactory: () => {
-        const connectionString = process.env.DATABASE_URL;
+        const connectionString =
+          process.env.DATABASE_URL ||
+          (process.env.NODE_ENV === 'production'
+            ? undefined
+            : 'postgresql://multivendor:password@localhost:5432/multivendor');
         if (!connectionString) {
           throw new Error('DATABASE_URL is required');
         }

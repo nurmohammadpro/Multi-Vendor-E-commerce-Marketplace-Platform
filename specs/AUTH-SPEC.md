@@ -58,6 +58,8 @@ Example:
 - revoke session on logout
 - track `ip_address`, `user_agent`, `device_label`
 - support multiple active sessions
+- password reset tokens expire and are single-use
+- MFA verification should be challenge-based, not frontend-only
 
 ## MFA Policy
 

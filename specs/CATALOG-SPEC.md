@@ -27,6 +27,8 @@
 
 - `GET /v1/catalog/categories`
 - `POST /v1/catalog/categories`
+- `GET /v1/catalog/brands`
+- `POST /v1/catalog/brands`
 - `GET /v1/catalog/skus/search`
 - `GET /v1/catalog/products`
 - `POST /v1/catalog/products`
@@ -37,6 +39,7 @@
 - `PATCH /v1/catalog/variant-groups/:id`
 - `POST /v1/catalog/products/:id/variant-options`
 - `PATCH /v1/catalog/variant-options/:id`
+- `POST /v1/catalog/products/:id/media`
 - `POST /v1/catalog/products/:id/media`
 - `POST /v1/catalog/skus`
 - `PATCH /v1/catalog/skus/:id`
@@ -58,6 +61,7 @@
 - product-level variant definitions are flexible enough for clothing, tires, hardware, electronics, and custom stores
 - SKU search must support barcode-first lookup for POS
 - product detail responses should include variants, SKU pricing, and stock summary
+- categories and brands are tenant-level reference data reused across stores under the same platform tenant
 
 ## UI Screens
 

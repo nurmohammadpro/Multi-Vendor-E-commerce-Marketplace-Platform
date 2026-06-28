@@ -93,45 +93,37 @@ export class AdminsService {
     try {
       await client.query('begin');
 
-      const userResult = await client.query<{
+      // Manual upsert: check if user exists with this email first
+      const existingUser = await client.query<{
         id: string;
         tenant_id: string;
       }>(
-        `
-          insert into identity.users (
-            id,
-            tenant_id,
-            email,
-            phone,
-            password_hash,
-            status,
-            preferred_locale,
-            created_at,
-            updated_at
-          )
-          values (
-            gen_random_uuid(),
-            $1,
-            $2::citext,
-            $3,
-            $4,
-            'active',
-            'en',
-            now(),
-            now()
-          )
-          on conflict (email)
-          do update set
-            phone = excluded.phone,
-            password_hash = excluded.password_hash,
-            status = 'active',
-            updated_at = now()
-          returning id, tenant_id
-        `,
-        [tenantId, email, phone || null, passwordHash],
+        `select id, tenant_id from identity.users where email = $1::citext limit 1`,
+        [email],
       );
 
-      const user = userResult.rows[0];
+      let user: { id: string; tenant_id: string } | null = existingUser.rows[0] ?? null;
+
+      if (user) {
+        // Update existing user
+        await client.query(
+          `update identity.users set phone = $2, password_hash = $3, status = 'active', updated_at = now() where id = $1`,
+          [user.id, phone || null, passwordHash],
+        );
+      } else {
+        // Insert new user
+        const insertResult = await client.query<{
+          id: string;
+          tenant_id: string;
+        }>(
+          `insert into identity.users (id, tenant_id, email, phone, password_hash, status, preferred_locale, created_at, updated_at)
+           values (gen_random_uuid(), $1, $2::citext, $3, $4, 'active', 'en', now(), now())
+           returning id, tenant_id`,
+          [tenantId, email, phone || null, passwordHash],
+        );
+        user = insertResult.rows[0];
+      }
+
       if (!user) {
         throw new BadRequestException('Unable to create admin user');
       }
@@ -172,43 +164,38 @@ export class AdminsService {
         throw new BadRequestException('Regular admin role is missing');
       }
 
-      const membershipResult = await client.query<{
-        id: string;
-      }>(
-        `
-          insert into access.admin_memberships (
-            id,
-            tenant_id,
-            user_id,
-            base_role_id,
-            status,
-            created_at,
-            updated_at
-          )
-          values (
-            gen_random_uuid(),
-            $1,
-            $2,
-            $3,
-            'active',
-            now(),
-            now()
-          )
-          on conflict (tenant_id, user_id)
-          do update set
-            base_role_id = excluded.base_role_id,
-            status = 'active',
-            updated_at = now()
-          returning id
-        `,
-        [tenantId, user.id, baseRoleId],
+      // Manual upsert: check existing active membership for this tenant+user
+      const existingMembership = await client.query<{ id: string }>(
+        `select id from access.admin_memberships
+         where tenant_id = $1 and user_id = $2 and status = 'active'
+         limit 1`,
+        [tenantId, user.id],
       );
+
+      let membershipId = existingMembership.rows[0]?.id ?? null;
+
+      if (membershipId) {
+        // Update existing membership
+        await client.query(
+          `update access.admin_memberships set base_role_id = $2, status = 'active', updated_at = now() where id = $1`,
+          [membershipId, baseRoleId],
+        );
+      } else {
+        // Insert new membership
+        const insertResult = await client.query<{ id: string }>(
+          `insert into access.admin_memberships (id, tenant_id, user_id, base_role_id, status, created_at, updated_at)
+           values (gen_random_uuid(), $1, $2, $3, 'active', now(), now())
+           returning id`,
+          [tenantId, user.id, baseRoleId],
+        );
+        membershipId = insertResult.rows[0]?.id ?? null;
+      }
 
       await client.query('commit');
 
       return {
         admin: {
-          membershipId: membershipResult.rows[0]?.id ?? null,
+          membershipId: membershipId,
           userId: user.id,
           fullName,
           email,
