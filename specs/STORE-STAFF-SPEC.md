@@ -18,6 +18,7 @@
 ## Endpoints
 
 - `POST /v1/stores`
+- `GET /v1/stores/my`
 - `GET /v1/stores/:id`
 - `PATCH /v1/stores/:id`
 - `GET /v1/stores/:id/settings`
@@ -33,6 +34,7 @@
 - store owner and manager can invite staff
 - invited role must be valid store role
 - one active membership per user per store
+- invitation acceptance should create or activate the invited user
 
 ## UI Screens
 

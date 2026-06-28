@@ -1,16 +1,18 @@
-import { pageLeadStyle, pageShellStyle, pageTitleStyle, sectionIntroStyle, sectionLabelStyle } from '../motocore-theme';
+import { Badge } from '@/components/ui/badge';
 
 import { ReportsWorkspace } from './reports-workspace';
 
 export default function StoreReportsPage() {
   return (
-    <main style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
-      <section style={sectionIntroStyle}>
-        <span style={sectionLabelStyle}>Reports</span>
-        <h2 style={pageTitleStyle}>Store reports</h2>
-        <p style={pageLeadStyle}>Daily sales, inventory snapshots, and export jobs are available from the live reporting APIs.</p>
+    <div className="flex flex-col gap-6">
+      <section className="max-w-[900px]">
+        <Badge variant="secondary" className="mb-3">Reports</Badge>
+        <h2 className="text-xl sm:text-2xl font-medium tracking-tight mb-2">Store reports</h2>
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          Daily sales, inventory snapshots, and export jobs are available from the live reporting APIs.
+        </p>
       </section>
       <ReportsWorkspace />
-    </main>
+    </div>
   );
 }

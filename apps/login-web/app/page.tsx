@@ -115,11 +115,6 @@ export default function LoginPage() {
                 ? 'Manage stores, staff, and platform settings.'
                 : 'Sign in with your store credentials.'}
             </p>
-            {loginRole === 'admin' && (
-              <p className="mt-3 rounded-md border border-border bg-muted px-3 py-2 text-center text-xs text-muted-foreground">
-                Use the seeded platform admin account created with `BOOTSTRAP_PLATFORM_ADMIN_*`.
-              </p>
-            )}
           </div>
 
           {/* Form */}
@@ -210,16 +205,7 @@ export default function LoginPage() {
 
         </div>
 
-        <p className="mt-6 text-center text-sm text-muted-foreground">
-          By signing in, you agree to our{' '}
-          <a className="underline underline-offset-4 hover:text-foreground" href="/terms">
-            Terms of Service
-          </a>{' '}
-          and{' '}
-          <a className="underline underline-offset-4 hover:text-foreground" href="/privacy">
-            Privacy Policy
-          </a>.
-        </p>
+        
       </div>
     </div>
   );

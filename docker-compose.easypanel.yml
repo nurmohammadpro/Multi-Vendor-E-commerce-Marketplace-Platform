@@ -1,0 +1,274 @@
+# ──────────────────────────────────────────────
+# Market One BD — EasyPanel Deployment Compose
+# Server: Hostinger KVM2 (72.60.222.185)
+# Deploy: docker compose -f docker-compose.easypanel.yml up -d
+# ──────────────────────────────────────────────
+#
+# IMPORTANT — Before deploying:
+#   1. Copy .env.production to .env and fill in real passwords
+#   2. Build:  docker compose -f docker-compose.easypanel.yml build
+#   3. Deploy: docker compose -f docker-compose.easypanel.yml up -d
+#   4. Seed:   docker compose -f docker-compose.easypanel.yml exec api node packages/database/src/seed.mjs
+#
+# EasyPanel will auto-detect services and configure Traefik routes.
+
+services:
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+    environment:
+      POSTGRES_DB: "${POSTGRES_DB:-multivendor}"
+      POSTGRES_USER: "${POSTGRES_USER:-multivendor}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+      PGDATA: "/var/lib/postgresql/data/pgdata"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-multivendor} -d ${POSTGRES_DB:-multivendor}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - internal
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 128M
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1000"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - internal
+
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    command: server /data --console-address ":9001"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+    environment:
+      MINIO_ROOT_USER: "${MINIO_ROOT_USER:-minioadmin}"
+      MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD}"
+    volumes:
+      - minio_data:/data
+    networks:
+      - internal
+
+  pgadmin:
+    image: dpage/pgadmin4:9
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 128M
+    environment:
+      PGADMIN_DEFAULT_EMAIL: "${PGADMIN_DEFAULT_EMAIL:-admin@example.com}"
+      PGADMIN_DEFAULT_PASSWORD: "${PGADMIN_DEFAULT_PASSWORD}"
+      PGADMIN_CONFIG_ENHANCED_COOKIE_PROTECTION: "True"
+      PGADMIN_CONFIG_LOGIN_BANNER: "\"Authorized access only\""
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - internal
+      - easypanel
+
+  postgres_backup:
+    image: prodrigestivill/postgres-backup-local:17
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 64M
+    environment:
+      POSTGRES_HOST: "postgres"
+      POSTGRES_DB: "${POSTGRES_DB:-multivendor}"
+      POSTGRES_USER: "${POSTGRES_USER:-multivendor}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+      POSTGRES_EXTRA_OPTS: "--clean --if-exists"
+      SCHEDULE: "${POSTGRES_BACKUP_SCHEDULE:-0 2 * * *}"
+      BACKUP_KEEP_DAYS: "${POSTGRES_BACKUP_KEEP_DAYS:-7}"
+      BACKUP_KEEP_WEEKS: "${POSTGRES_BACKUP_KEEP_WEEKS:-4}"
+      BACKUP_KEEP_MONTHS: "${POSTGRES_BACKUP_KEEP_MONTHS:-6}"
+    volumes:
+      - postgres_backups:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - internal
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+    environment:
+      NODE_ENV: production
+      PORT: "4000"
+      APP_URL: "${APP_URL:-https://app.example.com}"
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-multivendor}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-multivendor}"
+      REDIS_URL: "redis://redis:6379"
+      STORAGE_DRIVER: "${STORAGE_DRIVER:-s3}"
+      S3_ENDPOINT: "http://minio:9000"
+      S3_REGION: "${S3_REGION:-ap-south-1}"
+      S3_BUCKET: "${S3_BUCKET:-multivendor}"
+      S3_ACCESS_KEY_ID: "${MINIO_ROOT_USER:-minioadmin}"
+      S3_SECRET_ACCESS_KEY: "${MINIO_ROOT_PASSWORD}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:4000/v1/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))\""]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    networks:
+      - internal
+      - easypanel
+
+  login_web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+      args:
+        BUILD_WORKSPACE: "@mvp/login-web"
+        APP_DIR: apps/login-web
+        PORT: 3000
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+        NEXT_PUBLIC_ADMIN_APP_URL: ${NEXT_PUBLIC_ADMIN_APP_URL}
+        NEXT_PUBLIC_STORE_APP_URL: ${NEXT_PUBLIC_STORE_APP_URL}
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+    environment:
+      NODE_ENV: production
+      APP_DIR: apps/login-web
+      PORT: "3000"
+      NEXT_PUBLIC_API_URL: "${NEXT_PUBLIC_API_URL}"
+      NEXT_PUBLIC_ADMIN_APP_URL: "${NEXT_PUBLIC_ADMIN_APP_URL}"
+      NEXT_PUBLIC_STORE_APP_URL: "${NEXT_PUBLIC_STORE_APP_URL}"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - internal
+      - easypanel
+
+  admin_web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+      args:
+        BUILD_WORKSPACE: "@mvp/admin-web"
+        APP_DIR: apps/admin-web
+        PORT: 3001
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
+        API_BASE_URL: ${API_BASE_URL}
+        NEXT_PUBLIC_ADMIN_APP_NAME: ${NEXT_PUBLIC_ADMIN_APP_NAME:-Market One Admin}
+        ADMIN_DEMO_BEARER_TOKEN: ${ADMIN_DEMO_BEARER_TOKEN:-}
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+    environment:
+      NODE_ENV: production
+      APP_DIR: apps/admin-web
+      PORT: "3001"
+      API_BASE_URL: "${API_BASE_URL}"
+      NEXT_PUBLIC_API_BASE_URL: "${NEXT_PUBLIC_API_BASE_URL}"
+      NEXT_PUBLIC_ADMIN_APP_NAME: "${NEXT_PUBLIC_ADMIN_APP_NAME:-Market One Admin}"
+      ADMIN_DEMO_BEARER_TOKEN: "${ADMIN_DEMO_BEARER_TOKEN:-}"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - internal
+      - easypanel
+
+  store_web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+      args:
+        BUILD_WORKSPACE: "@mvp/store-web"
+        APP_DIR: apps/store-web
+        PORT: 3002
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
+        API_BASE_URL: ${API_BASE_URL}
+        NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-Market One BD}
+        NEXT_PUBLIC_PRINT_AGENT_URL: ${NEXT_PUBLIC_PRINT_AGENT_URL:-http://127.0.0.1:17658}
+        STORE_DEMO_BEARER_TOKEN: ${STORE_DEMO_BEARER_TOKEN:-}
+        STORE_DEMO_STORE_ID: ${STORE_DEMO_STORE_ID:-}
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+    environment:
+      NODE_ENV: production
+      APP_DIR: apps/store-web
+      PORT: "3002"
+      API_BASE_URL: "${API_BASE_URL}"
+      NEXT_PUBLIC_API_BASE_URL: "${NEXT_PUBLIC_API_BASE_URL}"
+      NEXT_PUBLIC_APP_NAME: "${NEXT_PUBLIC_APP_NAME:-Market One BD}"
+      NEXT_PUBLIC_PRINT_AGENT_URL: "${NEXT_PUBLIC_PRINT_AGENT_URL:-http://127.0.0.1:17658}"
+      STORE_DEMO_BEARER_TOKEN: "${STORE_DEMO_BEARER_TOKEN:-}"
+      STORE_DEMO_STORE_ID: "${STORE_DEMO_STORE_ID:-}"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - internal
+      - easypanel
+
+networks:
+  internal:
+    driver: bridge
+  easypanel:
+    external: true
+    name: easypanel
+
+volumes:
+  postgres_data:
+  redis_data:
+  pgadmin_data:
+  minio_data:
+  postgres_backups:

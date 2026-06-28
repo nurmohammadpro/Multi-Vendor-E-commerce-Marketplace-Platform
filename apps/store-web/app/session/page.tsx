@@ -1,18 +1,13 @@
-import { fetchStoreApi, isStoreApiConfigured } from '../../lib/api';
+import { Badge } from '@/components/ui/badge';
 import {
-  emptyStateStyle,
-  metricLabelStyle,
-  metricNoteStyle,
-  metricValueStyle,
-  pageLeadStyle,
-  pageShellStyle,
-  pageTitleStyle,
-  sectionIntroStyle,
-  sectionLabelStyle,
-  pillStyle,
-  tokenMutedStyle,
-  surfaceCardStyle,
-} from '../motocore-theme';
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
+
+import { fetchStoreApi, isStoreApiConfigured } from '../../lib/api';
 
 type SessionProfile = {
   user?: {
@@ -40,98 +35,130 @@ export default async function StoreSessionPage() {
   const configured = isStoreApiConfigured();
 
   return (
-    <main style={{ ...pageShellStyle, display: 'grid', gap: 24 }}>
-      <section style={sectionIntroStyle}>
-        <span style={sectionLabelStyle}>
-          Session status
-        </span>
-        <h2 style={pageTitleStyle}>See exactly which identity and permissions are active.</h2>
-        <p style={pageLeadStyle}>
+    <div className="flex flex-col gap-6">
+      <section className="max-w-[900px]">
+        <Badge variant="secondary" className="mb-3">Session status</Badge>
+        <h2 className="text-xl sm:text-2xl font-medium tracking-tight mb-2">
+          See exactly which identity and permissions are active.
+        </h2>
+        <p className="text-sm text-muted-foreground leading-relaxed">
           This closes the last UX gap by making the auth/session state visible to the operator instead of hidden.
         </p>
-        <p style={tokenMutedStyle}>
+        <p className="text-sm text-muted-foreground mt-2">
           {configured
             ? 'The session endpoint is reachable.'
             : 'Set `API_BASE_URL`, `STORE_DEMO_BEARER_TOKEN`, and `STORE_DEMO_STORE_ID` to inspect a live session.'}
         </p>
       </section>
 
-      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
-        <article style={surfaceCardStyle}>
-          <div style={metricLabelStyle}>Status</div>
-          <div style={metricValueStyle}>{profile?.user?.status ?? '—'}</div>
-          <p style={metricNoteStyle}>Identity status from the auth service.</p>
-        </article>
-        <article style={surfaceCardStyle}>
-          <div style={metricLabelStyle}>Contexts</div>
-          <div style={metricValueStyle}>{profile?.contexts?.length ?? 0}</div>
-          <p style={metricNoteStyle}>Available operating contexts for this account.</p>
-        </article>
-        <article style={surfaceCardStyle}>
-          <div style={metricLabelStyle}>Permissions</div>
-          <div style={metricValueStyle}>{profile?.permissions?.length ?? 0}</div>
-          <p style={metricNoteStyle}>Granted permissions expanded from roles.</p>
-        </article>
-      </section>
+      <Separator />
 
-      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
-        <article style={surfaceCardStyle}>
-          <h3 style={{ marginTop: 0 }}>Identity</h3>
-          {profile?.user ? (
-            <div style={{ display: 'grid', gap: 8, lineHeight: 1.6 }}>
-              <div>User ID: {profile.user.id ?? '—'}</div>
-              <div>Email: {profile.user.email || '—'}</div>
-              <div>Phone: {profile.user.phone || '—'}</div>
-              <div>Locale: {profile.user.preferredLocale || '—'}</div>
-              <div>Session expiry: {profile.session?.expiresAt ? new Date(profile.session.expiresAt).toLocaleString() : '—'}</div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <MetricCard title="Status" value={profile?.user?.status ?? '—'} note="Identity status from the auth service." />
+        <MetricCard title="Contexts" value={profile?.contexts?.length ?? 0} note="Available operating contexts for this account." />
+        <MetricCard title="Permissions" value={profile?.permissions?.length ?? 0} note="Granted permissions expanded from roles." />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Identity</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-2 text-sm leading-relaxed">
+              {profile?.user ? (
+                <>
+                  <div>User ID: {profile.user.id ?? '—'}</div>
+                  <div>Email: {profile.user.email || '—'}</div>
+                  <div>Phone: {profile.user.phone || '—'}</div>
+                  <div>Locale: {profile.user.preferredLocale || '—'}</div>
+                  <div>Session expiry: {profile.session?.expiresAt ? new Date(profile.session.expiresAt).toLocaleString() : '—'}</div>
+                </>
+              ) : (
+                <p className="text-muted-foreground">No live session profile is available yet.</p>
+              )}
             </div>
-          ) : (
-            <div style={emptyStateStyle}>No live session profile is available yet.</div>
-          )}
-        </article>
+          </CardContent>
+        </Card>
 
-        <article style={surfaceCardStyle}>
-          <h3 style={{ marginTop: 0 }}>Contexts and roles</h3>
-          <div style={{ display: 'grid', gap: 10 }}>
-            {profile?.contexts?.length ? (
-              profile.contexts.map((context, index) => (
-                <article key={`${context.type}-${context.storeId || index}`} style={{ ...surfaceCardStyle, padding: 12 }}>
-                  <div style={{ fontWeight: 600 }}>{context.type}</div>
-                  <div style={{ color: '#475569' }}>{context.storeName || context.storeId || 'No store selected'}</div>
-                  <div style={{ color: '#64748b' }}>{context.roles?.join(', ') || 'No roles'}</div>
-                </article>
-              ))
-            ) : (
-              <div style={emptyStateStyle}>No contexts are available for this session.</div>
-            )}
-          </div>
-        </article>
-      </section>
+        <Card>
+          <CardHeader>
+            <CardTitle>Contexts and roles</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-2">
+              {profile?.contexts?.length ? (
+                profile.contexts.map((context, index) => (
+                  <div key={`${context.type}-${context.storeId || index}`} className="rounded-md border p-3 text-sm">
+                    <div className="font-semibold">{context.type}</div>
+                    <div className="text-muted-foreground">{context.storeName || context.storeId || 'No store selected'}</div>
+                    <div className="text-muted-foreground/70">{context.roles?.join(', ') || 'No roles'}</div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-muted-foreground">No contexts are available for this session.</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
-      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
-        <article style={surfaceCardStyle}>
-          <h3 style={{ marginTop: 0 }}>Permissions</h3>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {profile?.permissions?.length ? (
-              profile.permissions.map((permission) => (
-                <span key={permission} style={pillStyle}>
-                  {permission}
-                </span>
-              ))
-            ) : (
-              <div style={emptyStateStyle}>No permissions were returned by the backend.</div>
-            )}
-          </div>
-        </article>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Permissions</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {profile?.permissions?.length ? (
+                profile.permissions.map((permission) => (
+                  <span key={permission} className="inline-flex items-center gap-1.5 rounded-md border bg-background px-2 py-1 text-xs font-medium">
+                    {permission}
+                  </span>
+                ))
+              ) : (
+                <p className="text-muted-foreground">No permissions were returned by the backend.</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
-        <article style={surfaceCardStyle}>
-          <h3 style={{ marginTop: 0 }}>What this tells us</h3>
-          <p style={tokenMutedStyle}>
-            The session view makes auth state visible, which helps operators debug context issues, expired tokens, and
-            permission mismatches without leaving the workspace.
-          </p>
-        </article>
-      </section>
-    </main>
+        <Card>
+          <CardHeader>
+            <CardTitle>What this tells us</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              The session view makes auth state visible, which helps operators debug context issues, expired tokens, and
+              permission mismatches without leaving the workspace.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+function MetricCard({
+  title,
+  value,
+  note,
+}: {
+  title: string;
+  value: string | number;
+  note: string;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+          {title}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="pt-0">
+        <div className="text-2xl font-semibold tracking-tight">{value}</div>
+        <p className="text-xs text-muted-foreground mt-1">{note}</p>
+      </CardContent>
+    </Card>
   );
 }

@@ -1,16 +1,18 @@
-import { pageLeadStyle, pageShellStyle, pageTitleStyle, sectionIntroStyle, sectionLabelStyle } from '../motocore-theme';
+import { Badge } from '@/components/ui/badge';
 
 import { ShippingWorkspace } from './shipping-workspace';
 
 export default function StoreShippingPage() {
   return (
-    <main style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
-      <section style={sectionIntroStyle}>
-        <span style={sectionLabelStyle}>Shipping</span>
-        <h2 style={pageTitleStyle}>Shipping operations</h2>
-        <p style={pageLeadStyle}>Shipment creation, courier assignment, tracking timeline, and status transitions run through live APIs.</p>
+    <div className="flex flex-col gap-6">
+      <section className="max-w-[900px]">
+        <Badge variant="secondary" className="mb-3">Shipping</Badge>
+        <h2 className="text-xl sm:text-2xl font-medium tracking-tight mb-2">Shipping operations</h2>
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          Shipment creation, courier assignment, tracking timeline, and status transitions run through live APIs.
+        </p>
       </section>
       <ShippingWorkspace />
-    </main>
+    </div>
   );
 }

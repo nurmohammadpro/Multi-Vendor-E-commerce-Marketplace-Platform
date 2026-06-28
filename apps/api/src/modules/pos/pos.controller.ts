@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 
 import { CurrentAuthContext, CurrentAuthSession } from '../auth/current-auth.decorator.js';
@@ -6,6 +6,14 @@ import type { AuthSession, StoreAuthContext } from '../auth/auth.types.js';
 import { RequireContext, RequirePermissions } from '../rbac/rbac.decorators.js';
 import { PermissionsGuard } from '../rbac/permissions.guard.js';
 import { PosService } from './pos.service.js';
+
+const searchCatalogSchema = z.object({
+  barcode: z.string().max(80).optional(),
+  q: z.string().max(120).optional(),
+  limit: z.coerce.number().int().positive().max(100).default(25),
+}).refine((value) => Boolean(value.barcode || value.q), {
+  message: 'barcode or q is required',
+});
 
 const openShiftSchema = z.object({
   registerId: z.string().uuid(),
@@ -64,6 +72,35 @@ const returnSaleSchema = z.object({
 export class PosController {
   constructor(private readonly posService: PosService) {}
 
+  @Get('registers')
+  @RequireContext('store')
+  @RequirePermissions('sales.pos.create')
+  getRegisters(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+  ) {
+    return this.posService.getRegisters(headerStoreId, authContext);
+  }
+
+  @Get('catalog/search')
+  @RequireContext('store')
+  @RequirePermissions('sales.pos.create')
+  searchCatalog(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @Query('barcode') barcode: string | undefined,
+    @Query('q') query: string | undefined,
+    @Query('limit') limit: string | undefined,
+  ) {
+    const payload = searchCatalogSchema.parse({
+      barcode,
+      q: query,
+      limit,
+    });
+
+    return this.posService.searchCatalog(headerStoreId, authContext, payload);
+  }
+
   @Post('shifts/open')
   @RequireContext('store')
   @RequirePermissions('sales.pos.create')
@@ -121,6 +158,17 @@ export class PosController {
     @CurrentAuthContext() authContext: StoreAuthContext | null,
   ) {
     return this.posService.getSale(saleId, headerStoreId, authContext);
+  }
+
+  @Post('sales/:saleId/reprint')
+  @RequireContext('store')
+  @RequirePermissions('sales.pos.create')
+  reprintSaleReceipt(
+    @Param('saleId') saleId: string,
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+  ) {
+    return this.posService.reprintSaleReceipt(saleId, headerStoreId, authContext);
   }
 
   @Post('sales/:saleId/returns')

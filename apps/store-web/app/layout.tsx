@@ -1,15 +1,7 @@
 import type { ReactNode } from 'react';
-import localFont from 'next/font/local';
 
-import { WorkspaceShell } from './workspace-shell';
 import './globals.css';
-
-const geistSans = localFont({
-  src: '../public/fonts/Geist-Regular.ttf',
-  variable: '--font-geist-sans',
-  display: 'swap',
-  weight: '400',
-});
+import { WorkspaceShell } from './workspace-shell';
 
 export const metadata = {
   title: 'Store Console',
@@ -32,11 +24,9 @@ const navItems = [
 export default function StoreLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <body className={geistSans.variable}>
+      <body>
         <WorkspaceShell
-          accent="blue"
-          badge="AxiomPOS"
-          description="Owner, manager, and cashier workflows"
+          badge="Market One BD"
           navItems={navItems}
           title="Store Console"
         >

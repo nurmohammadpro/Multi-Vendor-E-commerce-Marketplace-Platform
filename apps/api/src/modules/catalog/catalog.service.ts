@@ -20,6 +20,131 @@ type VariantOptionRow = {
 export class CatalogService {
   constructor(@Inject(DATABASE_POOL) private readonly pool: Pool) {}
 
+  async listCategories(headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+
+    const result = await this.pool.query(
+      `
+        select id, parent_id, code, name, name_bn, status, sort_order, created_at, updated_at
+        from catalog.categories
+        where tenant_id = (
+          select tenant_id from store.stores where id = $1
+        )
+        order by sort_order asc, created_at asc
+      `,
+      [storeId],
+    );
+
+    return { categories: result.rows };
+  }
+
+  async createCategory(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    payload: {
+      parentId?: string;
+      code: string;
+      name: string;
+      nameBn?: string;
+      status: 'active' | 'inactive';
+      sortOrder: number;
+    },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+
+    const result = await this.pool.query(
+      `
+        insert into catalog.categories (
+          id,
+          tenant_id,
+          parent_id,
+          code,
+          name,
+          name_bn,
+          status,
+          sort_order,
+          created_at,
+          updated_at
+        )
+        select
+          gen_random_uuid(),
+          s.tenant_id,
+          $2,
+          $3,
+          $4,
+          $5,
+          $6,
+          $7,
+          now(),
+          now()
+        from store.stores s
+        where s.id = $1
+        returning id, parent_id, code, name, name_bn, status, sort_order
+      `,
+      [storeId, payload.parentId ?? null, payload.code, payload.name, payload.nameBn ?? null, payload.status, payload.sortOrder],
+    );
+
+    return { category: result.rows[0] };
+  }
+
+  async listBrands(headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+
+    const result = await this.pool.query(
+      `
+        select id, name, name_bn, status, created_at, updated_at
+        from catalog.brands
+        where tenant_id = (
+          select tenant_id from store.stores where id = $1
+        )
+        order by name asc
+      `,
+      [storeId],
+    );
+
+    return { brands: result.rows };
+  }
+
+  async createBrand(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    payload: {
+      name: string;
+      nameBn?: string;
+      status: 'active' | 'inactive';
+    },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+
+    const result = await this.pool.query(
+      `
+        insert into catalog.brands (
+          id,
+          tenant_id,
+          name,
+          name_bn,
+          status,
+          created_at,
+          updated_at
+        )
+        select
+          gen_random_uuid(),
+          s.tenant_id,
+          $2,
+          $3,
+          $4,
+          now(),
+          now()
+        from store.stores s
+        where s.id = $1
+        returning id, name, name_bn, status
+      `,
+      [storeId, payload.name, payload.nameBn ?? null, payload.status],
+    );
+
+    return { brand: result.rows[0] };
+  }
+
   async searchSkus(
     headerStoreId: string | undefined,
     authContext: StoreAuthContext | null,
@@ -798,6 +923,67 @@ export class CatalogService {
     }
 
     return { option };
+  }
+
+  async addProductMedia(
+    productId: string,
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    payload: {
+      mediaType: 'image' | 'document';
+      storagePath: string;
+      isPrimary: boolean;
+      sortOrder: number;
+    },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+
+    const result = await this.pool.query(
+      `
+        insert into catalog.product_media (
+          id,
+          tenant_id,
+          product_id,
+          media_type,
+          storage_path,
+          is_primary,
+          sort_order,
+          created_at
+        )
+        select
+          gen_random_uuid(),
+          p.tenant_id,
+          p.id,
+          $2,
+          $3,
+          $4,
+          $5,
+          now()
+        from catalog.products p
+        where p.id = $1
+          and p.store_id = $6
+        returning id, product_id, media_type, storage_path, is_primary, sort_order, created_at
+      `,
+      [productId, payload.mediaType, payload.storagePath, payload.isPrimary, payload.sortOrder, storeId],
+    );
+
+    const media = result.rows[0];
+    if (!media) {
+      throw new NotFoundException('Product not found');
+    }
+
+    if (payload.isPrimary) {
+      await this.pool.query(
+        `
+          update catalog.product_media
+          set is_primary = case when id = $2 then true else false end
+          where product_id = $1
+        `,
+        [productId, media.id],
+      );
+    }
+
+    return { media };
   }
 
   async createSku(

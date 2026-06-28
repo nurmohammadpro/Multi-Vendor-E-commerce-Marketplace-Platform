@@ -1,4 +1,4 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 
 import { CurrentAuthSession } from '../auth/current-auth.decorator.js';
@@ -19,6 +19,13 @@ const createBroadcastSchema = z.object({
 @UseGuards(PermissionsGuard)
 export class AdminBroadcastController {
   constructor(private readonly supportService: SupportService) {}
+
+  @Get('broadcasts')
+  @RequireContext('admin')
+  @RequirePermissions('platform.broadcast.send')
+  listBroadcasts(@CurrentAuthSession() session: AuthSession | null) {
+    return this.supportService.listBroadcasts(session);
+  }
 
   @Post('broadcasts')
   @RequireContext('admin')
