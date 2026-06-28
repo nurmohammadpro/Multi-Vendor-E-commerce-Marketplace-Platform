@@ -8,7 +8,7 @@ type RouteContext = {
 
 export async function PATCH(request: NextRequest, context: RouteContext) {
   const { membershipId } = await context.params;
-  const { storeId } = getStoreApiConfig();
+  const { storeId } = await getStoreApiConfig();
   const body = await request.json().catch(() => ({}));
   const response = await requestStoreApi(`/stores/${storeId}/staff/${membershipId}`, {
     method: 'PATCH',
