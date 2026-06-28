@@ -27,6 +27,10 @@ const adminCreateStoreSchema = createStoreSchema.extend({
   message: 'ownerEmail or ownerPhone is required',
 });
 
+const resetOwnerPasswordSchema = z.object({
+  password: z.string().min(10),
+});
+
 const updateStoreSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   nameBn: z.string().max(200).nullable().optional(),
@@ -254,6 +258,23 @@ export class AdminStoreController {
     @CurrentAuthSession() session: AuthSession | null,
   ) {
     return this.storeService.adminDeleteStore(storeId, authContext, session);
+  }
+
+  @Post(':storeId/owner-password')
+  @RequireContext('admin')
+  @RequirePermissions('platform.store.manage')
+  resetOwnerPassword(
+    @Param('storeId') storeId: string,
+    @CurrentAuthContext() authContext: AdminAuthContext | null,
+    @CurrentAuthSession() session: AuthSession | null,
+    @Body() payload: unknown,
+  ) {
+    return this.storeService.adminResetStoreOwnerPassword(
+      storeId,
+      authContext,
+      session,
+      resetOwnerPasswordSchema.parse(payload),
+    );
   }
 }
 

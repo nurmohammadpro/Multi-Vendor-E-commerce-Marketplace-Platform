@@ -17,6 +17,42 @@ type PlatformAdminRow = {
   createdAt: string;
 };
 
+type PlatformSettings = {
+  accessPolicy: {
+    ownerControlsDestructiveActions: boolean;
+    managerCanManageSalesmen: boolean;
+    managerCanRemoveSalesmen: boolean;
+  };
+  defaults: {
+    operatingHours: string;
+    notificationsEmail: string;
+    reportWindowDays: number;
+  };
+  governance: {
+    requireConfirmationForDeletes: boolean;
+    auditRetentionDays: number;
+    changeReviewMinutes: number;
+  };
+};
+
+const defaultSettings: PlatformSettings = {
+  accessPolicy: {
+    ownerControlsDestructiveActions: true,
+    managerCanManageSalesmen: true,
+    managerCanRemoveSalesmen: false,
+  },
+  defaults: {
+    operatingHours: '09:00-18:00',
+    notificationsEmail: 'ops@example.com',
+    reportWindowDays: 30,
+  },
+  governance: {
+    requireConfirmationForDeletes: true,
+    auditRetentionDays: 365,
+    changeReviewMinutes: 15,
+  },
+};
+
 async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
   const response = await fetch(input, init);
   const payload = (await response.json().catch(() => null)) as T | { error?: string } | null;
@@ -28,6 +64,7 @@ async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
 
 export default function AdminSettingsPage() {
   const [admins, setAdmins] = useState<PlatformAdminRow[]>([]);
+  const [settings, setSettings] = useState<PlatformSettings>(defaultSettings);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('Platform settings are ready.');
   const [form, setForm] = useState({
@@ -55,6 +92,12 @@ export default function AdminSettingsPage() {
       ...current,
       membershipId: current.membershipId || payload.admins?.[0]?.membershipId || '',
     }));
+    const settingsPayload = await readJson<{ settings?: PlatformSettings }>('/api/platform/settings');
+    setSettings({
+      accessPolicy: { ...defaultSettings.accessPolicy, ...settingsPayload.settings?.accessPolicy },
+      defaults: { ...defaultSettings.defaults, ...settingsPayload.settings?.defaults },
+      governance: { ...defaultSettings.governance, ...settingsPayload.settings?.governance },
+    });
   };
 
   useEffect(() => {
@@ -128,6 +171,22 @@ export default function AdminSettingsPage() {
       });
       setPasswordForm((current) => ({ ...current, password: '' }));
       setMessage('Platform admin password updated.');
+    } catch (error) {
+      setMessage((error as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const saveSettings = async () => {
+    setLoading(true);
+    try {
+      await readJson('/api/platform/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings),
+      });
+      setMessage('Platform settings updated.');
     } catch (error) {
       setMessage((error as Error).message);
     } finally {
@@ -236,32 +295,111 @@ export default function AdminSettingsPage() {
           <CardHeader>
             <CardTitle>Access policy</CardTitle>
           </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              Manage owner privileges, scoped admin roles, and any restrictions around destructive platform actions.
-            </p>
+          <CardContent className="space-y-3">
+            <label className="flex items-center justify-between gap-3 text-sm">
+              <span>Owners control destructive actions</span>
+              <input
+                type="checkbox"
+                checked={settings.accessPolicy.ownerControlsDestructiveActions}
+                onChange={(e) => setSettings((current) => ({
+                  ...current,
+                  accessPolicy: { ...current.accessPolicy, ownerControlsDestructiveActions: e.target.checked },
+                }))}
+              />
+            </label>
+            <label className="flex items-center justify-between gap-3 text-sm">
+              <span>Managers can manage salesmen</span>
+              <input
+                type="checkbox"
+                checked={settings.accessPolicy.managerCanManageSalesmen}
+                onChange={(e) => setSettings((current) => ({
+                  ...current,
+                  accessPolicy: { ...current.accessPolicy, managerCanManageSalesmen: e.target.checked },
+                }))}
+              />
+            </label>
+            <label className="flex items-center justify-between gap-3 text-sm">
+              <span>Managers can remove salesmen</span>
+              <input
+                type="checkbox"
+                checked={settings.accessPolicy.managerCanRemoveSalesmen}
+                onChange={(e) => setSettings((current) => ({
+                  ...current,
+                  accessPolicy: { ...current.accessPolicy, managerCanRemoveSalesmen: e.target.checked },
+                }))}
+              />
+            </label>
           </CardContent>
         </Card>
         <Card>
           <CardHeader>
             <CardTitle>Platform defaults</CardTitle>
           </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              Set default operating hours, communication preferences, and systemwide naming so admin output stays
-              coherent across teams.
-            </p>
+          <CardContent className="space-y-3">
+            <Input
+              value={settings.defaults.operatingHours}
+              onChange={(e) => setSettings((current) => ({
+                ...current,
+                defaults: { ...current.defaults, operatingHours: e.target.value },
+              }))}
+              placeholder="09:00-18:00"
+            />
+            <Input
+              value={settings.defaults.notificationsEmail}
+              onChange={(e) => setSettings((current) => ({
+                ...current,
+                defaults: { ...current.defaults, notificationsEmail: e.target.value },
+              }))}
+              placeholder="ops@example.com"
+            />
+            <Input
+              type="number"
+              value={settings.defaults.reportWindowDays}
+              onChange={(e) => setSettings((current) => ({
+                ...current,
+                defaults: { ...current.defaults, reportWindowDays: Number(e.target.value || 0) },
+              }))}
+              placeholder="30"
+            />
           </CardContent>
         </Card>
         <Card>
           <CardHeader>
             <CardTitle>Governance</CardTitle>
           </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              Keep sensitive controls visible but deliberate, with audit-friendly settings flows and clear change
-              expectations.
-            </p>
+          <CardContent className="space-y-3">
+            <label className="flex items-center justify-between gap-3 text-sm">
+              <span>Require delete confirmation</span>
+              <input
+                type="checkbox"
+                checked={settings.governance.requireConfirmationForDeletes}
+                onChange={(e) => setSettings((current) => ({
+                  ...current,
+                  governance: { ...current.governance, requireConfirmationForDeletes: e.target.checked },
+                }))}
+              />
+            </label>
+            <Input
+              type="number"
+              value={settings.governance.auditRetentionDays}
+              onChange={(e) => setSettings((current) => ({
+                ...current,
+                governance: { ...current.governance, auditRetentionDays: Number(e.target.value || 0) },
+              }))}
+              placeholder="365"
+            />
+            <Input
+              type="number"
+              value={settings.governance.changeReviewMinutes}
+              onChange={(e) => setSettings((current) => ({
+                ...current,
+                governance: { ...current.governance, changeReviewMinutes: Number(e.target.value || 0) },
+              }))}
+              placeholder="15"
+            />
+            <Button onClick={saveSettings} disabled={loading} variant="outline" className="w-full">
+              Save Platform Settings
+            </Button>
           </CardContent>
         </Card>
       </section>

@@ -11,6 +11,7 @@ import { InventoryModule } from './modules/inventory/inventory.module.js';
 import { OpsModule } from './modules/ops/ops.module.js';
 import { PaymentsModule } from './modules/payments/payments.module.js';
 import { PosModule } from './modules/pos/pos.module.js';
+import { PlatformSettingsModule } from './modules/platform-settings/platform-settings.module.js';
 import { RbacModule } from './modules/rbac/rbac.module.js';
 import { ReportingModule } from './modules/reporting/reporting.module.js';
 import { ShippingModule } from './modules/shipping/shipping.module.js';
@@ -31,6 +32,7 @@ import { SupportModule } from './modules/support/support.module.js';
     OpsModule,
     PaymentsModule,
     PosModule,
+    PlatformSettingsModule,
     BillingModule,
     ShippingModule,
     StorageModule,
