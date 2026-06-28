@@ -138,6 +138,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: "3000"
+      HOSTNAME: "0.0.0.0"
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.marketone-login.rule=Host(`marketone.appbrainer.tech`)"
@@ -164,6 +165,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: "3001"
+      HOSTNAME: "0.0.0.0"
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.marketone-admin.rule=Host(`admin.marketone.appbrainer.tech`)"
@@ -190,6 +192,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: "3002"
+      HOSTNAME: "0.0.0.0"
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.marketone-store-app.rule=Host(`app.marketone.appbrainer.tech`)"
