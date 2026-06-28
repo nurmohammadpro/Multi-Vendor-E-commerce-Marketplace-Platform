@@ -1,6 +1,10 @@
 import { fetchAdminApi, isAdminApiConfigured } from '../../lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import Link from 'next/link';
+
+import { LogoutButton } from './logout-button';
 
 type SessionProfile = {
   user?: {
@@ -154,10 +158,16 @@ export default async function AdminSessionPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>What this tells us</CardTitle>
+            <CardTitle>Session actions</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-muted-foreground leading-relaxed">
+            <div className="flex flex-wrap gap-2">
+              <Button asChild variant="outline">
+                <Link href="/">Back to dashboard</Link>
+              </Button>
+              <LogoutButton />
+            </div>
+            <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
               The session view makes auth state visible, which helps operators debug context issues, expired tokens, and
               permission mismatches without leaving the workspace.
             </p>

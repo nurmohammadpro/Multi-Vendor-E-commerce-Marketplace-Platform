@@ -16,6 +16,7 @@ import {
   Settings,
   Wrench,
   LifeBuoy,
+  LogOut,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -186,6 +187,17 @@ function AppSidebar({
 
 function Header({ access }: { access: StoreConsoleAccess }) {
   const pathname = usePathname();
+  const loginUrl = process.env.NEXT_PUBLIC_LOGIN_APP_URL || '/';
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } finally {
+      if (typeof window !== 'undefined') {
+        window.location.href = loginUrl;
+      }
+    }
+  };
 
   const getPageTitle = () => {
     if (pathname === '/') return 'Dashboard';
@@ -240,6 +252,11 @@ function Header({ access }: { access: StoreConsoleAccess }) {
                 <span>Settings unavailable</span>
               </DropdownMenuItem>
             )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => void handleLogout()}>
+              <LogOut className="mr-2 size-4" />
+              <span>Log out</span>
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

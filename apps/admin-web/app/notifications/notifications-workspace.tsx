@@ -40,6 +40,7 @@ export function NotificationsWorkspace() {
   const [broadcasts, setBroadcasts] = useState<BroadcastRow[]>([]);
   const [message, setMessage] = useState('Notifications and broadcasts are ready.');
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [form, setForm] = useState({
     audienceType: 'all_stores',
     channel: 'in_app',
@@ -49,12 +50,17 @@ export function NotificationsWorkspace() {
   const canCreateBroadcast = Boolean(form.body.trim() && !loading);
 
   const refresh = async () => {
-    const [notificationPayload, broadcastPayload] = await Promise.all([
-      readJson<{ notifications: NotificationRow[] }>('/api/ops/notifications'),
-      readJson<{ broadcasts: BroadcastRow[] }>('/api/broadcasts'),
-    ]);
-    setNotifications(notificationPayload.notifications ?? []);
-    setBroadcasts(broadcastPayload.broadcasts ?? []);
+    setInitialLoading(true);
+    try {
+      const [notificationPayload, broadcastPayload] = await Promise.all([
+        readJson<{ notifications: NotificationRow[] }>('/api/ops/notifications'),
+        readJson<{ broadcasts: BroadcastRow[] }>('/api/broadcasts'),
+      ]);
+      setNotifications(notificationPayload.notifications ?? []);
+      setBroadcasts(broadcastPayload.broadcasts ?? []);
+    } finally {
+      setInitialLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -159,7 +165,11 @@ export function NotificationsWorkspace() {
               Process Queued Notifications
             </Button>
             <div className="flex flex-col gap-2.5 max-h-[420px] overflow-auto">
-              {notifications.length ? (
+              {initialLoading ? (
+                <div className="rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground">
+                  Loading queued notifications.
+                </div>
+              ) : notifications.length ? (
                 notifications.map((notification) => (
                   <Card key={notification.id} className="!p-3.5">
                     <div className="font-semibold text-sm">{notification.title || notification.channel}</div>
@@ -184,7 +194,11 @@ export function NotificationsWorkspace() {
           <CardTitle>Broadcasts</CardTitle>
         </CardHeader>
         <CardContent>
-          {broadcasts.length ? (
+          {initialLoading ? (
+            <div className="p-4 rounded-md border border-dashed border-border text-sm text-muted-foreground">
+              Loading broadcasts.
+            </div>
+          ) : broadcasts.length ? (
             <div className="flex flex-col gap-2.5">
               {broadcasts.map((broadcast) => (
                 <Card key={broadcast.id} className="!p-3.5">
