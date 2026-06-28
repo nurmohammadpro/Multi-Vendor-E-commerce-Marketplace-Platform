@@ -61,7 +61,6 @@ export default function LoginPage() {
         window.location.href = `${getWorkspaceUrl('store')}?token=${data.accessToken}&storeId=${ctx.type === 'store' ? ctx.storeId : ""}`;
         return;
       }
-      }
 
       router.push('/select-context');
     } catch (err) {
