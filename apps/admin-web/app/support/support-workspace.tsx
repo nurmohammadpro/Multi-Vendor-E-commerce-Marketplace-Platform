@@ -55,11 +55,17 @@ export function SupportWorkspace() {
   const [detail, setDetail] = useState<TicketDetail | null>(null);
   const [message, setMessage] = useState('Support operations are ready.');
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
 
   const refreshTickets = async () => {
-    const payload = await readJson<{ tickets: TicketRow[] }>('/api/support/tickets');
-    setTickets(payload.tickets ?? []);
-    setSelectedTicketId((current) => current || payload.tickets?.[0]?.id || '');
+    setInitialLoading(true);
+    try {
+      const payload = await readJson<{ tickets: TicketRow[] }>('/api/support/tickets');
+      setTickets(payload.tickets ?? []);
+      setSelectedTicketId((current) => current || payload.tickets?.[0]?.id || '');
+    } finally {
+      setInitialLoading(false);
+    }
   };
 
   const refreshDetail = async (ticketId: string) => {
@@ -134,7 +140,11 @@ export function SupportWorkspace() {
             <CardTitle>Ticket queue</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
-            {tickets.length ? (
+            {initialLoading ? (
+              <div className="rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground">
+                Loading the support queue.
+              </div>
+            ) : tickets.length ? (
               tickets.map((ticket) => (
                 <button
                   key={ticket.id}
