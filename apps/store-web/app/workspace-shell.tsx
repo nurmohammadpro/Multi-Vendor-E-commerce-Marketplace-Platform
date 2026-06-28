@@ -163,10 +163,10 @@ function AppSidebar({
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild tooltip="Get Help">
-                  <a href="#" onClick={(e) => e.preventDefault()}>
+                  <Link href="/help">
                     <LifeBuoy className="size-3.5" />
                     <span className="text-xs font-normal">Help & Reference</span>
-                  </a>
+                  </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>

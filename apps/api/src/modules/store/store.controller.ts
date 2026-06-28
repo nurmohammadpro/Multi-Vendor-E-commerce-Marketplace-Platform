@@ -8,14 +8,23 @@ import { PermissionsGuard } from '../rbac/permissions.guard.js';
 import { StoreService } from './store.service.js';
 
 const createStoreSchema = z.object({
-  storeCode: z.string().min(1).max(50),
   name: z.string().min(1).max(200),
   nameBn: z.string().max(200).optional(),
-  slug: z.string().min(1).max(200),
   phone: z.string().min(8).max(30),
   email: z.string().email().optional(),
   timezone: z.string().max(100).default('Asia/Dhaka'),
   locale: z.enum(['en', 'bn']).default('en'),
+  storeCode: z.string().min(1).max(50).optional(),
+  slug: z.string().min(1).max(200).optional(),
+});
+
+const adminCreateStoreSchema = createStoreSchema.extend({
+  ownerFullName: z.string().min(1).max(200),
+  ownerEmail: z.string().email().optional(),
+  ownerPhone: z.string().min(8).max(30).optional(),
+  ownerPassword: z.string().min(10),
+}).refine((value) => Boolean(value.ownerEmail || value.ownerPhone), {
+  message: 'ownerEmail or ownerPhone is required',
 });
 
 const updateStoreSchema = z.object({
@@ -204,7 +213,7 @@ export class AdminStoreController {
   @RequireContext('admin')
   @RequirePermissions('platform.store.manage')
   createStore(@CurrentAuthSession() session: AuthSession | null, @Body() payload: unknown) {
-    return this.storeService.createStore(session, createStoreSchema.parse(payload));
+    return this.storeService.adminCreateStore(session, adminCreateStoreSchema.parse(payload));
   }
 
   @Patch(':storeId')
