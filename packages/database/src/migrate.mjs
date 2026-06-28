@@ -26,7 +26,7 @@ async function ensureMigrationsTable(client) {
 
 async function getMigrationFiles() {
   const entries = await fs.readdir(migrationsDir);
-  return entries.filter((name) => name.endsWith('.sql')).sort();
+  return entries.filter((name) => name.endsWith('.sql') && !name.startsWith('._')).sort();
 }
 
 async function getAppliedMigrations(client) {

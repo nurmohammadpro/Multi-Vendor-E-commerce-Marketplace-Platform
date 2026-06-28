@@ -81,7 +81,7 @@ async function main() {
     await client.query('commit');
 
     console.log('Bootstrap seed completed');
-    console.log(JSON.stringify(result.rows[0] ?? {}, null, 2));
+    if (result.rows?.[0]) console.log(JSON.stringify(result.rows[0], null, 2));
   } catch (error) {
     await client.query('rollback').catch(() => {});
     throw error;
