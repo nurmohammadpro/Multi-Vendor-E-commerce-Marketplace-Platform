@@ -96,8 +96,8 @@ export function formatReceiptText(receipt: ReceiptPayload) {
   return lines.filter(Boolean).join('\n');
 }
 
-export async function printReceipt(receipt: ReceiptPayload, printerName?: string) {
-  const response = await fetch(`${DEFAULT_PRINT_AGENT_URL}/print/receipt`, {
+export async function printReceipt(receipt: ReceiptPayload, printerName?: string, baseUrl = DEFAULT_PRINT_AGENT_URL) {
+  const response = await fetch(`${baseUrl}/print/receipt`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -119,8 +119,8 @@ export async function printReceipt(receipt: ReceiptPayload, printerName?: string
 export async function printLabel(payload: {
   text: string;
   printerName?: string;
-}) {
-  const response = await fetch(`${DEFAULT_PRINT_AGENT_URL}/print/label`, {
+}, baseUrl = DEFAULT_PRINT_AGENT_URL) {
+  const response = await fetch(`${baseUrl}/print/label`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -139,8 +139,8 @@ export async function printLabel(payload: {
 export async function openCashDrawer(payload: {
   printerName?: string;
   pin?: 2 | 5;
-}) {
-  const response = await fetch(`${DEFAULT_PRINT_AGENT_URL}/hardware/drawer-open`, {
+}, baseUrl = DEFAULT_PRINT_AGENT_URL) {
+  const response = await fetch(`${baseUrl}/hardware/drawer-open`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
