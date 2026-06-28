@@ -1,5 +1,9 @@
+import Link from 'next/link';
+
 import { fetchAdminApi, isAdminApiConfigured } from '../../lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 
 type AuditLogRow = {
   id: string;
@@ -12,10 +16,31 @@ type AuditLogRow = {
   created_at: string;
 };
 
-export default async function AdminAuditPage() {
+type PageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function AdminAuditPage({ searchParams }: PageProps) {
+  const resolvedSearchParams = (await searchParams) ?? {};
   const payload = await fetchAdminApi<{ logs?: AuditLogRow[] }>('/audit/logs');
-  const logs = payload?.logs ?? [];
+  const rawLogs = payload?.logs ?? [];
   const configured = await isAdminApiConfigured();
+  const query = typeof resolvedSearchParams.q === 'string' ? resolvedSearchParams.q.trim().toLowerCase() : '';
+  const actorFilter = typeof resolvedSearchParams.actor === 'string' ? resolvedSearchParams.actor.trim().toLowerCase() : '';
+  const storeFilter = typeof resolvedSearchParams.store === 'string' ? resolvedSearchParams.store.trim().toLowerCase() : '';
+  const actionFilter = typeof resolvedSearchParams.action === 'string' ? resolvedSearchParams.action.trim().toLowerCase() : '';
+
+  const logs = rawLogs.filter((row) => {
+    const matchesQuery =
+      !query
+      || [row.action_code, row.actor_type, row.resource_type, row.resource_id, row.store_id]
+        .filter(Boolean)
+        .some((value) => value!.toLowerCase().includes(query));
+    const matchesActor = !actorFilter || (row.actor_type || '').toLowerCase().includes(actorFilter);
+    const matchesStore = !storeFilter || (row.store_id || '').toLowerCase().includes(storeFilter);
+    const matchesAction = !actionFilter || row.action_code.toLowerCase().includes(actionFilter);
+    return matchesQuery && matchesActor && matchesStore && matchesAction;
+  });
 
   const actionCounts = logs.reduce<Record<string, number>>((counts, row) => {
     counts[row.action_code] = (counts[row.action_code] ?? 0) + 1;
@@ -40,6 +65,23 @@ export default async function AdminAuditPage() {
             : 'Set `API_BASE_URL` and `ADMIN_DEMO_BEARER_TOKEN` to enable live audit logs.'}
         </p>
       </section>
+
+      <Card>
+        <CardContent className="pt-[var(--erp-card-py)]">
+          <form className="grid gap-3 md:grid-cols-[1.5fr_1fr_1fr_1fr_auto]" method="get">
+            <Input name="q" placeholder="Search action, actor, resource, store" defaultValue={typeof resolvedSearchParams.q === 'string' ? resolvedSearchParams.q : ''} />
+            <Input name="actor" placeholder="Actor type" defaultValue={typeof resolvedSearchParams.actor === 'string' ? resolvedSearchParams.actor : ''} />
+            <Input name="store" placeholder="Store ID" defaultValue={typeof resolvedSearchParams.store === 'string' ? resolvedSearchParams.store : ''} />
+            <Input name="action" placeholder="Action code" defaultValue={typeof resolvedSearchParams.action === 'string' ? resolvedSearchParams.action : ''} />
+            <div className="flex gap-2">
+              <Button type="submit">Filter</Button>
+              <Button asChild variant="outline">
+                <Link href="/audit">Reset</Link>
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
 
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <Card>
@@ -101,7 +143,7 @@ export default async function AdminAuditPage() {
               </div>
             ) : (
               <div className="p-4 rounded-md border border-dashed border-border text-sm text-muted-foreground">
-                No audit rows have been recorded yet.
+                {rawLogs.length ? 'No audit rows matched your filters.' : 'No audit rows have been recorded yet.'}
               </div>
             )}
           </CardContent>

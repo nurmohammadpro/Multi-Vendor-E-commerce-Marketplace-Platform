@@ -766,6 +766,64 @@ export class StoreService {
     };
   }
 
+  async adminResetStoreOwnerPassword(
+    storeId: string,
+    authContext: AdminAuthContext | null,
+    session: AuthSession | null,
+    payload: { password: string },
+  ) {
+    this.assertAdminContext(authContext);
+    const userId = this.requireUserId(session);
+    const passwordHash = await hashPassword(payload.password);
+
+    const result = await this.pool.query<{
+      store_id: string;
+      owner_user_id: string;
+      owner_email: string | null;
+      owner_phone: string | null;
+    }>(
+      `
+        update identity.users u
+        set password_hash = $2,
+            updated_at = now()
+        from store.stores s
+        where s.id = $1
+          and u.id = s.owner_user_id
+        returning s.id as store_id, u.id as owner_user_id, u.email as owner_email, u.phone as owner_phone
+      `,
+      [storeId, passwordHash],
+    );
+
+    const record = result.rows[0];
+    if (!record) {
+      throw new NotFoundException('Store owner not found');
+    }
+
+    await this.auditService.recordUserAction({
+      tenantId: session?.user.tenantId ?? '',
+      actorUserId: userId,
+      storeId,
+      actionCode: 'platform.store.owner_password.reset',
+      resourceType: 'store_owner',
+      resourceId: record.owner_user_id,
+      after: {
+        storeId,
+        ownerUserId: record.owner_user_id,
+        ownerEmail: record.owner_email,
+        ownerPhone: record.owner_phone,
+        rotatedAt: new Date().toISOString(),
+      },
+    });
+
+    return {
+      storeId,
+      ownerUserId: record.owner_user_id,
+      ownerEmail: record.owner_email,
+      ownerPhone: record.owner_phone,
+      password: payload.password,
+    };
+  }
+
   async getStore(storeId: string, headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
     this.assertStoreAccess(storeId, headerStoreId, authContext);
 

@@ -4,6 +4,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -108,6 +116,11 @@ export function StoresWorkspace() {
     password: string;
   } | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [deleteTarget, setDeleteTarget] = useState<StoreRow | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [ownerPasswordTarget, setOwnerPasswordTarget] = useState<StoreRow | null>(null);
+  const [ownerPassword, setOwnerPassword] = useState('');
 
   const refresh = async () => {
     const payload = await readJson<{ stores: StoreRow[] }>('/api/stores');
@@ -134,12 +147,30 @@ export function StoresWorkspace() {
     setEditingStoreId(null);
     setForm(emptyForm);
     setCreatedLogin(null);
+    setFormErrors({});
     setMessage('Ready to add a new store.');
   };
 
   const clearFormState = () => {
     setEditingStoreId(null);
     setForm(emptyForm);
+    setFormErrors({});
+  };
+
+  const validateForm = () => {
+    const nextErrors: Record<string, string> = {};
+    if (!form.name.trim()) nextErrors.name = 'Store name is required.';
+    if (!form.phone.trim()) nextErrors.phone = 'Phone is required.';
+    if (!form.ownerFullName.trim() && !editingStoreId) nextErrors.ownerFullName = 'Owner full name is required.';
+    if (!editingStoreId && !form.ownerEmail.trim() && !form.ownerPhone.trim()) {
+      nextErrors.ownerContact = 'Owner email or phone is required.';
+    }
+    if (!editingStoreId && form.ownerPassword.length < 10) {
+      nextErrors.ownerPassword = 'Use at least 10 characters.';
+    }
+
+    setFormErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
   };
 
   const copyText = async (value: string, field: string) => {
@@ -170,6 +201,11 @@ export function StoresWorkspace() {
   };
 
   const saveStore = async () => {
+    if (!validateForm()) {
+      setMessage('Fix the highlighted fields and try again.');
+      return;
+    }
+
     setSaving(true);
     try {
       const payload = {
@@ -243,20 +279,44 @@ export function StoresWorkspace() {
     }
   };
 
-  const deleteStore = async (store: StoreRow) => {
-    if (!store.can_delete) {
-      setMessage('This store is not yet eligible for deletion.');
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    if (deleteConfirmText.trim() !== deleteTarget.name) {
+      setMessage(`Type ${deleteTarget.name} to confirm deletion.`);
       return;
     }
 
-    const confirmed = window.confirm(`Delete ${store.name}? This cannot be undone.`);
-    if (!confirmed) return;
+    setLoading(true);
+    try {
+      await readJson(`/api/stores/${deleteTarget.id}`, { method: 'DELETE' });
+      await refresh();
+      setMessage(`Deleted ${deleteTarget.name}.`);
+      setDeleteTarget(null);
+      setDeleteConfirmText('');
+    } catch (error) {
+      setMessage((error as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const rotateOwnerPassword = async () => {
+    if (!ownerPasswordTarget || ownerPassword.length < 10) {
+      setMessage('Enter a password with at least 10 characters.');
+      return;
+    }
 
     setLoading(true);
     try {
-      await readJson(`/api/stores/${store.id}`, { method: 'DELETE' });
-      await refresh();
-      setMessage(`Deleted ${store.name}.`);
+      const response = await readJson<{ password?: string }>(`/api/stores/${ownerPasswordTarget.id}/owner-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: ownerPassword }),
+      });
+      setMessage(`Owner password rotated for ${ownerPasswordTarget.name}.`);
+      setCreatedLogin((current) => current ? { ...current, password: response.password || ownerPassword } : current);
+      setOwnerPasswordTarget(null);
+      setOwnerPassword('');
     } catch (error) {
       setMessage((error as Error).message);
     } finally {
@@ -300,6 +360,7 @@ export function StoresWorkspace() {
                 onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
                 placeholder="Demo Store"
               />
+              {formErrors.name ? <p className="text-xs text-destructive">{formErrors.name}</p> : null}
             </div>
             <div className="space-y-2">
               <Label htmlFor="storeNameBn">Store name bn</Label>
@@ -318,6 +379,7 @@ export function StoresWorkspace() {
                 onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))}
                 placeholder="+8801000000000"
               />
+              {formErrors.phone ? <p className="text-xs text-destructive">{formErrors.phone}</p> : null}
             </div>
             <div className="space-y-2">
               <Label htmlFor="storeEmail">Email</Label>
@@ -337,43 +399,46 @@ export function StoresWorkspace() {
                 </p>
                 <div className="space-y-2">
                   <Label htmlFor="ownerFullName">Owner full name</Label>
-                  <Input
-                    id="ownerFullName"
-                    value={form.ownerFullName}
-                    onChange={(event) => setForm((current) => ({ ...current, ownerFullName: event.target.value }))}
-                    placeholder="Store Owner"
-                  />
-                </div>
+                <Input
+                  id="ownerFullName"
+                  value={form.ownerFullName}
+                  onChange={(event) => setForm((current) => ({ ...current, ownerFullName: event.target.value }))}
+                  placeholder="Store Owner"
+                />
+                {formErrors.ownerFullName ? <p className="text-xs text-destructive">{formErrors.ownerFullName}</p> : null}
+              </div>
                 <div className="space-y-2">
                   <Label htmlFor="ownerEmail">Owner email</Label>
-                  <Input
-                    id="ownerEmail"
-                    type="email"
-                    value={form.ownerEmail}
-                    onChange={(event) => setForm((current) => ({ ...current, ownerEmail: event.target.value }))}
-                    placeholder="owner@example.com"
-                  />
-                </div>
+                <Input
+                  id="ownerEmail"
+                  type="email"
+                  value={form.ownerEmail}
+                  onChange={(event) => setForm((current) => ({ ...current, ownerEmail: event.target.value }))}
+                  placeholder="owner@example.com"
+                />
+              </div>
                 <div className="space-y-2">
                   <Label htmlFor="ownerPhone">Owner phone</Label>
-                  <Input
-                    id="ownerPhone"
-                    value={form.ownerPhone}
-                    onChange={(event) => setForm((current) => ({ ...current, ownerPhone: event.target.value }))}
-                    placeholder="+8801000000000"
-                  />
-                </div>
+                <Input
+                  id="ownerPhone"
+                  value={form.ownerPhone}
+                  onChange={(event) => setForm((current) => ({ ...current, ownerPhone: event.target.value }))}
+                  placeholder="+8801000000000"
+                />
+                {formErrors.ownerContact ? <p className="text-xs text-destructive">{formErrors.ownerContact}</p> : null}
+              </div>
                 <div className="space-y-2">
                   <Label htmlFor="ownerPassword">Initial password</Label>
-                  <Input
-                    id="ownerPassword"
-                    type="password"
-                    value={form.ownerPassword}
-                    onChange={(event) => setForm((current) => ({ ...current, ownerPassword: event.target.value }))}
-                    placeholder="Create a strong password"
-                  />
-                </div>
+                <Input
+                  id="ownerPassword"
+                  type="password"
+                  value={form.ownerPassword}
+                  onChange={(event) => setForm((current) => ({ ...current, ownerPassword: event.target.value }))}
+                  placeholder="Create a strong password"
+                />
+                {formErrors.ownerPassword ? <p className="text-xs text-destructive">{formErrors.ownerPassword}</p> : null}
               </div>
+            </div>
             ) : (
               <div className="rounded-md border border-border/60 bg-muted/40 p-3 text-xs text-muted-foreground">
                 Owner login details are edited from the owner record, not the store profile.
@@ -539,6 +604,9 @@ export function StoresWorkspace() {
                     <Button variant="outline" size="sm" onClick={() => beginEdit(store)} disabled={loading || saving}>
                       Edit
                     </Button>
+                    <Button variant="outline" size="sm" onClick={() => setOwnerPasswordTarget(store)} disabled={loading || saving}>
+                      Reset owner password
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"
@@ -566,7 +634,7 @@ export function StoresWorkspace() {
                     <Button
                       variant="destructive"
                       size="sm"
-                      onClick={() => void deleteStore(store)}
+                      onClick={() => setDeleteTarget(store)}
                       disabled={loading || saving || !store.can_delete}
                     >
                       Delete
@@ -584,6 +652,69 @@ export function StoresWorkspace() {
               </CardContent>
             </Card>
           ) : null}
+
+          <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => {
+            if (!open) {
+              setDeleteTarget(null);
+              setDeleteConfirmText('');
+            }
+          }}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Delete store</DialogTitle>
+                <DialogDescription>
+                  Type the store name to confirm deletion. This action is only available for inactive stores that are eligible for removal.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-2">
+                <Label htmlFor="deleteConfirm">Confirm store name</Label>
+                <Input
+                  id="deleteConfirm"
+                  value={deleteConfirmText}
+                  onChange={(event) => setDeleteConfirmText(event.target.value)}
+                  placeholder={deleteTarget?.name ?? 'Store name'}
+                />
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+                <Button variant="destructive" onClick={() => void confirmDelete()} disabled={!deleteTarget || deleteConfirmText.trim() !== deleteTarget.name}>
+                  Delete store
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={Boolean(ownerPasswordTarget)} onOpenChange={(open) => {
+            if (!open) {
+              setOwnerPasswordTarget(null);
+              setOwnerPassword('');
+            }
+          }}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Reset owner password</DialogTitle>
+                <DialogDescription>
+                  This updates the login password for the store owner account linked to {ownerPasswordTarget?.name || 'the store'}.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-2">
+                <Label htmlFor="ownerPasswordReset">New password</Label>
+                <Input
+                  id="ownerPasswordReset"
+                  type="password"
+                  value={ownerPassword}
+                  onChange={(event) => setOwnerPassword(event.target.value)}
+                  placeholder="Create a new password"
+                />
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setOwnerPasswordTarget(null)}>Cancel</Button>
+                <Button onClick={() => void rotateOwnerPassword()} disabled={ownerPassword.length < 10}>
+                  Update password
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
           <Card>
             <CardHeader>
