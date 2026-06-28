@@ -40,7 +40,7 @@ async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
   return payload as T;
 }
 
-export function StaffWorkspace() {
+export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) {
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [capabilities, setCapabilities] = useState<StaffCapabilities | null>(null);
   const [message, setMessage] = useState('Staff management is ready.');
@@ -111,6 +111,17 @@ export function StaffWorkspace() {
       setLoading(false);
     }
   };
+
+  if (!canManageStaff) {
+    return (
+      <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
+        <article style={surfaceCardStyle}>
+          <h3 style={{ marginTop: 0 }}>Staff access limited</h3>
+          <p style={tokenMutedStyle}>Only owners and managers can manage staff invites and roles.</p>
+        </article>
+      </section>
+    );
+  }
 
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>

@@ -83,7 +83,15 @@ async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
   return payload as T;
 }
 
-export function InventoryWorkspace() {
+export function InventoryWorkspace({
+  canViewInventory,
+  canAdjustInventory,
+  canApproveInventory,
+}: {
+  canViewInventory: boolean;
+  canAdjustInventory: boolean;
+  canApproveInventory: boolean;
+}) {
   const [locations, setLocations] = useState<Location[]>([]);
   const [balances, setBalances] = useState<Balance[]>([]);
   const [adjustments, setAdjustments] = useState<AdjustmentRequest[]>([]);
@@ -236,6 +244,17 @@ export function InventoryWorkspace() {
     }
   };
 
+  if (!canViewInventory) {
+    return (
+      <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
+        <article style={surfaceCardStyle}>
+          <h3 style={{ marginTop: 0 }}>Inventory access limited</h3>
+          <p style={tokenMutedStyle}>Your role can’t view inventory data.</p>
+        </article>
+      </section>
+    );
+  }
+
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
@@ -278,6 +297,9 @@ export function InventoryWorkspace() {
 
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Stock Actions</h3>
+          {!canAdjustInventory ? (
+            <p style={tokenMutedStyle}>Your role can review inventory, but direct adjustments are restricted.</p>
+          ) : null}
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, marginBottom: 12 }}>
             <input
               value={skuSearch}
@@ -307,10 +329,10 @@ export function InventoryWorkspace() {
           <input value={quantity} onChange={(event) => setQuantity(event.target.value)} style={{ ...fieldStyle, marginBottom: 12 }} placeholder="Quantity or requested final qty" />
           <textarea value={reason} onChange={(event) => setReason(event.target.value)} style={{ ...fieldStyle, minHeight: 88, marginBottom: 12 }} placeholder="Reason / note" />
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button onClick={initializeStock} style={secondaryButtonStyle} disabled={!canInitializeStock}>
+            <button onClick={initializeStock} style={secondaryButtonStyle} disabled={!canInitializeStock || !canAdjustInventory}>
               Initialize Stock
             </button>
-            <button onClick={requestAdjustment} style={secondaryButtonStyle} disabled={!canRequestAdjustment}>
+            <button onClick={requestAdjustment} style={secondaryButtonStyle} disabled={!canRequestAdjustment || !canAdjustInventory}>
               Request Change
             </button>
           </div>
@@ -343,7 +365,7 @@ export function InventoryWorkspace() {
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <div style={{ marginBottom: 8 }}>{request.status}</div>
-                      {request.status === 'pending' ? (
+                      {request.status === 'pending' && canApproveInventory ? (
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                           <button onClick={() => decideAdjustment(request.id, 'approve')} style={secondaryButtonStyle} disabled={loading}>
                             Approve

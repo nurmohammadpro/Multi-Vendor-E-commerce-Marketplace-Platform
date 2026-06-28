@@ -1,8 +1,11 @@
 import { Badge } from '@/components/ui/badge';
+import { getStoreConsoleAccess } from '../../lib/access';
 
 import { ReportsWorkspace } from './reports-workspace';
 
-export default function StoreReportsPage() {
+export default async function StoreReportsPage() {
+  const access = await getStoreConsoleAccess();
+
   return (
     <div className="flex flex-col gap-6">
       <section className="max-w-[900px]">
@@ -12,7 +15,7 @@ export default function StoreReportsPage() {
           Daily sales, inventory snapshots, and export jobs are available from the live reporting APIs.
         </p>
       </section>
-      <ReportsWorkspace />
+      <ReportsWorkspace canViewReports={access.canViewReports} />
     </div>
   );
 }

@@ -76,7 +76,7 @@ async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
   return payload as T;
 }
 
-export function CatalogWorkspace() {
+export function CatalogWorkspace({ canManageCatalog }: { canManageCatalog: boolean }) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -361,45 +361,54 @@ export function CatalogWorkspace() {
 
   return (
     <section style={{ display: 'grid', gap: 20 }}>
-      <section style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.2fr', gap: 16 }}>
-        <article style={cardStyle}>
-          <h3 style={{ marginTop: 0 }}>Category</h3>
-          <input value={categoryForm.code} onChange={(e) => setCategoryForm((v) => ({ ...v, code: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Code" />
-          <input value={categoryForm.name} onChange={(e) => setCategoryForm((v) => ({ ...v, name: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Name" />
-          <button onClick={createCategory} style={buttonStyle} disabled={loading}>Create Category</button>
-        </article>
+      {canManageCatalog ? (
+        <section style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.2fr', gap: 16 }}>
+          <article style={cardStyle}>
+            <h3 style={{ marginTop: 0 }}>Category</h3>
+            <input value={categoryForm.code} onChange={(e) => setCategoryForm((v) => ({ ...v, code: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Code" />
+            <input value={categoryForm.name} onChange={(e) => setCategoryForm((v) => ({ ...v, name: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Name" />
+            <button onClick={createCategory} style={buttonStyle} disabled={loading}>Create Category</button>
+          </article>
 
-        <article style={cardStyle}>
-          <h3 style={{ marginTop: 0 }}>Brand</h3>
-          <input value={brandForm.name} onChange={(e) => setBrandForm({ name: e.target.value })} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Brand name" />
-          <button onClick={createBrand} style={buttonStyle} disabled={loading}>Create Brand</button>
-        </article>
+          <article style={cardStyle}>
+            <h3 style={{ marginTop: 0 }}>Brand</h3>
+            <input value={brandForm.name} onChange={(e) => setBrandForm({ name: e.target.value })} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Brand name" />
+            <button onClick={createBrand} style={buttonStyle} disabled={loading}>Create Brand</button>
+          </article>
 
+          <article style={cardStyle}>
+            <h3 style={{ marginTop: 0 }}>Product</h3>
+            <input value={productForm.productCode} onChange={(e) => setProductForm((v) => ({ ...v, productCode: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Product code" />
+            <input value={productForm.name} onChange={(e) => setProductForm((v) => ({ ...v, name: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Product name" />
+            <textarea value={productForm.description} onChange={(e) => setProductForm((v) => ({ ...v, description: e.target.value }))} style={{ ...inputStyle, minHeight: 70, marginBottom: 10 }} placeholder="Description" />
+            <select value={productForm.categoryId} onChange={(e) => setProductForm((v) => ({ ...v, categoryId: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }}>
+              <option value="">No category</option>
+              {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+            </select>
+            <select value={productForm.brandId} onChange={(e) => setProductForm((v) => ({ ...v, brandId: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }}>
+              <option value="">No brand</option>
+              {brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
+            </select>
+            <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
+              <input type="checkbox" checked={productForm.hasVariants} onChange={(e) => setProductForm((v) => ({ ...v, hasVariants: e.target.checked, variantMode: e.target.checked ? 'single' : 'none' }))} />
+              Has manual variants
+            </label>
+            <select value={productForm.variantMode} onChange={(e) => setProductForm((v) => ({ ...v, variantMode: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} disabled={!productForm.hasVariants}>
+              <option value="none">None</option>
+              <option value="single">Single Variant Axis</option>
+              <option value="multi">Multi Variant Axes</option>
+            </select>
+            <button onClick={createProduct} style={buttonStyle} disabled={loading}>Create Product</button>
+          </article>
+        </section>
+      ) : (
         <article style={cardStyle}>
-          <h3 style={{ marginTop: 0 }}>Product</h3>
-          <input value={productForm.productCode} onChange={(e) => setProductForm((v) => ({ ...v, productCode: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Product code" />
-          <input value={productForm.name} onChange={(e) => setProductForm((v) => ({ ...v, name: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Product name" />
-          <textarea value={productForm.description} onChange={(e) => setProductForm((v) => ({ ...v, description: e.target.value }))} style={{ ...inputStyle, minHeight: 70, marginBottom: 10 }} placeholder="Description" />
-          <select value={productForm.categoryId} onChange={(e) => setProductForm((v) => ({ ...v, categoryId: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }}>
-            <option value="">No category</option>
-            {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-          </select>
-          <select value={productForm.brandId} onChange={(e) => setProductForm((v) => ({ ...v, brandId: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }}>
-            <option value="">No brand</option>
-            {brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
-          </select>
-          <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
-            <input type="checkbox" checked={productForm.hasVariants} onChange={(e) => setProductForm((v) => ({ ...v, hasVariants: e.target.checked, variantMode: e.target.checked ? 'single' : 'none' }))} />
-            Has manual variants
-          </label>
-          <select value={productForm.variantMode} onChange={(e) => setProductForm((v) => ({ ...v, variantMode: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} disabled={!productForm.hasVariants}>
-            <option value="none">None</option>
-            <option value="single">Single Variant Axis</option>
-            <option value="multi">Multi Variant Axes</option>
-          </select>
-          <button onClick={createProduct} style={buttonStyle} disabled={loading}>Create Product</button>
+          <h3 style={{ marginTop: 0 }}>Read-only catalog access</h3>
+          <p style={{ marginBottom: 0, color: '#475569' }}>
+            Your role can view catalog data, but only owners and managers can create or change catalog records.
+          </p>
         </article>
-      </section>
+      )}
 
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
         <article style={cardStyle}>
@@ -440,30 +449,34 @@ export function CatalogWorkspace() {
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
-                <article style={{ ...cardStyle, padding: 14 }}>
-                  <h4 style={{ marginTop: 0 }}>Variant Group</h4>
-                  <input value={groupForm.code} onChange={(e) => setGroupForm((v) => ({ ...v, code: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="color / size / front / rear" />
-                  <input value={groupForm.name} onChange={(e) => setGroupForm((v) => ({ ...v, name: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Display name" />
-                  <select value={groupForm.inputType} onChange={(e) => setGroupForm((v) => ({ ...v, inputType: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }}>
-                    <option value="text">Text</option>
-                    <option value="color">Color</option>
-                    <option value="number">Number</option>
-                  </select>
-                  <button onClick={createVariantGroup} style={buttonStyle} disabled={loading}>Add Group</button>
-                </article>
+                {canManageCatalog ? (
+                  <article style={{ ...cardStyle, padding: 14 }}>
+                    <h4 style={{ marginTop: 0 }}>Variant Group</h4>
+                    <input value={groupForm.code} onChange={(e) => setGroupForm((v) => ({ ...v, code: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="color / size / front / rear" />
+                    <input value={groupForm.name} onChange={(e) => setGroupForm((v) => ({ ...v, name: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Display name" />
+                    <select value={groupForm.inputType} onChange={(e) => setGroupForm((v) => ({ ...v, inputType: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }}>
+                      <option value="text">Text</option>
+                      <option value="color">Color</option>
+                      <option value="number">Number</option>
+                    </select>
+                    <button onClick={createVariantGroup} style={buttonStyle} disabled={loading}>Add Group</button>
+                  </article>
+                ) : null}
 
-                <article style={{ ...cardStyle, padding: 14 }}>
-                  <h4 style={{ marginTop: 0 }}>Variant Option</h4>
-                  <select value={optionForm.variantGroupId} onChange={(e) => setOptionForm((v) => ({ ...v, variantGroupId: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }}>
-                    <option value="">Select group</option>
-                    {productDetail.groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
-                  </select>
-                  <input value={optionForm.code} onChange={(e) => setOptionForm((v) => ({ ...v, code: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="black / xl / front" />
-                  <input value={optionForm.label} onChange={(e) => setOptionForm((v) => ({ ...v, label: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Label" />
-                  <input value={optionForm.valueText} onChange={(e) => setOptionForm((v) => ({ ...v, valueText: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Value text (optional)" />
-                  <input value={optionForm.colorHex} onChange={(e) => setOptionForm((v) => ({ ...v, colorHex: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="#000000 for color" />
-                  <button onClick={createVariantOption} style={buttonStyle} disabled={loading}>Add Option</button>
-                </article>
+                {canManageCatalog ? (
+                  <article style={{ ...cardStyle, padding: 14 }}>
+                    <h4 style={{ marginTop: 0 }}>Variant Option</h4>
+                    <select value={optionForm.variantGroupId} onChange={(e) => setOptionForm((v) => ({ ...v, variantGroupId: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }}>
+                      <option value="">Select group</option>
+                      {productDetail.groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
+                    </select>
+                    <input value={optionForm.code} onChange={(e) => setOptionForm((v) => ({ ...v, code: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="black / xl / front" />
+                    <input value={optionForm.label} onChange={(e) => setOptionForm((v) => ({ ...v, label: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Label" />
+                    <input value={optionForm.valueText} onChange={(e) => setOptionForm((v) => ({ ...v, valueText: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Value text (optional)" />
+                    <input value={optionForm.colorHex} onChange={(e) => setOptionForm((v) => ({ ...v, colorHex: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="#000000 for color" />
+                    <button onClick={createVariantOption} style={buttonStyle} disabled={loading}>Add Option</button>
+                  </article>
+                ) : null}
               </div>
 
               <div style={{ display: 'grid', gap: 10 }}>
@@ -483,48 +496,52 @@ export function CatalogWorkspace() {
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
-                <article style={{ ...cardStyle, padding: 14 }}>
-                  <h4 style={{ marginTop: 0 }}>Manual SKU</h4>
-                  <input value={skuForm.skuCode} onChange={(e) => setSkuForm((v) => ({ ...v, skuCode: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="SKU code" />
-                  <input value={skuForm.barcode} onChange={(e) => setSkuForm((v) => ({ ...v, barcode: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Barcode" />
-                  <input value={skuForm.unitName} onChange={(e) => setSkuForm((v) => ({ ...v, unitName: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Unit name" />
-                  <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-                    <input value={skuForm.weightValue} onChange={(e) => setSkuForm((v) => ({ ...v, weightValue: e.target.value }))} style={inputStyle} placeholder="Weight" />
-                    <input value={skuForm.weightUnit} onChange={(e) => setSkuForm((v) => ({ ...v, weightUnit: e.target.value }))} style={inputStyle} placeholder="kg / lb / g" />
-                  </div>
-                  <div style={{ display: 'grid', gap: 6, marginBottom: 10 }}>
-                    {variantOptionsFlat.map((option) => (
-                      <label key={option.id} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                        <input
-                          type="checkbox"
-                          checked={skuForm.variantOptionIds.includes(option.id)}
-                          onChange={(e) =>
-                            setSkuForm((v) => ({
-                              ...v,
-                              variantOptionIds: e.target.checked
-                                ? [...v.variantOptionIds, option.id]
-                                : v.variantOptionIds.filter((id) => id !== option.id),
-                            }))
-                          }
-                        />
-                        {option.groupName}: {option.label}
-                      </label>
-                    ))}
-                  </div>
-                  <button onClick={createSku} style={buttonStyle} disabled={loading}>Create SKU</button>
-                </article>
+                {canManageCatalog ? (
+                  <article style={{ ...cardStyle, padding: 14 }}>
+                    <h4 style={{ marginTop: 0 }}>Manual SKU</h4>
+                    <input value={skuForm.skuCode} onChange={(e) => setSkuForm((v) => ({ ...v, skuCode: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="SKU code" />
+                    <input value={skuForm.barcode} onChange={(e) => setSkuForm((v) => ({ ...v, barcode: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Barcode" />
+                    <input value={skuForm.unitName} onChange={(e) => setSkuForm((v) => ({ ...v, unitName: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Unit name" />
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                      <input value={skuForm.weightValue} onChange={(e) => setSkuForm((v) => ({ ...v, weightValue: e.target.value }))} style={inputStyle} placeholder="Weight" />
+                      <input value={skuForm.weightUnit} onChange={(e) => setSkuForm((v) => ({ ...v, weightUnit: e.target.value }))} style={inputStyle} placeholder="kg / lb / g" />
+                    </div>
+                    <div style={{ display: 'grid', gap: 6, marginBottom: 10 }}>
+                      {variantOptionsFlat.map((option) => (
+                        <label key={option.id} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <input
+                            type="checkbox"
+                            checked={skuForm.variantOptionIds.includes(option.id)}
+                            onChange={(e) =>
+                              setSkuForm((v) => ({
+                                ...v,
+                                variantOptionIds: e.target.checked
+                                  ? [...v.variantOptionIds, option.id]
+                                  : v.variantOptionIds.filter((id) => id !== option.id),
+                              }))
+                            }
+                          />
+                          {option.groupName}: {option.label}
+                        </label>
+                      ))}
+                    </div>
+                    <button onClick={createSku} style={buttonStyle} disabled={loading}>Create SKU</button>
+                  </article>
+                ) : null}
 
-                <article style={{ ...cardStyle, padding: 14 }}>
-                  <h4 style={{ marginTop: 0 }}>Price</h4>
-                  <select value={priceForm.skuId} onChange={(e) => setPriceForm((v) => ({ ...v, skuId: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }}>
-                    <option value="">Select SKU</option>
-                    {productDetail.skus.map((sku) => <option key={sku.id} value={sku.id}>{sku.sku_code}</option>)}
-                  </select>
-                  <input value={priceForm.costPrice} onChange={(e) => setPriceForm((v) => ({ ...v, costPrice: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Cost price" />
-                  <input value={priceForm.salePrice} onChange={(e) => setPriceForm((v) => ({ ...v, salePrice: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Sale price" />
-                  <input value={priceForm.compareAtPrice} onChange={(e) => setPriceForm((v) => ({ ...v, compareAtPrice: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Compare at price" />
-                  <button onClick={createPrice} style={buttonStyle} disabled={loading}>Save Price</button>
-                </article>
+                {canManageCatalog ? (
+                  <article style={{ ...cardStyle, padding: 14 }}>
+                    <h4 style={{ marginTop: 0 }}>Price</h4>
+                    <select value={priceForm.skuId} onChange={(e) => setPriceForm((v) => ({ ...v, skuId: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }}>
+                      <option value="">Select SKU</option>
+                      {productDetail.skus.map((sku) => <option key={sku.id} value={sku.id}>{sku.sku_code}</option>)}
+                    </select>
+                    <input value={priceForm.costPrice} onChange={(e) => setPriceForm((v) => ({ ...v, costPrice: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Cost price" />
+                    <input value={priceForm.salePrice} onChange={(e) => setPriceForm((v) => ({ ...v, salePrice: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Sale price" />
+                    <input value={priceForm.compareAtPrice} onChange={(e) => setPriceForm((v) => ({ ...v, compareAtPrice: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Compare at price" />
+                    <button onClick={createPrice} style={buttonStyle} disabled={loading}>Save Price</button>
+                  </article>
+                ) : null}
               </div>
 
               <div style={{ display: 'grid', gap: 10 }}>

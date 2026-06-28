@@ -1,8 +1,11 @@
 import { Badge } from '@/components/ui/badge';
+import { getStoreConsoleAccess } from '../../lib/access';
 
 import { PosTerminal } from './pos-terminal';
 
-export default function StorePosPage() {
+export default async function StorePosPage() {
+  const access = await getStoreConsoleAccess();
+
   return (
     <div className="flex flex-col gap-6">
       <section className="max-w-[900px]">
@@ -12,7 +15,7 @@ export default function StorePosPage() {
           This POS surface talks to the live backend, supports shift control, barcode lookup, and local printing.
         </p>
       </section>
-      <PosTerminal />
+      <PosTerminal canUsePos={access.canUsePos} />
     </div>
   );
 }

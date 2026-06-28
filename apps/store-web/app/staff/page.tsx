@@ -1,8 +1,11 @@
 import { Badge } from '@/components/ui/badge';
+import { getStoreConsoleAccess } from '../../lib/access';
 
 import { StaffWorkspace } from './staff-workspace';
 
-export default function StoreStaffPage() {
+export default async function StoreStaffPage() {
+  const access = await getStoreConsoleAccess();
+
   return (
     <div className="flex flex-col gap-6">
       <section className="max-w-[900px]">
@@ -12,7 +15,7 @@ export default function StoreStaffPage() {
           Invite staff, assign roles, and monitor membership state through the live store APIs.
         </p>
       </section>
-      <StaffWorkspace />
+      <StaffWorkspace canManageStaff={access.canManageStaff} />
     </div>
   );
 }

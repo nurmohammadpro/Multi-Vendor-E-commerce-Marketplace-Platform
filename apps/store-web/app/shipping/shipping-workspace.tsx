@@ -51,7 +51,13 @@ async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
   return payload as T;
 }
 
-export function ShippingWorkspace() {
+export function ShippingWorkspace({
+  canManageShipping,
+  canViewShipping,
+}: {
+  canManageShipping: boolean;
+  canViewShipping: boolean;
+}) {
   const [couriers, setCouriers] = useState<Courier[]>([]);
   const [shipments, setShipments] = useState<Shipment[]>([]);
   const [selectedShipment, setSelectedShipment] = useState<ShipmentDetail | null>(null);
@@ -158,6 +164,17 @@ export function ShippingWorkspace() {
     }
   };
 
+  if (!canViewShipping) {
+    return (
+      <section style={{ display: 'grid', gap: 16 }}>
+        <article style={cardStyle}>
+          <h3 style={{ marginTop: 0 }}>Shipping access limited</h3>
+          <p style={tokenMutedStyle}>Your role can’t view shipment timelines or courier operations.</p>
+        </article>
+      </section>
+    );
+  }
+
   return (
     <section style={{ display: 'grid', gap: 16 }}>
       <article style={cardStyle}>
@@ -177,7 +194,7 @@ export function ShippingWorkspace() {
           <input value={form.note} onChange={(e) => setForm((v) => ({ ...v, note: e.target.value }))} style={inputStyle} placeholder="Note" />
         </div>
         <textarea value={form.deliveryAddress} onChange={(e) => setForm((v) => ({ ...v, deliveryAddress: e.target.value }))} style={{ ...inputStyle, minHeight: 90, marginTop: 10, marginBottom: 10 }} placeholder="Delivery address" />
-        <button onClick={createShipment} style={buttonStyle} disabled={!canCreateShipment}>Create Shipment</button>
+        <button onClick={createShipment} style={buttonStyle} disabled={!canCreateShipment || !canManageShipping}>Create Shipment</button>
       </article>
 
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
@@ -198,11 +215,13 @@ export function ShippingWorkspace() {
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      {['assigned', 'picked_up', 'in_transit', 'delivered', 'failed', 'returned'].map((status) => (
-                        <button key={status} onClick={() => updateStatus(shipment.id, status)} style={buttonStyle} disabled={loading || shipment.status === status}>
-                          {status}
-                        </button>
-                      ))}
+                      {canManageShipping
+                        ? ['assigned', 'picked_up', 'in_transit', 'delivered', 'failed', 'returned'].map((status) => (
+                          <button key={status} onClick={() => updateStatus(shipment.id, status)} style={buttonStyle} disabled={loading || shipment.status === status}>
+                            {status}
+                          </button>
+                        ))
+                        : null}
                     </div>
                   </div>
                 </article>

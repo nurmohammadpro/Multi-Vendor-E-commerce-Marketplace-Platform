@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
-  Store,
   Package,
   ClipboardList,
   ShoppingCart,
@@ -45,15 +44,18 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
+import type { StoreConsoleAccess } from '../lib/access';
 
 type NavItem = {
   href: string;
   label: string;
+  permission?: string;
 };
 
 type WorkspaceShellProps = {
   badge: string;
   description?: string;
+  access: StoreConsoleAccess;
   navItems: NavItem[];
   title: string;
   children: ReactNode;
@@ -72,15 +74,15 @@ const iconMap: Record<string, typeof LayoutDashboard> = {
   '/settings': Settings,
 };
 
-export function WorkspaceShell({ navItems, title, badge, children }: WorkspaceShellProps) {
+export function WorkspaceShell({ navItems, title, badge, children, access }: WorkspaceShellProps) {
   const pathname = usePathname();
 
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full">
-        <AppSidebar navItems={navItems} pathname={pathname} badge={badge} title={title} />
+        <AppSidebar access={access} navItems={navItems} pathname={pathname} badge={badge} title={title} />
         <div className="flex flex-1 min-w-0 flex-col">
-          <Header />
+          <Header access={access} />
           <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-auto">
             <div className="mx-auto w-full max-w-[1600px]">{children}</div>
           </main>
@@ -95,13 +97,16 @@ function AppSidebar({
   pathname,
   badge,
   title,
+  access,
 }: {
   navItems: NavItem[];
   pathname: string;
   badge: string;
   title: string;
+  access: StoreConsoleAccess;
 }) {
   const { setOpen, isMobile } = useSidebar();
+  const visibleNavItems = navItems.filter((item) => !item.permission || access.permissions.includes(item.permission));
 
   return (
     <Sidebar collapsible="icon" variant="sidebar" className="bg-sidebar border-r border-sidebar-border">
@@ -126,7 +131,7 @@ function AppSidebar({
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navItems.map((item) => {
+              {visibleNavItems.map((item) => {
                 const Icon = iconMap[item.href] || LayoutDashboard;
                 const isActive =
                   item.href === '/'
@@ -179,7 +184,7 @@ function AppSidebar({
   );
 }
 
-function Header() {
+function Header({ access }: { access: StoreConsoleAccess }) {
   const pathname = usePathname();
 
   const getPageTitle = () => {
@@ -201,6 +206,9 @@ function Header() {
       </div>
 
       <div className="flex items-center gap-1.5 sm:gap-2">
+        <span className="hidden sm:inline-flex items-center rounded-md border bg-muted px-2 py-1 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+          {access.role === 'unknown' ? 'Limited access' : `${access.role} access`}
+        </span>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="rounded-md size-8 sm:size-9">
@@ -219,12 +227,19 @@ function Header() {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <Link href="/settings">
+            {access.canManageSettings ? (
+              <DropdownMenuItem asChild>
+                <Link href="/settings">
+                  <Settings className="mr-2 size-4" />
+                  <span>Settings</span>
+                </Link>
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem disabled>
                 <Settings className="mr-2 size-4" />
-                <span>Settings</span>
-              </Link>
-            </DropdownMenuItem>
+                <span>Settings unavailable</span>
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

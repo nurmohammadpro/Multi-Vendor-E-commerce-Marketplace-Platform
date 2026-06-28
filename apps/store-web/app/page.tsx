@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Package, ClipboardList, ShoppingCart, Truck, BarChart3, CreditCard } from 'lucide-react';
 
 import { fetchStoreApi, isStoreApiConfigured } from '../lib/api';
+import { getStoreConsoleAccess } from '../lib/access';
 import { Badge } from '@/components/ui/badge';
 import {
   Card,
@@ -13,12 +14,12 @@ import {
 import { Separator } from '@/components/ui/separator';
 
 const quickActions = [
-  { href: '/pos', title: 'Open POS', detail: 'Process a sale, print a receipt, and manage shifts.', icon: ShoppingCart },
-  { href: '/catalog', title: 'Catalog', detail: 'Manage categories, products, variants, and SKUs.', icon: Package },
-  { href: '/inventory', title: 'Inventory', detail: 'Review balances, adjustments, and the stock ledger.', icon: ClipboardList },
-  { href: '/shipping', title: 'Shipping', detail: 'Create shipments and move orders through delivery.', icon: Truck },
-  { href: '/billing', title: 'Billing', detail: 'Check subscription health and invoice payment flow.', icon: CreditCard },
-  { href: '/reports', title: 'Reports', detail: 'Open sales, inventory, and export jobs.', icon: BarChart3 },
+  { href: '/pos', title: 'Open POS', detail: 'Process a sale, print a receipt, and manage shifts.', icon: ShoppingCart, permission: 'sales.pos.create' },
+  { href: '/catalog', title: 'Catalog', detail: 'Manage categories, products, variants, and SKUs.', icon: Package, permission: 'catalog.manage' },
+  { href: '/inventory', title: 'Inventory', detail: 'Review balances, adjustments, and the stock ledger.', icon: ClipboardList, permission: 'inventory.view' },
+  { href: '/shipping', title: 'Shipping', detail: 'Create shipments and move orders through delivery.', icon: Truck, permission: 'sales.report.view' },
+  { href: '/billing', title: 'Billing', detail: 'Check subscription health and invoice payment flow.', icon: CreditCard, permission: 'billing.subscription.manage' },
+  { href: '/reports', title: 'Reports', detail: 'Open sales, inventory, and export jobs.', icon: BarChart3, permission: 'sales.report.view' },
 ];
 
 type StoreSalesReport = {
@@ -29,10 +30,12 @@ type StoreSalesReport = {
 };
 
 export default async function StoreDashboardPage() {
+  const access = await getStoreConsoleAccess();
   const salesReport = await fetchStoreApi<StoreSalesReport>('/reports/store/sales');
   const inventoryReport = await fetchStoreApi<{ summary?: { total_available_qty?: string | number } }>(
     '/reports/store/inventory',
   );
+  const availableQuickActions = quickActions.filter((action) => !action.permission || access.permissions.includes(action.permission));
 
   return (
     <div className="flex flex-col gap-6">
@@ -61,7 +64,7 @@ export default async function StoreDashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {quickActions.map((action) => {
+        {availableQuickActions.map((action) => {
           const Icon = action.icon;
           return (
             <Link key={action.href} href={action.href} className="block group">
