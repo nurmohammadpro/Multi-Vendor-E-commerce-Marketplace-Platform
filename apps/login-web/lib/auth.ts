@@ -30,7 +30,7 @@ export function getStoredToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
 }
 
-export function storeToken(token: string): void {
+export function storeToken(token: string): void { if (typeof document !== "undefined") document.cookie = `auth_token=${token}; path=/; max-age=86400; SameSite=Lax`;
   localStorage.setItem(TOKEN_KEY, token);
 }
 

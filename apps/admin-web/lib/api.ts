@@ -1,17 +1,44 @@
+import { cookies } from 'next/headers';
+
 const apiBaseUrl =
   process.env.API_BASE_URL ||
   process.env.NEXT_PUBLIC_API_BASE_URL ||
   '';
 
-const adminToken = process.env.ADMIN_DEMO_BEARER_TOKEN || '';
+function getTokenFromCookies(): string {
+  try {
+    const store = cookies();
+    return store.get('auth_token')?.value || '';
+  } catch {
+    return '';
+  }
+}
+
+function getAuthToken(): string {
+  if (typeof window === 'undefined') {
+    return getTokenFromCookies();
+  }
+  // Client-side: get from URL param first, then localStorage
+  const params = new URLSearchParams(window.location.search);
+  const urlToken = params.get('token');
+  if (urlToken) {
+    localStorage.setItem('auth_token', urlToken);
+    document.cookie = `auth_token=${urlToken}; path=/; max-age=86400; SameSite=Lax`;
+    const url = new URL(window.location.href);
+    url.searchParams.delete('token');
+    window.history.replaceState({}, '', url.toString());
+    return urlToken;
+  }
+  return localStorage.getItem('auth_token') || getTokenFromCookies();
+}
 
 export function isAdminApiConfigured() {
-  return Boolean(apiBaseUrl && adminToken);
+  return Boolean(apiBaseUrl && getAuthToken());
 }
 
 export function getAdminApiHeaders(additionalHeaders?: HeadersInit) {
   return {
-    Authorization: `Bearer ${adminToken}`,
+    Authorization: `Bearer ${getAuthToken()}`,
     ...(additionalHeaders ?? {}),
   };
 }

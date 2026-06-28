@@ -65,7 +65,7 @@ export default function SelectContextPage() {
         return;
       }
 
-      const redirectUrl = `${getWorkspaceUrl(ctx.type)}?token=${token}`;
+      const redirectUrl = `${getWorkspaceUrl(ctx.type)}?token=${token}${ctx.type === 'store' && ctx.storeId ? `&storeId=${ctx.storeId}` : ""}`;
 
       window.location.href = redirectUrl;
     } catch {
