@@ -46,7 +46,7 @@ export default async function StoreDashboardPage() {
           shipping, billing, and reporting.
         </p>
         <p className="text-sm text-muted-foreground mt-2">
-          {isStoreApiConfigured()
+          {await isStoreApiConfigured()
             ? 'Live API demo mode is active and the dashboard is reading from the backend.'
             : 'Set `API_BASE_URL`, `STORE_DEMO_BEARER_TOKEN`, and `STORE_DEMO_STORE_ID` to enable live API data.'}
         </p>

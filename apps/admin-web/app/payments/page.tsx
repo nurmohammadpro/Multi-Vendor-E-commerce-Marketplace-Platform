@@ -17,7 +17,7 @@ type PlatformPayments = {
 
 export default async function AdminPaymentsPage() {
   const overview = await fetchAdminApi<PlatformPayments>('/reports/platform/payments');
-  const configured = isAdminApiConfigured();
+  const configured = await isAdminApiConfigured();
 
   return (
     <main>

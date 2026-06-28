@@ -15,7 +15,7 @@ type AuditLogRow = {
 export default async function AdminAuditPage() {
   const payload = await fetchAdminApi<{ logs?: AuditLogRow[] }>('/audit/logs');
   const logs = payload?.logs ?? [];
-  const configured = isAdminApiConfigured();
+  const configured = await isAdminApiConfigured();
 
   const actionCounts = logs.reduce<Record<string, number>>((counts, row) => {
     counts[row.action_code] = (counts[row.action_code] ?? 0) + 1;

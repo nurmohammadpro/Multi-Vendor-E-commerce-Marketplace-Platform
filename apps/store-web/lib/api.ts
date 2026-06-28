@@ -5,28 +5,26 @@ const apiBaseUrl =
   process.env.NEXT_PUBLIC_API_BASE_URL ||
   '';
 
-function getTokenFromCookies(): string {
+async function getTokenFromCookies(): Promise<string> {
   try {
-    const store = cookies();
+    const store = await cookies();
     return store.get('auth_token')?.value || '';
   } catch {
     return '';
   }
 }
 
-function getStoreIdFromCookies(): string {
+async function getStoreIdFromCookies(): Promise<string> {
   try {
-    const store = cookies();
+    const store = await cookies();
     return store.get('store_id')?.value || '';
   } catch {
     return '';
   }
 }
 
-function getAuthToken(): string {
-  if (typeof window === 'undefined') {
-    return getTokenFromCookies();
-  }
+function getAuthTokenClient(): string {
+  if (typeof window === 'undefined') return '';
   const params = new URLSearchParams(window.location.search);
   const urlToken = params.get('token');
   if (urlToken) {
@@ -37,13 +35,11 @@ function getAuthToken(): string {
     window.history.replaceState({}, '', url.toString());
     return urlToken;
   }
-  return localStorage.getItem('auth_token') || getTokenFromCookies();
+  return localStorage.getItem('auth_token') || '';
 }
 
-function getStoreId(): string {
-  if (typeof window === 'undefined') {
-    return getStoreIdFromCookies();
-  }
+function getStoreIdClient(): string {
+  if (typeof window === 'undefined') return '';
   const params = new URLSearchParams(window.location.search);
   const urlStoreId = params.get('storeId');
   if (urlStoreId) {
@@ -54,25 +50,43 @@ function getStoreId(): string {
     window.history.replaceState({}, '', url.toString());
     return urlStoreId;
   }
-  return localStorage.getItem('store_id') || getStoreIdFromCookies();
+  return localStorage.getItem('store_id') || '';
 }
 
-export function isStoreApiConfigured() {
-  return Boolean(apiBaseUrl && getAuthToken() && getStoreId());
+async function getAuthToken(): Promise<string> {
+  if (typeof window === 'undefined') {
+    return getTokenFromCookies();
+  }
+  const client = getAuthTokenClient();
+  if (client) return client;
+  return getTokenFromCookies();
 }
 
-export function getStoreApiConfig() {
+async function getStoreId(): Promise<string> {
+  if (typeof window === 'undefined') {
+    return getStoreIdFromCookies();
+  }
+  const client = getStoreIdClient();
+  if (client) return client;
+  return getStoreIdFromCookies();
+}
+
+export async function isStoreApiConfigured(): Promise<boolean> {
+  return Boolean(apiBaseUrl && await getAuthToken() && await getStoreId());
+}
+
+export async function getStoreApiConfig() {
   return {
     apiBaseUrl,
-    storeToken: getAuthToken(),
-    storeId: getStoreId(),
+    storeToken: await getAuthToken(),
+    storeId: await getStoreId(),
   };
 }
 
-export function getStoreApiHeaders(additionalHeaders?: HeadersInit) {
+export async function getStoreApiHeaders(additionalHeaders?: HeadersInit) {
   return {
-    Authorization: `Bearer ${getAuthToken()}`,
-    'x-store-id': getStoreId(),
+    Authorization: `Bearer ${await getAuthToken()}`,
+    'x-store-id': await getStoreId(),
     ...(additionalHeaders ?? {}),
   };
 }
@@ -82,12 +96,12 @@ export function buildStoreApiUrl(path: string) {
 }
 
 export async function fetchStoreApi<T>(path: string): Promise<T | null> {
-  if (!isStoreApiConfigured()) {
+  if (!await isStoreApiConfigured()) {
     return null;
   }
 
   const response = await fetch(buildStoreApiUrl(path), {
-    headers: getStoreApiHeaders(),
+    headers: await getStoreApiHeaders(),
     cache: 'no-store',
   });
 
@@ -99,7 +113,7 @@ export async function fetchStoreApi<T>(path: string): Promise<T | null> {
 }
 
 export async function requestStoreApi(path: string, init?: RequestInit) {
-  if (!isStoreApiConfigured()) {
+  if (!await isStoreApiConfigured()) {
     return new Response(JSON.stringify({ ok: false, error: 'Store API is not configured' }), {
       status: 503,
       headers: {
@@ -110,7 +124,7 @@ export async function requestStoreApi(path: string, init?: RequestInit) {
 
   return fetch(buildStoreApiUrl(path), {
     ...init,
-    headers: getStoreApiHeaders(init?.headers),
+    headers: await getStoreApiHeaders(init?.headers),
     cache: 'no-store',
   });
 }
