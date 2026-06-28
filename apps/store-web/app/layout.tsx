@@ -20,6 +20,7 @@ const navItems = [
   { href: '/session', label: 'Session' },
   { href: '/staff', label: 'Staff', permission: 'store.staff.manage' },
   { href: '/settings', label: 'Settings', permission: 'store.settings.manage' },
+  { href: '/hardware', label: 'Hardware', permission: 'store.settings.manage' },
 ];
 
 export default async function StoreLayout({ children }: { children: ReactNode }) {

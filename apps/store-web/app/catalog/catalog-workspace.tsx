@@ -688,7 +688,33 @@ export function CatalogWorkspace({ canManageCatalog }: { canManageCatalog: boole
                   <div style={{ display: 'grid', gap: 14 }}>
                     {productDetail.groups.map((group) => (
                       <div key={group.id} style={{ display: 'grid', gap: 8 }}>
-                        <div style={{ fontWeight: 600 }}>{group.name}</div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
+                          <div style={{ fontWeight: 600 }}>{group.name}</div>
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <button
+                              onClick={() =>
+                                setVariantSelection((current) => ({
+                                  ...current,
+                                  [group.id]: group.options.map((option) => option.id),
+                                }))
+                              }
+                              style={buttonStyle}
+                            >
+                              Select all
+                            </button>
+                            <button
+                              onClick={() =>
+                                setVariantSelection((current) => ({
+                                  ...current,
+                                  [group.id]: [],
+                                }))
+                              }
+                              style={buttonStyle}
+                            >
+                              Clear
+                            </button>
+                          </div>
+                        </div>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                           {group.options.map((option) => {
                             const selectedIds = variantSelection[group.id] ?? group.options.map((item) => item.id);

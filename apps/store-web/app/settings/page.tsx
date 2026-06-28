@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import {
   Card,
@@ -5,6 +6,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { getStoreConsoleAccess } from '../../lib/access';
 
 export default async function StoreSettingsPage() {
@@ -55,6 +57,9 @@ export default async function StoreSettingsPage() {
                 Keep receipt format, footer copy, printer routing, and label defaults in one place so POS output stays
                 predictable in every lane.
               </p>
+              <Button asChild variant="outline" className="mt-4">
+                <Link href="/hardware">Open hardware setup</Link>
+              </Button>
             </CardContent>
           </Card>
         </div>
