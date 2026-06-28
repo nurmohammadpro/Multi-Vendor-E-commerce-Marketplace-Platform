@@ -107,6 +107,7 @@ export function StoresWorkspace() {
     identifier: string;
     password: string;
   } | null>(null);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
 
   const refresh = async () => {
     const payload = await readJson<{ stores: StoreRow[] }>('/api/stores');
@@ -139,6 +140,16 @@ export function StoresWorkspace() {
   const clearFormState = () => {
     setEditingStoreId(null);
     setForm(emptyForm);
+  };
+
+  const copyText = async (value: string, field: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedField(field);
+      window.setTimeout(() => setCopiedField((current) => (current === field ? null : current)), 1500);
+    } catch {
+      setMessage('Copy failed. Please select the value manually.');
+    }
   };
 
   const beginEdit = (store: StoreRow) => {
@@ -199,7 +210,7 @@ export function StoresWorkspace() {
           identifier: created.login?.identifier || payload.ownerEmail || payload.ownerPhone || '',
           password: created.login?.password || payload.ownerPassword,
         });
-        setMessage(`Created ${payload.name}.`);
+        setMessage(`Created ${payload.name}. Code: ${created.store.store_code}. Slug: ${created.store.slug}.`);
       }
 
       await refresh();
@@ -418,12 +429,34 @@ export function StoresWorkspace() {
                   Share these with the store owner once. The password is shown here for this session only.
                 </p>
               </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <div><span className="font-medium">Store:</span> {createdLogin.storeName}</div>
-                <div><span className="font-medium">Code:</span> {createdLogin.storeCode}</div>
-                <div><span className="font-medium">Slug:</span> {createdLogin.slug}</div>
-                <div><span className="font-medium">Login:</span> {createdLogin.identifier}</div>
-                <div><span className="font-medium">Password:</span> {createdLogin.password}</div>
+          <CardContent className="space-y-2 text-sm">
+                <div className="flex items-center justify-between gap-2">
+                  <span><span className="font-medium">Store:</span> {createdLogin.storeName}</span>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span><span className="font-medium">Code:</span> {createdLogin.storeCode}</span>
+                  <Button variant="outline" size="sm" onClick={() => void copyText(createdLogin.storeCode, 'code')}>
+                    {copiedField === 'code' ? 'Copied' : 'Copy'}
+                  </Button>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span><span className="font-medium">Slug:</span> {createdLogin.slug}</span>
+                  <Button variant="outline" size="sm" onClick={() => void copyText(createdLogin.slug, 'slug')}>
+                    {copiedField === 'slug' ? 'Copied' : 'Copy'}
+                  </Button>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span><span className="font-medium">Login:</span> {createdLogin.identifier}</span>
+                  <Button variant="outline" size="sm" onClick={() => void copyText(createdLogin.identifier, 'identifier')}>
+                    {copiedField === 'identifier' ? 'Copied' : 'Copy'}
+                  </Button>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span><span className="font-medium">Password:</span> {createdLogin.password}</span>
+                  <Button variant="outline" size="sm" onClick={() => void copyText(createdLogin.password, 'password')}>
+                    {copiedField === 'password' ? 'Copied' : 'Copy'}
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ) : null}
