@@ -10,7 +10,7 @@ RUN npm ci
 FROM deps AS builder
 ARG NEXT_PUBLIC_API_URL=https://api.marketone.appbrainer.tech
 ARG NEXT_PUBLIC_ADMIN_APP_URL=https://admin.marketone.appbrainer.tech
-ARG NEXT_PUBLIC_STORE_APP_URL=https://store.marketone.appbrainer.tech
+ARG NEXT_PUBLIC_STORE_APP_URL=https://app.marketone.appbrainer.tech
 
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 ENV NEXT_PUBLIC_ADMIN_APP_URL=${NEXT_PUBLIC_ADMIN_APP_URL}
