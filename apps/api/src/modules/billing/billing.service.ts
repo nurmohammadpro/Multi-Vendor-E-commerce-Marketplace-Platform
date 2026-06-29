@@ -13,6 +13,34 @@ export class BillingService {
     private readonly auditService: AuditService,
   ) {}
 
+  async getAdminPlans(tenantId: string) {
+    const result = await this.pool.query(
+      `
+        select
+          p.id,
+          p.code,
+          p.name,
+          p.price_amount,
+          p.billing_cycle,
+          p.features_json,
+          p.status
+        from billing.plans p
+        where p.tenant_id = $1
+          and p.status = 'active'
+        order by
+          case p.code
+            when 'basic' then 1
+            when 'standard' then 2
+            when 'pro' then 3
+            else 10
+          end asc
+      `,
+      [tenantId],
+    );
+
+    return { plans: result.rows };
+  }
+
   async getPlans(headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
 

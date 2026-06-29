@@ -91,6 +91,7 @@ type AdminCreateStorePayload = CreateStorePayload & {
   ownerEmail?: string;
   ownerPhone?: string;
   ownerPassword: string;
+  planCode?: string;
 };
 
 type UpdateStorePayload = {
@@ -488,6 +489,32 @@ export class StoreService {
         `,
         [tenantId, store.id, ownerUserId, roleId],
       );
+
+      // Create subscription for the selected plan (defaults to 'basic').
+      const planCode = payload.planCode || 'basic';
+      const planResult = await client.query<{ id: string }>(
+        `select id from billing.plans where tenant_id = $1 and code = $2 and status = 'active' limit 1`,
+        [tenantId, planCode],
+      );
+      const planId = planResult.rows[0]?.id;
+      if (planId) {
+        const now = new Date();
+        const renewalAt = new Date(now);
+        renewalAt.setMonth(renewalAt.getMonth() + 1);
+        await client.query(
+          `
+            insert into billing.subscriptions (
+              id, tenant_id, store_id, plan_id, status,
+              start_at, renewal_at, auto_renew, created_at, updated_at
+            )
+            values (
+              gen_random_uuid(), $1, $2, $3, 'active',
+              $4, $5, true, now(), now()
+            )
+          `,
+          [tenantId, store.id, planId, now.toISOString(), renewalAt.toISOString()],
+        );
+      }
 
       await client.query('commit');
 
