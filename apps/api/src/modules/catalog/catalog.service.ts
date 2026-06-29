@@ -44,27 +44,29 @@ export class CatalogService {
         select *
         from (
           select
-            id,
-            parent_id,
-            code,
-            name,
-            name_bn,
-            status,
-            sort_order,
-            created_at,
-            updated_at,
+            c.id,
+            c.parent_id,
+            parent.name as parent_name,
+            c.code,
+            c.name,
+            c.name_bn,
+            c.status,
+            c.sort_order,
+            c.created_at,
+            c.updated_at,
             count(*) over()::int as total_count
-          from catalog.categories
-          where tenant_id = (
+          from catalog.categories c
+          left join catalog.categories parent on parent.id = c.parent_id
+          where c.tenant_id = (
             select tenant_id from store.stores where id = $1
           )
             and (
               $2::text is null
-              or code ilike '%' || $2::text || '%'
-              or name ilike '%' || $2::text || '%'
-              or coalesce(name_bn, '') ilike '%' || $2::text || '%'
+              or c.code ilike '%' || $2::text || '%'
+              or c.name ilike '%' || $2::text || '%'
+              or coalesce(c.name_bn, '') ilike '%' || $2::text || '%'
             )
-          order by sort_order asc, created_at asc
+          order by c.sort_order asc, c.created_at asc
           limit $3
           offset $4
         ) categories

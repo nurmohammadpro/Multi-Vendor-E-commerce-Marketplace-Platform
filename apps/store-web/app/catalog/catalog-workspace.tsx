@@ -16,7 +16,7 @@ import {
 } from '../motocore-theme';
 import { ListPager, type PaginationState, totalPagesFor } from '../list-pager';
 
-type Category = { id: string; code: string; name: string; status: string };
+type Category = { id: string; parent_id?: string | null; parent_name?: string | null; code: string; name: string; status: string };
 type Brand = { id: string; name: string; status: string };
 type Product = {
   id: string;
@@ -174,7 +174,7 @@ export function CatalogWorkspace({
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('Catalog workspace is ready.');
 
-  const [categoryForm, setCategoryForm] = useState({ code: '', name: '' });
+  const [categoryForm, setCategoryForm] = useState({ code: '', name: '', parentId: '' });
   const [editingCategoryId, setEditingCategoryId] = useState('');
   const [brandForm, setBrandForm] = useState({ name: '' });
   const [editingBrandId, setEditingBrandId] = useState('');
@@ -261,6 +261,45 @@ export function CatalogWorkspace({
   const [confirmTitle, setConfirmTitle] = useState('');
   const [confirmDescription, setConfirmDescription] = useState('');
   const [confirmAction, setConfirmAction] = useState<() => void>(() => {});
+
+  const parentMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const c of categories) {
+      if (c.parent_id) map[c.id] = categories.find((p) => p.id === c.parent_id)?.name ?? c.parent_id;
+    }
+    return map;
+  }, [categories]);
+
+  const hierarchicalCategories = useMemo(() => {
+    const children = new Set<string>();
+    for (const c of categories) {
+      if (c.parent_id) children.add(c.parent_id);
+    }
+    const result: Category[] = [];
+    const pushWithChildren = (parent: Category) => {
+      result.push(parent);
+      for (const c of categories) {
+        if (c.parent_id === parent.id) {
+          result.push(c);
+        }
+      }
+    };
+    for (const c of categories) {
+      if (!c.parent_id) pushWithChildren(c);
+    }
+    // also include any orphaned children
+    for (const c of categories) {
+      if (c.parent_id && !categories.some((p) => p.id === c.parent_id)) {
+        result.push(c);
+      }
+    }
+    return result;
+  }, [categories]);
+
+  const parentOptions = useMemo(
+    () => categories.filter((c) => !c.parent_id),
+    [categories],
+  );
 
   const variantOptionsFlat = useMemo(
     () =>
@@ -392,18 +431,23 @@ export function CatalogWorkspace({
     if (!categoryForm.code || !categoryForm.name) return;
     setLoading(true);
     try {
+      const body: Record<string, unknown> = {
+        code: categoryForm.code,
+        name: categoryForm.name,
+        status: 'active',
+        sortOrder: 0,
+      };
+      if (categoryForm.parentId) body.parentId = categoryForm.parentId;
+      if (editingCategoryId && categoryForm.parentId) body.parentId = categoryForm.parentId;
+      else if (editingCategoryId && categoryForm.parentId === '') body.parentId = null;
+
       await readJson(editingCategoryId ? `/api/catalog/categories/${editingCategoryId}` : '/api/catalog/categories', {
         method: editingCategoryId ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          code: categoryForm.code,
-          name: categoryForm.name,
-          status: 'active',
-          sortOrder: 0,
-        }),
+        body: JSON.stringify(body),
       });
       await refreshBase();
-      setCategoryForm({ code: '', name: '' });
+      setCategoryForm({ code: '', name: '', parentId: '' });
       setEditingCategoryId('');
       setMessage(editingCategoryId ? 'Category updated.' : 'Category created.');
     } catch (error) {
@@ -758,6 +802,16 @@ export function CatalogWorkspace({
         <section style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.2fr', gap: 16 }}>
           <article style={cardStyle}>
             <h3 style={{ marginTop: 0 }}>Category</h3>
+            <select
+              value={categoryForm.parentId}
+              onChange={(e) => setCategoryForm((v) => ({ ...v, parentId: e.target.value }))}
+              style={{ ...inputStyle, marginBottom: 10 }}
+            >
+              <option value="">No parent (top-level)</option>
+              {parentOptions.filter((c) => c.id !== editingCategoryId).map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
             <input value={categoryForm.code} onChange={(e) => setCategoryForm((v) => ({ ...v, code: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Code" />
             <input value={categoryForm.name} onChange={(e) => setCategoryForm((v) => ({ ...v, name: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Name" />
             <button onClick={createCategory} style={buttonStyle} disabled={loading}>{editingCategoryId ? 'Save Category' : 'Create Category'}</button>
@@ -901,22 +955,39 @@ export function CatalogWorkspace({
                     <tr>
                       <th style={tableHeaderCellStyle}>Code</th>
                       <th style={tableHeaderCellStyle}>Name</th>
+                      <th style={tableHeaderCellStyle}>Parent</th>
                       <th style={tableHeaderCellStyle}>Status</th>
                       <th style={tableHeaderCellStyle}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {categories.map((category) => (
+                    {hierarchicalCategories.map((category) => {
+                      const isChild = !!category.parent_id;
+                      return (
                       <tr key={category.id}>
                         <td style={tableCellStyle}>{category.code}</td>
-                        <td style={tableCellStyle}>{category.name}</td>
+                        <td style={{ ...tableCellStyle, paddingLeft: isChild ? 24 : undefined }}>
+                          {isChild ? (
+                            <span style={{ color: '#64748b', marginRight: 4 }}>└</span>
+                          ) : null}
+                          {category.name}
+                        </td>
+                        <td style={tableCellStyle}>
+                          {category.parent_id ? (parentMap[category.id] ?? '—') : (
+                            <span style={{ color: '#94a3b8' }}>—</span>
+                          )}
+                        </td>
                         <td style={tableCellStyle}>{category.status}</td>
                         <td style={tableCellStyle}>
                           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                             <button
                               onClick={() => {
                                 setEditingCategoryId(category.id);
-                                setCategoryForm({ code: category.code, name: category.name });
+                                setCategoryForm({
+                                  code: category.code,
+                                  name: category.name,
+                                  parentId: category.parent_id ?? '',
+                                });
                               }}
                               style={buttonStyle}
                             >
@@ -941,7 +1012,8 @@ export function CatalogWorkspace({
                           </div>
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
