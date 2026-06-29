@@ -125,6 +125,54 @@ export class CatalogService {
     return { category: result.rows[0] };
   }
 
+  async updateCategory(
+    categoryId: string,
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    payload: {
+      parentId?: string | null;
+      code?: string;
+      name?: string;
+      nameBn?: string | null;
+      status?: 'active' | 'inactive';
+      sortOrder?: number;
+    },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const result = await this.pool.query(
+      `
+        update catalog.categories
+        set
+          parent_id = case when $3::uuid is null then parent_id else $3 end,
+          code = coalesce($4, code),
+          name = coalesce($5, name),
+          name_bn = case when $6::text is null then name_bn else $6 end,
+          status = coalesce($7, status),
+          sort_order = coalesce($8, sort_order),
+          updated_at = now()
+        where id = $1
+          and tenant_id = (select tenant_id from store.stores where id = $2)
+        returning id, parent_id, code, name, name_bn, status, sort_order
+      `,
+      [
+        categoryId,
+        storeId,
+        payload.parentId === undefined ? null : payload.parentId,
+        payload.code ?? null,
+        payload.name ?? null,
+        payload.nameBn === undefined ? null : payload.nameBn,
+        payload.status ?? null,
+        payload.sortOrder ?? null,
+      ],
+    );
+
+    if (!result.rows[0]) {
+      throw new NotFoundException('Category not found');
+    }
+
+    return { category: result.rows[0] };
+  }
+
   async listBrands(
     headerStoreId: string | undefined,
     authContext: StoreAuthContext | null,
@@ -203,6 +251,45 @@ export class CatalogService {
       `,
       [storeId, payload.name, payload.nameBn ?? null, payload.status],
     );
+
+    return { brand: result.rows[0] };
+  }
+
+  async updateBrand(
+    brandId: string,
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    payload: {
+      name?: string;
+      nameBn?: string | null;
+      status?: 'active' | 'inactive';
+    },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const result = await this.pool.query(
+      `
+        update catalog.brands
+        set
+          name = coalesce($3, name),
+          name_bn = case when $4::text is null then name_bn else $4 end,
+          status = coalesce($5, status),
+          updated_at = now()
+        where id = $1
+          and tenant_id = (select tenant_id from store.stores where id = $2)
+        returning id, name, name_bn, status
+      `,
+      [
+        brandId,
+        storeId,
+        payload.name ?? null,
+        payload.nameBn === undefined ? null : payload.nameBn,
+        payload.status ?? null,
+      ],
+    );
+
+    if (!result.rows[0]) {
+      throw new NotFoundException('Brand not found');
+    }
 
     return { brand: result.rows[0] };
   }

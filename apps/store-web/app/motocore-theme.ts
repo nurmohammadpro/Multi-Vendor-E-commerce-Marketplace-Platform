@@ -17,10 +17,10 @@ export const motocoreColors = {
 };
 
 export const pageShellStyle: CSSProperties = {
-  minHeight: '100dvh',
-  padding: '20px 16px 28px',
+  minHeight: 'auto',
+  padding: 0,
   color: motocoreColors.ink,
-  background: motocoreColors.background,
+  background: 'transparent',
   fontFamily:
     'var(--font-geist-sans), Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
 };

@@ -28,6 +28,13 @@ type Product = {
   brand_name?: string | null;
   sku_count: number;
 };
+type Location = {
+  id: string;
+  code: string;
+  name: string;
+  location_type: string;
+  status: string;
+};
 type VariantOption = {
   id: string;
   code: string;
@@ -159,13 +166,16 @@ export function CatalogWorkspace({
   const [categories, setCategories] = useState<Category[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [locations, setLocations] = useState<Location[]>([]);
   const [selectedProductId, setSelectedProductId] = useState('');
   const [productDetail, setProductDetail] = useState<ProductDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('Catalog workspace is ready.');
 
   const [categoryForm, setCategoryForm] = useState({ code: '', name: '' });
+  const [editingCategoryId, setEditingCategoryId] = useState('');
   const [brandForm, setBrandForm] = useState({ name: '' });
+  const [editingBrandId, setEditingBrandId] = useState('');
   const [productForm, setProductForm] = useState({
     productCode: '',
     name: '',
@@ -175,11 +185,13 @@ export function CatalogWorkspace({
     hasVariants: false,
     variantMode: 'none',
   });
+  const [editingProductId, setEditingProductId] = useState('');
   const [groupForm, setGroupForm] = useState({
     code: '',
     name: '',
     inputType: 'text',
   });
+  const [editingGroupId, setEditingGroupId] = useState('');
   const [optionForm, setOptionForm] = useState({
     variantGroupId: '',
     code: '',
@@ -187,6 +199,7 @@ export function CatalogWorkspace({
     valueText: '',
     colorHex: '',
   });
+  const [editingOptionId, setEditingOptionId] = useState('');
   const [skuForm, setSkuForm] = useState({
     skuCode: '',
     barcode: '',
@@ -241,6 +254,24 @@ export function CatalogWorkspace({
     baseSalePrice: '',
     priceStep: '',
   });
+  const [quickProductForm, setQuickProductForm] = useState({
+    categoryId: '',
+    brandId: '',
+    productCode: '',
+    name: '',
+    description: '',
+    variantMode: 'none',
+    axisOneName: 'Color',
+    axisOneValues: '',
+    axisTwoName: 'Size',
+    axisTwoValues: '',
+    salePrice: '',
+    costPrice: '',
+    compareAtPrice: '',
+    openingQtyPerSku: '',
+    locationId: '',
+    unitName: '',
+  });
 
   const variantOptionsFlat = useMemo(
     () =>
@@ -287,6 +318,16 @@ export function CatalogWorkspace({
     setProductPage(productPayload.pagination?.page ?? nextProductPage);
   };
 
+  const refreshLocations = async () => {
+    const payload = await readJson<{ locations: Location[] }>('/api/inventory/locations');
+    const nextLocations = payload.locations ?? [];
+    setLocations(nextLocations);
+    setQuickProductForm((current) => ({
+      ...current,
+      locationId: current.locationId || nextLocations[0]?.id || '',
+    }));
+  };
+
   const refreshPriceRequests = async (nextPage = priceRequestPage) => {
     const params = new URLSearchParams({ page: String(nextPage), limit: String(priceRequestPagination.limit) });
     if (priceRequestSearch.trim()) params.set('search', priceRequestSearch.trim());
@@ -309,6 +350,7 @@ export function CatalogWorkspace({
   useEffect(() => {
     void refreshBase(1, 1, 1).catch((error: Error) => setMessage(error.message));
     void refreshPriceRequests(1).catch((error: Error) => setMessage(error.message));
+    void refreshLocations().catch((error: Error) => setMessage(error.message));
   }, []);
 
   useEffect(() => {
@@ -348,8 +390,8 @@ export function CatalogWorkspace({
     if (!categoryForm.code || !categoryForm.name) return;
     setLoading(true);
     try {
-      await readJson('/api/catalog/categories', {
-        method: 'POST',
+      await readJson(editingCategoryId ? `/api/catalog/categories/${editingCategoryId}` : '/api/catalog/categories', {
+        method: editingCategoryId ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           code: categoryForm.code,
@@ -360,7 +402,8 @@ export function CatalogWorkspace({
       });
       await refreshBase();
       setCategoryForm({ code: '', name: '' });
-      setMessage('Category created.');
+      setEditingCategoryId('');
+      setMessage(editingCategoryId ? 'Category updated.' : 'Category created.');
     } catch (error) {
       setMessage((error as Error).message);
     } finally {
@@ -372,8 +415,8 @@ export function CatalogWorkspace({
     if (!brandForm.name) return;
     setLoading(true);
     try {
-      await readJson('/api/catalog/brands', {
-        method: 'POST',
+      await readJson(editingBrandId ? `/api/catalog/brands/${editingBrandId}` : '/api/catalog/brands', {
+        method: editingBrandId ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: brandForm.name,
@@ -382,7 +425,8 @@ export function CatalogWorkspace({
       });
       await refreshBase();
       setBrandForm({ name: '' });
-      setMessage('Brand created.');
+      setEditingBrandId('');
+      setMessage(editingBrandId ? 'Brand updated.' : 'Brand created.');
     } catch (error) {
       setMessage((error as Error).message);
     } finally {
@@ -394,8 +438,8 @@ export function CatalogWorkspace({
     if (!productForm.productCode || !productForm.name) return;
     setLoading(true);
     try {
-      await readJson('/api/catalog/products', {
-        method: 'POST',
+      await readJson(editingProductId ? `/api/catalog/products/${editingProductId}` : '/api/catalog/products', {
+        method: editingProductId ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           productCode: productForm.productCode,
@@ -419,7 +463,8 @@ export function CatalogWorkspace({
         hasVariants: false,
         variantMode: 'none',
       });
-      setMessage('Product created.');
+      setEditingProductId('');
+      setMessage(editingProductId ? 'Product updated.' : 'Product created.');
     } catch (error) {
       setMessage((error as Error).message);
     } finally {
@@ -431,8 +476,8 @@ export function CatalogWorkspace({
     if (!selectedProductId || !groupForm.code || !groupForm.name) return;
     setLoading(true);
     try {
-      await readJson(`/api/catalog/products/${selectedProductId}/variant-groups`, {
-        method: 'POST',
+      await readJson(editingGroupId ? `/api/catalog/variant-groups/${editingGroupId}` : `/api/catalog/products/${selectedProductId}/variant-groups`, {
+        method: editingGroupId ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           code: groupForm.code,
@@ -445,7 +490,8 @@ export function CatalogWorkspace({
       });
       await refreshDetail(selectedProductId);
       setGroupForm({ code: '', name: '', inputType: 'text' });
-      setMessage('Variant group created.');
+      setEditingGroupId('');
+      setMessage(editingGroupId ? 'Variant group updated.' : 'Variant group created.');
     } catch (error) {
       setMessage((error as Error).message);
     } finally {
@@ -457,8 +503,8 @@ export function CatalogWorkspace({
     if (!selectedProductId || !optionForm.variantGroupId || !optionForm.code || !optionForm.label) return;
     setLoading(true);
     try {
-      await readJson(`/api/catalog/products/${selectedProductId}/variant-options`, {
-        method: 'POST',
+      await readJson(editingOptionId ? `/api/catalog/variant-options/${editingOptionId}` : `/api/catalog/products/${selectedProductId}/variant-options`, {
+        method: editingOptionId ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           variantGroupId: optionForm.variantGroupId,
@@ -472,7 +518,8 @@ export function CatalogWorkspace({
       });
       await refreshDetail(selectedProductId);
       setOptionForm({ variantGroupId: '', code: '', label: '', valueText: '', colorHex: '' });
-      setMessage('Variant option created.');
+      setEditingOptionId('');
+      setMessage(editingOptionId ? 'Variant option updated.' : 'Variant option created.');
     } catch (error) {
       setMessage((error as Error).message);
     } finally {
@@ -651,6 +698,211 @@ export function CatalogWorkspace({
     }
   };
 
+  const buildQuickVariantRows = () => {
+    const axisOneValues = quickProductForm.axisOneValues
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean);
+    const axisTwoValues = quickProductForm.axisTwoValues
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean);
+
+    if (quickProductForm.variantMode === 'none') {
+      return [
+        {
+          label: 'Base product',
+          skuCode: sanitizeSkuToken(quickProductForm.productCode || quickProductForm.name || 'SKU'),
+        },
+      ];
+    }
+
+    if (quickProductForm.variantMode === 'single') {
+      return axisOneValues.map((value) => ({
+        label: `${quickProductForm.axisOneName}: ${value}`,
+        skuCode: sanitizeSkuToken(`${quickProductForm.productCode}-${value}`),
+      }));
+    }
+
+    return axisOneValues.flatMap((axisOne) =>
+      axisTwoValues.map((axisTwo) => ({
+        label: `${quickProductForm.axisOneName}: ${axisOne} / ${quickProductForm.axisTwoName}: ${axisTwo}`,
+        skuCode: sanitizeSkuToken(`${quickProductForm.productCode}-${axisOne}-${axisTwo}`),
+      })),
+    );
+  };
+
+  const quickVariantPreview = useMemo(buildQuickVariantRows, [quickProductForm]);
+
+  const submitQuickProduct = async () => {
+    if (!quickProductForm.productCode.trim() || !quickProductForm.name.trim()) {
+      setMessage('Product code and product name are required.');
+      return;
+    }
+
+    if (quickProductForm.variantMode !== 'none' && quickVariantPreview.length === 0) {
+      setMessage('Enter variant values to generate at least one SKU.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const createdProduct = await readJson<{ product: { id: string; product_code: string } }>('/api/catalog/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productCode: quickProductForm.productCode,
+          name: quickProductForm.name,
+          description: quickProductForm.description || undefined,
+          categoryId: quickProductForm.categoryId || undefined,
+          brandId: quickProductForm.brandId || undefined,
+          status: 'active',
+          isTrackable: true,
+          hasVariants: quickProductForm.variantMode !== 'none',
+          variantMode: quickProductForm.variantMode,
+        }),
+      });
+
+      const productId = createdProduct.product.id;
+      if (quickProductForm.variantMode !== 'none') {
+        const axisGroups = [
+          {
+            enabled: true,
+            name: quickProductForm.axisOneName,
+            code: sanitizeSkuToken(quickProductForm.axisOneName).toLowerCase(),
+            values: quickProductForm.axisOneValues.split(',').map((value) => value.trim()).filter(Boolean),
+          },
+          {
+            enabled: quickProductForm.variantMode === 'multi',
+            name: quickProductForm.axisTwoName,
+            code: sanitizeSkuToken(quickProductForm.axisTwoName).toLowerCase(),
+            values: quickProductForm.axisTwoValues.split(',').map((value) => value.trim()).filter(Boolean),
+          },
+        ].filter((group) => group.enabled);
+
+        const optionMap = new Map<string, string>();
+
+        for (const group of axisGroups) {
+          const groupPayload = await readJson<{ group: { id: string } }>(`/api/catalog/products/${productId}/variant-groups`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              code: group.code || 'variant',
+              name: group.name,
+              inputType: 'text',
+              sortOrder: axisGroups.findIndex((item) => item.name === group.name),
+              isRequired: true,
+              status: 'active',
+            }),
+          });
+
+          for (const [index, value] of group.values.entries()) {
+            const optionPayload = await readJson<{ option: { id: string } }>(`/api/catalog/products/${productId}/variant-options`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                variantGroupId: groupPayload.group.id,
+                code: sanitizeSkuToken(value) || `option-${index + 1}`,
+                label: value,
+                valueText: value,
+                sortOrder: index,
+                status: 'active',
+              }),
+            });
+            optionMap.set(`${group.name}:${value}`, optionPayload.option.id);
+          }
+        }
+
+        for (const row of quickVariantPreview) {
+          const variantOptionIds = row.label === 'Base product'
+            ? []
+            : row.label.split(' / ').map((chunk) => optionMap.get(chunk)).filter(Boolean) as string[];
+
+          const skuPayload = await readJson<{ sku: { id: string } }>('/api/catalog/skus', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              productId,
+              skuCode: row.skuCode,
+              variantOptionIds,
+              unitName: quickProductForm.unitName || undefined,
+              costPrice: quickProductForm.costPrice ? Number(quickProductForm.costPrice) : null,
+              salePrice: quickProductForm.salePrice ? Number(quickProductForm.salePrice) : undefined,
+              compareAtPrice: quickProductForm.compareAtPrice ? Number(quickProductForm.compareAtPrice) : null,
+              status: 'active',
+            }),
+          });
+
+          if (quickProductForm.locationId && quickProductForm.openingQtyPerSku) {
+            await readJson('/api/inventory/initialize', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                locationId: quickProductForm.locationId,
+                skuId: skuPayload.sku.id,
+                quantity: Number(quickProductForm.openingQtyPerSku),
+                note: 'Opening stock from quick product entry',
+              }),
+            });
+          }
+        }
+      } else {
+        const skuPayload = await readJson<{ sku: { id: string } }>('/api/catalog/skus', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            productId,
+            skuCode: sanitizeSkuToken(quickProductForm.productCode),
+            unitName: quickProductForm.unitName || undefined,
+            costPrice: quickProductForm.costPrice ? Number(quickProductForm.costPrice) : null,
+            salePrice: quickProductForm.salePrice ? Number(quickProductForm.salePrice) : undefined,
+            compareAtPrice: quickProductForm.compareAtPrice ? Number(quickProductForm.compareAtPrice) : null,
+            status: 'active',
+          }),
+        });
+
+        if (quickProductForm.locationId && quickProductForm.openingQtyPerSku) {
+          await readJson('/api/inventory/initialize', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              locationId: quickProductForm.locationId,
+              skuId: skuPayload.sku.id,
+              quantity: Number(quickProductForm.openingQtyPerSku),
+              note: 'Opening stock from quick product entry',
+            }),
+          });
+        }
+      }
+
+      await refreshBase(1, 1, 1);
+      await refreshLocations();
+      setQuickProductForm({
+        categoryId: '',
+        brandId: '',
+        productCode: '',
+        name: '',
+        description: '',
+        variantMode: 'none',
+        axisOneName: 'Color',
+        axisOneValues: '',
+        axisTwoName: 'Size',
+        axisTwoValues: '',
+        salePrice: '',
+        costPrice: '',
+        compareAtPrice: '',
+        openingQtyPerSku: '',
+        locationId: locations[0]?.id || '',
+        unitName: '',
+      });
+      setMessage(`Product pipeline completed with ${quickVariantPreview.length} SKU(s).`);
+    } catch (error) {
+      setMessage((error as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <section style={{ display: 'grid', gap: 20 }}>
       {canManageCatalog ? (
@@ -659,13 +911,13 @@ export function CatalogWorkspace({
             <h3 style={{ marginTop: 0 }}>Category</h3>
             <input value={categoryForm.code} onChange={(e) => setCategoryForm((v) => ({ ...v, code: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Code" />
             <input value={categoryForm.name} onChange={(e) => setCategoryForm((v) => ({ ...v, name: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Name" />
-            <button onClick={createCategory} style={buttonStyle} disabled={loading}>Create Category</button>
+            <button onClick={createCategory} style={buttonStyle} disabled={loading}>{editingCategoryId ? 'Save Category' : 'Create Category'}</button>
           </article>
 
           <article style={cardStyle}>
             <h3 style={{ marginTop: 0 }}>Brand</h3>
             <input value={brandForm.name} onChange={(e) => setBrandForm({ name: e.target.value })} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Brand name" />
-            <button onClick={createBrand} style={buttonStyle} disabled={loading}>Create Brand</button>
+            <button onClick={createBrand} style={buttonStyle} disabled={loading}>{editingBrandId ? 'Save Brand' : 'Create Brand'}</button>
           </article>
 
           <article style={cardStyle}>
@@ -690,7 +942,7 @@ export function CatalogWorkspace({
               <option value="single">Single Variant Axis</option>
               <option value="multi">Multi Variant Axes</option>
             </select>
-            <button onClick={createProduct} style={buttonStyle} disabled={loading}>Create Product</button>
+            <button onClick={createProduct} style={buttonStyle} disabled={loading}>{editingProductId ? 'Save Product' : 'Create Product'}</button>
           </article>
         </section>
       ) : (
@@ -701,6 +953,115 @@ export function CatalogWorkspace({
           </p>
         </article>
       )}
+
+      {canManageCatalog ? (
+        <article style={cardStyle}>
+          <div style={{ display: 'grid', gap: 6, marginBottom: 16 }}>
+            <h3 style={{ marginTop: 0, marginBottom: 0 }}>Quick Product Entry</h3>
+            <p style={{ ...tokenMutedStyle, marginTop: 0 }}>
+              One flow: create the product, generate its SKU set, attach default prices, and post opening stock without jumping across separate panels.
+            </p>
+          </div>
+
+          <div style={{ display: 'grid', gap: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
+              <input value={quickProductForm.productCode} onChange={(event) => setQuickProductForm((current) => ({ ...current, productCode: event.target.value }))} style={inputStyle} placeholder="Quick product code" />
+              <input value={quickProductForm.name} onChange={(event) => setQuickProductForm((current) => ({ ...current, name: event.target.value }))} style={inputStyle} placeholder="Quick product name" />
+              <select value={quickProductForm.categoryId} onChange={(event) => setQuickProductForm((current) => ({ ...current, categoryId: event.target.value }))} style={inputStyle}>
+                <option value="">Choose category</option>
+                {categories.filter((category) => category.status === 'active').map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+              </select>
+              <select value={quickProductForm.brandId} onChange={(event) => setQuickProductForm((current) => ({ ...current, brandId: event.target.value }))} style={inputStyle}>
+                <option value="">Choose brand</option>
+                {brands.filter((brand) => brand.status === 'active').map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
+              </select>
+            </div>
+
+            <textarea value={quickProductForm.description} onChange={(event) => setQuickProductForm((current) => ({ ...current, description: event.target.value }))} style={{ ...inputStyle, minHeight: 72 }} placeholder="Quick notes" />
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
+              <select value={quickProductForm.variantMode} onChange={(event) => setQuickProductForm((current) => ({ ...current, variantMode: event.target.value }))} style={inputStyle}>
+                <option value="none">Simple product</option>
+                <option value="single">One variant axis</option>
+                <option value="multi">Two variant axes</option>
+              </select>
+              <input value={quickProductForm.salePrice} onChange={(event) => setQuickProductForm((current) => ({ ...current, salePrice: event.target.value }))} style={inputStyle} placeholder="Sale price" />
+              <input value={quickProductForm.costPrice} onChange={(event) => setQuickProductForm((current) => ({ ...current, costPrice: event.target.value }))} style={inputStyle} placeholder="Cost price" />
+              <input value={quickProductForm.compareAtPrice} onChange={(event) => setQuickProductForm((current) => ({ ...current, compareAtPrice: event.target.value }))} style={inputStyle} placeholder="Compare at price" />
+              <input value={quickProductForm.openingQtyPerSku} onChange={(event) => setQuickProductForm((current) => ({ ...current, openingQtyPerSku: event.target.value }))} style={inputStyle} placeholder="Opening qty per SKU" />
+              <select value={quickProductForm.locationId} onChange={(event) => setQuickProductForm((current) => ({ ...current, locationId: event.target.value }))} style={inputStyle}>
+                <option value="">Opening stock location</option>
+                {locations.map((location) => <option key={location.id} value={location.id}>{location.code} — {location.name}</option>)}
+              </select>
+            </div>
+
+            {quickProductForm.variantMode !== 'none' ? (
+              <div style={{ display: 'grid', gridTemplateColumns: quickProductForm.variantMode === 'multi' ? '1fr 1fr' : '1fr', gap: 12 }}>
+                <article style={{ ...cardStyle, padding: 14 }}>
+                  <h4 style={{ marginTop: 0, marginBottom: 10 }}>Axis One</h4>
+                  <input value={quickProductForm.axisOneName} onChange={(event) => setQuickProductForm((current) => ({ ...current, axisOneName: event.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Axis name (e.g. Color)" />
+                  <textarea value={quickProductForm.axisOneValues} onChange={(event) => setQuickProductForm((current) => ({ ...current, axisOneValues: event.target.value }))} style={{ ...inputStyle, minHeight: 76 }} placeholder="Comma separated values, e.g. Black, White, Blue" />
+                </article>
+                {quickProductForm.variantMode === 'multi' ? (
+                  <article style={{ ...cardStyle, padding: 14 }}>
+                    <h4 style={{ marginTop: 0, marginBottom: 10 }}>Axis Two</h4>
+                    <input value={quickProductForm.axisTwoName} onChange={(event) => setQuickProductForm((current) => ({ ...current, axisTwoName: event.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Axis name (e.g. Size)" />
+                    <textarea value={quickProductForm.axisTwoValues} onChange={(event) => setQuickProductForm((current) => ({ ...current, axisTwoValues: event.target.value }))} style={{ ...inputStyle, minHeight: 76 }} placeholder="Comma separated values, e.g. S, M, L" />
+                  </article>
+                ) : null}
+              </div>
+            ) : null}
+
+            <div style={{ display: 'grid', gap: 10 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>Generated SKU preview</div>
+              <div style={tableWrapStyle}>
+                <table style={tableStyle}>
+                  <thead>
+                    <tr>
+                      <th style={tableHeaderCellStyle}>Label</th>
+                      <th style={tableHeaderCellStyle}>SKU Code</th>
+                      <th style={tableHeaderCellStyle}>Default Sale</th>
+                      <th style={tableHeaderCellStyle}>Opening Qty</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {quickVariantPreview.map((row) => (
+                      <tr key={row.skuCode}>
+                        <td style={tableCellStyle}>{row.label}</td>
+                        <td style={tableCellStyle}>{row.skuCode}</td>
+                        <td style={tableCellStyle}>{quickProductForm.salePrice || '—'}</td>
+                        <td style={tableCellStyle}>{quickProductForm.openingQtyPerSku || '0'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button onClick={submitQuickProduct} style={buttonStyle} disabled={loading}>Run Quick Pipeline</button>
+              <button
+                onClick={() => setQuickProductForm((current) => ({
+                  ...current,
+                  productCode: '',
+                  name: '',
+                  description: '',
+                  salePrice: '',
+                  costPrice: '',
+                  compareAtPrice: '',
+                  openingQtyPerSku: '',
+                  axisOneValues: '',
+                  axisTwoValues: '',
+                }))}
+                style={buttonStyle}
+                disabled={loading}
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+        </article>
+      ) : null}
 
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
         <article style={cardStyle}>
@@ -718,6 +1079,7 @@ export function CatalogWorkspace({
                       <th style={tableHeaderCellStyle}>Code</th>
                       <th style={tableHeaderCellStyle}>Name</th>
                       <th style={tableHeaderCellStyle}>Status</th>
+                      <th style={tableHeaderCellStyle}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -726,6 +1088,29 @@ export function CatalogWorkspace({
                         <td style={tableCellStyle}>{category.code}</td>
                         <td style={tableCellStyle}>{category.name}</td>
                         <td style={tableCellStyle}>{category.status}</td>
+                        <td style={tableCellStyle}>
+                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                            <button
+                              onClick={() => {
+                                setEditingCategoryId(category.id);
+                                setCategoryForm({ code: category.code, name: category.name });
+                              }}
+                              style={buttonStyle}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => void readJson(`/api/catalog/categories/${category.id}`, {
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ status: category.status === 'inactive' ? 'active' : 'inactive' }),
+                              }).then(() => refreshBase()).then(() => setMessage(`Category ${category.status === 'inactive' ? 'activated' : 'archived'}.`)).catch((error: Error) => setMessage(error.message))}
+                              style={buttonStyle}
+                            >
+                              {category.status === 'inactive' ? 'Activate' : 'Archive'}
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -757,6 +1142,7 @@ export function CatalogWorkspace({
                     <tr>
                       <th style={tableHeaderCellStyle}>Brand</th>
                       <th style={tableHeaderCellStyle}>Status</th>
+                      <th style={tableHeaderCellStyle}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -764,6 +1150,29 @@ export function CatalogWorkspace({
                       <tr key={brand.id}>
                         <td style={tableCellStyle}>{brand.name}</td>
                         <td style={tableCellStyle}>{brand.status}</td>
+                        <td style={tableCellStyle}>
+                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                            <button
+                              onClick={() => {
+                                setEditingBrandId(brand.id);
+                                setBrandForm({ name: brand.name });
+                              }}
+                              style={buttonStyle}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => void readJson(`/api/catalog/brands/${brand.id}`, {
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ status: brand.status === 'inactive' ? 'active' : 'inactive' }),
+                              }).then(() => refreshBase()).then(() => setMessage(`Brand ${brand.status === 'inactive' ? 'activated' : 'archived'}.`)).catch((error: Error) => setMessage(error.message))}
+                              style={buttonStyle}
+                            >
+                              {brand.status === 'inactive' ? 'Activate' : 'Archive'}
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -809,6 +1218,7 @@ export function CatalogWorkspace({
                       <th style={tableHeaderCellStyle}>Variant Mode</th>
                       <th style={tableHeaderCellStyle}>SKUs</th>
                       <th style={tableHeaderCellStyle}>Status</th>
+                      <th style={tableHeaderCellStyle}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -825,6 +1235,41 @@ export function CatalogWorkspace({
                         <td style={tableCellStyle}>{product.variant_mode}</td>
                         <td style={tableCellStyle}>{product.sku_count}</td>
                         <td style={tableCellStyle}>{product.status}</td>
+                        <td style={tableCellStyle}>
+                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                            <button
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setEditingProductId(product.id);
+                                setProductForm((current) => ({
+                                  ...current,
+                                  productCode: product.product_code,
+                                  name: product.name,
+                                  categoryId: categories.find((item) => item.name === product.category_name)?.id || '',
+                                  brandId: brands.find((item) => item.name === product.brand_name)?.id || '',
+                                  hasVariants: product.has_variants,
+                                  variantMode: product.variant_mode,
+                                }));
+                              }}
+                              style={buttonStyle}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                void readJson(`/api/catalog/products/${product.id}`, {
+                                  method: 'PATCH',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ status: product.status === 'archived' ? 'active' : 'archived' }),
+                                }).then(() => refreshBase()).then(() => setMessage(`Product ${product.status === 'archived' ? 'activated' : 'archived'}.`)).catch((error: Error) => setMessage(error.message));
+                              }}
+                              style={buttonStyle}
+                            >
+                              {product.status === 'archived' ? 'Activate' : 'Archive'}
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -868,7 +1313,7 @@ export function CatalogWorkspace({
                       <option value="color">Color</option>
                       <option value="number">Number</option>
                     </select>
-                    <button onClick={createVariantGroup} style={buttonStyle} disabled={loading}>Add Group</button>
+                    <button onClick={createVariantGroup} style={buttonStyle} disabled={loading}>{editingGroupId ? 'Save Group' : 'Add Group'}</button>
                   </article>
                 ) : null}
 
@@ -883,7 +1328,7 @@ export function CatalogWorkspace({
                     <input value={optionForm.label} onChange={(e) => setOptionForm((v) => ({ ...v, label: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Label" />
                     <input value={optionForm.valueText} onChange={(e) => setOptionForm((v) => ({ ...v, valueText: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Value text (optional)" />
                     <input value={optionForm.colorHex} onChange={(e) => setOptionForm((v) => ({ ...v, colorHex: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="#000000 for color" />
-                    <button onClick={createVariantOption} style={buttonStyle} disabled={loading}>Add Option</button>
+                    <button onClick={createVariantOption} style={buttonStyle} disabled={loading}>{editingOptionId ? 'Save Option' : 'Add Option'}</button>
                   </article>
                 ) : null}
               </div>
@@ -897,6 +1342,7 @@ export function CatalogWorkspace({
                       <th style={tableHeaderCellStyle}>Type</th>
                       <th style={tableHeaderCellStyle}>Required</th>
                       <th style={tableHeaderCellStyle}>Options</th>
+                      <th style={tableHeaderCellStyle}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -907,8 +1353,88 @@ export function CatalogWorkspace({
                         <td style={tableCellStyle}>{group.input_type}</td>
                         <td style={tableCellStyle}>{group.is_required ? 'Yes' : 'No'}</td>
                         <td style={tableCellStyle}>{group.options.map((option) => option.label).join(', ') || '—'}</td>
+                        <td style={tableCellStyle}>
+                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                            <button
+                              onClick={() => {
+                                setEditingGroupId(group.id);
+                                setGroupForm({ code: group.code, name: group.name, inputType: group.input_type });
+                              }}
+                              style={buttonStyle}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => void readJson(`/api/catalog/variant-groups/${group.id}`, {
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ status: group.status === 'inactive' ? 'active' : 'inactive' }),
+                              }).then(() => refreshDetail(selectedProductId)).then(() => setMessage(`Variant group ${group.status === 'inactive' ? 'activated' : 'archived'}.`)).catch((error: Error) => setMessage(error.message))}
+                              style={buttonStyle}
+                            >
+                              {group.status === 'inactive' ? 'Activate' : 'Archive'}
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div style={tableWrapStyle}>
+                <table style={tableStyle}>
+                  <thead>
+                    <tr>
+                      <th style={tableHeaderCellStyle}>Group</th>
+                      <th style={tableHeaderCellStyle}>Option</th>
+                      <th style={tableHeaderCellStyle}>Code</th>
+                      <th style={tableHeaderCellStyle}>Display Value</th>
+                      <th style={tableHeaderCellStyle}>Status</th>
+                      <th style={tableHeaderCellStyle}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {productDetail.groups.flatMap((group) =>
+                      group.options.map((option) => (
+                        <tr key={option.id}>
+                          <td style={tableCellStyle}>{group.name}</td>
+                          <td style={tableCellStyle}>{option.label}</td>
+                          <td style={tableCellStyle}>{option.code}</td>
+                          <td style={tableCellStyle}>{option.valueText || option.colorHex || option.valueNumber || '—'}</td>
+                          <td style={tableCellStyle}>{option.status}</td>
+                          <td style={tableCellStyle}>
+                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                              <button
+                                onClick={() => {
+                                  setEditingOptionId(option.id);
+                                  setOptionForm({
+                                    variantGroupId: group.id,
+                                    code: option.code,
+                                    label: option.label,
+                                    valueText: option.valueText || '',
+                                    colorHex: option.colorHex || '',
+                                  });
+                                }}
+                                style={buttonStyle}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => void readJson(`/api/catalog/variant-options/${option.id}`, {
+                                  method: 'PATCH',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ status: option.status === 'inactive' ? 'active' : 'inactive' }),
+                                }).then(() => refreshDetail(selectedProductId)).then(() => setMessage(`Variant option ${option.status === 'inactive' ? 'activated' : 'archived'}.`)).catch((error: Error) => setMessage(error.message))}
+                                style={buttonStyle}
+                              >
+                                {option.status === 'inactive' ? 'Activate' : 'Archive'}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )),
+                    )}
                   </tbody>
                 </table>
               </div>
