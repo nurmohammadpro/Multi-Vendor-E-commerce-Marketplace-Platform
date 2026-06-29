@@ -480,10 +480,16 @@ export function CatalogWorkspace({
     }
   };
 
+  const generateBarcode = () => {
+    const ts = String(Date.now());
+    const rand = String(Math.floor(Math.random() * 1000)).padStart(3, '0');
+    return `2${ts.slice(-9)}${rand}`;
+  };
+
   const addProductVariantRow = () => {
     setProductVariantRows((current) => [
       ...current,
-      { key: String(Date.now()), label: '', skuCode: '', price: '', cost: '', barcode: '' },
+      { key: String(Date.now()), label: '', skuCode: '', price: '', cost: '', barcode: generateBarcode() },
     ]);
   };
 
@@ -733,7 +739,7 @@ export function CatalogWorkspace({
       return {
         key: variantOptionIds.join('|'),
         skuCode,
-        barcode: '',
+        barcode: generateBarcode(),
         variantLabel,
         variantOptionIds,
         salePrice: nextSalePrice > 0 ? String(nextSalePrice.toFixed(2)) : '',
