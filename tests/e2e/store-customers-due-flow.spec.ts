@@ -14,10 +14,7 @@ test('owner can create a due sale and collect it from customer ledger', async ({
 
     await ownerPage.goto('http://127.0.0.1:3002/pos');
     await expect(ownerPage.locator('select').first()).toHaveValue('reg-1');
-
-    await ownerPage.getByPlaceholder('Opening cash').fill('1000');
-    await ownerPage.getByRole('button', { name: 'Open Shift' }).click();
-    await expect(ownerPage.getByText('Shift opened successfully.')).toBeVisible();
+    await expect(ownerPage.getByText('Shift controls are hidden for now.')).toBeVisible();
 
     await ownerPage.getByPlaceholder('Scan barcode or search product / SKU').fill('TSHIRT-BLK-M');
     await ownerPage.getByRole('button', { name: 'Search' }).click();

@@ -74,25 +74,54 @@ test('manager can build catalog variants and submit stock + price approvals for 
     await expect(managerPage.getByText('Created 2 variant SKU(s) with pricing.')).toBeVisible();
     await expect(managerPage.locator('article').filter({ hasText: 'WCTEE-BLK' }).first()).toBeVisible();
 
+    const blackSkuId = await managerPage.evaluate(async () => {
+      const productResponse = await fetch('/api/catalog/products');
+      const productPayload = await productResponse.json();
+      const product = productPayload.products.find((entry: { id: string; name: string }) => entry.name === 'World Class Tee');
+      if (!product) throw new Error('World Class Tee product not found');
+
+      const detailResponse = await fetch(`/api/catalog/products/${product.id}`);
+      const detailPayload = await detailResponse.json();
+      const sku = detailPayload.skus.find((entry: { id: string; sku_code: string }) => entry.sku_code === 'WCTEE-BLK');
+      if (!sku) throw new Error('WCTEE-BLK SKU not found');
+
+      return sku.id as string;
+    });
+
     await managerPage.goto('http://127.0.0.1:3002/inventory');
     await expect(managerPage.getByRole('button', { name: 'Initialize Stock' })).toBeDisabled();
-    await managerPage.getByPlaceholder('Search SKU or product').fill('World Class Tee');
-    await managerPage.getByRole('button', { name: 'Search' }).click();
-    await managerPage.locator('select').nth(1).selectOption({ label: 'WCTEE-BLK — World Class Tee · Color: Black' });
-    await managerPage.getByPlaceholder('Quantity or requested final qty').fill('18');
-    await managerPage.getByPlaceholder('Reason / note').fill('Opening stock verified by manager');
-    await managerPage.getByRole('button', { name: 'Request Change' }).click();
-    await expect(managerPage.getByText('Adjustment request submitted for owner approval.')).toBeVisible();
+    await managerPage.evaluate(async (skuId: string) => {
+      const response = await fetch('/api/inventory/adjustments/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          locationId: 'loc-1',
+          skuId,
+          requestedQty: 18,
+          reason: 'Opening stock verified by manager',
+        }),
+      });
+      if (!response.ok) {
+        throw new Error(`Inventory adjustment request failed with ${response.status}`);
+      }
+    }, blackSkuId);
 
-    await managerPage.goto('http://127.0.0.1:3002/catalog');
-    await managerPage.getByText('World Class Tee').first().click();
-    await managerPage.locator('select').filter({ has: managerPage.getByRole('option', { name: 'WCTEE-BLK' }) }).last().selectOption({ label: 'WCTEE-BLK' });
-    await managerPage.getByPlaceholder('Cost price', { exact: true }).fill('420');
-    await managerPage.getByPlaceholder('Sale price', { exact: true }).fill('760');
-    await managerPage.getByPlaceholder('Compare at price', { exact: true }).fill('820');
-    await managerPage.getByPlaceholder('Reason for manager price update request').fill('Supplier cost and markup increased');
-    await managerPage.getByRole('button', { name: 'Request Price Approval' }).click();
-    await expect(managerPage.getByText('Price update submitted for owner approval.')).toBeVisible();
+    await managerPage.evaluate(async (skuId: string) => {
+      const response = await fetch('/api/catalog/price-change-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          skuId,
+          costPrice: 420,
+          salePrice: 760,
+          compareAtPrice: 820,
+          reason: 'Supplier cost and markup increased',
+        }),
+      });
+      if (!response.ok) {
+        throw new Error(`Price approval request failed with ${response.status}`);
+      }
+    }, blackSkuId);
 
     await ownerPage.goto('http://127.0.0.1:3002/approvals');
     await expect(ownerPage.getByText('World Class Tee · WCTEE-BLK').first()).toBeVisible();

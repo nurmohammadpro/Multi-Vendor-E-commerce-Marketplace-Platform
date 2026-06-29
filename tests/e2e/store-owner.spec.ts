@@ -11,6 +11,10 @@ test('owner is redirected to approvals when pending items exist', async ({ page 
   await page.goto('http://127.0.0.1:3002/');
   await expect(page).toHaveURL(/\/approvals$/);
   await expect(page.getByText('Owner approval queue')).toBeVisible();
+  await expect(page.getByText('Cash variance')).toBeVisible();
+  await expect(page.getByText("Today's due collections")).toBeVisible();
+  await expect(page.getByText('Pending stock approvals', { exact: true })).toBeVisible();
+  await expect(page.getByText('Pending price approvals', { exact: true })).toBeVisible();
   await expect(page.getByText('Pending stock updates')).toBeVisible();
   await expect(page.getByText('Pending price updates')).toBeVisible();
 });
