@@ -93,6 +93,10 @@ export default function LoginPage() {
     <>
       <IntroSplash onComplete={() => setSplashComplete(true)} />
       <div className={`login-shell flex min-h-screen items-center justify-center bg-background px-4 ${splashComplete ? 'login-shell--ready' : ''}`}>
+        <div
+          aria-hidden="true"
+          className={`login-ambient-glow ${splashComplete ? 'login-ambient-glow--ready' : ''}`}
+        />
         <div className={`login-panel w-full max-w-md ${splashComplete ? 'login-panel--ready' : ''}`}>
         {/* Card */}
           <div className="rounded-md border border-border bg-card transition-[border-color,background-color,box-shadow] duration-200 hover:border-foreground/15 hover:shadow-[0_10px_30px_rgba(0,0,0,0.04)]">
@@ -102,14 +106,14 @@ export default function LoginPage() {
                 <img
                   src="/marketone-logo.svg"
                   alt="Market One logo"
-                  className="h-16 w-16 object-contain"
+                  className={`login-brand-logo h-16 w-16 object-contain ${splashComplete ? 'login-brand-logo--ready' : ''}`}
                 />
-                <p className="mt-3 text-center text-xs font-medium uppercase tracking-[0.28em] text-muted-foreground">
+                <p className={`login-brand-text mt-3 text-center text-xs font-medium uppercase tracking-[0.28em] text-muted-foreground ${splashComplete ? 'login-brand-text--ready' : ''}`}>
                   Market One BD
                 </p>
               </div>
             {/* Role toggle */}
-              <div className="mb-5 flex rounded-md border border-border bg-muted p-0.5">
+              <div className={`login-stagger login-stagger--1 mb-5 flex rounded-md border border-border bg-muted p-0.5 ${splashComplete ? 'login-stagger--ready' : ''}`}>
               <button
                 type="button"
                 onClick={() => setLoginRole('admin')}
@@ -135,12 +139,12 @@ export default function LoginPage() {
               </div>
 
               <h2
-                className="text-center text-2xl font-semibold tracking-tight"
+                className={`login-stagger login-stagger--2 text-center text-2xl font-semibold tracking-tight ${splashComplete ? 'login-stagger--ready' : ''}`}
                 style={{ color: 'rgb(17, 17, 17)' }}
               >
                 {loginRole === 'admin' ? 'Admin sign in' : 'Store sign in'}
               </h2>
-              <p className="mt-2 text-center text-sm text-muted-foreground">
+              <p className={`login-stagger login-stagger--3 mt-2 text-center text-sm text-muted-foreground ${splashComplete ? 'login-stagger--ready' : ''}`}>
                 {loginRole === 'admin'
                   ? 'Manage stores, staff, and platform settings.'
                   : 'Sign in with your store credentials.'}
@@ -150,13 +154,13 @@ export default function LoginPage() {
           {/* Form */}
             <div className="px-6 py-6">
             {errors.general && (
-              <div className="mb-4 rounded-md border border-destructive/20 bg-destructive/10 px-3 py-2">
+              <div className={`login-stagger login-stagger--4 mb-4 rounded-md border border-destructive/20 bg-destructive/10 px-3 py-2 ${splashComplete ? 'login-stagger--ready' : ''}`}>
                 <p className="text-xs text-destructive">{errors.general}</p>
               </div>
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
+              <div className={`login-stagger login-stagger--4 space-y-2 ${splashComplete ? 'login-stagger--ready' : ''}`}>
                 <label
                   htmlFor="email"
                   className="flex items-center gap-2 text-sm leading-none font-medium select-none"
@@ -183,7 +187,7 @@ export default function LoginPage() {
                 )}
               </div>
 
-              <div className="space-y-2">
+              <div className={`login-stagger login-stagger--5 space-y-2 ${splashComplete ? 'login-stagger--ready' : ''}`}>
                 <div className="flex items-center justify-between">
                   <label
                     htmlFor="password"
@@ -219,7 +223,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading || !splashComplete}
-                className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] bg-primary text-primary-foreground hover:bg-primary/90 px-3 py-2.5 h-11 w-full"
+                className={`login-stagger login-stagger--6 inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] bg-primary text-primary-foreground hover:bg-primary/90 px-3 py-2.5 h-11 w-full ${splashComplete ? 'login-stagger--ready' : ''}`}
                 style={{ backgroundColor: 'rgb(17, 17, 17)', color: 'rgb(255, 255, 255)' }}
               >
                 {loading ? (
