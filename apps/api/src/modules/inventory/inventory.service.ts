@@ -75,6 +75,32 @@ export class InventoryService {
     filters: { locationId?: string; search?: string; page?: number; limit?: number } = {},
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
+
+    // Auto-seed zero-balance rows for any active SKU that doesn't have one,
+    // so every SKU appears in balances immediately without manual initialization.
+    await this.pool.query(
+      `
+        insert into inventory.balances (id, tenant_id, store_id, location_id, sku_id, on_hand_qty, reserved_qty, damaged_qty, returned_qty, updated_at)
+        select
+          gen_random_uuid(),
+          s.tenant_id,
+          s.id,
+          loc.id,
+          sku.id,
+          0, 0, 0, 0, now()
+        from store.stores s
+        cross join catalog.skus sku
+        join inventory.locations loc on loc.store_id = s.id and loc.status = 'active'
+        left join inventory.balances b on b.location_id = loc.id and b.sku_id = sku.id
+        where s.id = $1
+          and sku.store_id = $1
+          and sku.status = 'active'
+          and b.id is null
+        on conflict (location_id, sku_id) do nothing
+      `,
+      [storeId],
+    );
+
     const { page, limit, offset } = normalizePageQuery(filters);
     const search = filters.search?.trim() || null;
     const result = await this.pool.query(
