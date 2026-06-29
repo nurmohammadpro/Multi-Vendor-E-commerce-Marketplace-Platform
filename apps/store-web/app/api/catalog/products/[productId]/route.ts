@@ -13,6 +13,15 @@ export async function GET(_: NextRequest, context: RouteContext) {
   return NextResponse.json(payload, { status: response.status });
 }
 
+export async function DELETE(_: NextRequest, context: RouteContext) {
+  const { productId } = await context.params;
+  const response = await requestStoreApi(`/catalog/products/${productId}`, {
+    method: 'DELETE',
+  });
+  const payload = await response.json().catch(() => ({ ok: false, error: 'Invalid upstream response' }));
+  return NextResponse.json(payload, { status: response.status });
+}
+
 export async function PATCH(request: NextRequest, context: RouteContext) {
   const { productId } = await context.params;
   const body = await request.json().catch(() => ({}));

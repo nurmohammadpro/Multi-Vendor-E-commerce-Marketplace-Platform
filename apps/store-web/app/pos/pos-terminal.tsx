@@ -162,6 +162,8 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
   const [labelPrinterName, setLabelPrinterName] = useState('');
   const [agentUrl, setAgentUrl] = useState(DEFAULT_PRINT_AGENT_URL);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   useEffect(() => {
     void Promise.all([
@@ -205,12 +207,17 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
 
     if (!search.trim()) {
       setResults([]);
+      setSearching(false);
+      setShowSuggestions(false);
       return;
     }
 
+    setSearching(true);
+    setShowSuggestions(true);
+
     searchDebounceRef.current = setTimeout(() => {
       void searchCatalog(search.trim());
-    }, 180);
+    }, 100);
 
     return () => {
       if (searchDebounceRef.current) {
@@ -279,6 +286,8 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
   const clearSearchState = () => {
     setSearch('');
     setResults([]);
+    setSearching(false);
+    setShowSuggestions(false);
   };
 
   const openVariantPicker = async (productId: string, hint = '') => {
@@ -323,6 +332,8 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
   const searchCatalog = async (queryText = search.trim()) => {
     if (!queryText) {
       setResults([]);
+      setSearching(false);
+      setShowSuggestions(false);
       return;
     }
 
@@ -351,6 +362,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
       setMessage((error as Error).message);
     } finally {
       setLoading(false);
+      setSearching(false);
     }
   };
 
@@ -594,141 +606,120 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
 
   return (
     <section style={{ display: 'grid', gap: 20 }}>
-      <section style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: 16 }}>
-        <article style={cardStyle}>
-          <h3 style={{ marginTop: 0 }}>Workstation Readiness</h3>
-          <p style={tokenMutedStyle}>
-            Print agent URL: <code>{agentUrl}</code>
-          </p>
-          <p style={{ marginBottom: 6 }}>Receipt printer: {printHealth?.printerName || 'Not detected'}</p>
-          <p style={{ marginTop: 0, marginBottom: 6 }}>
-            Label printer: {printHealth?.labelPrinterName || 'Not detected'}
-          </p>
-          <p style={{ marginTop: 0, marginBottom: 6, color: '#64748b' }}>
-            Saved profile: {receiptPrinterName || 'receipt printer not set'} · {labelPrinterName || 'label printer not set'}
-          </p>
-          <p style={{ margin: 0, color: printError ? '#fca5a5' : '#86efac' }}>
-            {printError ? `Unavailable: ${printError}` : 'Silent print agent reachable'}
-          </p>
-          <button onClick={handleOpenDrawer} style={{ ...buttonStyle, marginTop: 12 }} disabled={Boolean(printError)}>
-            Test Cash Drawer
-          </button>
-          <p style={{ marginTop: 8, marginBottom: 0, color: '#64748b' }}>
-            ESC/POS receipt, barcode, label, and cash drawer commands are enabled when the local print agent is running.
-          </p>
-        </article>
-
-        <article style={cardStyle}>
-          <h3 style={{ marginTop: 0 }}>Register</h3>
-          <select value={selectedRegisterId} onChange={(event) => setSelectedRegisterId(event.target.value)} style={inputStyle}>
-            <option value="">Select register</option>
-            {registers.map((register) => (
-              <option key={register.id} value={register.id}>
-                {register.code} — {register.name}
-              </option>
-            ))}
-          </select>
-          {SHOW_SHIFT_CONTROLS ? (
-            <>
-              <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                <input value={openingCash} onChange={(event) => setOpeningCash(event.target.value)} style={inputStyle} placeholder="Opening cash" />
-                <button onClick={openShift} style={buttonStyle} disabled={loading || Boolean(openShiftId)}>
-                  Open Shift
-                </button>
-              </div>
-              <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                <input value={closingCash} onChange={(event) => setClosingCash(event.target.value)} style={inputStyle} placeholder="Closing cash" />
-                <button onClick={closeShift} style={buttonStyle} disabled={loading || !openShiftId}>
-                  Close Shift
-                </button>
-              </div>
-            </>
-          ) : (
-            <p style={{ marginTop: 12, marginBottom: 0, color: '#64748b' }}>
-              Shift controls are hidden for now. Register selection stays in place for future cash reconciliation.
-            </p>
-          )}
-        </article>
-
-        <article style={cardStyle}>
-          <h3 style={{ marginTop: 0 }}>Stock Source</h3>
-          <select value={selectedLocationId} onChange={(event) => setSelectedLocationId(event.target.value)} style={inputStyle}>
-            <option value="">Select location</option>
-            {locations.map((location) => (
-              <option key={location.id} value={location.id}>
-                {location.code} — {location.name}
-              </option>
-            ))}
-          </select>
-          <p style={{ marginTop: 12, marginBottom: 0, color: '#475569' }}>
-            USB HID barcode scanners can type directly into the search field below.
-          </p>
-        </article>
-      </section>
-
       <section style={{ display: 'grid', gridTemplateColumns: '1.1fr 0.9fr', gap: 16 }}>
         <article style={cardStyle}>
           <h3 style={{ marginTop: 0 }}>Product Search</h3>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-            <input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  event.preventDefault();
-                  void searchCatalog(search.trim());
-                }
-              }}
-              style={inputStyle}
-              placeholder="Scan barcode or search product / SKU"
-            />
-            <button onClick={() => void searchCatalog(search.trim())} style={buttonStyle} disabled={loading}>
-              Search
-            </button>
-          </div>
-
-          {groupedResults.length ? (
-            <div style={tableWrapStyle}>
-              <table style={tableStyle}>
-                <thead>
-                  <tr>
-                    <th style={tableHeaderCellStyle}>Product</th>
-                    <th style={tableHeaderCellStyle}>Variants</th>
-                    <th style={tableHeaderCellStyle}>Available</th>
-                    <th style={tableHeaderCellStyle}>Start Price</th>
-                    <th style={tableHeaderCellStyle}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {groupedResults.map((group) => (
-                    <tr key={group.productId}>
-                      <td style={tableCellStyle}>
-                        <div style={{ fontWeight: 600 }}>{group.productName}</div>
-                        <div style={{ color: '#64748b', marginTop: 4 }}>
-                          {group.hasVariants ? `${group.variantMode || 'variant'} product` : group.skus[0]?.sku_code}
-                        </div>
-                      </td>
-                      <td style={tableCellStyle}>{group.hasVariants ? group.skuCount : 1}</td>
-                      <td style={tableCellStyle}>{group.totalAvailable}</td>
-                      <td style={tableCellStyle}>{currency(group.lowestPrice)}</td>
-                      <td style={tableCellStyle}>
-                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                          {group.hasVariants ? (
-                            <button onClick={() => void openVariantPicker(group.productId)} style={buttonStyle}>Choose Variant</button>
-                          ) : (
-                            <button onClick={() => addSkuToCart(group.skus[0])} style={buttonStyle}>Add</button>
-                          )}
-                          <button onClick={() => handlePrintLabel(group.skus[0])} style={buttonStyle}>Label</button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          <div style={{ position: 'relative' }}>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ position: 'relative', flex: 1 }}>
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  onFocus={() => { if (groupedResults.length > 0) setShowSuggestions(true); }}
+                  onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      void searchCatalog(search.trim());
+                    }
+                    if (event.key === 'Escape') {
+                      setShowSuggestions(false);
+                    }
+                  }}
+                  style={{ ...inputStyle, width: '100%' }}
+                  placeholder="Scan barcode or search product / SKU"
+                />
+                {searching ? (
+                  <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: 12 }}>
+                    searching...
+                  </span>
+                ) : null}
+              </div>
+              <button onClick={() => void searchCatalog(search.trim())} style={buttonStyle} disabled={loading}>
+                Search
+              </button>
             </div>
-          ) : (
-            <p style={{ marginBottom: 0, color: '#64748b' }}>No search results yet.</p>
-          )}
+
+            {showSuggestions && groupedResults.length > 0 ? (
+              <div
+                style={{
+                  position: 'absolute',
+                  left: 0,
+                  right: 0,
+                  top: '100%',
+                  zIndex: 50,
+                  marginTop: 4,
+                  background: '#fff',
+                  borderRadius: 10,
+                  border: '1px solid rgba(148,163,184,0.25)',
+                  boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
+                  maxHeight: 340,
+                  overflowY: 'auto',
+                }}
+              >
+                {groupedResults.map((group) => (
+                  <div
+                    key={group.productId}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '10px 12px',
+                      borderBottom: '1px solid rgba(148,163,184,0.1)',
+                      cursor: 'pointer',
+                    }}
+                    onMouseDown={(e) => e.preventDefault()}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>{group.productName}</div>
+                      <div style={{ color: '#64748b', fontSize: 12, marginTop: 2 }}>
+                        {group.hasVariants
+                          ? `${group.variantMode || 'variant'} · ${group.skuCount} variant(s)`
+                          : group.skus[0]?.sku_code}
+                        {' · '}Available: {group.totalAvailable}
+                        {' · '}From {currency(group.lowestPrice)}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, flexShrink: 0, marginLeft: 12 }}>
+                      {group.hasVariants ? (
+                        <button
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            setShowSuggestions(false);
+                            void openVariantPicker(group.productId);
+                          }}
+                          style={{ ...buttonStyle, fontSize: 12, padding: '4px 10px' }}
+                        >
+                          Choose
+                        </button>
+                      ) : (
+                        <button
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            addSkuToCart(group.skus[0]);
+                            clearSearchState();
+                            setMessage(`${group.productName} added to cart.`);
+                          }}
+                          style={{ ...buttonStyle, fontSize: 12, padding: '4px 10px' }}
+                        >
+                          Add
+                        </button>
+                      )}
+                      <button
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          handlePrintLabel(group.skus[0]);
+                        }}
+                        style={{ ...buttonStyle, fontSize: 12, padding: '4px 10px' }}
+                      >
+                        Label
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
         </article>
 
         <article style={cardStyle}>
@@ -902,6 +893,54 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
           </div>
         </SheetContent>
       </Sheet>
+
+      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+        <article style={{ ...cardStyle, padding: 14 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+            <h4 style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Workstation</h4>
+            <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 999, background: printError ? 'rgba(239,68,68,0.1)' : 'rgba(34,197,94,0.1)', color: printError ? '#dc2626' : '#16a34a' }}>
+              {printError ? 'Offline' : 'Ready'}
+            </span>
+          </div>
+          <div style={{ marginTop: 8, fontSize: 12, color: '#475569', display: 'grid', gap: 4 }}>
+            <div>Receipt: {printHealth?.printerName || receiptPrinterName || 'Not set'}</div>
+            <div>Label: {printHealth?.labelPrinterName || labelPrinterName || 'Not set'}</div>
+            <div style={{ color: '#94a3b8', fontSize: 11 }}>{agentUrl}</div>
+          </div>
+          <button onClick={handleOpenDrawer} style={{ ...buttonStyle, marginTop: 8, fontSize: 12, padding: '6px 10px' }} disabled={Boolean(printError)}>
+            Test Cash Drawer
+          </button>
+        </article>
+
+        <article style={{ ...cardStyle, padding: 14 }}>
+          <h4 style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Register</h4>
+          <select value={selectedRegisterId} onChange={(event) => setSelectedRegisterId(event.target.value)} style={{ ...inputStyle, marginTop: 8, fontSize: 12 }}>
+            <option value="">Select register</option>
+            {registers.map((register) => (
+              <option key={register.id} value={register.id}>{register.code} — {register.name}</option>
+            ))}
+          </select>
+          {SHOW_SHIFT_CONTROLS ? (
+            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+              <input value={openingCash} onChange={(event) => setOpeningCash(event.target.value)} style={{ ...inputStyle, fontSize: 12 }} placeholder="Opening cash" />
+              <button onClick={openShift} style={{ ...buttonStyle, fontSize: 12, padding: '6px 10px' }} disabled={loading || Boolean(openShiftId)}>Open</button>
+            </div>
+          ) : null}
+        </article>
+
+        <article style={{ ...cardStyle, padding: 14 }}>
+          <h4 style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Stock Source</h4>
+          <select value={selectedLocationId} onChange={(event) => setSelectedLocationId(event.target.value)} style={{ ...inputStyle, marginTop: 8, fontSize: 12 }}>
+            <option value="">Select location</option>
+            {locations.map((location) => (
+              <option key={location.id} value={location.id}>{location.code} — {location.name}</option>
+            ))}
+          </select>
+          <p style={{ marginTop: 8, marginBottom: 0, fontSize: 11, color: '#94a3b8' }}>
+            Barcode scanners type into the search field above.
+          </p>
+        </article>
+      </section>
 
       <article style={cardStyle}>
         <h3 style={{ marginTop: 0 }}>Operator Notes</h3>
