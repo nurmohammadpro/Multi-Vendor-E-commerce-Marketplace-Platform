@@ -2,18 +2,19 @@
 
 import { useEffect, useState } from 'react';
 
-export function IntroSplash() {
+export function IntroSplash({ onComplete }: { onComplete?: () => void }) {
   const [visible, setVisible] = useState(true);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
       setVisible(false);
+      onComplete?.();
     }, 2400);
 
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, []);
+  }, [onComplete]);
 
   if (!visible) {
     return null;
