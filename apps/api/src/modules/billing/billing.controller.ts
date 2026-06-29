@@ -122,3 +122,19 @@ export class BillingController {
     );
   }
 }
+
+@Controller('admin/billing')
+@UseGuards(PermissionsGuard)
+export class AdminBillingController {
+  constructor(private readonly billingService: BillingService) {}
+
+  @Get('plans')
+  @RequireContext('admin')
+  @RequirePermissions('platform.store.manage')
+  getPlans(@CurrentAuthSession() session: AuthSession | null) {
+    if (!session) {
+      throw new Error('Missing admin session');
+    }
+    return this.billingService.getAdminPlans(session.user.tenantId);
+  }
+}

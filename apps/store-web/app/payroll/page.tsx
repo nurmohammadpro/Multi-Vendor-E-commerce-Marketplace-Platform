@@ -1,21 +1,21 @@
-import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 import { getStoreConsoleAccess } from '../../lib/access';
+import { pageShellStyle, sectionLabelStyle, tokenMutedStyle } from '../motocore-theme';
 import { PayrollWorkspace } from './payroll-workspace';
 
 export default async function StorePayrollPage() {
   const access = await getStoreConsoleAccess();
 
   return (
-    <div className="flex flex-col gap-6">
-      <section className="max-w-[900px]">
-        <Badge variant="secondary" className="mb-3">HR & Payroll</Badge>
-        <h2 className="text-xl sm:text-2xl font-medium tracking-tight mb-2">Employees and payroll runs</h2>
-        <p className="text-sm text-muted-foreground leading-relaxed">
+    <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
+      <div style={{ maxWidth: 900 }}>
+        <div style={sectionLabelStyle}>HR & Payroll</div>
+        <h2 style={{ margin: '8px 0 8px', fontSize: 'clamp(20px, 2vw, 28px)', fontWeight: 500, letterSpacing: '-0.02em' }}>Employees and payroll runs</h2>
+        <p style={tokenMutedStyle}>
           Maintain employee records and run payroll periods with stored net totals.
         </p>
-      </section>
+      </div>
       {access.canUsePayroll ? (
         <PayrollWorkspace />
       ) : (
@@ -24,6 +24,6 @@ export default async function StorePayrollPage() {
           <CardContent className="text-sm text-muted-foreground">Upgrade to Pro to use this workflow.</CardContent>
         </Card>
       )}
-    </div>
+    </section>
   );
 }

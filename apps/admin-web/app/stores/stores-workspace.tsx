@@ -50,6 +50,15 @@ type StoreRow = {
   should_deactivate_review?: boolean;
 };
 
+type BillingPlan = {
+  id: string;
+  code: string;
+  name: string;
+  price_amount: string;
+  billing_cycle: string;
+  features_json: string[];
+};
+
 type StoreFormState = {
   name: string;
   nameBn: string;
@@ -63,6 +72,7 @@ type StoreFormState = {
   ownerEmail: string;
   ownerPhone: string;
   ownerPassword: string;
+  planCode: string;
 };
 
 const emptyForm: StoreFormState = {
@@ -78,6 +88,7 @@ const emptyForm: StoreFormState = {
   ownerEmail: '',
   ownerPhone: '',
   ownerPassword: '',
+  planCode: 'basic',
 };
 
 async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
@@ -116,6 +127,7 @@ async function fileToDataUrl(file: File) {
 
 export function StoresWorkspace() {
   const [stores, setStores] = useState<StoreRow[]>([]);
+  const [plans, setPlans] = useState<BillingPlan[]>([]);
   const [message, setMessage] = useState('Platform store operations are ready.');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -142,8 +154,16 @@ export function StoresWorkspace() {
     setStores(payload.stores ?? []);
   };
 
+  const fetchPlans = async () => {
+    try {
+      const payload = await readJson<{ plans: BillingPlan[] }>('/api/billing/plans');
+      setPlans(payload.plans ?? []);
+    } catch { /* plans are optional; keep defaults */ }
+  };
+
   useEffect(() => {
     void refresh().catch((error: Error) => setMessage(error.message));
+    void fetchPlans();
   }, []);
 
   const filteredStores = useMemo(() => {
@@ -168,7 +188,7 @@ export function StoresWorkspace() {
 
   const clearFormState = () => {
     setEditingStoreId(null);
-    setForm(emptyForm);
+    setForm({ ...emptyForm, planCode: form.planCode });
     setFormErrors({});
   };
 
@@ -213,6 +233,7 @@ export function StoresWorkspace() {
       ownerEmail: store.owner_email || '',
       ownerPhone: '',
       ownerPassword: '',
+      planCode: 'basic',
     });
     setMessage(`Editing ${store.name}.`);
   };
@@ -238,6 +259,7 @@ export function StoresWorkspace() {
         ownerEmail: form.ownerEmail.trim() || undefined,
         ownerPhone: form.ownerPhone.trim() || undefined,
         ownerPassword: form.ownerPassword,
+        planCode: form.planCode || 'basic',
       };
 
       if (editingStoreId) {
@@ -524,6 +546,31 @@ export function StoresWorkspace() {
                 Owner login details are edited from the owner record, not the store profile.
               </div>
             )}
+            {!editingStoreId && plans.length > 0 ? (
+              <div className="space-y-2">
+                <Label>Subscription plan</Label>
+                <Select
+                  value={form.planCode}
+                  onValueChange={(value) => setForm((current) => ({ ...current, planCode: value }))}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select a plan" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {plans.map((plan) => (
+                      <SelectItem key={plan.id} value={plan.code}>
+                        {plan.name} ({plan.code}) — {Number(plan.price_amount) === 0 ? 'Free' : `BDT ${Number(plan.price_amount).toFixed(0)}`}/{plan.billing_cycle}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {plans.find((p) => p.code === form.planCode) ? (
+                  <p className="text-xs text-muted-foreground">
+                    Features: {(plans.find((p) => p.code === form.planCode)?.features_json ?? []).join(', ')}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="storeTimezone">Timezone</Label>

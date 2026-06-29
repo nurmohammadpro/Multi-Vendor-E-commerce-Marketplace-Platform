@@ -1,5 +1,5 @@
-import { Badge } from '@/components/ui/badge';
 import { getStoreConsoleAccess } from '../../lib/access';
+import { pageShellStyle, sectionLabelStyle, tokenMutedStyle } from '../motocore-theme';
 
 import { BillingWorkspace } from './billing-workspace';
 
@@ -7,15 +7,15 @@ export default async function StoreBillingPage() {
   const access = await getStoreConsoleAccess();
 
   return (
-    <div className="flex flex-col gap-6">
-      <section className="max-w-[900px]">
-        <Badge variant="secondary" className="mb-3">Billing</Badge>
-        <h2 className="text-xl sm:text-2xl font-medium tracking-tight mb-2">Billing and payments</h2>
-        <p className="text-sm text-muted-foreground leading-relaxed">
+    <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
+      <div style={{ maxWidth: 900 }}>
+        <div style={sectionLabelStyle}>Billing</div>
+        <h2 style={{ margin: '8px 0 8px', fontSize: 'clamp(20px, 2vw, 28px)', fontWeight: 500, letterSpacing: '-0.02em' }}>Billing and payments</h2>
+        <p style={tokenMutedStyle}>
           Subscription plans, invoices, and payment recording run through the live billing APIs.
         </p>
-      </section>
+      </div>
       <BillingWorkspace canManageBilling={access.canManageBilling} />
-    </div>
+    </section>
   );
 }
