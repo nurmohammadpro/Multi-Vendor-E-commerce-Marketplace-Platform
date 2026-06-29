@@ -9,6 +9,7 @@ import {
   openInvoicePrintWindow,
   printLabel,
   printReceipt,
+  renderInvoiceHtml,
   type PrintAgentHealth,
   type ReceiptPayload,
 } from '../../lib/print-agent';
@@ -158,6 +159,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
   const [printError, setPrintError] = useState<string | null>(null);
   const [lastReceiptText, setLastReceiptText] = useState('');
   const [lastInvoice, setLastInvoice] = useState<ReceiptPayload | null>(null);
+  const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
   const [receiptPrinterName, setReceiptPrinterName] = useState('');
   const [labelPrinterName, setLabelPrinterName] = useState('');
   const [agentUrl, setAgentUrl] = useState(DEFAULT_PRINT_AGENT_URL);
@@ -518,8 +520,10 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
       if (reprintPayload.receipt) {
         setLastReceiptText(JSON.stringify(reprintPayload.receipt, null, 2));
         setLastInvoice(reprintPayload.receipt);
+        let printOk = false;
         try {
           await printReceipt(reprintPayload.receipt, receiptPrinterName || undefined, agentUrl);
+          printOk = true;
           let drawerWarning = '';
           if (!saleIsDue && paymentMethod === 'cash' && Number(total) > 0) {
             await openCashDrawer({ printerName: receiptPrinterName || undefined }, agentUrl).catch(() => {
@@ -529,9 +533,10 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
           setMessage(
             `${saleIsDue ? 'Due sale' : 'Sale'} ${salePayload.sale?.saleNo ?? ''} completed and receipt printed.${drawerWarning}`,
           );
-        } catch (printFailure) {
+        } catch {
+          setInvoiceModalOpen(true);
           setMessage(
-            `${saleIsDue ? 'Due sale' : 'Sale'} ${salePayload.sale?.saleNo ?? ''} completed. Silent print failed: ${(printFailure as Error).message}`,
+            `${saleIsDue ? 'Due sale' : 'Sale'} ${salePayload.sale?.saleNo ?? ''} completed. Printer unavailable — review and print invoice below.`,
           );
         }
       }
@@ -891,6 +896,45 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
               <div style={tokenMutedStyle}>No variants loaded for this product yet.</div>
             )}
           </div>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={invoiceModalOpen} onOpenChange={setInvoiceModalOpen}>
+        <SheetContent side="bottom" className="sm:max-w-full sm:max-h-[90vh] overflow-auto">
+          <SheetHeader>
+            <SheetTitle>Invoice {lastInvoice?.saleNo || ''}</SheetTitle>
+            <SheetDescription>
+              Printer unavailable. Review the invoice and print using your browser.
+            </SheetDescription>
+          </SheetHeader>
+          <div style={{ marginTop: 16, display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button
+              onClick={() => {
+                if (lastInvoice) {
+                  const w = window.open('', '_blank', 'noopener,noreferrer');
+                  if (w) {
+                    w.document.open();
+                    w.document.write(renderInvoiceHtml(lastInvoice));
+                    w.document.close();
+                    w.focus();
+                    w.print();
+                  }
+                }
+              }}
+              style={{ ...primaryButtonStyle, fontSize: 14, padding: '8px 20px' }}
+            >
+              Print Invoice
+            </button>
+            <button onClick={() => setInvoiceModalOpen(false)} style={{ ...buttonStyle, fontSize: 14, padding: '8px 20px' }}>
+              Close
+            </button>
+          </div>
+          {lastInvoice ? (
+            <div
+              style={{ marginTop: 16 }}
+              dangerouslySetInnerHTML={{ __html: renderInvoiceHtml(lastInvoice) }}
+            />
+          ) : null}
         </SheetContent>
       </Sheet>
 

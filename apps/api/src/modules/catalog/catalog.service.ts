@@ -1373,6 +1373,29 @@ export class CatalogService {
         price = priceResult.rows[0] ?? null;
       }
 
+      // Seed zero-balance rows for every active location so the SKU
+      // appears in stock views immediately without manual initialization.
+      await client.query(
+        `
+          insert into inventory.balances (
+            id, tenant_id, store_id, location_id, sku_id,
+            on_hand_qty, reserved_qty, damaged_qty, returned_qty, updated_at
+          )
+          select
+            gen_random_uuid(),
+            s.tenant_id,
+            s.id,
+            loc.id,
+            $1,
+            0, 0, 0, 0, now()
+          from store.stores s
+          join inventory.locations loc on loc.store_id = s.id and loc.status = 'active'
+          where s.id = $2
+          on conflict (location_id, sku_id) do nothing
+        `,
+        [sku.id, storeId],
+      );
+
       await client.query('commit');
       return { sku, price };
     } catch (error) {
