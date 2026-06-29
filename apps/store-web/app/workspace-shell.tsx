@@ -47,7 +47,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import type { StoreConsoleAccess } from '../lib/access';
 import { canAccessStoreFeature, type StoreConsoleFeature } from '../lib/store-plan';
-import { clearStoreSessionClient } from '../lib/session';
+import { logoutStoreClient } from '../lib/logout';
 
 type NavItem = {
   href: string;
@@ -207,18 +207,7 @@ function AppSidebar({
 
 function Header({ access }: { access: StoreConsoleAccess }) {
   const pathname = usePathname();
-  const loginUrl = process.env.NEXT_PUBLIC_LOGIN_APP_URL || '/';
-
-  const handleLogout = async () => {
-    try {
-      await fetch('/api/auth/logout', { method: 'POST' });
-    } finally {
-      if (typeof window !== 'undefined') {
-        clearStoreSessionClient();
-        window.location.href = loginUrl;
-      }
-    }
-  };
+  const handleLogout = () => logoutStoreClient();
 
   const getPageTitle = () => {
     if (pathname === '/') return 'Dashboard';
