@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { Package, ClipboardList, ShoppingCart, BarChart3, CreditCard, LifeBuoy, ShieldAlert, Users, ReceiptText, Landmark } from 'lucide-react';
 
 import { fetchStoreApi, isStoreApiConfigured } from '../lib/api';
@@ -15,6 +16,7 @@ import {
 import { Separator } from '@/components/ui/separator';
 
 const quickActions = [
+  { href: '/approvals', title: 'Approvals', detail: 'Review pending stock and price change requests.', icon: ClipboardList, permission: 'inventory.adjust.approve', feature: 'inventory' },
   { href: '/pos', title: 'Open POS', detail: 'Run paid or due sales, print receipts, and manage shifts.', icon: ShoppingCart, permission: 'sales.pos.create', feature: 'pos' },
   { href: '/catalog', title: 'Catalog', detail: 'Manage categories, products, variants, and SKUs.', icon: Package, permission: 'catalog.manage', feature: 'catalog' },
   { href: '/inventory', title: 'Stock', detail: 'Review balances, adjustments, and the stock ledger.', icon: ClipboardList, permission: 'inventory.view', feature: 'inventory' },
@@ -42,12 +44,34 @@ type StoreSalesReport = {
   };
 };
 
+type PendingAdjustmentsPayload = {
+  adjustmentRequests?: Array<unknown>;
+};
+
+type PendingPriceChangesPayload = {
+  priceChangeRequests?: Array<unknown>;
+};
+
 export default async function StoreDashboardPage() {
   const access = await getStoreConsoleAccess();
-  const salesReport = await fetchStoreApi<StoreSalesReport>('/reports/store/sales');
-  const inventoryReport = await fetchStoreApi<{ summary?: { total_available_qty?: string | number } }>(
-    '/reports/store/inventory',
-  );
+  const [salesReport, inventoryReport, pendingAdjustments, pendingPriceChanges] = await Promise.all([
+    fetchStoreApi<StoreSalesReport>('/reports/store/sales'),
+    fetchStoreApi<{ summary?: { total_available_qty?: string | number } }>('/reports/store/inventory'),
+    access.role === 'owner' && access.canApproveInventory
+      ? fetchStoreApi<PendingAdjustmentsPayload>('/inventory/adjustments?status=pending')
+      : Promise.resolve(null),
+    access.role === 'owner' && access.canApproveInventory
+      ? fetchStoreApi<PendingPriceChangesPayload>('/catalog/price-change-requests?status=pending')
+      : Promise.resolve(null),
+  ]);
+  const pendingApprovalCount =
+    (pendingAdjustments?.adjustmentRequests?.length ?? 0)
+    + (pendingPriceChanges?.priceChangeRequests?.length ?? 0);
+
+  if (access.role === 'owner' && access.canApproveInventory && pendingApprovalCount > 0) {
+    redirect('/approvals');
+  }
+
   const availableQuickActions = quickActions.filter(
     (action) =>
       (!action.permission || access.permissions.includes(action.permission))

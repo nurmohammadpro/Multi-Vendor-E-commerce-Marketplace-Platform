@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, Mail, Lock } from 'lucide-react';
 
@@ -17,11 +17,27 @@ type LoginRole = 'admin' | 'store';
 
 export default function LoginPage() {
   const router = useRouter();
+  const identifierInputRef = useRef<HTMLInputElement | null>(null);
   const [loginRole, setLoginRole] = useState<LoginRole>('admin');
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState<FormErrors>({});
   const [loading, setLoading] = useState(false);
+  const [splashComplete, setSplashComplete] = useState(false);
+
+  useEffect(() => {
+    if (!splashComplete) {
+      return;
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      identifierInputRef.current?.focus();
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [splashComplete]);
 
   const validate = (): FormErrors => {
     const errs: FormErrors = {};
@@ -75,7 +91,7 @@ export default function LoginPage() {
 
   return (
     <>
-      <IntroSplash />
+      <IntroSplash onComplete={() => setSplashComplete(true)} />
       <div className="flex min-h-screen items-center justify-center bg-background px-4">
         <div className="w-full max-w-md">
         {/* Card */}
@@ -150,14 +166,15 @@ export default function LoginPage() {
                 <div className="relative">
                   <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <input
+                    ref={identifierInputRef}
                     id="email"
                     type="email"
                     placeholder="you@example.com"
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
-                    disabled={loading}
+                    disabled={loading || !splashComplete}
                     autoComplete="username"
-                    autoFocus
+                    autoFocus={false}
                     className="file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground border-input w-full min-w-0 rounded-md border bg-transparent px-3 py-2.5 text-sm shadow-xs transition-[color,box-shadow] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] h-11 pl-9"
                   />
                 </div>
@@ -189,7 +206,7 @@ export default function LoginPage() {
                     placeholder="Enter your password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    disabled={loading}
+                    disabled={loading || !splashComplete}
                     autoComplete="current-password"
                     className="file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground border-input w-full min-w-0 rounded-md border bg-transparent px-3 py-2.5 text-sm shadow-xs transition-[color,box-shadow] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] h-11 pl-9"
                   />
@@ -201,7 +218,7 @@ export default function LoginPage() {
 
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || !splashComplete}
                 className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] bg-primary text-primary-foreground hover:bg-primary/90 px-3 py-2.5 h-11 w-full"
                 style={{ backgroundColor: 'rgb(17, 17, 17)', color: 'rgb(255, 255, 255)' }}
               >
