@@ -48,6 +48,7 @@ import { Separator } from '@/components/ui/separator';
 import type { StoreConsoleAccess } from '../lib/access';
 import { canAccessStoreFeature, type StoreConsoleFeature } from '../lib/store-plan';
 import { logoutStoreClient } from '../lib/logout';
+import { PwaClient } from './pwa-client';
 
 type NavItem = {
   href: string;
@@ -138,7 +139,11 @@ function AppSidebar({
                   className="h-full w-full object-contain"
                 />
               ) : (
-                <Wrench className="size-4 text-primary" />
+                <img
+                  src="/marketone-logo.svg"
+                  alt="MarketOne logo"
+                  className="h-full w-full object-contain"
+                />
               )}
             </div>
             <div className="flex flex-col group-data-[collapsible=icon]:hidden">
@@ -238,6 +243,7 @@ function Header({ access }: { access: StoreConsoleAccess }) {
       </div>
 
       <div className="flex items-center gap-1.5 sm:gap-2">
+        <PwaClient />
         <span className="hidden sm:inline-flex items-center rounded-md border bg-muted px-2 py-1 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
           {access.role === 'unknown' ? 'Limited access' : `${access.role} access`}
         </span>

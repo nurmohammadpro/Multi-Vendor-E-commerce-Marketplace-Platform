@@ -14,6 +14,7 @@ import {
   tableWrapStyle,
   tokenMutedStyle,
 } from '../motocore-theme';
+import { ListPager, type PaginationState, totalPagesFor } from '../list-pager';
 
 type BankAccount = {
   id: string;
@@ -51,6 +52,12 @@ export function BankingWorkspace() {
   const [entries, setEntries] = useState<BankEntry[]>([]);
   const [message, setMessage] = useState('Banking reconciliation is ready.');
   const [loading, setLoading] = useState(false);
+  const [accountSearch, setAccountSearch] = useState('');
+  const [entrySearch, setEntrySearch] = useState('');
+  const [accountPage, setAccountPage] = useState(1);
+  const [entryPage, setEntryPage] = useState(1);
+  const [accountPagination, setAccountPagination] = useState<PaginationState>({ page: 1, limit: 10, total: 0 });
+  const [entryPagination, setEntryPagination] = useState<PaginationState>({ page: 1, limit: 10, total: 0 });
   const [accountForm, setAccountForm] = useState({
     accountName: '',
     bankName: '',
@@ -71,18 +78,28 @@ export function BankingWorkspace() {
     note: '',
   });
 
-  const refresh = async () => {
+  const refresh = async (nextAccountPage = accountPage, nextEntryPage = entryPage) => {
+    const accountParams = new URLSearchParams({ page: String(nextAccountPage), limit: String(accountPagination.limit) });
+    const entryParams = new URLSearchParams({ page: String(nextEntryPage), limit: String(entryPagination.limit) });
+    if (accountSearch.trim()) accountParams.set('search', accountSearch.trim());
+    if (entrySearch.trim()) entryParams.set('search', entrySearch.trim());
+
     const [accountsPayload, entriesPayload] = await Promise.all([
-      readJson<{ bankAccounts: BankAccount[] }>('/api/store-ops/banking/accounts'),
-      readJson<{ entries: BankEntry[] }>('/api/store-ops/banking/entries'),
+      readJson<{ bankAccounts: BankAccount[]; pagination?: PaginationState }>(`/api/store-ops/banking/accounts?${accountParams.toString()}`),
+      readJson<{ entries: BankEntry[]; pagination?: PaginationState }>(`/api/store-ops/banking/entries?${entryParams.toString()}`),
     ]);
-    setAccounts(accountsPayload.bankAccounts ?? []);
+    const nextAccounts = accountsPayload.bankAccounts ?? [];
+    setAccounts(nextAccounts);
     setEntries(entriesPayload.entries ?? []);
-    setEntryForm((current) => ({ ...current, bankAccountId: current.bankAccountId || accountsPayload.bankAccounts?.[0]?.id || '' }));
+    setAccountPagination(accountsPayload.pagination ?? { page: nextAccountPage, limit: accountPagination.limit, total: nextAccounts.length });
+    setEntryPagination(entriesPayload.pagination ?? { page: nextEntryPage, limit: entryPagination.limit, total: entriesPayload.entries?.length ?? 0 });
+    setAccountPage(accountsPayload.pagination?.page ?? nextAccountPage);
+    setEntryPage(entriesPayload.pagination?.page ?? nextEntryPage);
+    setEntryForm((current) => ({ ...current, bankAccountId: current.bankAccountId || nextAccounts[0]?.id || '' }));
   };
 
   useEffect(() => {
-    void refresh().catch((error: Error) => setMessage(error.message));
+    void refresh(1, 1).catch((error: Error) => setMessage(error.message));
   }, []);
 
   const saveAccount = async () => {
@@ -102,16 +119,8 @@ export function BankingWorkspace() {
           note: accountForm.note || undefined,
         }),
       });
-      await refresh();
-      setAccountForm({
-        accountName: '',
-        bankName: '',
-        accountNumber: '',
-        openingBalance: '',
-        currentBalance: '',
-        status: 'active',
-        note: '',
-      });
+      await refresh(1, entryPage);
+      setAccountForm({ accountName: '', bankName: '', accountNumber: '', openingBalance: '', currentBalance: '', status: 'active', note: '' });
       setMessage('Bank account saved.');
     } catch (error) {
       setMessage((error as Error).message);
@@ -137,7 +146,7 @@ export function BankingWorkspace() {
           note: entryForm.note || undefined,
         }),
       });
-      await refresh();
+      await refresh(accountPage, 1);
       setEntryForm((current) => ({
         ...current,
         entryDate: new Date().toISOString().slice(0, 10),
@@ -154,6 +163,9 @@ export function BankingWorkspace() {
     }
   };
 
+  const totalAccountPages = totalPagesFor(accountPagination);
+  const totalEntryPages = totalPagesFor(entryPagination);
+
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
       <section style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 0.95fr) minmax(420px, 1.05fr)', gap: 16 }}>
@@ -167,34 +179,48 @@ export function BankingWorkspace() {
             <input value={accountForm.currentBalance} onChange={(event) => setAccountForm((current) => ({ ...current, currentBalance: event.target.value }))} style={fieldStyle} placeholder="Current balance" />
             <button onClick={saveAccount} style={secondaryButtonStyle} disabled={loading}>Save Bank Account</button>
           </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, marginTop: 12 }}>
+            <input value={accountSearch} onChange={(event) => setAccountSearch(event.target.value)} style={fieldStyle} placeholder="Search account, bank, or number" />
+            <button onClick={() => void refresh(1, entryPage)} style={secondaryButtonStyle} disabled={loading}>Search</button>
+          </div>
           {accounts.length ? (
-            <div style={{ ...tableWrapStyle, marginTop: 12 }}>
-              <table style={tableStyle}>
-                <thead>
-                  <tr>
-                    <th style={tableHeaderCellStyle}>Account</th>
-                    <th style={tableHeaderCellStyle}>Bank</th>
-                    <th style={tableHeaderCellStyle}>Number</th>
-                    <th style={tableHeaderCellStyle}>Opening</th>
-                    <th style={tableHeaderCellStyle}>Current</th>
-                    <th style={tableHeaderCellStyle}>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {accounts.map((account) => (
-                    <tr key={account.id}>
-                      <td style={tableCellStyle}>{account.account_name}</td>
-                      <td style={tableCellStyle}>{account.bank_name}</td>
-                      <td style={tableCellStyle}>{account.account_number}</td>
-                      <td style={tableCellStyle}>{account.opening_balance}</td>
-                      <td style={tableCellStyle}>{account.current_balance}</td>
-                      <td style={tableCellStyle}>{account.status}</td>
+            <>
+              <div style={{ ...tableWrapStyle, marginTop: 12 }}>
+                <table style={tableStyle}>
+                  <thead>
+                    <tr>
+                      <th style={tableHeaderCellStyle}>Account</th>
+                      <th style={tableHeaderCellStyle}>Bank</th>
+                      <th style={tableHeaderCellStyle}>Number</th>
+                      <th style={tableHeaderCellStyle}>Opening</th>
+                      <th style={tableHeaderCellStyle}>Current</th>
+                      <th style={tableHeaderCellStyle}>Status</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : <div style={emptyStateStyle}>No bank accounts saved yet.</div>}
+                  </thead>
+                  <tbody>
+                    {accounts.map((account) => (
+                      <tr key={account.id}>
+                        <td style={tableCellStyle}>{account.account_name}</td>
+                        <td style={tableCellStyle}>{account.bank_name}</td>
+                        <td style={tableCellStyle}>{account.account_number}</td>
+                        <td style={tableCellStyle}>{account.opening_balance}</td>
+                        <td style={tableCellStyle}>{account.current_balance}</td>
+                        <td style={tableCellStyle}>{account.status}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <ListPager
+                loading={loading}
+                page={accountPage}
+                pagination={accountPagination}
+                label="account(s)"
+                onPrevious={() => void refresh(Math.max(1, accountPage - 1), entryPage)}
+                onNext={() => void refresh(Math.min(totalAccountPages, accountPage + 1), entryPage)}
+              />
+            </>
+          ) : <div style={{ ...emptyStateStyle, marginTop: 12 }}>No bank accounts saved yet.</div>}
         </article>
 
         <article style={surfaceCardStyle}>
@@ -226,36 +252,50 @@ export function BankingWorkspace() {
             </select>
             <button onClick={saveEntry} style={secondaryButtonStyle} disabled={loading}>Save Entry</button>
           </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, marginTop: 12 }}>
+            <input value={entrySearch} onChange={(event) => setEntrySearch(event.target.value)} style={fieldStyle} placeholder="Search account, reference, or source" />
+            <button onClick={() => void refresh(accountPage, 1)} style={secondaryButtonStyle} disabled={loading}>Search</button>
+          </div>
           {entries.length ? (
-            <div style={{ ...tableWrapStyle, marginTop: 12 }}>
-              <table style={tableStyle}>
-                <thead>
-                  <tr>
-                    <th style={tableHeaderCellStyle}>Account</th>
-                    <th style={tableHeaderCellStyle}>Date</th>
-                    <th style={tableHeaderCellStyle}>Type</th>
-                    <th style={tableHeaderCellStyle}>Source</th>
-                    <th style={tableHeaderCellStyle}>Amount</th>
-                    <th style={tableHeaderCellStyle}>Status</th>
-                    <th style={tableHeaderCellStyle}>Reference</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {entries.map((entry) => (
-                    <tr key={entry.id}>
-                      <td style={tableCellStyle}>{entry.account_name}</td>
-                      <td style={tableCellStyle}>{entry.entry_date}</td>
-                      <td style={tableCellStyle}>{entry.entry_type}</td>
-                      <td style={tableCellStyle}>{entry.source_type}</td>
-                      <td style={tableCellStyle}>{entry.amount}</td>
-                      <td style={tableCellStyle}>{entry.status}</td>
-                      <td style={tableCellStyle}>{entry.reference_no || '—'}</td>
+            <>
+              <div style={{ ...tableWrapStyle, marginTop: 12 }}>
+                <table style={tableStyle}>
+                  <thead>
+                    <tr>
+                      <th style={tableHeaderCellStyle}>Account</th>
+                      <th style={tableHeaderCellStyle}>Date</th>
+                      <th style={tableHeaderCellStyle}>Type</th>
+                      <th style={tableHeaderCellStyle}>Source</th>
+                      <th style={tableHeaderCellStyle}>Amount</th>
+                      <th style={tableHeaderCellStyle}>Status</th>
+                      <th style={tableHeaderCellStyle}>Reference</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : <div style={emptyStateStyle}>No reconciliation entries saved yet.</div>}
+                  </thead>
+                  <tbody>
+                    {entries.map((entry) => (
+                      <tr key={entry.id}>
+                        <td style={tableCellStyle}>{entry.account_name}</td>
+                        <td style={tableCellStyle}>{entry.entry_date}</td>
+                        <td style={tableCellStyle}>{entry.entry_type}</td>
+                        <td style={tableCellStyle}>{entry.source_type}</td>
+                        <td style={tableCellStyle}>{entry.amount}</td>
+                        <td style={tableCellStyle}>{entry.status}</td>
+                        <td style={tableCellStyle}>{entry.reference_no || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <ListPager
+                loading={loading}
+                page={entryPage}
+                pagination={entryPagination}
+                label="entry(s)"
+                onPrevious={() => void refresh(accountPage, Math.max(1, entryPage - 1))}
+                onNext={() => void refresh(accountPage, Math.min(totalEntryPages, entryPage + 1))}
+              />
+            </>
+          ) : <div style={{ ...emptyStateStyle, marginTop: 12 }}>No reconciliation entries saved yet.</div>}
         </article>
       </section>
 

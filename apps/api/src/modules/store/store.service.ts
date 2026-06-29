@@ -6,6 +6,7 @@ import { hashPassword } from '@mvp/auth';
 
 import type { AdminAuthContext, AuthSession, StoreAuthContext } from '../auth/auth.types.js';
 import { AuditService } from '../audit/audit.service.js';
+import { normalizePageQuery, stripPaginationTotal } from '../common/pagination.js';
 import { DATABASE_POOL } from '../database/database.constants.js';
 
 type InviteStaffPayload = {
@@ -1117,44 +1118,65 @@ export class StoreService {
     headerStoreId: string | undefined,
     authContext: StoreAuthContext | null,
     session: AuthSession | null,
+    filters: { search?: string; page?: number; limit?: number } = {},
   ) {
     this.assertStoreAccess(storeId, headerStoreId, authContext);
     const actorRole = this.requireStoreActorRole(authContext);
+    const { page, limit, offset } = normalizePageQuery(filters);
+    const search = filters.search?.trim() || null;
 
     const result = await this.pool.query(
       `
-        select
-          sm.id,
-          sm.user_id,
-          sm.status,
-          sm.joined_at,
-          sm.created_at,
-          r.code as role_code,
-          u.email,
-          u.phone,
-          up.full_name,
-          up.address_text,
-          he.id as employee_id,
-          he.employee_number,
-          he.designation,
-          he.department,
-          he.employment_status,
-          he.monthly_salary
-        from access.store_memberships sm
-        join access.roles r on r.id = sm.role_id
-        join identity.users u on u.id = sm.user_id
-        left join identity.user_profiles up on up.user_id = u.id
-        left join hr.employees he on he.store_id = sm.store_id and he.user_id = sm.user_id
-        where sm.store_id = $1
-        order by sm.created_at asc
+        select *
+        from (
+          select
+            sm.id,
+            sm.user_id,
+            sm.status,
+            sm.joined_at,
+            sm.created_at,
+            r.code as role_code,
+            u.email,
+            u.phone,
+            up.full_name,
+            up.address_text,
+            he.id as employee_id,
+            he.employee_number,
+            he.designation,
+            he.department,
+            he.employment_status,
+            he.monthly_salary,
+            count(*) over()::int as total_count
+          from access.store_memberships sm
+          join access.roles r on r.id = sm.role_id
+          join identity.users u on u.id = sm.user_id
+          left join identity.user_profiles up on up.user_id = u.id
+          left join hr.employees he on he.store_id = sm.store_id and he.user_id = sm.user_id
+          where sm.store_id = $1
+            and (
+              $2::text is null
+              or coalesce(up.full_name, '') ilike '%' || $2::text || '%'
+              or coalesce(u.email, '') ilike '%' || $2::text || '%'
+              or coalesce(u.phone, '') ilike '%' || $2::text || '%'
+              or coalesce(he.employee_number, '') ilike '%' || $2::text || '%'
+              or coalesce(he.designation, '') ilike '%' || $2::text || '%'
+              or coalesce(he.department, '') ilike '%' || $2::text || '%'
+              or r.code ilike '%' || $2::text || '%'
+            )
+          order by sm.created_at asc
+          limit $3
+          offset $4
+        ) staff
       `,
-      [storeId],
+      [storeId, search, limit, offset],
     );
+    const { items, total } = stripPaginationTotal(result.rows);
 
     return {
-      staff: result.rows,
+      staff: items,
       actorRole,
       capabilities: this.getStaffCapabilities(actorRole),
+      pagination: { page, limit, total },
     };
   }
 

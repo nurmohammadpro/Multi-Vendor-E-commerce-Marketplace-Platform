@@ -136,8 +136,14 @@ export class StoreOpsController {
     @Headers('x-store-id') headerStoreId: string | undefined,
     @CurrentAuthContext() authContext: StoreAuthContext | null,
     @Query('query') query: string | undefined,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
-    return this.storeOpsService.listCustomers(headerStoreId, authContext, query);
+    return this.storeOpsService.listCustomers(headerStoreId, authContext, {
+      query,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
   }
 
   @Get('customers/:customerId')
@@ -157,8 +163,15 @@ export class StoreOpsController {
   listDueSales(
     @Headers('x-store-id') headerStoreId: string | undefined,
     @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @Query('query') query?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
-    return this.storeOpsService.listDueSales(headerStoreId, authContext);
+    return this.storeOpsService.listDueSales(headerStoreId, authContext, {
+      query,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
   }
 
   @Get('due-sales/aging')
@@ -223,8 +236,15 @@ export class StoreOpsController {
   listExpenses(
     @Headers('x-store-id') headerStoreId: string | undefined,
     @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
-    return this.storeOpsService.listExpenses(headerStoreId, authContext);
+    return this.storeOpsService.listExpenses(headerStoreId, authContext, {
+      search,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
   }
 
   @Post('expenses')
@@ -257,8 +277,15 @@ export class StoreOpsController {
   listEmployees(
     @Headers('x-store-id') headerStoreId: string | undefined,
     @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
-    return this.storeOpsService.listEmployees(headerStoreId, authContext);
+    return this.storeOpsService.listEmployees(headerStoreId, authContext, {
+      search,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
   }
 
   @Post('payroll/employees')
@@ -291,8 +318,15 @@ export class StoreOpsController {
   listPayrollRuns(
     @Headers('x-store-id') headerStoreId: string | undefined,
     @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
-    return this.storeOpsService.listPayrollRuns(headerStoreId, authContext);
+    return this.storeOpsService.listPayrollRuns(headerStoreId, authContext, {
+      search,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
   }
 
   @Post('payroll/runs')
@@ -347,8 +381,15 @@ export class StoreOpsController {
   listBankAccounts(
     @Headers('x-store-id') headerStoreId: string | undefined,
     @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
-    return this.storeOpsService.listBankAccounts(headerStoreId, authContext);
+    return this.storeOpsService.listBankAccounts(headerStoreId, authContext, {
+      search,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
   }
 
   @Post('banking/accounts')
@@ -381,8 +422,15 @@ export class StoreOpsController {
   listBankEntries(
     @Headers('x-store-id') headerStoreId: string | undefined,
     @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
-    return this.storeOpsService.listBankEntries(headerStoreId, authContext);
+    return this.storeOpsService.listBankEntries(headerStoreId, authContext, {
+      search,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
   }
 
   @Post('banking/entries')

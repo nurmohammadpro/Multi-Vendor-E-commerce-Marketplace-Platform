@@ -14,6 +14,7 @@ import {
   tableWrapStyle,
   tokenMutedStyle,
 } from '../motocore-theme';
+import { ListPager, type PaginationState, totalPagesFor } from '../list-pager';
 
 type Employee = {
   id: string;
@@ -84,6 +85,12 @@ export function PayrollWorkspace() {
   const [runs, setRuns] = useState<PayrollRun[]>([]);
   const [message, setMessage] = useState('Payroll workflow is ready.');
   const [loading, setLoading] = useState(false);
+  const [employeeSearch, setEmployeeSearch] = useState('');
+  const [runSearch, setRunSearch] = useState('');
+  const [employeePage, setEmployeePage] = useState(1);
+  const [runPage, setRunPage] = useState(1);
+  const [employeePagination, setEmployeePagination] = useState<PaginationState>({ page: 1, limit: 10, total: 0 });
+  const [runPagination, setRunPagination] = useState<PaginationState>({ page: 1, limit: 10, total: 0 });
   const [employeeForm, setEmployeeForm] = useState(defaultEmployeeForm);
   const [runForm, setRunForm] = useState({
     periodStart: new Date().toISOString().slice(0, 10),
@@ -93,14 +100,22 @@ export function PayrollWorkspace() {
   });
   const [adjustments, setAdjustments] = useState<Record<string, { bonus: string; deduction: string; note: string }>>({});
 
-  const refresh = async () => {
+  const refresh = async (nextEmployeePage = employeePage, nextRunPage = runPage) => {
+    const employeeParams = new URLSearchParams({ page: String(nextEmployeePage), limit: String(employeePagination.limit) });
+    const runParams = new URLSearchParams({ page: String(nextRunPage), limit: String(runPagination.limit) });
+    if (employeeSearch.trim()) employeeParams.set('search', employeeSearch.trim());
+    if (runSearch.trim()) runParams.set('search', runSearch.trim());
     const [employeesPayload, runsPayload] = await Promise.all([
-      readJson<{ employees: Employee[] }>('/api/store-ops/payroll/employees'),
-      readJson<{ payrollRuns: PayrollRun[] }>('/api/store-ops/payroll/runs'),
+      readJson<{ employees: Employee[]; pagination?: PaginationState }>(`/api/store-ops/payroll/employees?${employeeParams.toString()}`),
+      readJson<{ payrollRuns: PayrollRun[]; pagination?: PaginationState }>(`/api/store-ops/payroll/runs?${runParams.toString()}`),
     ]);
     const nextEmployees = employeesPayload.employees ?? [];
     setEmployees(nextEmployees);
     setRuns(runsPayload.payrollRuns ?? []);
+    setEmployeePagination(employeesPayload.pagination ?? { page: nextEmployeePage, limit: employeePagination.limit, total: nextEmployees.length });
+    setRunPagination(runsPayload.pagination ?? { page: nextRunPage, limit: runPagination.limit, total: runsPayload.payrollRuns?.length ?? 0 });
+    setEmployeePage(employeesPayload.pagination?.page ?? nextEmployeePage);
+    setRunPage(runsPayload.pagination?.page ?? nextRunPage);
     setAdjustments((current) => {
       const next = { ...current };
       for (const employee of nextEmployees) {
@@ -111,7 +126,7 @@ export function PayrollWorkspace() {
   };
 
   useEffect(() => {
-    void refresh().catch((error: Error) => setMessage(error.message));
+    void refresh(1, 1).catch((error: Error) => setMessage(error.message));
   }, []);
 
   const saveEmployee = async () => {
@@ -139,7 +154,7 @@ export function PayrollWorkspace() {
           note: employeeForm.note || undefined,
         }),
       });
-      await refresh();
+      await refresh(1, runPage);
       setEmployeeForm(defaultEmployeeForm);
       setMessage('Employee profile saved.');
     } catch (error) {
@@ -196,7 +211,7 @@ export function PayrollWorkspace() {
           })),
         }),
       });
-      await refresh();
+      await refresh(employeePage, 1);
       setMessage('Payroll run created.');
     } catch (error) {
       setMessage((error as Error).message);
@@ -213,7 +228,7 @@ export function PayrollWorkspace() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
       });
-      await refresh();
+      await refresh(employeePage, runPage);
       setMessage(`Payroll run marked ${status}.`);
     } catch (error) {
       setMessage((error as Error).message);
@@ -221,6 +236,9 @@ export function PayrollWorkspace() {
       setLoading(false);
     }
   };
+
+  const totalEmployeePages = totalPagesFor(employeePagination);
+  const totalRunPages = totalPagesFor(runPagination);
 
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
@@ -256,36 +274,50 @@ export function PayrollWorkspace() {
 
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Employees</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, marginBottom: 12 }}>
+            <input value={employeeSearch} onChange={(event) => setEmployeeSearch(event.target.value)} style={fieldStyle} placeholder="Search employee, mobile, email, role" />
+            <button onClick={() => void refresh(1, runPage)} style={secondaryButtonStyle} disabled={loading}>Search</button>
+          </div>
           {employees.length ? (
-            <div style={tableWrapStyle}>
-              <table style={tableStyle}>
-                <thead>
-                  <tr>
-                    <th style={tableHeaderCellStyle}>Employee</th>
-                    <th style={tableHeaderCellStyle}>Role</th>
-                    <th style={tableHeaderCellStyle}>Designation</th>
-                    <th style={tableHeaderCellStyle}>Contact</th>
-                    <th style={tableHeaderCellStyle}>Salary</th>
-                    <th style={tableHeaderCellStyle}>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {employees.map((employee) => (
-                    <tr key={employee.id}>
-                      <td style={tableCellStyle}>
-                        {employee.full_name}
-                        <div style={{ color: '#64748b', marginTop: 4 }}>{employee.employee_number || 'Pending ID'}</div>
-                      </td>
-                      <td style={tableCellStyle}>{employee.role_code}</td>
-                      <td style={tableCellStyle}>{employee.designation || '—'}</td>
-                      <td style={tableCellStyle}>{employee.mobile_no || employee.email || '—'}</td>
-                      <td style={tableCellStyle}>{employee.monthly_salary}</td>
-                      <td style={tableCellStyle}>{employee.employment_status}</td>
+            <>
+              <div style={tableWrapStyle}>
+                <table style={tableStyle}>
+                  <thead>
+                    <tr>
+                      <th style={tableHeaderCellStyle}>Employee</th>
+                      <th style={tableHeaderCellStyle}>Role</th>
+                      <th style={tableHeaderCellStyle}>Designation</th>
+                      <th style={tableHeaderCellStyle}>Contact</th>
+                      <th style={tableHeaderCellStyle}>Salary</th>
+                      <th style={tableHeaderCellStyle}>Status</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {employees.map((employee) => (
+                      <tr key={employee.id}>
+                        <td style={tableCellStyle}>
+                          {employee.full_name}
+                          <div style={{ color: '#64748b', marginTop: 4 }}>{employee.employee_number || 'Pending ID'}</div>
+                        </td>
+                        <td style={tableCellStyle}>{employee.role_code}</td>
+                        <td style={tableCellStyle}>{employee.designation || '—'}</td>
+                        <td style={tableCellStyle}>{employee.mobile_no || employee.email || '—'}</td>
+                        <td style={tableCellStyle}>{employee.monthly_salary}</td>
+                        <td style={tableCellStyle}>{employee.employment_status}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <ListPager
+                loading={loading}
+                page={employeePage}
+                pagination={employeePagination}
+                label="employee(s)"
+                onPrevious={() => void refresh(Math.max(1, employeePage - 1), runPage)}
+                onNext={() => void refresh(Math.min(totalEmployeePages, employeePage + 1), runPage)}
+              />
+            </>
           ) : <div style={emptyStateStyle}>No employees added yet.</div>}
         </article>
       </section>
@@ -350,42 +382,56 @@ export function PayrollWorkspace() {
 
       <article style={surfaceCardStyle}>
         <h3 style={{ marginTop: 0 }}>Payroll Runs</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, marginBottom: 12 }}>
+          <input value={runSearch} onChange={(event) => setRunSearch(event.target.value)} style={fieldStyle} placeholder="Search payroll no or status" />
+          <button onClick={() => void refresh(employeePage, 1)} style={secondaryButtonStyle} disabled={loading}>Search</button>
+        </div>
         {runs.length ? (
-          <div style={tableWrapStyle}>
-            <table style={tableStyle}>
-              <thead>
-                <tr>
-                  <th style={tableHeaderCellStyle}>Run</th>
-                  <th style={tableHeaderCellStyle}>Period</th>
-                  <th style={tableHeaderCellStyle}>Employees</th>
-                  <th style={tableHeaderCellStyle}>Bonus</th>
-                  <th style={tableHeaderCellStyle}>Deduction</th>
-                  <th style={tableHeaderCellStyle}>Total</th>
-                  <th style={tableHeaderCellStyle}>Status</th>
-                  <th style={tableHeaderCellStyle}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {runs.map((run) => (
-                  <tr key={run.id}>
-                    <td style={tableCellStyle}>{run.payroll_no || run.id}</td>
-                    <td style={tableCellStyle}>{run.period_start} → {run.period_end}</td>
-                    <td style={tableCellStyle}>{run.total_employees || run.item_count}</td>
-                    <td style={tableCellStyle}>{run.total_bonus_amount || 0}</td>
-                    <td style={tableCellStyle}>{run.total_deduction_amount || 0}</td>
-                    <td style={tableCellStyle}>{run.total_amount}</td>
-                    <td style={tableCellStyle}>{run.status}</td>
-                    <td style={tableCellStyle}>
-                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                        <button onClick={() => void updateRunStatus(run.id, 'approved')} style={secondaryButtonStyle} disabled={loading}>Approve</button>
-                        <button onClick={() => void updateRunStatus(run.id, 'paid')} style={secondaryButtonStyle} disabled={loading}>Mark Paid</button>
-                      </div>
-                    </td>
+          <>
+            <div style={tableWrapStyle}>
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={tableHeaderCellStyle}>Run</th>
+                    <th style={tableHeaderCellStyle}>Period</th>
+                    <th style={tableHeaderCellStyle}>Employees</th>
+                    <th style={tableHeaderCellStyle}>Bonus</th>
+                    <th style={tableHeaderCellStyle}>Deduction</th>
+                    <th style={tableHeaderCellStyle}>Total</th>
+                    <th style={tableHeaderCellStyle}>Status</th>
+                    <th style={tableHeaderCellStyle}>Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {runs.map((run) => (
+                    <tr key={run.id}>
+                      <td style={tableCellStyle}>{run.payroll_no || run.id}</td>
+                      <td style={tableCellStyle}>{run.period_start} → {run.period_end}</td>
+                      <td style={tableCellStyle}>{run.total_employees || run.item_count}</td>
+                      <td style={tableCellStyle}>{run.total_bonus_amount || 0}</td>
+                      <td style={tableCellStyle}>{run.total_deduction_amount || 0}</td>
+                      <td style={tableCellStyle}>{run.total_amount}</td>
+                      <td style={tableCellStyle}>{run.status}</td>
+                      <td style={tableCellStyle}>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          <button onClick={() => void updateRunStatus(run.id, 'approved')} style={secondaryButtonStyle} disabled={loading}>Approve</button>
+                          <button onClick={() => void updateRunStatus(run.id, 'paid')} style={secondaryButtonStyle} disabled={loading}>Mark Paid</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <ListPager
+              loading={loading}
+              page={runPage}
+              pagination={runPagination}
+              label="run(s)"
+              onPrevious={() => void refresh(employeePage, Math.max(1, runPage - 1))}
+              onNext={() => void refresh(employeePage, Math.min(totalRunPages, runPage + 1))}
+            />
+          </>
         ) : <div style={emptyStateStyle}>No payroll runs created yet.</div>}
       </article>
 

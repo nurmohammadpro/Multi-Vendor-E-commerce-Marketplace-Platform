@@ -1,12 +1,27 @@
 import type { ReactNode } from 'react';
+import type { Metadata, Viewport } from 'next';
 
 import './globals.css';
 import { WorkspaceShell } from './workspace-shell';
 import { getStoreConsoleAccess, type StoreConsoleFeature } from '../lib/access';
 
-export const metadata = {
+export const metadata: Metadata = {
   title: 'Store Console',
   description: 'Phase 1 store operating system',
+  manifest: '/manifest.webmanifest',
+  icons: {
+    icon: '/marketone-logo.svg',
+    apple: '/marketone-logo.svg',
+  },
+  appleWebApp: {
+    capable: true,
+    title: 'MarketOne',
+    statusBarStyle: 'default',
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: '#ffffff',
 };
 
 const navItems = [

@@ -14,6 +14,7 @@ import {
   tableWrapStyle,
   tokenMutedStyle,
 } from '../motocore-theme';
+import { ListPager, type PaginationState, totalPagesFor } from '../list-pager';
 
 type Expense = {
   id: string;
@@ -38,6 +39,9 @@ export function ExpensesWorkspace() {
   const [selectedExpenseId, setSelectedExpenseId] = useState('');
   const [message, setMessage] = useState('Daily expense workflow is ready.');
   const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState<PaginationState>({ page: 1, limit: 12, total: 0 });
   const [form, setForm] = useState({
     expenseDate: new Date().toISOString().slice(0, 10),
     categoryName: 'Utility',
@@ -48,9 +52,13 @@ export function ExpensesWorkspace() {
     note: '',
   });
 
-  const refresh = async () => {
-    const payload = await readJson<{ expenses: Expense[] }>('/api/store-ops/expenses');
+  const refresh = async (nextPage = 1) => {
+    const params = new URLSearchParams({ page: String(nextPage), limit: String(pagination.limit) });
+    if (search.trim()) params.set('search', search.trim());
+    const payload = await readJson<{ expenses: Expense[]; pagination?: PaginationState }>(`/api/store-ops/expenses?${params.toString()}`);
     setExpenses(payload.expenses ?? []);
+    setPagination(payload.pagination ?? { page: nextPage, limit: pagination.limit, total: payload.expenses?.length ?? 0 });
+    setPage(payload.pagination?.page ?? nextPage);
   };
 
   useEffect(() => {
@@ -78,17 +86,9 @@ export function ExpensesWorkspace() {
           note: form.note || undefined,
         }),
       });
-      await refresh();
+      await refresh(1);
       setSelectedExpenseId('');
-      setForm({
-        expenseDate: new Date().toISOString().slice(0, 10),
-        categoryName: 'Utility',
-        title: '',
-        amount: '',
-        paymentMethod: 'cash',
-        status: 'draft',
-        note: '',
-      });
+      setForm({ expenseDate: new Date().toISOString().slice(0, 10), categoryName: 'Utility', title: '', amount: '', paymentMethod: 'cash', status: 'draft', note: '' });
       setMessage('Expense saved.');
     } catch (error) {
       setMessage((error as Error).message);
@@ -96,6 +96,8 @@ export function ExpensesWorkspace() {
       setLoading(false);
     }
   };
+
+  const totalPages = totalPagesFor(pagination);
 
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
@@ -124,54 +126,68 @@ export function ExpensesWorkspace() {
         </article>
 
         <article style={surfaceCardStyle}>
-          <h3 style={{ marginTop: 0 }}>Recent Expenses</h3>
+          <h3 style={{ marginTop: 0 }}>Expenses</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, marginBottom: 12 }}>
+            <input value={search} onChange={(event) => setSearch(event.target.value)} style={fieldStyle} placeholder="Search title, category, method, or status" />
+            <button onClick={() => void refresh(1)} style={secondaryButtonStyle} disabled={loading}>Search</button>
+          </div>
           {expenses.length ? (
-            <div style={tableWrapStyle}>
-              <table style={tableStyle}>
-                <thead>
-                  <tr>
-                    <th style={tableHeaderCellStyle}>Date</th>
-                    <th style={tableHeaderCellStyle}>Title</th>
-                    <th style={tableHeaderCellStyle}>Category</th>
-                    <th style={tableHeaderCellStyle}>Method</th>
-                    <th style={tableHeaderCellStyle}>Status</th>
-                    <th style={tableHeaderCellStyle}>Amount</th>
-                    <th style={tableHeaderCellStyle}>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {expenses.map((expense) => (
-                    <tr key={expense.id}>
-                      <td style={tableCellStyle}>{expense.expense_date}</td>
-                      <td style={tableCellStyle}>{expense.title}</td>
-                      <td style={tableCellStyle}>{expense.category_name}</td>
-                      <td style={tableCellStyle}>{expense.payment_method}</td>
-                      <td style={tableCellStyle}>{expense.status}</td>
-                      <td style={tableCellStyle}>{expense.amount}</td>
-                      <td style={tableCellStyle}>
-                        <button
-                          onClick={() => {
-                            setSelectedExpenseId(expense.id);
-                            setForm({
-                              expenseDate: expense.expense_date?.slice(0, 10) || new Date().toISOString().slice(0, 10),
-                              categoryName: expense.category_name,
-                              title: expense.title,
-                              amount: String(expense.amount),
-                              paymentMethod: expense.payment_method,
-                              status: expense.status,
-                              note: expense.note || '',
-                            });
-                          }}
-                          style={secondaryButtonStyle}
-                        >
-                          Edit
-                        </button>
-                      </td>
+            <>
+              <div style={tableWrapStyle}>
+                <table style={tableStyle}>
+                  <thead>
+                    <tr>
+                      <th style={tableHeaderCellStyle}>Date</th>
+                      <th style={tableHeaderCellStyle}>Title</th>
+                      <th style={tableHeaderCellStyle}>Category</th>
+                      <th style={tableHeaderCellStyle}>Method</th>
+                      <th style={tableHeaderCellStyle}>Status</th>
+                      <th style={tableHeaderCellStyle}>Amount</th>
+                      <th style={tableHeaderCellStyle}>Action</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {expenses.map((expense) => (
+                      <tr key={expense.id}>
+                        <td style={tableCellStyle}>{expense.expense_date}</td>
+                        <td style={tableCellStyle}>{expense.title}</td>
+                        <td style={tableCellStyle}>{expense.category_name}</td>
+                        <td style={tableCellStyle}>{expense.payment_method}</td>
+                        <td style={tableCellStyle}>{expense.status}</td>
+                        <td style={tableCellStyle}>{expense.amount}</td>
+                        <td style={tableCellStyle}>
+                          <button
+                            onClick={() => {
+                              setSelectedExpenseId(expense.id);
+                              setForm({
+                                expenseDate: expense.expense_date?.slice(0, 10) || new Date().toISOString().slice(0, 10),
+                                categoryName: expense.category_name,
+                                title: expense.title,
+                                amount: String(expense.amount),
+                                paymentMethod: expense.payment_method,
+                                status: expense.status,
+                                note: expense.note || '',
+                              });
+                            }}
+                            style={secondaryButtonStyle}
+                          >
+                            Edit
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <ListPager
+                loading={loading}
+                page={page}
+                pagination={pagination}
+                label="expense(s)"
+                onPrevious={() => void refresh(Math.max(1, page - 1))}
+                onNext={() => void refresh(Math.min(totalPages, page + 1))}
+              />
+            </>
           ) : <div style={emptyStateStyle}>No expenses recorded yet.</div>}
         </article>
       </section>

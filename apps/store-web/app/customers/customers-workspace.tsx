@@ -52,6 +52,12 @@ type Aging = {
   days_90_plus_count: number;
 };
 
+type Pagination = {
+  page: number;
+  limit: number;
+  total: number;
+};
+
 async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
   const response = await fetch(input, init);
   const payload = (await response.json().catch(() => null)) as T | { error?: string } | null;
@@ -68,6 +74,8 @@ export function CustomersWorkspace() {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('Customer directory is ready.');
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 20, total: 0 });
   const [collectionForm, setCollectionForm] = useState({
     saleId: '',
     amount: '',
@@ -76,19 +84,27 @@ export function CustomersWorkspace() {
     note: '',
   });
 
-  const refresh = async (search = query) => {
-    const suffix = search.trim() ? `?query=${encodeURIComponent(search.trim())}` : '';
+  const refresh = async (search = query, nextPage = 1) => {
+    const params = new URLSearchParams({
+      page: String(nextPage),
+      limit: String(pagination.limit),
+    });
+    if (search.trim()) params.set('query', search.trim());
     const [customersPayload, agingPayload] = await Promise.all([
-      readJson<{ customers: Customer[] }>(`/api/store-ops/customers${suffix}`),
+      readJson<{ customers: Customer[]; pagination?: Pagination }>(`/api/store-ops/customers?${params.toString()}`),
       readJson<{ aging: Aging }>('/api/store-ops/due-sales/aging'),
     ]);
     setCustomers(customersPayload.customers ?? []);
+    setPagination(customersPayload.pagination ?? { page: nextPage, limit: pagination.limit, total: customersPayload.customers?.length ?? 0 });
+    setPage(customersPayload.pagination?.page ?? nextPage);
     setAging(agingPayload.aging ?? null);
   };
 
   useEffect(() => {
     void refresh().catch((error: Error) => setMessage(error.message));
   }, []);
+
+  const totalPages = Math.max(1, Math.ceil((pagination.total || 0) / (pagination.limit || 20)));
 
   const loadCustomer = async (customerId: string) => {
     try {
@@ -172,7 +188,7 @@ export function CustomersWorkspace() {
           <h3 style={{ marginTop: 0 }}>Customer Directory</h3>
           <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
             <input value={query} onChange={(event) => setQuery(event.target.value)} style={fieldStyle} placeholder="Search name, mobile, email, or shop" />
-            <button onClick={() => void refresh()} style={secondaryButtonStyle}>Search</button>
+            <button onClick={() => void refresh(query, 1)} style={secondaryButtonStyle}>Search</button>
           </div>
           {customers.length ? (
             <div style={tableWrapStyle}>
@@ -206,6 +222,13 @@ export function CustomersWorkspace() {
           ) : (
             <div style={emptyStateStyle}>No customers matched this search.</div>
           )}
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginTop: 12 }}>
+            <span style={tokenMutedStyle}>Page {page} of {totalPages} · {pagination.total} customer(s)</span>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => void refresh(query, Math.max(1, page - 1))} style={secondaryButtonStyle} disabled={loading || page <= 1}>Previous</button>
+              <button onClick={() => void refresh(query, Math.min(totalPages, page + 1))} style={secondaryButtonStyle} disabled={loading || page >= totalPages}>Next</button>
+            </div>
+          </div>
         </article>
 
         <article style={surfaceCardStyle}>

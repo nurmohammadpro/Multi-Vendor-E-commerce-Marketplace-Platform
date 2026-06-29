@@ -3,6 +3,7 @@ import type { Pool, PoolClient } from 'pg';
 
 import type { AuthSession, StoreAuthContext } from '../auth/auth.types.js';
 import { AuditService } from '../audit/audit.service.js';
+import { normalizePageQuery, stripPaginationTotal } from '../common/pagination.js';
 import { DATABASE_POOL } from '../database/database.constants.js';
 
 @Injectable()
@@ -12,29 +13,50 @@ export class SupportService {
     private readonly auditService: AuditService,
   ) {}
 
-  async getStoreTickets(headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
+  async getStoreTickets(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    filters: { ticketType?: string; status?: string; search?: string; page?: number; limit?: number } = {},
+  ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const { page, limit, offset } = normalizePageQuery(filters);
+    const search = filters.search?.trim() || null;
 
     const result = await this.pool.query(
       `
-        select
-          t.id,
-          t.ticket_no,
-          t.ticket_type,
-          t.subject,
-          t.status,
-          t.priority,
-          t.created_at,
-          up.full_name as opened_by_name
-        from support.tickets t
-        left join identity.user_profiles up on up.user_id = t.opened_by
-        where t.store_id = $1
-        order by t.created_at desc
+        select *
+        from (
+          select
+            t.id,
+            t.ticket_no,
+            t.ticket_type,
+            t.subject,
+            t.status,
+            t.priority,
+            t.created_at,
+            up.full_name as opened_by_name,
+            count(*) over()::int as total_count
+          from support.tickets t
+          left join identity.user_profiles up on up.user_id = t.opened_by
+          where t.store_id = $1
+            and ($2::text is null or t.ticket_type = $2::text)
+            and ($3::text is null or t.status = $3::text)
+            and (
+              $4::text is null
+              or t.ticket_no ilike '%' || $4::text || '%'
+              or t.subject ilike '%' || $4::text || '%'
+              or coalesce(up.full_name, '') ilike '%' || $4::text || '%'
+            )
+          order by t.created_at desc
+          limit $5
+          offset $6
+        ) tickets
       `,
-      [storeId],
+      [storeId, filters.ticketType ?? null, filters.status ?? null, search, limit, offset],
     );
 
-    return { tickets: result.rows };
+    const { items, total } = stripPaginationTotal(result.rows);
+    return { tickets: items, pagination: { page, limit, total } };
   }
 
   async createStoreTicket(

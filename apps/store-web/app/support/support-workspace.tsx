@@ -41,6 +41,12 @@ type TicketDetail = {
   messages: TicketMessage[];
 };
 
+type Pagination = {
+  page: number;
+  limit: number;
+  total: number;
+};
+
 async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
   const response = await fetch(input, init);
   const payload = (await response.json().catch(() => null)) as T | { error?: string } | null;
@@ -67,13 +73,25 @@ export function SupportWorkspace({
     message: '',
   });
   const [reply, setReply] = useState('');
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 20, total: 0 });
 
-  const refresh = async () => {
-    const payload = await readJson<{ tickets: Ticket[] }>('/api/support/tickets');
-    const filtered = (payload.tickets ?? []).filter((ticket) => ticket.ticket_type === kind);
-    setTickets(filtered);
+  const refresh = async (nextPage = 1) => {
+    const params = new URLSearchParams({
+      ticketType: kind,
+      page: String(nextPage),
+      limit: String(pagination.limit),
+    });
+    if (search.trim()) params.set('search', search.trim());
+    if (statusFilter) params.set('status', statusFilter);
+    const payload = await readJson<{ tickets: Ticket[]; pagination?: Pagination }>(`/api/support/tickets?${params.toString()}`);
+    setTickets(payload.tickets ?? []);
+    setPagination(payload.pagination ?? { page: nextPage, limit: pagination.limit, total: payload.tickets?.length ?? 0 });
+    setPage(payload.pagination?.page ?? nextPage);
     if (selectedTicket) {
-      const exists = filtered.find((ticket) => ticket.id === selectedTicket.ticket.id);
+      const exists = (payload.tickets ?? []).find((ticket) => ticket.id === selectedTicket.ticket.id);
       if (!exists) {
         setSelectedTicket(null);
       }
@@ -83,6 +101,8 @@ export function SupportWorkspace({
   useEffect(() => {
     void refresh().catch((error: Error) => setMessage(error.message));
   }, []);
+
+  const totalPages = Math.max(1, Math.ceil((pagination.total || 0) / (pagination.limit || 20)));
 
   const loadTicket = async (ticketId: string) => {
     try {
@@ -192,6 +212,17 @@ export function SupportWorkspace({
 
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>{kind === 'dispute' ? 'Open cases' : 'Open tickets'}</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) minmax(160px, 180px) auto', gap: 10, marginBottom: 12 }}>
+            <input value={search} onChange={(event) => setSearch(event.target.value)} style={fieldStyle} placeholder="Search ticket no, subject, opener" />
+            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} style={fieldStyle}>
+              <option value="">All statuses</option>
+              <option value="open">Open</option>
+              <option value="in_progress">In progress</option>
+              <option value="resolved">Resolved</option>
+              <option value="closed">Closed</option>
+            </select>
+            <button onClick={() => void refresh(1)} style={secondaryButtonStyle} disabled={loading}>Apply</button>
+          </div>
           {tickets.length ? (
             <div style={tableWrapStyle}>
               <table style={tableStyle}>
@@ -226,6 +257,13 @@ export function SupportWorkspace({
               {kind === 'dispute' ? 'No dispute cases yet.' : 'No support tickets yet.'}
             </div>
           )}
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginTop: 12 }}>
+            <span style={tokenMutedStyle}>Page {page} of {totalPages} · {pagination.total} ticket(s)</span>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => void refresh(Math.max(1, page - 1))} style={secondaryButtonStyle} disabled={loading || page <= 1}>Previous</button>
+              <button onClick={() => void refresh(Math.min(totalPages, page + 1))} style={secondaryButtonStyle} disabled={loading || page >= totalPages}>Next</button>
+            </div>
+          </div>
         </article>
       </section>
 

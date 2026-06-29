@@ -13,6 +13,7 @@ import {
   tableWrapStyle,
   tokenMutedStyle,
 } from '../motocore-theme';
+import { ListPager, type PaginationState, totalPagesFor } from '../list-pager';
 
 type Category = { id: string; code: string; name: string; status: string };
 type Brand = { id: string; name: string; status: string };
@@ -220,6 +221,20 @@ export function CatalogWorkspace({
     decision_note?: string | null;
     created_at: string;
   }>>([]);
+  const [categorySearch, setCategorySearch] = useState('');
+  const [brandSearch, setBrandSearch] = useState('');
+  const [productSearch, setProductSearch] = useState('');
+  const [productStatus, setProductStatus] = useState('');
+  const [priceRequestSearch, setPriceRequestSearch] = useState('');
+  const [priceRequestStatus, setPriceRequestStatus] = useState('');
+  const [categoryPage, setCategoryPage] = useState(1);
+  const [brandPage, setBrandPage] = useState(1);
+  const [productPage, setProductPage] = useState(1);
+  const [priceRequestPage, setPriceRequestPage] = useState(1);
+  const [categoryPagination, setCategoryPagination] = useState<PaginationState>({ page: 1, limit: 8, total: 0 });
+  const [brandPagination, setBrandPagination] = useState<PaginationState>({ page: 1, limit: 8, total: 0 });
+  const [productPagination, setProductPagination] = useState<PaginationState>({ page: 1, limit: 12, total: 0 });
+  const [priceRequestPagination, setPriceRequestPagination] = useState<PaginationState>({ page: 1, limit: 12, total: 0 });
   const [variantSelection, setVariantSelection] = useState<Record<string, string[]>>({});
   const [variantRows, setVariantRows] = useState<VariantMatrixRow[]>([]);
   const [variantPricing, setVariantPricing] = useState({
@@ -244,20 +259,42 @@ export function CatalogWorkspace({
   const selectedSkuHasCurrentPrice = selectedPriceSku?.sale_price !== null && selectedPriceSku?.sale_price !== undefined;
   const shouldRequestPriceApproval = selectedSkuHasCurrentPrice && !canApprovePriceChanges;
 
-  const refreshBase = async () => {
+  const refreshBase = async (
+    nextCategoryPage = categoryPage,
+    nextBrandPage = brandPage,
+    nextProductPage = productPage,
+  ) => {
+    const categoryParams = new URLSearchParams({ page: String(nextCategoryPage), limit: String(categoryPagination.limit) });
+    const brandParams = new URLSearchParams({ page: String(nextBrandPage), limit: String(brandPagination.limit) });
+    const productParams = new URLSearchParams({ page: String(nextProductPage), limit: String(productPagination.limit) });
+    if (categorySearch.trim()) categoryParams.set('search', categorySearch.trim());
+    if (brandSearch.trim()) brandParams.set('search', brandSearch.trim());
+    if (productSearch.trim()) productParams.set('search', productSearch.trim());
+    if (productStatus) productParams.set('status', productStatus);
     const [categoryPayload, brandPayload, productPayload] = await Promise.all([
-      readJson<{ categories: Category[] }>('/api/catalog/categories'),
-      readJson<{ brands: Brand[] }>('/api/catalog/brands'),
-      readJson<{ products: Product[] }>('/api/catalog/products'),
+      readJson<{ categories: Category[]; pagination?: PaginationState }>(`/api/catalog/categories?${categoryParams.toString()}`),
+      readJson<{ brands: Brand[]; pagination?: PaginationState }>(`/api/catalog/brands?${brandParams.toString()}`),
+      readJson<{ products: Product[]; pagination?: PaginationState }>(`/api/catalog/products?${productParams.toString()}`),
     ]);
     setCategories(categoryPayload.categories ?? []);
     setBrands(brandPayload.brands ?? []);
     setProducts(productPayload.products ?? []);
+    setCategoryPagination(categoryPayload.pagination ?? { page: nextCategoryPage, limit: categoryPagination.limit, total: categoryPayload.categories?.length ?? 0 });
+    setBrandPagination(brandPayload.pagination ?? { page: nextBrandPage, limit: brandPagination.limit, total: brandPayload.brands?.length ?? 0 });
+    setProductPagination(productPayload.pagination ?? { page: nextProductPage, limit: productPagination.limit, total: productPayload.products?.length ?? 0 });
+    setCategoryPage(categoryPayload.pagination?.page ?? nextCategoryPage);
+    setBrandPage(brandPayload.pagination?.page ?? nextBrandPage);
+    setProductPage(productPayload.pagination?.page ?? nextProductPage);
   };
 
-  const refreshPriceRequests = async () => {
-    const payload = await readJson<{ priceChangeRequests: typeof priceChangeRequests }>('/api/catalog/price-change-requests');
+  const refreshPriceRequests = async (nextPage = priceRequestPage) => {
+    const params = new URLSearchParams({ page: String(nextPage), limit: String(priceRequestPagination.limit) });
+    if (priceRequestSearch.trim()) params.set('search', priceRequestSearch.trim());
+    if (priceRequestStatus) params.set('status', priceRequestStatus);
+    const payload = await readJson<{ priceChangeRequests: typeof priceChangeRequests; pagination?: PaginationState }>(`/api/catalog/price-change-requests?${params.toString()}`);
     setPriceChangeRequests(payload.priceChangeRequests ?? []);
+    setPriceRequestPagination(payload.pagination ?? { page: nextPage, limit: priceRequestPagination.limit, total: payload.priceChangeRequests?.length ?? 0 });
+    setPriceRequestPage(payload.pagination?.page ?? nextPage);
   };
 
   const refreshDetail = async (productId = selectedProductId) => {
@@ -270,8 +307,8 @@ export function CatalogWorkspace({
   };
 
   useEffect(() => {
-    void refreshBase().catch((error: Error) => setMessage(error.message));
-    void refreshPriceRequests().catch((error: Error) => setMessage(error.message));
+    void refreshBase(1, 1, 1).catch((error: Error) => setMessage(error.message));
+    void refreshPriceRequests(1).catch((error: Error) => setMessage(error.message));
   }, []);
 
   useEffect(() => {
@@ -667,40 +704,141 @@ export function CatalogWorkspace({
 
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
         <article style={cardStyle}>
-          <h3 style={{ marginTop: 0 }}>Products</h3>
-          {products.length ? (
-            <div style={tableWrapStyle}>
-              <table style={tableStyle}>
-                <thead>
-                  <tr>
-                    <th style={tableHeaderCellStyle}>Product</th>
-                    <th style={tableHeaderCellStyle}>Code</th>
-                    <th style={tableHeaderCellStyle}>Category</th>
-                    <th style={tableHeaderCellStyle}>Brand</th>
-                    <th style={tableHeaderCellStyle}>Variant Mode</th>
-                    <th style={tableHeaderCellStyle}>SKUs</th>
-                    <th style={tableHeaderCellStyle}>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {products.map((product) => (
-                    <tr
-                      key={product.id}
-                      onClick={() => setSelectedProductId(product.id)}
-                      style={{ cursor: 'pointer', background: selectedProductId === product.id ? 'rgba(241,245,249,0.9)' : '#fff' }}
-                    >
-                      <td style={tableCellStyle}><strong>{product.name}</strong></td>
-                      <td style={tableCellStyle}>{product.product_code}</td>
-                      <td style={tableCellStyle}>{product.category_name || '—'}</td>
-                      <td style={tableCellStyle}>{product.brand_name || '—'}</td>
-                      <td style={tableCellStyle}>{product.variant_mode}</td>
-                      <td style={tableCellStyle}>{product.sku_count}</td>
-                      <td style={tableCellStyle}>{product.status}</td>
+          <h3 style={{ marginTop: 0 }}>Categories</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, marginBottom: 12 }}>
+            <input value={categorySearch} onChange={(event) => setCategorySearch(event.target.value)} style={inputStyle} placeholder="Search categories" />
+            <button onClick={() => void refreshBase(1, brandPage, productPage)} style={buttonStyle} disabled={loading}>Search</button>
+          </div>
+          {categories.length ? (
+            <>
+              <div style={tableWrapStyle}>
+                <table style={tableStyle}>
+                  <thead>
+                    <tr>
+                      <th style={tableHeaderCellStyle}>Code</th>
+                      <th style={tableHeaderCellStyle}>Name</th>
+                      <th style={tableHeaderCellStyle}>Status</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {categories.map((category) => (
+                      <tr key={category.id}>
+                        <td style={tableCellStyle}>{category.code}</td>
+                        <td style={tableCellStyle}>{category.name}</td>
+                        <td style={tableCellStyle}>{category.status}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <ListPager
+                loading={loading}
+                page={categoryPage}
+                pagination={categoryPagination}
+                label="category(s)"
+                onPrevious={() => void refreshBase(Math.max(1, categoryPage - 1), brandPage, productPage)}
+                onNext={() => void refreshBase(Math.min(totalPagesFor(categoryPagination), categoryPage + 1), brandPage, productPage)}
+              />
+            </>
+          ) : <div style={emptyStateStyle}>No categories yet.</div>}
+        </article>
+
+        <article style={cardStyle}>
+          <h3 style={{ marginTop: 0 }}>Brands</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, marginBottom: 12 }}>
+            <input value={brandSearch} onChange={(event) => setBrandSearch(event.target.value)} style={inputStyle} placeholder="Search brands" />
+            <button onClick={() => void refreshBase(categoryPage, 1, productPage)} style={buttonStyle} disabled={loading}>Search</button>
+          </div>
+          {brands.length ? (
+            <>
+              <div style={tableWrapStyle}>
+                <table style={tableStyle}>
+                  <thead>
+                    <tr>
+                      <th style={tableHeaderCellStyle}>Brand</th>
+                      <th style={tableHeaderCellStyle}>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {brands.map((brand) => (
+                      <tr key={brand.id}>
+                        <td style={tableCellStyle}>{brand.name}</td>
+                        <td style={tableCellStyle}>{brand.status}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <ListPager
+                loading={loading}
+                page={brandPage}
+                pagination={brandPagination}
+                label="brand(s)"
+                onPrevious={() => void refreshBase(categoryPage, Math.max(1, brandPage - 1), productPage)}
+                onNext={() => void refreshBase(categoryPage, Math.min(totalPagesFor(brandPagination), brandPage + 1), productPage)}
+              />
+            </>
+          ) : <div style={emptyStateStyle}>No brands yet.</div>}
+        </article>
+      </section>
+
+      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
+        <article style={cardStyle}>
+          <h3 style={{ marginTop: 0 }}>Products</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(140px, 180px) auto', gap: 8, marginBottom: 12 }}>
+            <input value={productSearch} onChange={(event) => setProductSearch(event.target.value)} style={inputStyle} placeholder="Search product, code, category, brand" />
+            <select value={productStatus} onChange={(event) => setProductStatus(event.target.value)} style={inputStyle}>
+              <option value="">All statuses</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+              <option value="archived">Archived</option>
+              <option value="out_of_stock">Out of stock</option>
+            </select>
+            <button onClick={() => void refreshBase(categoryPage, brandPage, 1)} style={buttonStyle} disabled={loading}>Search</button>
+          </div>
+          {products.length ? (
+            <>
+              <div style={tableWrapStyle}>
+                <table style={tableStyle}>
+                  <thead>
+                    <tr>
+                      <th style={tableHeaderCellStyle}>Product</th>
+                      <th style={tableHeaderCellStyle}>Code</th>
+                      <th style={tableHeaderCellStyle}>Category</th>
+                      <th style={tableHeaderCellStyle}>Brand</th>
+                      <th style={tableHeaderCellStyle}>Variant Mode</th>
+                      <th style={tableHeaderCellStyle}>SKUs</th>
+                      <th style={tableHeaderCellStyle}>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {products.map((product) => (
+                      <tr
+                        key={product.id}
+                        onClick={() => setSelectedProductId(product.id)}
+                        style={{ cursor: 'pointer', background: selectedProductId === product.id ? 'rgba(241,245,249,0.9)' : '#fff' }}
+                      >
+                        <td style={tableCellStyle}><strong>{product.name}</strong></td>
+                        <td style={tableCellStyle}>{product.product_code}</td>
+                        <td style={tableCellStyle}>{product.category_name || '—'}</td>
+                        <td style={tableCellStyle}>{product.brand_name || '—'}</td>
+                        <td style={tableCellStyle}>{product.variant_mode}</td>
+                        <td style={tableCellStyle}>{product.sku_count}</td>
+                        <td style={tableCellStyle}>{product.status}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <ListPager
+                loading={loading}
+                page={productPage}
+                pagination={productPagination}
+                label="product(s)"
+                onPrevious={() => void refreshBase(categoryPage, brandPage, Math.max(1, productPage - 1))}
+                onNext={() => void refreshBase(categoryPage, brandPage, Math.min(totalPagesFor(productPagination), productPage + 1))}
+              />
+            </>
           ) : (
             <div style={emptyStateStyle}>No products yet.</div>
           )}
@@ -1003,6 +1141,16 @@ export function CatalogWorkspace({
 
               <article style={{ ...cardStyle, padding: 14 }}>
                 <h4 style={{ marginTop: 0 }}>Price Approval Queue</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(140px, 180px) auto', gap: 8, marginBottom: 12 }}>
+                  <input value={priceRequestSearch} onChange={(event) => setPriceRequestSearch(event.target.value)} style={inputStyle} placeholder="Search product, SKU, variant, reason" />
+                  <select value={priceRequestStatus} onChange={(event) => setPriceRequestStatus(event.target.value)} style={inputStyle}>
+                    <option value="">All statuses</option>
+                    <option value="pending">Pending</option>
+                    <option value="approved">Approved</option>
+                    <option value="rejected">Rejected</option>
+                  </select>
+                  <button onClick={() => void refreshPriceRequests(1)} style={buttonStyle} disabled={loading}>Search</button>
+                </div>
                 {canApprovePriceChanges ? (
                   <textarea
                     value={approvalNote}
@@ -1012,46 +1160,56 @@ export function CatalogWorkspace({
                   />
                 ) : null}
                 {priceChangeRequests.length ? (
-                  <div style={tableWrapStyle}>
-                    <table style={tableStyle}>
-                      <thead>
-                        <tr>
-                          <th style={tableHeaderCellStyle}>Product</th>
-                          <th style={tableHeaderCellStyle}>Sale</th>
-                          <th style={tableHeaderCellStyle}>Cost</th>
-                          <th style={tableHeaderCellStyle}>Compare</th>
-                          <th style={tableHeaderCellStyle}>Status</th>
-                          <th style={tableHeaderCellStyle}>Requested By</th>
-                          <th style={tableHeaderCellStyle}>Reason</th>
-                          <th style={tableHeaderCellStyle}>Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {priceChangeRequests.map((request) => (
-                          <tr key={request.id}>
-                            <td style={tableCellStyle}>
-                              {request.product_name} · {request.sku_code}
-                              {request.variant_label ? ` · ${request.variant_label}` : ''}
-                            </td>
-                            <td style={tableCellStyle}>{String(request.current_sale_price)} → {String(request.requested_sale_price)}</td>
-                            <td style={tableCellStyle}>{request.current_cost_price ?? '—'} → {request.requested_cost_price ?? '—'}</td>
-                            <td style={tableCellStyle}>{request.current_compare_at_price ?? '—'} → {request.requested_compare_at_price ?? '—'}</td>
-                            <td style={tableCellStyle}>{request.status}</td>
-                            <td style={tableCellStyle}>{request.requested_by_name || 'User'}</td>
-                            <td style={tableCellStyle}>{request.reason}</td>
-                            <td style={tableCellStyle}>
-                              {canApprovePriceChanges && request.status === 'pending' ? (
-                                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                                  <button onClick={() => decidePriceRequest(request.id, 'approve')} style={buttonStyle} disabled={loading}>Approve</button>
-                                  <button onClick={() => decidePriceRequest(request.id, 'reject')} style={buttonStyle} disabled={loading}>Reject</button>
-                                </div>
-                              ) : '—'}
-                            </td>
+                  <>
+                    <div style={tableWrapStyle}>
+                      <table style={tableStyle}>
+                        <thead>
+                          <tr>
+                            <th style={tableHeaderCellStyle}>Product</th>
+                            <th style={tableHeaderCellStyle}>Sale</th>
+                            <th style={tableHeaderCellStyle}>Cost</th>
+                            <th style={tableHeaderCellStyle}>Compare</th>
+                            <th style={tableHeaderCellStyle}>Status</th>
+                            <th style={tableHeaderCellStyle}>Requested By</th>
+                            <th style={tableHeaderCellStyle}>Reason</th>
+                            <th style={tableHeaderCellStyle}>Actions</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                        </thead>
+                        <tbody>
+                          {priceChangeRequests.map((request) => (
+                            <tr key={request.id}>
+                              <td style={tableCellStyle}>
+                                {request.product_name} · {request.sku_code}
+                                {request.variant_label ? ` · ${request.variant_label}` : ''}
+                              </td>
+                              <td style={tableCellStyle}>{String(request.current_sale_price)} → {String(request.requested_sale_price)}</td>
+                              <td style={tableCellStyle}>{request.current_cost_price ?? '—'} → {request.requested_cost_price ?? '—'}</td>
+                              <td style={tableCellStyle}>{request.current_compare_at_price ?? '—'} → {request.requested_compare_at_price ?? '—'}</td>
+                              <td style={tableCellStyle}>{request.status}</td>
+                              <td style={tableCellStyle}>{request.requested_by_name || 'User'}</td>
+                              <td style={tableCellStyle}>{request.reason}</td>
+                              <td style={tableCellStyle}>
+                                {canApprovePriceChanges && request.status === 'pending' ? (
+                                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                    <button onClick={() => decidePriceRequest(request.id, 'approve')} style={buttonStyle} disabled={loading}>Approve</button>
+                                    <button onClick={() => decidePriceRequest(request.id, 'reject')} style={buttonStyle} disabled={loading}>Reject</button>
+                                  </div>
+                                ) : '—'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <ListPager
+                      loading={loading}
+                      page={priceRequestPage}
+                      pagination={priceRequestPagination}
+                      label="request(s)"
+                      onPrevious={() => void refreshPriceRequests(Math.max(1, priceRequestPage - 1))}
+                      onNext={() => void refreshPriceRequests(Math.min(totalPagesFor(priceRequestPagination), priceRequestPage + 1))}
+                    />
+                  </>
                 ) : (
                   <p style={{ marginBottom: 0, color: '#64748b' }}>No price requests yet.</p>
                 )}

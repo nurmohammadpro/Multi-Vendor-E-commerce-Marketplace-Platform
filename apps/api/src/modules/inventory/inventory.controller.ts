@@ -64,8 +64,16 @@ export class InventoryController {
     @Headers('x-store-id') headerStoreId: string | undefined,
     @CurrentAuthContext() authContext: StoreAuthContext | null,
     @Query('locationId') locationId?: string,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
-    return this.inventoryService.listBalances(headerStoreId, authContext, locationId);
+    return this.inventoryService.listBalances(headerStoreId, authContext, {
+      locationId,
+      search,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
   }
 
   @Post('initialize')
@@ -109,8 +117,16 @@ export class InventoryController {
     @Headers('x-store-id') headerStoreId: string | undefined,
     @CurrentAuthContext() authContext: StoreAuthContext | null,
     @Query('status') status?: string,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
-    return this.inventoryService.listAdjustments(headerStoreId, authContext, status);
+    return this.inventoryService.listAdjustments(headerStoreId, authContext, {
+      status,
+      search,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
   }
 
   @Post('adjustments/:requestId/approve')
@@ -158,7 +174,15 @@ export class InventoryController {
     @Headers('x-store-id') headerStoreId: string | undefined,
     @CurrentAuthContext() authContext: StoreAuthContext | null,
     @Query('skuId') skuId?: string,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
-    return this.inventoryService.getLedger(headerStoreId, authContext, skuId);
+    return this.inventoryService.getLedger(headerStoreId, authContext, {
+      skuId,
+      search,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
   }
 }

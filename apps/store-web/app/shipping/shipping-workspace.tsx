@@ -49,6 +49,12 @@ type ShipmentDetail = {
   }>;
 };
 
+type Pagination = {
+  page: number;
+  limit: number;
+  total: number;
+};
+
 const cardStyle = surfaceCardStyle;
 const inputStyle = fieldStyle;
 const buttonStyle = secondaryButtonStyle;
@@ -86,20 +92,34 @@ export function ShippingWorkspace({
     trackingNo: '',
     note: '',
   });
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 20, total: 0 });
   const canCreateShipment = Boolean(form.customerName.trim() && form.customerPhone.trim() && form.deliveryAddress.trim() && !loading);
 
-  const refresh = async () => {
+  const refresh = async (nextPage = 1) => {
+    const params = new URLSearchParams({
+      page: String(nextPage),
+      limit: String(pagination.limit),
+    });
+    if (search.trim()) params.set('search', search.trim());
+    if (statusFilter) params.set('status', statusFilter);
     const [courierPayload, shipmentPayload] = await Promise.all([
       readJson<{ couriers: Courier[] }>('/api/shipping/couriers'),
-      readJson<{ shipments: Shipment[] }>('/api/shipping/shipments'),
+      readJson<{ shipments: Shipment[]; pagination?: Pagination }>(`/api/shipping/shipments?${params.toString()}`),
     ]);
     setCouriers(courierPayload.couriers ?? []);
     setShipments(shipmentPayload.shipments ?? []);
+    setPagination(shipmentPayload.pagination ?? { page: nextPage, limit: pagination.limit, total: shipmentPayload.shipments?.length ?? 0 });
+    setPage(shipmentPayload.pagination?.page ?? nextPage);
   };
 
   useEffect(() => {
     void refresh().catch((error: Error) => setMessage(error.message));
   }, []);
+
+  const totalPages = Math.max(1, Math.ceil((pagination.total || 0) / (pagination.limit || 20)));
 
   const loadShipment = async (shipmentId: string) => {
     try {
@@ -211,6 +231,20 @@ export function ShippingWorkspace({
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
         <article style={cardStyle}>
           <h3 style={{ marginTop: 0 }}>Shipments</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) minmax(180px, 200px) auto', gap: 10, marginBottom: 12 }}>
+            <input value={search} onChange={(event) => setSearch(event.target.value)} style={inputStyle} placeholder="Search shipment, customer, phone" />
+            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} style={inputStyle}>
+              <option value="">All statuses</option>
+              <option value="pending">Pending</option>
+              <option value="assigned">Assigned</option>
+              <option value="picked_up">Picked up</option>
+              <option value="in_transit">In transit</option>
+              <option value="delivered">Delivered</option>
+              <option value="failed">Failed</option>
+              <option value="returned">Returned</option>
+            </select>
+            <button onClick={() => void refresh(1)} style={secondaryButtonStyle} disabled={loading}>Apply</button>
+          </div>
           {shipments.length ? (
             <div style={tableWrapStyle}>
               <table style={tableStyle}>
@@ -261,6 +295,13 @@ export function ShippingWorkspace({
           ) : (
             <div style={emptyStateStyle}>No shipments are in the queue yet.</div>
           )}
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginTop: 12 }}>
+            <span style={tokenMutedStyle}>Page {page} of {totalPages} · {pagination.total} shipment(s)</span>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => void refresh(Math.max(1, page - 1))} style={secondaryButtonStyle} disabled={loading || page <= 1}>Previous</button>
+              <button onClick={() => void refresh(Math.min(totalPages, page + 1))} style={secondaryButtonStyle} disabled={loading || page >= totalPages}>Next</button>
+            </div>
+          </div>
         </article>
 
         <article style={cardStyle}>
