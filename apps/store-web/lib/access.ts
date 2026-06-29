@@ -26,6 +26,8 @@ export type StoreConsoleAccess = {
   canManageCatalog: boolean;
   canViewInventory: boolean;
   canAdjustInventory: boolean;
+  canDirectAdjustInventory: boolean;
+  canRequestAdjustInventory: boolean;
   canApproveInventory: boolean;
   canUsePos: boolean;
   canViewReports: boolean;
@@ -95,6 +97,10 @@ export function deriveStoreConsoleAccess(
   const planCode = options?.planCode ?? 'basic';
   const isOwner = role === 'owner';
   const isOwnerOrManager = role === 'owner' || role === 'manager';
+  const canDirectAdjustInventory = permissionSet.has('inventory.adjust.direct') && canAccessStoreFeature({ planCode }, 'inventory');
+  const canRequestAdjustInventory =
+    (permissionSet.has('inventory.adjust.request') || canDirectAdjustInventory)
+    && canAccessStoreFeature({ planCode }, 'inventory');
 
   return {
     role,
@@ -108,9 +114,9 @@ export function deriveStoreConsoleAccess(
     storeStatus: options?.storeStatus ?? null,
     canManageCatalog: permissionSet.has('catalog.manage') && canAccessStoreFeature({ planCode }, 'catalog'),
     canViewInventory: permissionSet.has('inventory.view') && canAccessStoreFeature({ planCode }, 'inventory'),
-    canAdjustInventory:
-      (permissionSet.has('inventory.adjust.request') || permissionSet.has('inventory.adjust.direct'))
-      && canAccessStoreFeature({ planCode }, 'inventory'),
+    canAdjustInventory: canRequestAdjustInventory,
+    canDirectAdjustInventory,
+    canRequestAdjustInventory,
     canApproveInventory: permissionSet.has('inventory.adjust.approve') && canAccessStoreFeature({ planCode }, 'inventory'),
     canUsePos: permissionSet.has('sales.pos.create') && canAccessStoreFeature({ planCode }, 'pos'),
     canViewReports: permissionSet.has('sales.report.view') && canAccessStoreFeature({ planCode }, 'reports'),
