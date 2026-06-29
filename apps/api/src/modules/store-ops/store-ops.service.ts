@@ -6,6 +6,29 @@ import { DATABASE_POOL } from '../database/database.constants.js';
 
 type StoreRole = 'store_owner' | 'store_manager' | 'store_salesman';
 
+const HARDWARE_CATALOG = {
+  receiptPrinters: [
+    { tier: 'low', model: 'Xprinter XP80T', useCase: '80mm thermal receipt', connectivity: 'USB', priceBdt: '4650-6500', recommended: false },
+    { tier: 'medium', model: 'Xprinter XP-Q80A', useCase: '80mm thermal receipt', connectivity: 'USB', priceBdt: '6100', recommended: true },
+    { tier: 'high', model: 'Xprinter XP-E200L', useCase: '80mm thermal receipt', connectivity: 'USB+LAN or USB+Serial', priceBdt: '8000', recommended: true },
+  ],
+  labelPrinters: [
+    { tier: 'low', model: 'Xprinter XP-420B', useCase: 'Direct thermal barcode labels', connectivity: 'USB', priceBdt: '9500-10000', recommended: true },
+    { tier: 'medium', model: 'Zebra ZD220', useCase: 'Desktop barcode labels', connectivity: 'USB', priceBdt: '15900-16000', recommended: false },
+    { tier: 'high', model: 'TSC TE244', useCase: 'Desktop barcode labels', connectivity: 'USB', priceBdt: '18800-19000', recommended: true },
+  ],
+  barcodeScanners: [
+    { tier: 'low', model: 'Zebra LS2208', useCase: '1D handheld scanning', connectivity: 'USB HID', priceBdt: '6690-7900', recommended: false },
+    { tier: 'medium', model: 'Zebra DS2208', useCase: '1D/2D handheld scanning', connectivity: 'USB HID', priceBdt: '8800-9600', recommended: true },
+    { tier: 'high', model: 'Zebra DS9308', useCase: '1D/2D presentation scanning', connectivity: 'USB HID', priceBdt: '12200-14700', recommended: false },
+  ],
+  bundles: [
+    { tier: 'budget', name: 'XP80T + XP-420B + LS2208', priceBdt: '20850-24400', recommended: false },
+    { tier: 'balanced', name: 'XP-Q80A + XP-420B + DS2208', priceBdt: '24400-25700', recommended: true },
+    { tier: 'premium', name: 'XP-E200L + TSC TE244 + DS9308', priceBdt: '39000-41700', recommended: false },
+  ],
+};
+
 @Injectable()
 export class StoreOpsService {
   constructor(@Inject(DATABASE_POOL) private readonly pool: Pool) {}
@@ -367,7 +390,35 @@ export class StoreOpsService {
     this.assertAllowedRoles(authContext, ['store_owner', 'store_manager']);
     const result = await this.pool.query(
       `
-        select *
+        select
+          id,
+          user_id,
+          employee_number,
+          full_name,
+          mobile_no,
+          email,
+          address_text,
+          role_code,
+          employment_status,
+          join_date,
+          employment_type,
+          designation,
+          department,
+          monthly_salary,
+          emergency_contact_name,
+          emergency_contact_phone,
+          salary_payment_mode,
+          bank_name,
+          bank_account_name,
+          bank_account_number,
+          mobile_banking_type,
+          mobile_banking_number,
+          education_summary,
+          experience_summary,
+          training_summary,
+          note,
+          created_at,
+          updated_at
         from hr.employees
         where store_id = $1
         order by created_at desc
@@ -385,24 +436,124 @@ export class StoreOpsService {
       fullName: string;
       mobileNo?: string;
       email?: string;
+      addressText: string;
       roleCode: string;
       employmentStatus: 'active' | 'inactive' | 'terminated';
       joinDate: string;
+      employmentType: string;
+      designation?: string;
+      department?: string;
       monthlySalary: number;
+      emergencyContactName?: string;
+      emergencyContactPhone?: string;
+      salaryPaymentMode?: 'cash' | 'bank_transfer' | 'mobile_banking';
+      bankName?: string;
+      bankAccountName?: string;
+      bankAccountNumber?: string;
+      mobileBankingType?: string;
+      mobileBankingNumber?: string;
+      educationSummary?: string;
+      experienceSummary?: string;
+      trainingSummary?: string;
       note?: string;
     },
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
     this.assertAllowedRoles(authContext, ['store_owner', 'store_manager']);
+    const employeeNumber = await this.generateEmployeeNumber(storeId);
     const result = await this.pool.query(
       `
         insert into hr.employees (
-          id, tenant_id, store_id, full_name, mobile_no, email, role_code, employment_status, join_date, monthly_salary, note, created_at, updated_at
+          id,
+          tenant_id,
+          store_id,
+          employee_number,
+          full_name,
+          mobile_no,
+          email,
+          address_text,
+          role_code,
+          employment_status,
+          join_date,
+          employment_type,
+          designation,
+          department,
+          monthly_salary,
+          emergency_contact_name,
+          emergency_contact_phone,
+          salary_payment_mode,
+          bank_name,
+          bank_account_name,
+          bank_account_number,
+          mobile_banking_type,
+          mobile_banking_number,
+          education_summary,
+          experience_summary,
+          training_summary,
+          note,
+          created_at,
+          updated_at
         )
-        select gen_random_uuid(), $2, $1, $3, $4, $5::citext, $6, $7, $8, $9, $10, now(), now()
+        select
+          gen_random_uuid(),
+          $2,
+          $1,
+          $3,
+          $4,
+          $5,
+          $6::citext,
+          $7,
+          $8,
+          $9,
+          $10,
+          $11,
+          $12,
+          $13,
+          $14,
+          $15,
+          $16,
+          $17,
+          $18,
+          $19,
+          $20,
+          $21,
+          $22,
+          $23,
+          $24,
+          $25,
+          $26,
+          now(),
+          now()
         returning *
       `,
-      [storeId, session?.user.tenantId ?? '', payload.fullName, payload.mobileNo ?? null, payload.email ?? null, payload.roleCode, payload.employmentStatus, payload.joinDate, payload.monthlySalary, payload.note ?? null],
+      [
+        storeId,
+        session?.user.tenantId ?? '',
+        employeeNumber,
+        payload.fullName,
+        payload.mobileNo ?? null,
+        payload.email ?? null,
+        payload.addressText,
+        payload.roleCode,
+        payload.employmentStatus,
+        payload.joinDate,
+        payload.employmentType ?? 'permanent',
+        payload.designation ?? null,
+        payload.department ?? null,
+        payload.monthlySalary,
+        payload.emergencyContactName ?? null,
+        payload.emergencyContactPhone ?? null,
+        payload.salaryPaymentMode ?? null,
+        payload.bankName ?? null,
+        payload.bankAccountName ?? null,
+        payload.bankAccountNumber ?? null,
+        payload.mobileBankingType ?? null,
+        payload.mobileBankingNumber ?? null,
+        payload.educationSummary ?? null,
+        payload.experienceSummary ?? null,
+        payload.trainingSummary ?? null,
+        payload.note ?? null,
+      ],
     );
     return { employee: result.rows[0] };
   }
@@ -415,10 +566,25 @@ export class StoreOpsService {
       fullName: string;
       mobileNo: string | null;
       email: string | null;
+      addressText: string | null;
       roleCode: string;
       employmentStatus: 'active' | 'inactive' | 'terminated';
       joinDate: string;
+      employmentType: string;
+      designation: string;
+      department: string;
       monthlySalary: number;
+      emergencyContactName: string | null;
+      emergencyContactPhone: string | null;
+      salaryPaymentMode: 'cash' | 'bank_transfer' | 'mobile_banking';
+      bankName: string | null;
+      bankAccountName: string | null;
+      bankAccountNumber: string | null;
+      mobileBankingType: string | null;
+      mobileBankingNumber: string | null;
+      educationSummary: string | null;
+      experienceSummary: string | null;
+      trainingSummary: string | null;
       note: string | null;
     }>,
   ) {
@@ -431,17 +597,58 @@ export class StoreOpsService {
           full_name = coalesce($3, full_name),
           mobile_no = case when $4::varchar is null then mobile_no else $4::varchar end,
           email = case when $5::citext is null then email else $5::citext end,
-          role_code = coalesce($6, role_code),
-          employment_status = coalesce($7, employment_status),
-          join_date = coalesce($8::date, join_date),
-          monthly_salary = coalesce($9, monthly_salary),
-          note = case when $10::text is null then note else $10::text end,
+          address_text = case when $6::text is null then address_text else $6::text end,
+          role_code = coalesce($7, role_code),
+          employment_status = coalesce($8, employment_status),
+          join_date = coalesce($9::date, join_date),
+          employment_type = coalesce($10, employment_type),
+          designation = case when $11::varchar is null then designation else $11::varchar end,
+          department = case when $12::varchar is null then department else $12::varchar end,
+          monthly_salary = coalesce($13, monthly_salary),
+          emergency_contact_name = case when $14::varchar is null then emergency_contact_name else $14::varchar end,
+          emergency_contact_phone = case when $15::varchar is null then emergency_contact_phone else $15::varchar end,
+          salary_payment_mode = case when $16::varchar is null then salary_payment_mode else $16::varchar end,
+          bank_name = case when $17::varchar is null then bank_name else $17::varchar end,
+          bank_account_name = case when $18::varchar is null then bank_account_name else $18::varchar end,
+          bank_account_number = case when $19::varchar is null then bank_account_number else $19::varchar end,
+          mobile_banking_type = case when $20::varchar is null then mobile_banking_type else $20::varchar end,
+          mobile_banking_number = case when $21::varchar is null then mobile_banking_number else $21::varchar end,
+          education_summary = case when $22::text is null then education_summary else $22::text end,
+          experience_summary = case when $23::text is null then experience_summary else $23::text end,
+          training_summary = case when $24::text is null then training_summary else $24::text end,
+          note = case when $25::text is null then note else $25::text end,
           updated_at = now()
         where id = $1
           and store_id = $2
         returning *
       `,
-      [employeeId, storeId, payload.fullName ?? null, payload.mobileNo === undefined ? null : payload.mobileNo, payload.email === undefined ? null : payload.email, payload.roleCode ?? null, payload.employmentStatus ?? null, payload.joinDate ?? null, payload.monthlySalary ?? null, payload.note === undefined ? null : payload.note],
+      [
+        employeeId,
+        storeId,
+        payload.fullName ?? null,
+        payload.mobileNo === undefined ? null : payload.mobileNo,
+        payload.email === undefined ? null : payload.email,
+        payload.addressText === undefined ? null : payload.addressText,
+        payload.roleCode ?? null,
+        payload.employmentStatus ?? null,
+        payload.joinDate ?? null,
+        payload.employmentType ?? null,
+        payload.designation ?? null,
+        payload.department ?? null,
+        payload.monthlySalary ?? null,
+        payload.emergencyContactName === undefined ? null : payload.emergencyContactName,
+        payload.emergencyContactPhone === undefined ? null : payload.emergencyContactPhone,
+        payload.salaryPaymentMode ?? null,
+        payload.bankName === undefined ? null : payload.bankName,
+        payload.bankAccountName === undefined ? null : payload.bankAccountName,
+        payload.bankAccountNumber === undefined ? null : payload.bankAccountNumber,
+        payload.mobileBankingType === undefined ? null : payload.mobileBankingType,
+        payload.mobileBankingNumber === undefined ? null : payload.mobileBankingNumber,
+        payload.educationSummary === undefined ? null : payload.educationSummary,
+        payload.experienceSummary === undefined ? null : payload.experienceSummary,
+        payload.trainingSummary === undefined ? null : payload.trainingSummary,
+        payload.note === undefined ? null : payload.note,
+      ],
     );
     if (!result.rows[0]) throw new NotFoundException('Employee not found');
     return { employee: result.rows[0] };
@@ -490,6 +697,9 @@ export class StoreOpsService {
       (sum, item) => sum + item.grossAmount + item.bonusAmount - item.deductionAmount,
       0,
     );
+    const totalBonusAmount = payload.items.reduce((sum, item) => sum + item.bonusAmount, 0);
+    const totalDeductionAmount = payload.items.reduce((sum, item) => sum + item.deductionAmount, 0);
+    const payrollNo = await this.generatePayrollNumber(storeId, payload.periodStart);
 
     const client = await this.pool.connect();
     try {
@@ -497,12 +707,12 @@ export class StoreOpsService {
       const runResult = await client.query<{ id: string }>(
         `
           insert into hr.payroll_runs (
-            id, tenant_id, store_id, period_start, period_end, status, total_amount, processed_by, note, created_at, updated_at
+            id, tenant_id, store_id, payroll_no, period_start, period_end, status, total_amount, total_employees, total_bonus_amount, total_deduction_amount, processed_by, note, created_at, updated_at
           )
-          select gen_random_uuid(), $2, $1, $3, $4, $5, $6, $7, $8, now(), now()
+          select gen_random_uuid(), $2, $1, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, now(), now()
           returning id
         `,
-        [storeId, session?.user.tenantId ?? '', payload.periodStart, payload.periodEnd, payload.status, totalAmount, userId, payload.note ?? null],
+        [storeId, session?.user.tenantId ?? '', payrollNo, payload.periodStart, payload.periodEnd, payload.status, totalAmount, payload.items.length, totalBonusAmount, totalDeductionAmount, userId, payload.note ?? null],
       );
 
       const payrollRunId = runResult.rows[0].id;
@@ -521,7 +731,7 @@ export class StoreOpsService {
         );
       }
       await client.query('commit');
-      return { payrollRunId, totalAmount };
+      return { payrollRunId, payrollNo, totalAmount, totalBonusAmount, totalDeductionAmount };
     } catch (error) {
       await client.query('rollback').catch(() => {});
       throw error;
@@ -544,6 +754,11 @@ export class StoreOpsService {
         set
           status = coalesce($3, status),
           note = case when $4::text is null then note else $4::text end,
+          paid_at = case
+            when coalesce($3, status) = 'paid' and paid_at is null then now()
+            when coalesce($3, status) <> 'paid' then null
+            else paid_at
+          end,
           updated_at = now()
         where id = $1
           and store_id = $2
@@ -553,6 +768,77 @@ export class StoreOpsService {
     );
     if (!result.rows[0]) throw new NotFoundException('Payroll run not found');
     return { payrollRun: result.rows[0] };
+  }
+
+  async getHardwareProfile(headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    this.assertAllowedRoles(authContext, ['store_owner', 'store_manager']);
+
+    const result = await this.pool.query<{ hardware_profile: Record<string, unknown> | null }>(
+      `
+        select hardware_profile
+        from store.store_settings
+        where store_id = $1
+        limit 1
+      `,
+      [storeId],
+    );
+
+    return {
+      profile: result.rows[0]?.hardware_profile ?? {},
+      catalog: HARDWARE_CATALOG,
+      autostart: {
+        windowsScript: 'print-agent/scripts/install-windows-task.ps1',
+        macScript: 'print-agent/scripts/install-macos-launchagent.sh',
+      },
+    };
+  }
+
+  async updateHardwareProfile(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    session: AuthSession | null,
+    payload: {
+      bundlePreset?: string | null;
+      receiptPrinterModel?: string | null;
+      labelPrinterModel?: string | null;
+      barcodeScannerModel?: string | null;
+      cashDrawerModel?: string | null;
+      silentPrintingEnabled?: boolean;
+      printAgentAutostart?: 'windows_task' | 'mac_launchagent' | 'manual';
+      notes?: string | null;
+    },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    this.assertAllowedRoles(authContext, ['store_owner', 'store_manager']);
+    this.requireUserId(session);
+
+    const patch = JSON.stringify({
+      ...(payload.bundlePreset !== undefined ? { bundlePreset: payload.bundlePreset } : {}),
+      ...(payload.receiptPrinterModel !== undefined ? { receiptPrinterModel: payload.receiptPrinterModel } : {}),
+      ...(payload.labelPrinterModel !== undefined ? { labelPrinterModel: payload.labelPrinterModel } : {}),
+      ...(payload.barcodeScannerModel !== undefined ? { barcodeScannerModel: payload.barcodeScannerModel } : {}),
+      ...(payload.cashDrawerModel !== undefined ? { cashDrawerModel: payload.cashDrawerModel } : {}),
+      ...(payload.silentPrintingEnabled !== undefined ? { silentPrintingEnabled: payload.silentPrintingEnabled } : {}),
+      ...(payload.printAgentAutostart !== undefined ? { printAgentAutostart: payload.printAgentAutostart } : {}),
+      ...(payload.notes !== undefined ? { notes: payload.notes } : {}),
+    });
+
+    const result = await this.pool.query(
+      `
+        update store.store_settings
+        set
+          hardware_profile = coalesce(hardware_profile, '{}'::jsonb) || $2::jsonb,
+          updated_at = now()
+        where store_id = $1
+        returning hardware_profile
+      `,
+      [storeId, patch],
+    );
+
+    if (!result.rows[0]) throw new NotFoundException('Store settings not found');
+
+    return { profile: result.rows[0].hardware_profile, catalog: HARDWARE_CATALOG };
   }
 
   async listBankAccounts(headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
@@ -720,6 +1006,93 @@ export class StoreOpsService {
     );
     if (!result.rows[0]) throw new NotFoundException('Bank entry not found');
     return { entry: result.rows[0] };
+  }
+
+  private async generateEmployeeNumber(storeId: string) {
+    const storeResult = await this.pool.query<{ store_code: string }>(
+      `
+        select store_code
+        from store.stores
+        where id = $1
+        limit 1
+      `,
+      [storeId],
+    );
+
+    const rawStoreCode = storeResult.rows[0]?.store_code ?? 'STORE';
+    const prefix = rawStoreCode.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 6) || 'STORE';
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const countResult = await this.pool.query<{ total: string }>(
+        `
+          select count(*)::text as total
+          from hr.employees
+          where store_id = $1
+        `,
+        [storeId],
+      );
+      const candidate = `${prefix}-${String(Number(countResult.rows[0]?.total ?? '0') + 1 + attempt).padStart(4, '0')}`;
+      const existing = await this.pool.query<{ id: string }>(
+        `
+          select id
+          from hr.employees
+          where store_id = $1
+            and employee_number = $2
+          limit 1
+        `,
+        [storeId, candidate],
+      );
+      if (!existing.rows[0]) {
+        return candidate;
+      }
+    }
+
+    return `${prefix}-${Date.now().toString().slice(-4)}`;
+  }
+
+  private async generatePayrollNumber(storeId: string, periodStart: string) {
+    const storeResult = await this.pool.query<{ store_code: string }>(
+      `
+        select store_code
+        from store.stores
+        where id = $1
+        limit 1
+      `,
+      [storeId],
+    );
+
+    const prefix = (storeResult.rows[0]?.store_code ?? 'STORE')
+      .replace(/[^A-Za-z0-9]/g, '')
+      .toUpperCase()
+      .slice(0, 6) || 'STORE';
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const countResult = await this.pool.query<{ total: string }>(
+        `
+          select count(*)::text as total
+          from hr.payroll_runs
+          where store_id = $1
+            and to_char(period_start, 'YYYYMM') = to_char($2::date, 'YYYYMM')
+        `,
+        [storeId, periodStart],
+      );
+      const candidate = `PAY-${prefix}-${periodStart.slice(0, 7).replace('-', '')}-${String(Number(countResult.rows[0]?.total ?? '0') + 1 + attempt).padStart(3, '0')}`;
+      const existing = await this.pool.query<{ id: string }>(
+        `
+          select id
+          from hr.payroll_runs
+          where store_id = $1
+            and payroll_no = $2
+          limit 1
+        `,
+        [storeId, candidate],
+      );
+      if (!existing.rows[0]) {
+        return candidate;
+      }
+    }
+
+    return `PAY-${prefix}-${Date.now().toString().slice(-6)}`;
   }
 
   private assertStoreContext(headerStoreId: string | undefined, authContext: StoreAuthContext | null) {

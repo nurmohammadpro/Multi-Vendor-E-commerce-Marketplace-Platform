@@ -2,9 +2,15 @@
 set -euo pipefail
 
 if [ -f .env ]; then
-  set -a
-  . ./.env
-  set +a
+  while IFS= read -r line || [ -n "$line" ]; do
+    line=${line%$'\r'}
+    case "$line" in
+      ''|\#*)
+        continue
+        ;;
+    esac
+    export "$line"
+  done < ./.env
 fi
 
 exec "$@"
