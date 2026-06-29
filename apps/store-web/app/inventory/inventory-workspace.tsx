@@ -14,6 +14,7 @@ import {
   tableWrapStyle,
   tokenMutedStyle,
 } from '../motocore-theme';
+import { ListPager, type PaginationState, totalPagesFor } from '../list-pager';
 
 type Location = {
   id: string;
@@ -105,6 +106,16 @@ export function InventoryWorkspace({
   const [adjustments, setAdjustments] = useState<AdjustmentRequest[]>([]);
   const [ledger, setLedger] = useState<LedgerRow[]>([]);
   const [selectedLocationId, setSelectedLocationId] = useState('');
+  const [balanceSearch, setBalanceSearch] = useState('');
+  const [adjustmentSearch, setAdjustmentSearch] = useState('');
+  const [adjustmentStatus, setAdjustmentStatus] = useState('');
+  const [ledgerSearch, setLedgerSearch] = useState('');
+  const [balancePage, setBalancePage] = useState(1);
+  const [adjustmentPage, setAdjustmentPage] = useState(1);
+  const [ledgerPage, setLedgerPage] = useState(1);
+  const [balancePagination, setBalancePagination] = useState<PaginationState>({ page: 1, limit: 12, total: 0 });
+  const [adjustmentPagination, setAdjustmentPagination] = useState<PaginationState>({ page: 1, limit: 12, total: 0 });
+  const [ledgerPagination, setLedgerPagination] = useState<PaginationState>({ page: 1, limit: 12, total: 0 });
   const [skuSearch, setSkuSearch] = useState('');
   const [skuResults, setSkuResults] = useState<SkuResult[]>([]);
   const [selectedSkuId, setSelectedSkuId] = useState('');
@@ -121,27 +132,46 @@ export function InventoryWorkspace({
   const canInitializeStock = Boolean(selectedLocationId && selectedSkuId && quantity && !loading);
   const canRequestAdjustment = Boolean(selectedLocationId && selectedSkuId && quantity && reason.trim() && !loading);
 
-  const refreshInventory = async (locationId = selectedLocationId) => {
+  const refreshInventory = async (
+    nextBalancePage = balancePage,
+    nextAdjustmentPage = adjustmentPage,
+    nextLedgerPage = ledgerPage,
+    locationId = selectedLocationId,
+  ) => {
+    const balanceParams = new URLSearchParams({ page: String(nextBalancePage), limit: String(balancePagination.limit) });
+    const adjustmentParams = new URLSearchParams({ page: String(nextAdjustmentPage), limit: String(adjustmentPagination.limit) });
+    const ledgerParams = new URLSearchParams({ page: String(nextLedgerPage), limit: String(ledgerPagination.limit) });
+    if (locationId) balanceParams.set('locationId', locationId);
+    if (balanceSearch.trim()) balanceParams.set('search', balanceSearch.trim());
+    if (adjustmentSearch.trim()) adjustmentParams.set('search', adjustmentSearch.trim());
+    if (adjustmentStatus) adjustmentParams.set('status', adjustmentStatus);
+    if (ledgerSearch.trim()) ledgerParams.set('search', ledgerSearch.trim());
+    if (selectedSkuId) ledgerParams.set('skuId', selectedSkuId);
+
     const [locationPayload, balancePayload, adjustmentPayload, ledgerPayload] = await Promise.all([
       readJson<{ locations: Location[] }>('/api/inventory/locations'),
-      readJson<{ balances: Balance[] }>(
-        locationId ? `/api/inventory/balances?locationId=${encodeURIComponent(locationId)}` : '/api/inventory/balances',
-      ),
-      readJson<{ adjustmentRequests: AdjustmentRequest[] }>('/api/inventory/adjustments'),
-      readJson<{ ledger: LedgerRow[] }>('/api/inventory/ledger'),
+      readJson<{ balances: Balance[]; pagination?: PaginationState }>(`/api/inventory/balances?${balanceParams.toString()}`),
+      readJson<{ adjustmentRequests: AdjustmentRequest[]; pagination?: PaginationState }>(`/api/inventory/adjustments?${adjustmentParams.toString()}`),
+      readJson<{ ledger: LedgerRow[]; pagination?: PaginationState }>(`/api/inventory/ledger?${ledgerParams.toString()}`),
     ]);
 
     setLocations(locationPayload.locations ?? []);
     setBalances(balancePayload.balances ?? []);
     setAdjustments(adjustmentPayload.adjustmentRequests ?? []);
     setLedger(ledgerPayload.ledger ?? []);
+    setBalancePagination(balancePayload.pagination ?? { page: nextBalancePage, limit: balancePagination.limit, total: balancePayload.balances?.length ?? 0 });
+    setAdjustmentPagination(adjustmentPayload.pagination ?? { page: nextAdjustmentPage, limit: adjustmentPagination.limit, total: adjustmentPayload.adjustmentRequests?.length ?? 0 });
+    setLedgerPagination(ledgerPayload.pagination ?? { page: nextLedgerPage, limit: ledgerPagination.limit, total: ledgerPayload.ledger?.length ?? 0 });
+    setBalancePage(balancePayload.pagination?.page ?? nextBalancePage);
+    setAdjustmentPage(adjustmentPayload.pagination?.page ?? nextAdjustmentPage);
+    setLedgerPage(ledgerPayload.pagination?.page ?? nextLedgerPage);
     if (!selectedLocationId && locationPayload.locations?.[0]?.id) {
       setSelectedLocationId(locationPayload.locations[0].id);
     }
   };
 
   useEffect(() => {
-    void refreshInventory().catch((error: Error) => setMessage(error.message));
+    void refreshInventory(1, 1, 1).catch((error: Error) => setMessage(error.message));
   }, []);
 
   const searchSkus = async () => {
@@ -184,7 +214,7 @@ export function InventoryWorkspace({
           note: reason || undefined,
         }),
       });
-      await refreshInventory(selectedLocationId);
+      await refreshInventory(1, adjustmentPage, ledgerPage, selectedLocationId);
       setMessage('Initial stock posted successfully.');
       setQuantity('');
       setReason('');
@@ -219,7 +249,7 @@ export function InventoryWorkspace({
           reason,
         }),
       });
-      await refreshInventory(selectedLocationId);
+      await refreshInventory(balancePage, 1, ledgerPage, selectedLocationId);
       setMessage('Adjustment request submitted for owner approval.');
       setQuantity('');
       setReason('');
@@ -242,7 +272,7 @@ export function InventoryWorkspace({
           decisionNote: decisionNote || undefined,
         }),
       });
-      await refreshInventory(selectedLocationId);
+      await refreshInventory(balancePage, adjustmentPage, ledgerPage, selectedLocationId);
       setMessage(`Adjustment ${decision}d successfully.`);
       setDecisionNote('');
     } catch (error) {
@@ -263,6 +293,10 @@ export function InventoryWorkspace({
     );
   }
 
+  const totalBalancePages = totalPagesFor(balancePagination);
+  const totalAdjustmentPages = totalPagesFor(adjustmentPagination);
+  const totalLedgerPages = totalPagesFor(ledgerPagination);
+
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
@@ -273,7 +307,7 @@ export function InventoryWorkspace({
             onChange={(event) => {
               const nextLocationId = event.target.value;
               setSelectedLocationId(nextLocationId);
-              void refreshInventory(nextLocationId).catch((error: Error) => setMessage(error.message));
+              void refreshInventory(1, adjustmentPage, ledgerPage, nextLocationId).catch((error: Error) => setMessage(error.message));
             }}
             style={{ ...fieldStyle, marginBottom: 12 }}
           >
@@ -284,35 +318,49 @@ export function InventoryWorkspace({
               </option>
             ))}
           </select>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, marginBottom: 12 }}>
+            <input value={balanceSearch} onChange={(event) => setBalanceSearch(event.target.value)} style={fieldStyle} placeholder="Search product, SKU, or location" />
+            <button onClick={() => void refreshInventory(1, adjustmentPage, ledgerPage, selectedLocationId)} style={secondaryButtonStyle} disabled={loading}>Search</button>
+          </div>
           {balances.length ? (
-            <div style={tableWrapStyle}>
-              <table style={tableStyle}>
-                <thead>
-                  <tr>
-                    <th style={tableHeaderCellStyle}>Product</th>
-                    <th style={tableHeaderCellStyle}>SKU</th>
-                    <th style={tableHeaderCellStyle}>Location</th>
-                    <th style={tableHeaderCellStyle}>On Hand</th>
-                    <th style={tableHeaderCellStyle}>Available</th>
-                    <th style={tableHeaderCellStyle}>Reserved</th>
-                    <th style={tableHeaderCellStyle}>Updated</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {balances.map((balance) => (
-                    <tr key={`${balance.location_id}-${balance.sku_id}`}>
-                      <td style={tableCellStyle}>{balance.product_name}</td>
-                      <td style={tableCellStyle}>{balance.sku_code}</td>
-                      <td style={tableCellStyle}>{balance.location_name}</td>
-                      <td style={tableCellStyle}>{Number(balance.on_hand_qty)}</td>
-                      <td style={tableCellStyle}>{Number(balance.available_qty)}</td>
-                      <td style={tableCellStyle}>{Number(balance.reserved_qty)}</td>
-                      <td style={tableCellStyle}>{new Date(balance.updated_at).toLocaleString()}</td>
+            <>
+              <div style={tableWrapStyle}>
+                <table style={tableStyle}>
+                  <thead>
+                    <tr>
+                      <th style={tableHeaderCellStyle}>Product</th>
+                      <th style={tableHeaderCellStyle}>SKU</th>
+                      <th style={tableHeaderCellStyle}>Location</th>
+                      <th style={tableHeaderCellStyle}>On Hand</th>
+                      <th style={tableHeaderCellStyle}>Available</th>
+                      <th style={tableHeaderCellStyle}>Reserved</th>
+                      <th style={tableHeaderCellStyle}>Updated</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {balances.map((balance) => (
+                      <tr key={`${balance.location_id}-${balance.sku_id}`}>
+                        <td style={tableCellStyle}>{balance.product_name}</td>
+                        <td style={tableCellStyle}>{balance.sku_code}</td>
+                        <td style={tableCellStyle}>{balance.location_name}</td>
+                        <td style={tableCellStyle}>{Number(balance.on_hand_qty)}</td>
+                        <td style={tableCellStyle}>{Number(balance.available_qty)}</td>
+                        <td style={tableCellStyle}>{Number(balance.reserved_qty)}</td>
+                        <td style={tableCellStyle}>{new Date(balance.updated_at).toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <ListPager
+                loading={loading}
+                page={balancePage}
+                pagination={balancePagination}
+                label="balance row(s)"
+                onPrevious={() => void refreshInventory(Math.max(1, balancePage - 1), adjustmentPage, ledgerPage, selectedLocationId)}
+                onNext={() => void refreshInventory(Math.min(totalBalancePages, balancePage + 1), adjustmentPage, ledgerPage, selectedLocationId)}
+              />
+            </>
           ) : (
             <div style={emptyStateStyle}>No balances found for the current filter.</div>
           )}
@@ -372,81 +420,115 @@ export function InventoryWorkspace({
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Adjustment Queue</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(140px, 180px) auto', gap: 8, marginBottom: 12 }}>
+            <input value={adjustmentSearch} onChange={(event) => setAdjustmentSearch(event.target.value)} style={fieldStyle} placeholder="Search product, SKU, location, reason" />
+            <select value={adjustmentStatus} onChange={(event) => setAdjustmentStatus(event.target.value)} style={fieldStyle}>
+              <option value="">All statuses</option>
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
+            </select>
+            <button onClick={() => void refreshInventory(balancePage, 1, ledgerPage, selectedLocationId)} style={secondaryButtonStyle} disabled={loading}>Search</button>
+          </div>
           <textarea value={decisionNote} onChange={(event) => setDecisionNote(event.target.value)} style={{ ...fieldStyle, minHeight: 72, marginBottom: 12 }} placeholder="Decision note for approve/reject" />
           {adjustments.length ? (
-            <div style={tableWrapStyle}>
-              <table style={tableStyle}>
-                <thead>
-                  <tr>
-                    <th style={tableHeaderCellStyle}>Product</th>
-                    <th style={tableHeaderCellStyle}>Location</th>
-                    <th style={tableHeaderCellStyle}>Current</th>
-                    <th style={tableHeaderCellStyle}>Requested</th>
-                    <th style={tableHeaderCellStyle}>Delta</th>
-                    <th style={tableHeaderCellStyle}>Reason</th>
-                    <th style={tableHeaderCellStyle}>Status</th>
-                    <th style={tableHeaderCellStyle}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {adjustments.map((request) => (
-                    <tr key={request.id}>
-                      <td style={tableCellStyle}>{request.product_name} · {request.sku_code}</td>
-                      <td style={tableCellStyle}>{request.location_name}</td>
-                      <td style={tableCellStyle}>{Number(request.current_qty)}</td>
-                      <td style={tableCellStyle}>{Number(request.requested_qty)}</td>
-                      <td style={tableCellStyle}>{Number(request.qty_delta) >= 0 ? '+' : ''}{Number(request.qty_delta)}</td>
-                      <td style={tableCellStyle}>{request.reason}</td>
-                      <td style={tableCellStyle}>{request.status}</td>
-                      <td style={tableCellStyle}>
-                        {request.status === 'pending' && canApproveInventory ? (
-                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                            <button onClick={() => decideAdjustment(request.id, 'approve')} style={secondaryButtonStyle} disabled={loading}>Approve</button>
-                            <button onClick={() => decideAdjustment(request.id, 'reject')} style={secondaryButtonStyle} disabled={loading}>Reject</button>
-                          </div>
-                        ) : '—'}
-                      </td>
+            <>
+              <div style={tableWrapStyle}>
+                <table style={tableStyle}>
+                  <thead>
+                    <tr>
+                      <th style={tableHeaderCellStyle}>Product</th>
+                      <th style={tableHeaderCellStyle}>Location</th>
+                      <th style={tableHeaderCellStyle}>Current</th>
+                      <th style={tableHeaderCellStyle}>Requested</th>
+                      <th style={tableHeaderCellStyle}>Delta</th>
+                      <th style={tableHeaderCellStyle}>Reason</th>
+                      <th style={tableHeaderCellStyle}>Status</th>
+                      <th style={tableHeaderCellStyle}>Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {adjustments.map((request) => (
+                      <tr key={request.id}>
+                        <td style={tableCellStyle}>{request.product_name} · {request.sku_code}</td>
+                        <td style={tableCellStyle}>{request.location_name}</td>
+                        <td style={tableCellStyle}>{Number(request.current_qty)}</td>
+                        <td style={tableCellStyle}>{Number(request.requested_qty)}</td>
+                        <td style={tableCellStyle}>{Number(request.qty_delta) >= 0 ? '+' : ''}{Number(request.qty_delta)}</td>
+                        <td style={tableCellStyle}>{request.reason}</td>
+                        <td style={tableCellStyle}>{request.status}</td>
+                        <td style={tableCellStyle}>
+                          {request.status === 'pending' && canApproveInventory ? (
+                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                              <button onClick={() => decideAdjustment(request.id, 'approve')} style={secondaryButtonStyle} disabled={loading}>Approve</button>
+                              <button onClick={() => decideAdjustment(request.id, 'reject')} style={secondaryButtonStyle} disabled={loading}>Reject</button>
+                            </div>
+                          ) : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <ListPager
+                loading={loading}
+                page={adjustmentPage}
+                pagination={adjustmentPagination}
+                label="request(s)"
+                onPrevious={() => void refreshInventory(balancePage, Math.max(1, adjustmentPage - 1), ledgerPage, selectedLocationId)}
+                onNext={() => void refreshInventory(balancePage, Math.min(totalAdjustmentPages, adjustmentPage + 1), ledgerPage, selectedLocationId)}
+              />
+            </>
           ) : (
             <div style={emptyStateStyle}>No adjustment requests yet.</div>
           )}
         </article>
 
         <article style={surfaceCardStyle}>
-          <h3 style={{ marginTop: 0 }}>Recent Ledger</h3>
+          <h3 style={{ marginTop: 0 }}>Ledger</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, marginBottom: 12 }}>
+            <input value={ledgerSearch} onChange={(event) => setLedgerSearch(event.target.value)} style={fieldStyle} placeholder="Search product, SKU, location, movement" />
+            <button onClick={() => void refreshInventory(balancePage, adjustmentPage, 1, selectedLocationId)} style={secondaryButtonStyle} disabled={loading}>Search</button>
+          </div>
           {ledger.length ? (
-            <div style={tableWrapStyle}>
-              <table style={tableStyle}>
-                <thead>
-                  <tr>
-                    <th style={tableHeaderCellStyle}>Product</th>
-                    <th style={tableHeaderCellStyle}>Location</th>
-                    <th style={tableHeaderCellStyle}>Movement</th>
-                    <th style={tableHeaderCellStyle}>Qty</th>
-                    <th style={tableHeaderCellStyle}>Actor</th>
-                    <th style={tableHeaderCellStyle}>Note</th>
-                    <th style={tableHeaderCellStyle}>Time</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {ledger.slice(0, 20).map((entry) => (
-                    <tr key={entry.id}>
-                      <td style={tableCellStyle}>{entry.product_name} · {entry.sku_code}</td>
-                      <td style={tableCellStyle}>{entry.location_name}</td>
-                      <td style={tableCellStyle}>{entry.movement_type}</td>
-                      <td style={tableCellStyle}>{Number(entry.qty_delta) >= 0 ? '+' : ''}{Number(entry.qty_delta)}</td>
-                      <td style={tableCellStyle}>{entry.actor_name || 'System'}</td>
-                      <td style={tableCellStyle}>{entry.note || '—'}</td>
-                      <td style={tableCellStyle}>{new Date(entry.created_at).toLocaleString()}</td>
+            <>
+              <div style={tableWrapStyle}>
+                <table style={tableStyle}>
+                  <thead>
+                    <tr>
+                      <th style={tableHeaderCellStyle}>Product</th>
+                      <th style={tableHeaderCellStyle}>Location</th>
+                      <th style={tableHeaderCellStyle}>Movement</th>
+                      <th style={tableHeaderCellStyle}>Qty</th>
+                      <th style={tableHeaderCellStyle}>Actor</th>
+                      <th style={tableHeaderCellStyle}>Note</th>
+                      <th style={tableHeaderCellStyle}>Time</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {ledger.map((entry) => (
+                      <tr key={entry.id}>
+                        <td style={tableCellStyle}>{entry.product_name} · {entry.sku_code}</td>
+                        <td style={tableCellStyle}>{entry.location_name}</td>
+                        <td style={tableCellStyle}>{entry.movement_type}</td>
+                        <td style={tableCellStyle}>{Number(entry.qty_delta) >= 0 ? '+' : ''}{Number(entry.qty_delta)}</td>
+                        <td style={tableCellStyle}>{entry.actor_name || 'System'}</td>
+                        <td style={tableCellStyle}>{entry.note || '—'}</td>
+                        <td style={tableCellStyle}>{new Date(entry.created_at).toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <ListPager
+                loading={loading}
+                page={ledgerPage}
+                pagination={ledgerPagination}
+                label="ledger row(s)"
+                onPrevious={() => void refreshInventory(balancePage, adjustmentPage, Math.max(1, ledgerPage - 1), selectedLocationId)}
+                onNext={() => void refreshInventory(balancePage, adjustmentPage, Math.min(totalLedgerPages, ledgerPage + 1), selectedLocationId)}
+              />
+            </>
           ) : (
             <div style={emptyStateStyle}>No ledger entries yet.</div>
           )}

@@ -2,6 +2,7 @@ import { ForbiddenException, Inject, Injectable, NotFoundException, Unauthorized
 import type { Pool } from 'pg';
 
 import type { AuthSession, StoreAuthContext } from '../auth/auth.types.js';
+import { normalizePageQuery, stripPaginationTotal } from '../common/pagination.js';
 import { DATABASE_POOL } from '../database/database.constants.js';
 
 type StoreRole = 'store_owner' | 'store_manager' | 'store_salesman';
@@ -36,51 +37,60 @@ export class StoreOpsService {
   async listCustomers(
     headerStoreId: string | undefined,
     authContext: StoreAuthContext | null,
-    query?: string,
+    filters: { query?: string; page?: number; limit?: number } = {},
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const { page, limit, offset } = normalizePageQuery(filters);
+    const query = filters.query?.trim() || null;
 
     const result = await this.pool.query(
       `
-        select
-          c.id,
-          c.full_name,
-          c.mobile_no,
-          c.email,
-          c.shop_name,
-          c.address,
-          c.note,
-          c.created_at,
-          c.updated_at,
-          coalesce(count(distinct s.id), 0)::int as total_sales_count,
-          coalesce(sum(
-            case
-              when s.payment_status in ('due', 'partial') then greatest(s.total_amount - coalesce(paid.paid_amount, 0), 0)
-              else 0
-            end
-          ), 0) as outstanding_due_amount
-        from store.customers c
-        left join sales.sales s on s.customer_id = c.id
-        left join lateral (
-          select coalesce(sum(amount) filter (where status = 'paid'), 0) as paid_amount
-          from sales.sale_payments sp
-          where sp.sale_id = s.id
-        ) paid on true
-        where c.store_id = $1
-          and (
-            $2::text is null
-            or coalesce(c.full_name, '') ilike '%' || $2::text || '%'
-            or coalesce(c.mobile_no, '') ilike '%' || $2::text || '%'
-            or coalesce(c.email::text, '') ilike '%' || $2::text || '%'
-            or coalesce(c.shop_name, '') ilike '%' || $2::text || '%'
-          )
-        group by c.id
-        order by c.updated_at desc, c.created_at desc
+        select *
+        from (
+          select
+            c.id,
+            c.full_name,
+            c.mobile_no,
+            c.email,
+            c.shop_name,
+            c.address,
+            c.note,
+            c.created_at,
+            c.updated_at,
+            coalesce(count(distinct s.id), 0)::int as total_sales_count,
+            coalesce(sum(
+              case
+                when s.payment_status in ('due', 'partial') then greatest(s.total_amount - coalesce(paid.paid_amount, 0), 0)
+                else 0
+              end
+            ), 0) as outstanding_due_amount,
+            count(*) over()::int as total_count
+          from store.customers c
+          left join sales.sales s on s.customer_id = c.id
+          left join lateral (
+            select coalesce(sum(amount) filter (where status = 'paid'), 0) as paid_amount
+            from sales.sale_payments sp
+            where sp.sale_id = s.id
+          ) paid on true
+          where c.store_id = $1
+            and (
+              $2::text is null
+              or coalesce(c.full_name, '') ilike '%' || $2::text || '%'
+              or coalesce(c.mobile_no, '') ilike '%' || $2::text || '%'
+              or coalesce(c.email::text, '') ilike '%' || $2::text || '%'
+              or coalesce(c.shop_name, '') ilike '%' || $2::text || '%'
+            )
+          group by c.id
+          order by c.updated_at desc, c.created_at desc
+          limit $3
+          offset $4
+        ) customers
       `,
-      [storeId, query?.trim() ? query.trim() : null],
+      [storeId, query, limit, offset],
     );
 
-    return { customers: result.rows };
+    const { items, total } = stripPaginationTotal(result.rows);
+    return { customers: items, pagination: { page, limit, total } };
   }
 
   async getCustomer(customerId: string, headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
@@ -129,40 +139,60 @@ export class StoreOpsService {
     return { customer, dueSales: dueSales.rows };
   }
 
-  async listDueSales(headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
+  async listDueSales(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    filters: { query?: string; page?: number; limit?: number } = {},
+  ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const { page, limit, offset } = normalizePageQuery(filters);
+    const query = filters.query?.trim() || null;
 
     const result = await this.pool.query(
       `
-        select
-          s.id,
-          s.sale_no,
-          s.total_amount,
-          s.payment_status,
-          s.customer_name,
-          s.customer_phone,
-          s.customer_email,
-          s.customer_shop_name,
-          s.customer_address,
-          s.due_date,
-          s.created_at,
-          greatest(s.total_amount - coalesce(paid.paid_amount, 0), 0) as outstanding_due_amount,
-          greatest((current_date - coalesce(s.due_date, s.created_at::date)), 0) as aging_days
-        from sales.sales s
-        left join lateral (
-          select coalesce(sum(amount) filter (where status = 'paid'), 0) as paid_amount
-          from sales.sale_payments sp
-          where sp.sale_id = s.id
-        ) paid on true
-        where s.store_id = $1
-          and s.status = 'completed'
-          and s.payment_status in ('due', 'partial')
-        order by coalesce(s.due_date, s.created_at::date) asc, s.created_at desc
+        select *
+        from (
+          select
+            s.id,
+            s.sale_no,
+            s.total_amount,
+            s.payment_status,
+            s.customer_name,
+            s.customer_phone,
+            s.customer_email,
+            s.customer_shop_name,
+            s.customer_address,
+            s.due_date,
+            s.created_at,
+            greatest(s.total_amount - coalesce(paid.paid_amount, 0), 0) as outstanding_due_amount,
+            greatest((current_date - coalesce(s.due_date, s.created_at::date)), 0) as aging_days,
+            count(*) over()::int as total_count
+          from sales.sales s
+          left join lateral (
+            select coalesce(sum(amount) filter (where status = 'paid'), 0) as paid_amount
+            from sales.sale_payments sp
+            where sp.sale_id = s.id
+          ) paid on true
+          where s.store_id = $1
+            and s.status = 'completed'
+            and s.payment_status in ('due', 'partial')
+            and (
+              $2::text is null
+              or s.sale_no ilike '%' || $2::text || '%'
+              or coalesce(s.customer_name, '') ilike '%' || $2::text || '%'
+              or coalesce(s.customer_phone, '') ilike '%' || $2::text || '%'
+              or coalesce(s.customer_shop_name, '') ilike '%' || $2::text || '%'
+            )
+          order by coalesce(s.due_date, s.created_at::date) asc, s.created_at desc
+          limit $3
+          offset $4
+        ) due_sales
       `,
-      [storeId],
+      [storeId, query, limit, offset],
     );
 
-    return { dueSales: result.rows };
+    const { items, total } = stripPaginationTotal(result.rows);
+    return { dueSales: items, pagination: { page, limit, total } };
   }
 
   async getDueSalesAging(headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
@@ -522,21 +552,50 @@ export class StoreOpsService {
     };
   }
 
-  async listExpenses(headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
+  async listExpenses(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    filters: { search?: string; page?: number; limit?: number } = {},
+  ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
     this.assertAllowedRoles(authContext, ['store_owner', 'store_manager']);
+    const { page, limit, offset } = normalizePageQuery(filters);
+    const search = filters.search?.trim() || null;
 
     const result = await this.pool.query(
       `
-        select id, expense_date, category_name, title, amount, payment_method, note, status, created_at, updated_at
-        from finance.daily_expenses
-        where store_id = $1
-        order by expense_date desc, created_at desc
+        select *
+        from (
+          select
+            id,
+            expense_date,
+            category_name,
+            title,
+            amount,
+            payment_method,
+            note,
+            status,
+            created_at,
+            updated_at,
+            count(*) over()::int as total_count
+          from finance.daily_expenses
+          where store_id = $1
+            and (
+              $2::text is null
+              or title ilike '%' || $2::text || '%'
+              or category_name ilike '%' || $2::text || '%'
+              or coalesce(note, '') ilike '%' || $2::text || '%'
+            )
+          order by expense_date desc, created_at desc
+          limit $3
+          offset $4
+        ) expenses
       `,
-      [storeId],
+      [storeId, search, limit, offset],
     );
 
-    return { expenses: result.rows };
+    const { items, total } = stripPaginationTotal(result.rows);
+    return { expenses: items, pagination: { page, limit, total } };
   }
 
   async createExpense(
@@ -611,47 +670,68 @@ export class StoreOpsService {
     return { expense: result.rows[0] };
   }
 
-  async listEmployees(headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
+  async listEmployees(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    filters: { search?: string; page?: number; limit?: number } = {},
+  ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
     this.assertAllowedRoles(authContext, ['store_owner', 'store_manager']);
+    const { page, limit, offset } = normalizePageQuery(filters);
+    const search = filters.search?.trim() || null;
     const result = await this.pool.query(
       `
-        select
-          id,
-          user_id,
-          employee_number,
-          full_name,
-          mobile_no,
-          email,
-          address_text,
-          role_code,
-          employment_status,
-          join_date,
-          employment_type,
-          designation,
-          department,
-          monthly_salary,
-          emergency_contact_name,
-          emergency_contact_phone,
-          salary_payment_mode,
-          bank_name,
-          bank_account_name,
-          bank_account_number,
-          mobile_banking_type,
-          mobile_banking_number,
-          education_summary,
-          experience_summary,
-          training_summary,
-          note,
-          created_at,
-          updated_at
-        from hr.employees
-        where store_id = $1
-        order by created_at desc
+        select *
+        from (
+          select
+            id,
+            user_id,
+            employee_number,
+            full_name,
+            mobile_no,
+            email,
+            address_text,
+            role_code,
+            employment_status,
+            join_date,
+            employment_type,
+            designation,
+            department,
+            monthly_salary,
+            emergency_contact_name,
+            emergency_contact_phone,
+            salary_payment_mode,
+            bank_name,
+            bank_account_name,
+            bank_account_number,
+            mobile_banking_type,
+            mobile_banking_number,
+            education_summary,
+            experience_summary,
+            training_summary,
+            note,
+            created_at,
+            updated_at,
+            count(*) over()::int as total_count
+          from hr.employees
+          where store_id = $1
+            and (
+              $2::text is null
+              or full_name ilike '%' || $2::text || '%'
+              or coalesce(employee_number, '') ilike '%' || $2::text || '%'
+              or coalesce(role_code, '') ilike '%' || $2::text || '%'
+              or coalesce(designation, '') ilike '%' || $2::text || '%'
+              or coalesce(department, '') ilike '%' || $2::text || '%'
+            )
+          order by created_at desc
+          limit $3
+          offset $4
+        ) employees
       `,
-      [storeId],
+      [storeId, search, limit, offset],
     );
-    return { employees: result.rows };
+    const { items, total } = stripPaginationTotal(result.rows);
+    return { employees: items, pagination: { page, limit, total } };
   }
 
   async createEmployee(
@@ -880,21 +960,41 @@ export class StoreOpsService {
     return { employee: result.rows[0] };
   }
 
-  async listPayrollRuns(headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
+  async listPayrollRuns(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    filters: { search?: string; page?: number; limit?: number } = {},
+  ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
     this.assertAllowedRoles(authContext, ['store_owner']);
+    const { page, limit, offset } = normalizePageQuery(filters);
+    const search = filters.search?.trim() || null;
     const result = await this.pool.query(
       `
-        select pr.*, coalesce(count(pri.id), 0)::int as item_count
-        from hr.payroll_runs pr
-        left join hr.payroll_run_items pri on pri.payroll_run_id = pr.id
-        where pr.store_id = $1
-        group by pr.id
-        order by pr.period_end desc, pr.created_at desc
+        select *
+        from (
+          select
+            pr.*,
+            coalesce(count(pri.id), 0)::int as item_count,
+            count(*) over()::int as total_count
+          from hr.payroll_runs pr
+          left join hr.payroll_run_items pri on pri.payroll_run_id = pr.id
+          where pr.store_id = $1
+            and (
+              $2::text is null
+              or coalesce(pr.payroll_no, '') ilike '%' || $2::text || '%'
+              or coalesce(pr.status, '') ilike '%' || $2::text || '%'
+            )
+          group by pr.id
+          order by pr.period_end desc, pr.created_at desc
+          limit $3
+          offset $4
+        ) payroll_runs
       `,
-      [storeId],
+      [storeId, search, limit, offset],
     );
-    return { payrollRuns: result.rows };
+    const { items, total } = stripPaginationTotal(result.rows);
+    return { payrollRuns: items, pagination: { page, limit, total } };
   }
 
   async createPayrollRun(
@@ -1067,19 +1167,39 @@ export class StoreOpsService {
     return { profile: result.rows[0].hardware_profile, catalog: HARDWARE_CATALOG };
   }
 
-  async listBankAccounts(headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
+  async listBankAccounts(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    filters: { search?: string; page?: number; limit?: number } = {},
+  ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
     this.assertAllowedRoles(authContext, ['store_owner']);
+    const { page, limit, offset } = normalizePageQuery(filters);
+    const search = filters.search?.trim() || null;
     const result = await this.pool.query(
       `
         select *
-        from finance.bank_accounts
-        where store_id = $1
-        order by created_at desc
+        from (
+          select
+            *,
+            count(*) over()::int as total_count
+          from finance.bank_accounts
+          where store_id = $1
+            and (
+              $2::text is null
+              or account_name ilike '%' || $2::text || '%'
+              or bank_name ilike '%' || $2::text || '%'
+              or account_number ilike '%' || $2::text || '%'
+            )
+          order by created_at desc
+          limit $3
+          offset $4
+        ) bank_accounts
       `,
-      [storeId],
+      [storeId, search, limit, offset],
     );
-    return { bankAccounts: result.rows };
+    const { items, total } = stripPaginationTotal(result.rows);
+    return { bankAccounts: items, pagination: { page, limit, total } };
   }
 
   async createBankAccount(
@@ -1149,20 +1269,43 @@ export class StoreOpsService {
     return { bankAccount: result.rows[0] };
   }
 
-  async listBankEntries(headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
+  async listBankEntries(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    filters: { search?: string; page?: number; limit?: number } = {},
+  ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
     this.assertAllowedRoles(authContext, ['store_owner']);
+    const { page, limit, offset } = normalizePageQuery(filters);
+    const search = filters.search?.trim() || null;
     const result = await this.pool.query(
       `
-        select bre.*, ba.account_name, ba.bank_name
-        from finance.bank_reconciliation_entries bre
-        join finance.bank_accounts ba on ba.id = bre.bank_account_id
-        where bre.store_id = $1
-        order by bre.entry_date desc, bre.created_at desc
+        select *
+        from (
+          select
+            bre.*,
+            ba.account_name,
+            ba.bank_name,
+            count(*) over()::int as total_count
+          from finance.bank_reconciliation_entries bre
+          join finance.bank_accounts ba on ba.id = bre.bank_account_id
+          where bre.store_id = $1
+            and (
+              $2::text is null
+              or ba.account_name ilike '%' || $2::text || '%'
+              or ba.bank_name ilike '%' || $2::text || '%'
+              or coalesce(bre.reference_no, '') ilike '%' || $2::text || '%'
+              or bre.source_type ilike '%' || $2::text || '%'
+            )
+          order by bre.entry_date desc, bre.created_at desc
+          limit $3
+          offset $4
+        ) bank_entries
       `,
-      [storeId],
+      [storeId, search, limit, offset],
     );
-    return { entries: result.rows };
+    const { items, total } = stripPaginationTotal(result.rows);
+    return { entries: items, pagination: { page, limit, total } };
   }
 
   async createBankEntry(

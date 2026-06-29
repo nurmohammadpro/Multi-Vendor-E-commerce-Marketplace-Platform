@@ -2,6 +2,7 @@ import { ForbiddenException, Inject, Injectable, NotFoundException, Unauthorized
 import type { Pool, PoolClient } from 'pg';
 
 import type { AuthSession, StoreAuthContext } from '../auth/auth.types.js';
+import { normalizePageQuery, stripPaginationTotal } from '../common/pagination.js';
 import { DATABASE_POOL } from '../database/database.constants.js';
 
 type VariantOptionRow = {
@@ -29,22 +30,50 @@ type LatestPriceRow = {
 export class CatalogService {
   constructor(@Inject(DATABASE_POOL) private readonly pool: Pool) {}
 
-  async listCategories(headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
+  async listCategories(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    filters: { search?: string; page?: number; limit?: number } = {},
+  ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const { page, limit, offset } = normalizePageQuery(filters);
+    const search = filters.search?.trim() || null;
 
     const result = await this.pool.query(
       `
-        select id, parent_id, code, name, name_bn, status, sort_order, created_at, updated_at
-        from catalog.categories
-        where tenant_id = (
-          select tenant_id from store.stores where id = $1
-        )
-        order by sort_order asc, created_at asc
+        select *
+        from (
+          select
+            id,
+            parent_id,
+            code,
+            name,
+            name_bn,
+            status,
+            sort_order,
+            created_at,
+            updated_at,
+            count(*) over()::int as total_count
+          from catalog.categories
+          where tenant_id = (
+            select tenant_id from store.stores where id = $1
+          )
+            and (
+              $2::text is null
+              or code ilike '%' || $2::text || '%'
+              or name ilike '%' || $2::text || '%'
+              or coalesce(name_bn, '') ilike '%' || $2::text || '%'
+            )
+          order by sort_order asc, created_at asc
+          limit $3
+          offset $4
+        ) categories
       `,
-      [storeId],
+      [storeId, search, limit, offset],
     );
 
-    return { categories: result.rows };
+    const { items, total } = stripPaginationTotal(result.rows);
+    return { categories: items, pagination: { page, limit, total } };
   }
 
   async createCategory(
@@ -96,22 +125,46 @@ export class CatalogService {
     return { category: result.rows[0] };
   }
 
-  async listBrands(headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
+  async listBrands(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    filters: { search?: string; page?: number; limit?: number } = {},
+  ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const { page, limit, offset } = normalizePageQuery(filters);
+    const search = filters.search?.trim() || null;
 
     const result = await this.pool.query(
       `
-        select id, name, name_bn, status, created_at, updated_at
-        from catalog.brands
-        where tenant_id = (
-          select tenant_id from store.stores where id = $1
-        )
-        order by name asc
+        select *
+        from (
+          select
+            id,
+            name,
+            name_bn,
+            status,
+            created_at,
+            updated_at,
+            count(*) over()::int as total_count
+          from catalog.brands
+          where tenant_id = (
+            select tenant_id from store.stores where id = $1
+          )
+            and (
+              $2::text is null
+              or name ilike '%' || $2::text || '%'
+              or coalesce(name_bn, '') ilike '%' || $2::text || '%'
+            )
+          order by name asc
+          limit $3
+          offset $4
+        ) brands
       `,
-      [storeId],
+      [storeId, search, limit, offset],
     );
 
-    return { brands: result.rows };
+    const { items, total } = stripPaginationTotal(result.rows);
+    return { brands: items, pagination: { page, limit, total } };
   }
 
   async createBrand(
@@ -252,40 +305,58 @@ export class CatalogService {
   async listProducts(
     headerStoreId: string | undefined,
     authContext: StoreAuthContext | null,
-    status?: string,
+    filters: { status?: string; search?: string; page?: number; limit?: number } = {},
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const { page, limit, offset } = normalizePageQuery(filters);
+    const search = filters.search?.trim() || null;
 
     const result = await this.pool.query(
       `
-        select
-          p.id,
-          p.product_code,
-          p.name,
-          p.name_bn,
-          p.status,
-          p.is_trackable,
-          p.has_variants,
-          p.variant_mode,
-          p.created_at,
-          p.updated_at,
-          c.name as category_name,
-          b.name as brand_name,
-          coalesce(count(s.id), 0)::int as sku_count
-        from catalog.products p
-        left join catalog.categories c on c.id = p.category_id
-        left join catalog.brands b on b.id = p.brand_id
-        left join catalog.skus s on s.product_id = p.id
-        where p.store_id = $1
-          and ($2::text is null or p.status = $2::text)
-        group by p.id, c.name, b.name
-        order by p.created_at desc
+        select *
+        from (
+          select
+            p.id,
+            p.product_code,
+            p.name,
+            p.name_bn,
+            p.status,
+            p.is_trackable,
+            p.has_variants,
+            p.variant_mode,
+            p.created_at,
+            p.updated_at,
+            c.name as category_name,
+            b.name as brand_name,
+            coalesce(count(s.id), 0)::int as sku_count,
+            count(*) over()::int as total_count
+          from catalog.products p
+          left join catalog.categories c on c.id = p.category_id
+          left join catalog.brands b on b.id = p.brand_id
+          left join catalog.skus s on s.product_id = p.id
+          where p.store_id = $1
+            and ($2::text is null or p.status = $2::text)
+            and (
+              $3::text is null
+              or p.product_code ilike '%' || $3::text || '%'
+              or p.name ilike '%' || $3::text || '%'
+              or coalesce(p.name_bn, '') ilike '%' || $3::text || '%'
+              or coalesce(c.name, '') ilike '%' || $3::text || '%'
+              or coalesce(b.name, '') ilike '%' || $3::text || '%'
+            )
+          group by p.id, c.name, b.name
+          order by p.created_at desc
+          limit $4
+          offset $5
+        ) products
       `,
-      [storeId, status ?? null],
+      [storeId, filters.status ?? null, search, limit, offset],
     );
 
+    const { items, total } = stripPaginationTotal(result.rows);
     return {
-      products: result.rows,
+      products: items,
+      pagination: { page, limit, total },
     };
   }
 
@@ -1338,47 +1409,63 @@ export class CatalogService {
   async listPriceChangeRequests(
     headerStoreId: string | undefined,
     authContext: StoreAuthContext | null,
-    status?: string,
+    filters: { status?: string; search?: string; page?: number; limit?: number } = {},
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const { page, limit, offset } = normalizePageQuery(filters);
+    const search = filters.search?.trim() || null;
     const result = await this.pool.query(
       `
-        select
-          pcr.id,
-          pcr.sku_id,
-          sku.sku_code,
-          p.name as product_name,
-          sku.variant_label,
-          pcr.current_cost_price,
-          pcr.current_sale_price,
-          pcr.current_compare_at_price,
-          pcr.requested_cost_price,
-          pcr.requested_sale_price,
-          pcr.requested_compare_at_price,
-          pcr.requested_effective_from,
-          pcr.requested_effective_to,
-          pcr.reason,
-          pcr.status,
-          pcr.requested_by,
-          requester.full_name as requested_by_name,
-          pcr.decided_by,
-          decider.full_name as decided_by_name,
-          pcr.decided_at,
-          pcr.decision_note,
-          pcr.created_at
-        from catalog.price_change_requests pcr
-        join catalog.skus sku on sku.id = pcr.sku_id
-        join catalog.products p on p.id = sku.product_id
-        left join identity.user_profiles requester on requester.user_id = pcr.requested_by
-        left join identity.user_profiles decider on decider.user_id = pcr.decided_by
-        where pcr.store_id = $1
-          and ($2::text is null or pcr.status = $2::text)
-        order by pcr.created_at desc
+        select *
+        from (
+          select
+            pcr.id,
+            pcr.sku_id,
+            sku.sku_code,
+            p.name as product_name,
+            sku.variant_label,
+            pcr.current_cost_price,
+            pcr.current_sale_price,
+            pcr.current_compare_at_price,
+            pcr.requested_cost_price,
+            pcr.requested_sale_price,
+            pcr.requested_compare_at_price,
+            pcr.requested_effective_from,
+            pcr.requested_effective_to,
+            pcr.reason,
+            pcr.status,
+            pcr.requested_by,
+            requester.full_name as requested_by_name,
+            pcr.decided_by,
+            decider.full_name as decided_by_name,
+            pcr.decided_at,
+            pcr.decision_note,
+            pcr.created_at,
+            count(*) over()::int as total_count
+          from catalog.price_change_requests pcr
+          join catalog.skus sku on sku.id = pcr.sku_id
+          join catalog.products p on p.id = sku.product_id
+          left join identity.user_profiles requester on requester.user_id = pcr.requested_by
+          left join identity.user_profiles decider on decider.user_id = pcr.decided_by
+          where pcr.store_id = $1
+            and ($2::text is null or pcr.status = $2::text)
+            and (
+              $3::text is null
+              or sku.sku_code ilike '%' || $3::text || '%'
+              or p.name ilike '%' || $3::text || '%'
+              or coalesce(sku.variant_label, '') ilike '%' || $3::text || '%'
+              or pcr.reason ilike '%' || $3::text || '%'
+            )
+          order by pcr.created_at desc
+          limit $4
+          offset $5
+        ) requests
       `,
-      [storeId, status ?? null],
+      [storeId, filters.status ?? null, search, limit, offset],
     );
 
-    return { priceChangeRequests: result.rows };
+    const { items, total } = stripPaginationTotal(result.rows);
+    return { priceChangeRequests: items, pagination: { page, limit, total } };
   }
 
   async requestPriceChange(

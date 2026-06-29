@@ -3,10 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requestStoreApi } from '../../../../lib/api';
 
 export async function GET(request: NextRequest) {
-  const status = request.nextUrl.searchParams.get('status');
-  const path = status
-    ? `/catalog/price-change-requests?status=${encodeURIComponent(status)}`
-    : '/catalog/price-change-requests';
+  const params = request.nextUrl.searchParams.toString();
+  const path = params ? `/catalog/price-change-requests?${params}` : '/catalog/price-change-requests';
   const response = await requestStoreApi(path);
   const payload = await response.json().catch(() => ({ ok: false, error: 'Invalid upstream response' }));
   return NextResponse.json(payload, { status: response.status });

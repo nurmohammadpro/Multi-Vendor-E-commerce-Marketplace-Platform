@@ -3,6 +3,7 @@ import type { Pool, PoolClient } from 'pg';
 
 import type { AuthSession, StoreAuthContext } from '../auth/auth.types.js';
 import { AuditService } from '../audit/audit.service.js';
+import { normalizePageQuery, stripPaginationTotal } from '../common/pagination.js';
 import { DATABASE_POOL } from '../database/database.constants.js';
 
 @Injectable()
@@ -163,34 +164,53 @@ export class BillingService {
     }
   }
 
-  async getInvoices(headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
+  async getInvoices(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    filters: { status?: string; search?: string; page?: number; limit?: number } = {},
+  ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const { page, limit, offset } = normalizePageQuery(filters);
+    const search = filters.search?.trim() || null;
 
     const result = await this.pool.query(
       `
-        select
-          i.id,
-          i.invoice_no,
-          i.invoice_type,
-          i.subtotal_amount,
-          i.discount_amount,
-          i.tax_amount,
-          i.total_amount,
-          i.status,
-          i.due_at,
-          i.issued_at,
-          i.paid_at,
-          coalesce(sum(case when ip.status = 'paid' then ip.amount else 0 end), 0) as paid_amount
-        from billing.invoices i
-        left join billing.invoice_payments ip on ip.invoice_id = i.id
-        where i.store_id = $1
-        group by i.id
-        order by i.created_at desc
+        select *
+        from (
+          select
+            i.id,
+            i.invoice_no,
+            i.invoice_type,
+            i.subtotal_amount,
+            i.discount_amount,
+            i.tax_amount,
+            i.total_amount,
+            i.status,
+            i.due_at,
+            i.issued_at,
+            i.paid_at,
+            coalesce(sum(case when ip.status = 'paid' then ip.amount else 0 end), 0) as paid_amount,
+            count(*) over()::int as total_count
+          from billing.invoices i
+          left join billing.invoice_payments ip on ip.invoice_id = i.id
+          where i.store_id = $1
+            and ($2::text is null or i.status = $2::text)
+            and (
+              $3::text is null
+              or i.invoice_no ilike '%' || $3::text || '%'
+              or i.invoice_type ilike '%' || $3::text || '%'
+            )
+          group by i.id
+          order by i.created_at desc
+          limit $4
+          offset $5
+        ) invoices
       `,
-      [storeId],
+      [storeId, filters.status ?? null, search, limit, offset],
     );
 
-    return { invoices: result.rows };
+    const { items, total } = stripPaginationTotal(result.rows);
+    return { invoices: items, pagination: { page, limit, total } };
   }
 
   async getInvoice(invoiceId: string, headerStoreId: string | undefined, authContext: StoreAuthContext | null) {

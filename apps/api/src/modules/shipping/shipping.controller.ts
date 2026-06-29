@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 
 import { CurrentAuthContext, CurrentAuthSession } from '../auth/current-auth.decorator.js';
@@ -65,8 +65,17 @@ export class ShippingController {
   getShipments(
     @Headers('x-store-id') headerStoreId: string | undefined,
     @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @Query('status') status?: string,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
-    return this.shippingService.getShipments(headerStoreId, authContext);
+    return this.shippingService.getShipments(headerStoreId, authContext, {
+      status,
+      search,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
   }
 
   @Get('shipments/:shipmentId')

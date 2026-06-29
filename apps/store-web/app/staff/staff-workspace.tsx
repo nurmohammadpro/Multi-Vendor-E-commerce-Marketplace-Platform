@@ -14,6 +14,7 @@ import {
   tableWrapStyle,
   tokenMutedStyle,
 } from '../motocore-theme';
+import { ListPager, type PaginationState, totalPagesFor } from '../list-pager';
 
 type StaffMember = {
   id: string;
@@ -77,11 +78,18 @@ export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) 
   const [message, setMessage] = useState('User management is ready.');
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState(defaultForm);
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState<PaginationState>({ page: 1, limit: 12, total: 0 });
 
-  const refresh = async () => {
-    const payload = await readJson<{ staff: StaffMember[]; capabilities?: StaffCapabilities }>('/api/staff');
+  const refresh = async (nextPage = 1) => {
+    const params = new URLSearchParams({ page: String(nextPage), limit: String(pagination.limit) });
+    if (search.trim()) params.set('search', search.trim());
+    const payload = await readJson<{ staff: StaffMember[]; capabilities?: StaffCapabilities; pagination?: PaginationState }>(`/api/staff?${params.toString()}`);
     setStaff(payload.staff ?? []);
     setCapabilities(payload.capabilities ?? null);
+    setPagination(payload.pagination ?? { page: nextPage, limit: pagination.limit, total: payload.staff?.length ?? 0 });
+    setPage(payload.pagination?.page ?? nextPage);
   };
 
   useEffect(() => {
@@ -116,7 +124,7 @@ export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) 
           note: form.note || undefined,
         }),
       });
-      await refresh();
+      await refresh(1);
       setForm(defaultForm);
       setMessage(`User created successfully.${payload.employeeNumber ? ` Employee ID: ${payload.employeeNumber}.` : ''}`);
     } catch (error) {
@@ -134,7 +142,7 @@ export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      await refresh();
+      await refresh(page);
       setMessage('User access updated.');
     } catch (error) {
       setMessage((error as Error).message);
@@ -153,6 +161,8 @@ export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) 
       </section>
     );
   }
+
+  const totalPages = totalPagesFor(pagination);
 
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
@@ -192,68 +202,85 @@ export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) 
         </div>
       </article>
 
-      {staff.length ? (
-        <div style={tableWrapStyle}>
-          <table style={tableStyle}>
-            <thead>
-              <tr>
-                <th style={tableHeaderCellStyle}>Name</th>
-                <th style={tableHeaderCellStyle}>Role</th>
-                <th style={tableHeaderCellStyle}>Status</th>
-                <th style={tableHeaderCellStyle}>Employee ID</th>
-                <th style={tableHeaderCellStyle}>Contact</th>
-                <th style={tableHeaderCellStyle}>Designation</th>
-                <th style={tableHeaderCellStyle}>Department</th>
-                <th style={tableHeaderCellStyle}>Salary</th>
-                <th style={tableHeaderCellStyle}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {staff.map((member) => (
-                <tr key={member.id}>
-                  <td style={tableCellStyle}>
-                    <div style={{ fontWeight: 600 }}>{member.full_name || member.email || member.phone || member.user_id}</div>
-                    <div style={{ color: '#64748b', marginTop: 4 }}>{member.address_text || 'No address'}</div>
-                  </td>
-                  <td style={tableCellStyle}>{member.role_code}</td>
-                  <td style={tableCellStyle}>{member.status}</td>
-                  <td style={tableCellStyle}>{member.employee_number || '—'}</td>
-                  <td style={tableCellStyle}>
-                    {member.email || '—'}
-                    <div style={{ color: '#64748b', marginTop: 4 }}>{member.phone || '—'}</div>
-                  </td>
-                  <td style={tableCellStyle}>{member.designation || '—'}</td>
-                  <td style={tableCellStyle}>{member.department || '—'}</td>
-                  <td style={tableCellStyle}>{member.monthly_salary || 0}</td>
-                  <td style={tableCellStyle}>
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      {capabilities?.canUpdateManager && member.role_code === 'store_salesman' ? (
-                        <button onClick={() => updateMembership(member.id, { roleCode: 'store_manager' })} style={secondaryButtonStyle} disabled={loading}>Make Manager</button>
-                      ) : null}
-                      {capabilities?.canUpdateManager && member.role_code === 'store_manager' ? (
-                        <button onClick={() => updateMembership(member.id, { roleCode: 'store_salesman' })} style={secondaryButtonStyle} disabled={loading}>Make Salesman</button>
-                      ) : null}
-                      {member.role_code !== 'store_owner' ? (
-                        <button onClick={() => updateMembership(member.id, { status: member.status === 'suspended' ? 'active' : 'suspended' })} style={secondaryButtonStyle} disabled={loading}>
-                          {member.status === 'suspended' ? 'Activate' : 'Suspend'}
-                        </button>
-                      ) : null}
-                      {member.role_code === 'store_manager' && capabilities?.canRemoveManager ? (
-                        <button onClick={() => updateMembership(member.id, { status: 'removed' })} style={secondaryButtonStyle} disabled={loading}>Remove</button>
-                      ) : null}
-                      {member.role_code === 'store_salesman' && capabilities?.canRemoveSalesman ? (
-                        <button onClick={() => updateMembership(member.id, { status: 'removed' })} style={secondaryButtonStyle} disabled={loading}>Remove</button>
-                      ) : null}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <article style={surfaceCardStyle}>
+        <h3 style={{ marginTop: 0 }}>Store Users</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, marginBottom: 12 }}>
+          <input value={search} onChange={(event) => setSearch(event.target.value)} style={fieldStyle} placeholder="Search name, phone, email, employee id, role" />
+          <button onClick={() => void refresh(1)} style={secondaryButtonStyle} disabled={loading}>Search</button>
         </div>
-      ) : (
-        <div style={emptyStateStyle}>No store users are loaded yet.</div>
-      )}
+        {staff.length ? (
+          <>
+            <div style={tableWrapStyle}>
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={tableHeaderCellStyle}>Name</th>
+                    <th style={tableHeaderCellStyle}>Role</th>
+                    <th style={tableHeaderCellStyle}>Status</th>
+                    <th style={tableHeaderCellStyle}>Employee ID</th>
+                    <th style={tableHeaderCellStyle}>Contact</th>
+                    <th style={tableHeaderCellStyle}>Designation</th>
+                    <th style={tableHeaderCellStyle}>Department</th>
+                    <th style={tableHeaderCellStyle}>Salary</th>
+                    <th style={tableHeaderCellStyle}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {staff.map((member) => (
+                    <tr key={member.id}>
+                      <td style={tableCellStyle}>
+                        <div style={{ fontWeight: 600 }}>{member.full_name || member.email || member.phone || member.user_id}</div>
+                        <div style={{ color: '#64748b', marginTop: 4 }}>{member.address_text || 'No address'}</div>
+                      </td>
+                      <td style={tableCellStyle}>{member.role_code}</td>
+                      <td style={tableCellStyle}>{member.status}</td>
+                      <td style={tableCellStyle}>{member.employee_number || '—'}</td>
+                      <td style={tableCellStyle}>
+                        {member.email || '—'}
+                        <div style={{ color: '#64748b', marginTop: 4 }}>{member.phone || '—'}</div>
+                      </td>
+                      <td style={tableCellStyle}>{member.designation || '—'}</td>
+                      <td style={tableCellStyle}>{member.department || '—'}</td>
+                      <td style={tableCellStyle}>{member.monthly_salary || 0}</td>
+                      <td style={tableCellStyle}>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          {capabilities?.canUpdateManager && member.role_code === 'store_salesman' ? (
+                            <button onClick={() => updateMembership(member.id, { roleCode: 'store_manager' })} style={secondaryButtonStyle} disabled={loading}>Make Manager</button>
+                          ) : null}
+                          {capabilities?.canUpdateManager && member.role_code === 'store_manager' ? (
+                            <button onClick={() => updateMembership(member.id, { roleCode: 'store_salesman' })} style={secondaryButtonStyle} disabled={loading}>Make Salesman</button>
+                          ) : null}
+                          {member.role_code !== 'store_owner' ? (
+                            <button onClick={() => updateMembership(member.id, { status: member.status === 'suspended' ? 'active' : 'suspended' })} style={secondaryButtonStyle} disabled={loading}>
+                              {member.status === 'suspended' ? 'Activate' : 'Suspend'}
+                            </button>
+                          ) : null}
+                          {member.role_code === 'store_manager' && capabilities?.canRemoveManager ? (
+                            <button onClick={() => updateMembership(member.id, { status: 'removed' })} style={secondaryButtonStyle} disabled={loading}>Remove</button>
+                          ) : null}
+                          {member.role_code === 'store_salesman' && capabilities?.canRemoveSalesman ? (
+                            <button onClick={() => updateMembership(member.id, { status: 'removed' })} style={secondaryButtonStyle} disabled={loading}>Remove</button>
+                          ) : null}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <ListPager
+              loading={loading}
+              page={page}
+              pagination={pagination}
+              label="user(s)"
+              onPrevious={() => void refresh(Math.max(1, page - 1))}
+              onNext={() => void refresh(Math.min(totalPages, page + 1))}
+            />
+          </>
+        ) : (
+          <div style={emptyStateStyle}>No store users are loaded yet.</div>
+        )}
+      </article>
 
       <article style={surfaceCardStyle}>
         <h3 style={{ marginTop: 0 }}>Operator Notes</h3>

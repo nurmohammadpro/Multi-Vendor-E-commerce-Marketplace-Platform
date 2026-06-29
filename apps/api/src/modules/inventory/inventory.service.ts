@@ -3,6 +3,7 @@ import type { Pool, PoolClient } from 'pg';
 
 import type { AuthSession, StoreAuthContext } from '../auth/auth.types.js';
 import { AuditService } from '../audit/audit.service.js';
+import { normalizePageQuery, stripPaginationTotal } from '../common/pagination.js';
 import { DATABASE_POOL } from '../database/database.constants.js';
 
 @Injectable()
@@ -71,36 +72,51 @@ export class InventoryService {
   async listBalances(
     headerStoreId: string | undefined,
     authContext: StoreAuthContext | null,
-    locationId?: string,
+    filters: { locationId?: string; search?: string; page?: number; limit?: number } = {},
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const { page, limit, offset } = normalizePageQuery(filters);
+    const search = filters.search?.trim() || null;
     const result = await this.pool.query(
       `
-        select
-          b.id,
-          b.location_id,
-          l.name as location_name,
-          b.sku_id,
-          s.sku_code,
-          p.name as product_name,
-          b.on_hand_qty,
-          b.reserved_qty,
-          b.available_qty,
-          b.damaged_qty,
-          b.returned_qty,
-          b.updated_at
-        from inventory.balances b
-        join inventory.locations l on l.id = b.location_id
-        join catalog.skus s on s.id = b.sku_id
-        join catalog.products p on p.id = s.product_id
-        where b.store_id = $1
-          and ($2::uuid is null or b.location_id = $2::uuid)
-        order by p.name asc, s.sku_code asc
+        select *
+        from (
+          select
+            b.id,
+            b.location_id,
+            l.name as location_name,
+            b.sku_id,
+            s.sku_code,
+            p.name as product_name,
+            b.on_hand_qty,
+            b.reserved_qty,
+            b.available_qty,
+            b.damaged_qty,
+            b.returned_qty,
+            b.updated_at,
+            count(*) over()::int as total_count
+          from inventory.balances b
+          join inventory.locations l on l.id = b.location_id
+          join catalog.skus s on s.id = b.sku_id
+          join catalog.products p on p.id = s.product_id
+          where b.store_id = $1
+            and ($2::uuid is null or b.location_id = $2::uuid)
+            and (
+              $3::text is null
+              or p.name ilike '%' || $3::text || '%'
+              or s.sku_code ilike '%' || $3::text || '%'
+              or l.name ilike '%' || $3::text || '%'
+            )
+          order by p.name asc, s.sku_code asc
+          limit $4
+          offset $5
+        ) balances
       `,
-      [storeId, locationId ?? null],
+      [storeId, filters.locationId ?? null, search, limit, offset],
     );
 
-    return { balances: result.rows };
+    const { items, total } = stripPaginationTotal(result.rows);
+    return { balances: items, pagination: { page, limit, total } };
   }
 
   async initializeStock(
@@ -268,41 +284,57 @@ export class InventoryService {
   async listAdjustments(
     headerStoreId: string | undefined,
     authContext: StoreAuthContext | null,
-    status?: string,
+    filters: { status?: string; search?: string; page?: number; limit?: number } = {},
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const { page, limit, offset } = normalizePageQuery(filters);
+    const search = filters.search?.trim() || null;
     const result = await this.pool.query(
       `
-        select
-          sar.id,
-          sar.location_id,
-          l.name as location_name,
-          sar.sku_id,
-          s.sku_code,
-          p.name as product_name,
-          sar.current_qty,
-          sar.requested_qty,
-          sar.qty_delta,
-          sar.reason,
-          sar.status,
-          sar.requested_by,
-          up.full_name as requested_by_name,
-          sar.decided_by,
-          sar.decided_at,
-          sar.created_at
-        from inventory.stock_adjustment_requests sar
-        join inventory.locations l on l.id = sar.location_id
-        join catalog.skus s on s.id = sar.sku_id
-        join catalog.products p on p.id = s.product_id
-        left join identity.user_profiles up on up.user_id = sar.requested_by
-        where sar.store_id = $1
-          and ($2::text is null or sar.status = $2::text)
-        order by sar.created_at desc
+        select *
+        from (
+          select
+            sar.id,
+            sar.location_id,
+            l.name as location_name,
+            sar.sku_id,
+            s.sku_code,
+            p.name as product_name,
+            sar.current_qty,
+            sar.requested_qty,
+            sar.qty_delta,
+            sar.reason,
+            sar.status,
+            sar.requested_by,
+            up.full_name as requested_by_name,
+            sar.decided_by,
+            sar.decided_at,
+            sar.created_at,
+            count(*) over()::int as total_count
+          from inventory.stock_adjustment_requests sar
+          join inventory.locations l on l.id = sar.location_id
+          join catalog.skus s on s.id = sar.sku_id
+          join catalog.products p on p.id = s.product_id
+          left join identity.user_profiles up on up.user_id = sar.requested_by
+          where sar.store_id = $1
+            and ($2::text is null or sar.status = $2::text)
+            and (
+              $3::text is null
+              or p.name ilike '%' || $3::text || '%'
+              or s.sku_code ilike '%' || $3::text || '%'
+              or l.name ilike '%' || $3::text || '%'
+              or sar.reason ilike '%' || $3::text || '%'
+            )
+          order by sar.created_at desc
+          limit $4
+          offset $5
+        ) adjustments
       `,
-      [storeId, status ?? null],
+      [storeId, filters.status ?? null, search, limit, offset],
     );
 
-    return { adjustmentRequests: result.rows };
+    const { items, total } = stripPaginationTotal(result.rows);
+    return { adjustmentRequests: items, pagination: { page, limit, total } };
   }
 
   async approveAdjustment(
@@ -325,38 +357,58 @@ export class InventoryService {
     return this.decideAdjustment(requestId, headerStoreId, authContext, session, 'rejected', payload.decisionNote);
   }
 
-  async getLedger(headerStoreId: string | undefined, authContext: StoreAuthContext | null, skuId?: string) {
+  async getLedger(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    filters: { skuId?: string; search?: string; page?: number; limit?: number } = {},
+  ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const { page, limit, offset } = normalizePageQuery(filters);
+    const search = filters.search?.trim() || null;
     const result = await this.pool.query(
       `
-        select
-          l.id,
-          l.location_id,
-          loc.name as location_name,
-          l.sku_id,
-          s.sku_code,
-          p.name as product_name,
-          l.movement_type,
-          l.qty_delta,
-          l.reference_type,
-          l.reference_id,
-          l.note,
-          l.actor_id,
-          up.full_name as actor_name,
-          l.created_at
-        from inventory.ledger l
-        join inventory.locations loc on loc.id = l.location_id
-        join catalog.skus s on s.id = l.sku_id
-        join catalog.products p on p.id = s.product_id
-        left join identity.user_profiles up on up.user_id = l.actor_id
-        where l.store_id = $1
-          and ($2::uuid is null or l.sku_id = $2::uuid)
-        order by l.created_at desc
+        select *
+        from (
+          select
+            l.id,
+            l.location_id,
+            loc.name as location_name,
+            l.sku_id,
+            s.sku_code,
+            p.name as product_name,
+            l.movement_type,
+            l.qty_delta,
+            l.reference_type,
+            l.reference_id,
+            l.note,
+            l.actor_id,
+            up.full_name as actor_name,
+            l.created_at,
+            count(*) over()::int as total_count
+          from inventory.ledger l
+          join inventory.locations loc on loc.id = l.location_id
+          join catalog.skus s on s.id = l.sku_id
+          join catalog.products p on p.id = s.product_id
+          left join identity.user_profiles up on up.user_id = l.actor_id
+          where l.store_id = $1
+            and ($2::uuid is null or l.sku_id = $2::uuid)
+            and (
+              $3::text is null
+              or p.name ilike '%' || $3::text || '%'
+              or s.sku_code ilike '%' || $3::text || '%'
+              or loc.name ilike '%' || $3::text || '%'
+              or l.movement_type ilike '%' || $3::text || '%'
+            )
+          order by l.created_at desc
+          limit $4
+          offset $5
+        ) ledger
       `,
-      [storeId, skuId ?? null],
+      [storeId, filters.skuId ?? null, search, limit, offset],
     );
 
-    return { ledger: result.rows };
+    const { items, total } = stripPaginationTotal(result.rows);
+    return { ledger: items, pagination: { page, limit, total } };
   }
 
   private async decideAdjustment(

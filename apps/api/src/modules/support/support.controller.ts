@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 
 import { CurrentAuthContext, CurrentAuthSession } from '../auth/current-auth.decorator.js';
@@ -30,8 +30,19 @@ export class SupportController {
   getTickets(
     @Headers('x-store-id') headerStoreId: string | undefined,
     @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @Query('ticketType') ticketType?: string,
+    @Query('status') status?: string,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
-    return this.supportService.getStoreTickets(headerStoreId, authContext);
+    return this.supportService.getStoreTickets(headerStoreId, authContext, {
+      ticketType,
+      status,
+      search,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
   }
 
   @Post('tickets')

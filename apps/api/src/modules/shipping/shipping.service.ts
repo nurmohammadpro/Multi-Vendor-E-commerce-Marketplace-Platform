@@ -3,6 +3,7 @@ import type { Pool, PoolClient } from 'pg';
 
 import type { AuthSession, StoreAuthContext } from '../auth/auth.types.js';
 import { AuditService } from '../audit/audit.service.js';
+import { normalizePageQuery, stripPaginationTotal } from '../common/pagination.js';
 import { DATABASE_POOL } from '../database/database.constants.js';
 
 const allowedStatusTransitions: Record<string, string[]> = {
@@ -151,31 +152,52 @@ export class ShippingService {
     }
   }
 
-  async getShipments(headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
+  async getShipments(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    filters: { status?: string; search?: string; page?: number; limit?: number } = {},
+  ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const { page, limit, offset } = normalizePageQuery(filters);
+    const search = filters.search?.trim() || null;
 
     const result = await this.pool.query(
       `
-        select
-          sh.id,
-          sh.shipment_no,
-          sh.sale_id,
-          sh.customer_name,
-          sh.customer_phone,
-          sh.delivery_fee,
-          sh.tracking_no,
-          sh.status,
-          sh.created_at,
-          cp.name as courier_name
-        from shipping.shipments sh
-        left join shipping.courier_providers cp on cp.id = sh.courier_provider_id
-        where sh.store_id = $1
-        order by sh.created_at desc
+        select *
+        from (
+          select
+            sh.id,
+            sh.shipment_no,
+            sh.sale_id,
+            sh.customer_name,
+            sh.customer_phone,
+            sh.delivery_fee,
+            sh.tracking_no,
+            sh.status,
+            sh.created_at,
+            cp.name as courier_name,
+            count(*) over()::int as total_count
+          from shipping.shipments sh
+          left join shipping.courier_providers cp on cp.id = sh.courier_provider_id
+          where sh.store_id = $1
+            and ($2::text is null or sh.status = $2::text)
+            and (
+              $3::text is null
+              or sh.shipment_no ilike '%' || $3::text || '%'
+              or sh.customer_name ilike '%' || $3::text || '%'
+              or sh.customer_phone ilike '%' || $3::text || '%'
+              or coalesce(cp.name, '') ilike '%' || $3::text || '%'
+            )
+          order by sh.created_at desc
+          limit $4
+          offset $5
+        ) shipments
       `,
-      [storeId],
+      [storeId, filters.status ?? null, search, limit, offset],
     );
 
-    return { shipments: result.rows };
+    const { items, total } = stripPaginationTotal(result.rows);
+    return { shipments: items, pagination: { page, limit, total } };
   }
 
   async getShipment(shipmentId: string, headerStoreId: string | undefined, authContext: StoreAuthContext | null) {

@@ -69,6 +69,12 @@ type InvoiceDetail = {
   }>;
 };
 
+type Pagination = {
+  page: number;
+  limit: number;
+  total: number;
+};
+
 async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
   const response = await fetch(input, init);
   const payload = (await response.json().catch(() => null)) as T | { error?: string } | null;
@@ -92,6 +98,10 @@ export function BillingWorkspace({ canManageBilling }: { canManageBilling: boole
     amount: '',
     referenceNo: '',
   });
+  const [invoiceSearch, setInvoiceSearch] = useState('');
+  const [invoiceStatus, setInvoiceStatus] = useState('');
+  const [invoicePage, setInvoicePage] = useState(1);
+  const [invoicePagination, setInvoicePagination] = useState<Pagination>({ page: 1, limit: 20, total: 0 });
 
   const remainingAmount = selectedInvoice
     ? Math.max(0, Number(selectedInvoice.invoice.total_amount) - Number(selectedInvoice.invoice.paid_amount))
@@ -99,15 +109,23 @@ export function BillingWorkspace({ canManageBilling }: { canManageBilling: boole
   const canUpdateSubscription = Boolean(plans.length && !loading && changeForm.planCode);
   const canPayInvoice = Boolean(selectedInvoice && paymentForm.amount && !loading);
 
-  const refresh = async () => {
+  const refresh = async (nextPage = 1) => {
+    const params = new URLSearchParams({
+      page: String(nextPage),
+      limit: String(invoicePagination.limit),
+    });
+    if (invoiceSearch.trim()) params.set('search', invoiceSearch.trim());
+    if (invoiceStatus) params.set('status', invoiceStatus);
     const [planPayload, subscriptionPayload, invoicePayload] = await Promise.all([
       readJson<{ plans: Plan[] }>('/api/billing/plans'),
       readJson<{ subscription: Subscription }>('/api/billing/subscription'),
-      readJson<{ invoices: Invoice[] }>('/api/billing/invoices'),
+      readJson<{ invoices: Invoice[]; pagination?: Pagination }>(`/api/billing/invoices?${params.toString()}`),
     ]);
     setPlans(planPayload.plans ?? []);
     setSubscription(subscriptionPayload.subscription ?? null);
     setInvoices(invoicePayload.invoices ?? []);
+    setInvoicePagination(invoicePayload.pagination ?? { page: nextPage, limit: invoicePagination.limit, total: invoicePayload.invoices?.length ?? 0 });
+    setInvoicePage(invoicePayload.pagination?.page ?? nextPage);
     if (subscriptionPayload.subscription?.plan_code) {
       setChangeForm((v) => ({ ...v, planCode: subscriptionPayload.subscription?.plan_code || 'basic' }));
     }
@@ -116,6 +134,8 @@ export function BillingWorkspace({ canManageBilling }: { canManageBilling: boole
   useEffect(() => {
     void refresh().catch((error: Error) => setMessage(error.message));
   }, []);
+
+  const totalInvoicePages = Math.max(1, Math.ceil((invoicePagination.total || 0) / (invoicePagination.limit || 20)));
 
   const loadInvoice = async (invoiceId: string) => {
     try {
@@ -262,6 +282,17 @@ export function BillingWorkspace({ canManageBilling }: { canManageBilling: boole
 
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Invoices</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) minmax(160px, 180px) auto', gap: 10, marginBottom: 12 }}>
+            <input value={invoiceSearch} onChange={(event) => setInvoiceSearch(event.target.value)} style={fieldStyle} placeholder="Search invoice no or type" />
+            <select value={invoiceStatus} onChange={(event) => setInvoiceStatus(event.target.value)} style={fieldStyle}>
+              <option value="">All statuses</option>
+              <option value="draft">Draft</option>
+              <option value="issued">Issued</option>
+              <option value="paid">Paid</option>
+              <option value="void">Void</option>
+            </select>
+            <button onClick={() => void refresh(1)} style={secondaryButtonStyle} disabled={loading}>Apply</button>
+          </div>
           {invoices.length ? (
             <div style={tableWrapStyle}>
               <table style={tableStyle}>
@@ -296,6 +327,13 @@ export function BillingWorkspace({ canManageBilling }: { canManageBilling: boole
           ) : (
             <div style={emptyStateStyle}>No invoices are ready for review yet.</div>
           )}
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginTop: 12 }}>
+            <span style={tokenMutedStyle}>Page {invoicePage} of {totalInvoicePages} · {invoicePagination.total} invoice(s)</span>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => void refresh(Math.max(1, invoicePage - 1))} style={secondaryButtonStyle} disabled={loading || invoicePage <= 1}>Previous</button>
+              <button onClick={() => void refresh(Math.min(totalInvoicePages, invoicePage + 1))} style={secondaryButtonStyle} disabled={loading || invoicePage >= totalInvoicePages}>Next</button>
+            </div>
+          </div>
         </article>
       </section>
 

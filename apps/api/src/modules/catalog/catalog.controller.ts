@@ -152,8 +152,15 @@ export class CatalogController {
   listCategories(
     @Headers('x-store-id') headerStoreId: string | undefined,
     @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
-    return this.catalogService.listCategories(headerStoreId, authContext);
+    return this.catalogService.listCategories(headerStoreId, authContext, {
+      search,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
   }
 
   @Post('categories')
@@ -173,8 +180,15 @@ export class CatalogController {
   listBrands(
     @Headers('x-store-id') headerStoreId: string | undefined,
     @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
-    return this.catalogService.listBrands(headerStoreId, authContext);
+    return this.catalogService.listBrands(headerStoreId, authContext, {
+      search,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
   }
 
   @Post('brands')
@@ -212,8 +226,16 @@ export class CatalogController {
     @Headers('x-store-id') headerStoreId: string | undefined,
     @CurrentAuthContext() authContext: StoreAuthContext | null,
     @Query('status') status?: string,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
-    return this.catalogService.listProducts(headerStoreId, authContext, status);
+    return this.catalogService.listProducts(headerStoreId, authContext, {
+      status,
+      search,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
   }
 
   @Get('products/:productId')
@@ -407,8 +429,16 @@ export class CatalogController {
     @Headers('x-store-id') headerStoreId: string | undefined,
     @CurrentAuthContext() authContext: StoreAuthContext | null,
     @Query('status') status?: string,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
-    return this.catalogService.listPriceChangeRequests(headerStoreId, authContext, status);
+    return this.catalogService.listPriceChangeRequests(headerStoreId, authContext, {
+      status,
+      search,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
   }
 
   @Post('price-change-requests')
