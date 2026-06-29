@@ -1,9 +1,17 @@
 import { cookies } from 'next/headers';
 
-const apiBaseUrl =
+function normalizeApiBaseUrl(value: string) {
+  const trimmed = value.trim().replace(/\/+$/, '');
+  if (!trimmed) return '';
+  return trimmed.endsWith('/v1') ? trimmed : `${trimmed}/v1`;
+}
+
+const apiBaseUrl = normalizeApiBaseUrl(
   process.env.API_BASE_URL ||
   process.env.NEXT_PUBLIC_API_BASE_URL ||
-  '';
+  process.env.NEXT_PUBLIC_API_URL ||
+  '',
+);
 
 async function getTokenFromCookies(): Promise<string> {
   try {

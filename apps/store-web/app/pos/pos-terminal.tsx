@@ -72,6 +72,8 @@ type ReprintResponse = {
   receipt?: ReceiptPayload;
 };
 
+const SHOW_SHIFT_CONTROLS = false;
+
 const currency = (value: number) => value.toFixed(2);
 
 const cardStyle = surfaceCardStyle;
@@ -333,7 +335,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
         body: JSON.stringify({
           locationId: selectedLocationId,
           registerId: selectedRegisterId || undefined,
-          shiftId: openShiftId || undefined,
+          shiftId: SHOW_SHIFT_CONTROLS ? openShiftId || undefined : undefined,
           customerName: customerName || undefined,
           customerPhone: customerPhone || undefined,
           customerEmail: customerEmail || undefined,
@@ -496,18 +498,26 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
               </option>
             ))}
           </select>
-          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            <input value={openingCash} onChange={(event) => setOpeningCash(event.target.value)} style={inputStyle} placeholder="Opening cash" />
-            <button onClick={openShift} style={buttonStyle} disabled={loading || Boolean(openShiftId)}>
-              Open Shift
-            </button>
-          </div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            <input value={closingCash} onChange={(event) => setClosingCash(event.target.value)} style={inputStyle} placeholder="Closing cash" />
-            <button onClick={closeShift} style={buttonStyle} disabled={loading || !openShiftId}>
-              Close Shift
-            </button>
-          </div>
+          {SHOW_SHIFT_CONTROLS ? (
+            <>
+              <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                <input value={openingCash} onChange={(event) => setOpeningCash(event.target.value)} style={inputStyle} placeholder="Opening cash" />
+                <button onClick={openShift} style={buttonStyle} disabled={loading || Boolean(openShiftId)}>
+                  Open Shift
+                </button>
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                <input value={closingCash} onChange={(event) => setClosingCash(event.target.value)} style={inputStyle} placeholder="Closing cash" />
+                <button onClick={closeShift} style={buttonStyle} disabled={loading || !openShiftId}>
+                  Close Shift
+                </button>
+              </div>
+            </>
+          ) : (
+            <p style={{ marginTop: 12, marginBottom: 0, color: '#64748b' }}>
+              Shift controls are hidden for now. Register selection stays in place for future cash reconciliation.
+            </p>
+          )}
         </article>
 
         <article style={cardStyle}>

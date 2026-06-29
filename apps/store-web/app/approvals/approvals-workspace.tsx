@@ -42,6 +42,18 @@ type PriceChangeRequest = {
   created_at: string;
 };
 
+type OwnerOverview = {
+  pendingStockApprovals: number;
+  pendingPriceApprovals: number;
+  totalPendingApprovals: number;
+  todayDueCollectionsAmount: string | number;
+  todayDueCollectionsCount: number;
+  todayCashSalesAmount: string | number;
+  todayCashDueCollectionsAmount: string | number;
+  todayCashExpenseAmount: string | number;
+  cashVarianceAmount: string | number;
+};
+
 async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
   const response = await fetch(input, init);
   const payload = (await response.json().catch(() => null)) as T | { error?: string } | null;
@@ -56,6 +68,7 @@ async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
 }
 
 export function ApprovalsWorkspace({ canApproveInventory }: { canApproveInventory: boolean }) {
+  const [overview, setOverview] = useState<OwnerOverview | null>(null);
   const [stockRequests, setStockRequests] = useState<StockAdjustmentRequest[]>([]);
   const [priceRequests, setPriceRequests] = useState<PriceChangeRequest[]>([]);
   const [decisionNote, setDecisionNote] = useState('');
@@ -63,11 +76,13 @@ export function ApprovalsWorkspace({ canApproveInventory }: { canApproveInventor
   const [loading, setLoading] = useState(false);
 
   const refresh = async () => {
-    const [stockPayload, pricePayload] = await Promise.all([
+    const [overviewPayload, stockPayload, pricePayload] = await Promise.all([
+      readJson<{ overview: OwnerOverview }>('/api/store-ops/owner-overview'),
       readJson<{ adjustmentRequests: StockAdjustmentRequest[] }>('/api/inventory/adjustments?status=pending'),
       readJson<{ priceChangeRequests: PriceChangeRequest[] }>('/api/catalog/price-change-requests?status=pending'),
     ]);
 
+    setOverview(overviewPayload.overview ?? null);
     setStockRequests(stockPayload.adjustmentRequests ?? []);
     setPriceRequests(pricePayload.priceChangeRequests ?? []);
   };
@@ -125,6 +140,31 @@ export function ApprovalsWorkspace({ canApproveInventory }: { canApproveInventor
 
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
+      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
+        <article style={surfaceCardStyle}>
+          <div style={{ fontSize: 12, color: '#64748b' }}>Cash variance</div>
+          <div style={{ fontSize: 22, fontWeight: 600 }}>{overview?.cashVarianceAmount ?? '—'}</div>
+          <div style={{ color: '#64748b' }}>
+            Sales {overview?.todayCashSalesAmount ?? 0} + due {overview?.todayCashDueCollectionsAmount ?? 0} - expenses {overview?.todayCashExpenseAmount ?? 0}
+          </div>
+        </article>
+        <article style={surfaceCardStyle}>
+          <div style={{ fontSize: 12, color: '#64748b' }}>Today&apos;s due collections</div>
+          <div style={{ fontSize: 22, fontWeight: 600 }}>{overview?.todayDueCollectionsAmount ?? '—'}</div>
+          <div style={{ color: '#64748b' }}>{overview?.todayDueCollectionsCount ?? 0} collection(s)</div>
+        </article>
+        <article style={surfaceCardStyle}>
+          <div style={{ fontSize: 12, color: '#64748b' }}>Pending stock approvals</div>
+          <div style={{ fontSize: 22, fontWeight: 600 }}>{overview?.pendingStockApprovals ?? '—'}</div>
+          <div style={{ color: '#64748b' }}>Quantity updates waiting on owner action.</div>
+        </article>
+        <article style={surfaceCardStyle}>
+          <div style={{ fontSize: 12, color: '#64748b' }}>Pending price approvals</div>
+          <div style={{ fontSize: 22, fontWeight: 600 }}>{overview?.pendingPriceApprovals ?? '—'}</div>
+          <div style={{ color: '#64748b' }}>Pricing changes waiting on owner action.</div>
+        </article>
+      </section>
+
       <article style={surfaceCardStyle}>
         <h3 style={{ marginTop: 0 }}>Owner decision note</h3>
         <textarea
@@ -133,7 +173,9 @@ export function ApprovalsWorkspace({ canApproveInventory }: { canApproveInventor
           style={{ ...fieldStyle, minHeight: 84 }}
           placeholder="Optional note shared with the manager"
         />
-        <p style={{ marginBottom: 0, marginTop: 10, color: '#475569' }}>{message}</p>
+        <p style={{ marginBottom: 0, marginTop: 10, color: '#475569' }}>
+          {message} Total pending items: {overview?.totalPendingApprovals ?? 0}.
+        </p>
       </article>
 
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 16 }}>

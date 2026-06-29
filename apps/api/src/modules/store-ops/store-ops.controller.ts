@@ -166,6 +166,16 @@ export class StoreOpsController {
     return this.storeOpsService.getDueSalesAging(headerStoreId, authContext);
   }
 
+  @Get('owner-overview')
+  @RequireContext('store')
+  @RequirePermissions('inventory.adjust.approve')
+  getOwnerOverview(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+  ) {
+    return this.storeOpsService.getOwnerOverview(headerStoreId, authContext);
+  }
+
   @Post('due-sales/:saleId/collections')
   @RequireContext('store')
   @RequirePermissions('sales.pos.create')

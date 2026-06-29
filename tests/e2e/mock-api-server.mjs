@@ -641,6 +641,39 @@ const buildDueAgingPayload = () => {
   return buckets;
 };
 
+const buildOwnerOverviewPayload = () => {
+  const today = formatDateOnly(nowIso());
+  const todayDuePayments = state.salePayments.filter((payment) => {
+    if (payment.status !== 'paid' || !payment.paid_at) return false;
+    const sale = state.sales.find((entry) => entry.id === payment.sale_id);
+    return Boolean(sale?.due_date) && formatDateOnly(payment.paid_at) === today;
+  });
+  const todayCashSalesAmount = state.salePayments.reduce((sum, payment) => {
+    if (payment.status !== 'paid' || payment.payment_method !== 'cash' || !payment.paid_at) return sum;
+    const sale = state.sales.find((entry) => entry.id === payment.sale_id);
+    if (!sale?.id || sale.due_date) return sum;
+    return formatDateOnly(payment.paid_at) === today ? sum + Number(payment.amount ?? 0) : sum;
+  }, 0);
+  const todayCashDueCollectionsAmount = todayDuePayments.reduce((sum, payment) => (
+    payment.payment_method === 'cash' ? sum + Number(payment.amount ?? 0) : sum
+  ), 0);
+  const todayCashExpenseAmount = 0;
+
+  return {
+    pendingStockApprovals: state.stockRequests.filter((request) => request.status === 'pending').length,
+    pendingPriceApprovals: state.priceRequests.filter((request) => request.status === 'pending').length,
+    totalPendingApprovals:
+      state.stockRequests.filter((request) => request.status === 'pending').length
+      + state.priceRequests.filter((request) => request.status === 'pending').length,
+    todayDueCollectionsAmount: todayDuePayments.reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0),
+    todayDueCollectionsCount: todayDuePayments.length,
+    todayCashSalesAmount,
+    todayCashDueCollectionsAmount,
+    todayCashExpenseAmount,
+    cashVarianceAmount: todayCashSalesAmount + todayCashDueCollectionsAmount - todayCashExpenseAmount,
+  };
+};
+
 const buildReceiptPayload = (sale) => {
   const location = getLocation(sale.location_id);
   const paidAmount = getPaidAmount(sale.id);
@@ -821,6 +854,10 @@ const server = http.createServer(async (req, res) => {
       },
       balances: buildInventoryBalancePayload(),
     });
+  }
+
+  if (url.pathname === '/v1/store-ops/owner-overview' && req.method === 'GET') {
+    return send(res, 200, { overview: buildOwnerOverviewPayload() });
   }
 
   if (url.pathname === '/v1/stores/store_test' && req.method === 'GET') {

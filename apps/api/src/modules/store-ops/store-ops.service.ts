@@ -203,6 +203,112 @@ export class StoreOpsService {
     return { aging: result.rows[0] ?? null };
   }
 
+  async getOwnerOverview(headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    this.assertAllowedRoles(authContext, ['store_owner']);
+
+    const [
+      pendingStockResult,
+      pendingPriceResult,
+      dueCollectionsResult,
+      cashSalesResult,
+      cashDueCollectionsResult,
+      cashExpensesResult,
+    ] = await Promise.all([
+      this.pool.query<{ pending_stock_count: number }>(
+        `
+          select count(*)::int as pending_stock_count
+          from inventory.stock_adjustment_requests
+          where store_id = $1
+            and status = 'pending'
+        `,
+        [storeId],
+      ),
+      this.pool.query<{ pending_price_count: number }>(
+        `
+          select count(*)::int as pending_price_count
+          from catalog.price_change_requests
+          where store_id = $1
+            and status = 'pending'
+        `,
+        [storeId],
+      ),
+      this.pool.query<{ today_due_collection_amount: string; today_due_collection_count: number }>(
+        `
+          select
+            coalesce(sum(sp.amount) filter (where sp.status = 'paid'), 0) as today_due_collection_amount,
+            count(*) filter (where sp.status = 'paid')::int as today_due_collection_count
+          from sales.sale_payments sp
+          join sales.sales s on s.id = sp.sale_id
+          where s.store_id = $1
+            and s.due_date is not null
+            and sp.paid_at::date = current_date
+        `,
+        [storeId],
+      ),
+      this.pool.query<{ today_cash_sales_amount: string }>(
+        `
+          select
+            coalesce(sum(sp.amount) filter (where sp.status = 'paid'), 0) as today_cash_sales_amount
+          from sales.sale_payments sp
+          join sales.sales s on s.id = sp.sale_id
+          where s.store_id = $1
+            and s.due_date is null
+            and sp.payment_method = 'cash'
+            and sp.paid_at::date = current_date
+        `,
+        [storeId],
+      ),
+      this.pool.query<{ today_cash_due_collection_amount: string }>(
+        `
+          select
+            coalesce(sum(sp.amount) filter (where sp.status = 'paid'), 0) as today_cash_due_collection_amount
+          from sales.sale_payments sp
+          join sales.sales s on s.id = sp.sale_id
+          where s.store_id = $1
+            and s.due_date is not null
+            and sp.payment_method = 'cash'
+            and sp.paid_at::date = current_date
+        `,
+        [storeId],
+      ),
+      this.pool.query<{ today_cash_expense_amount: string }>(
+        `
+          select
+            coalesce(sum(amount), 0) as today_cash_expense_amount
+          from finance.daily_expenses
+          where store_id = $1
+            and payment_method = 'cash'
+            and expense_date = current_date
+            and status <> 'void'
+        `,
+        [storeId],
+      ),
+    ]);
+
+    const pendingStockApprovals = Number(pendingStockResult.rows[0]?.pending_stock_count ?? 0);
+    const pendingPriceApprovals = Number(pendingPriceResult.rows[0]?.pending_price_count ?? 0);
+    const todayDueCollectionsAmount = Number(dueCollectionsResult.rows[0]?.today_due_collection_amount ?? 0);
+    const todayDueCollectionsCount = Number(dueCollectionsResult.rows[0]?.today_due_collection_count ?? 0);
+    const todayCashSalesAmount = Number(cashSalesResult.rows[0]?.today_cash_sales_amount ?? 0);
+    const todayCashDueCollectionsAmount = Number(cashDueCollectionsResult.rows[0]?.today_cash_due_collection_amount ?? 0);
+    const todayCashExpenseAmount = Number(cashExpensesResult.rows[0]?.today_cash_expense_amount ?? 0);
+
+    return {
+      overview: {
+        pendingStockApprovals,
+        pendingPriceApprovals,
+        totalPendingApprovals: pendingStockApprovals + pendingPriceApprovals,
+        todayDueCollectionsAmount,
+        todayDueCollectionsCount,
+        todayCashSalesAmount,
+        todayCashDueCollectionsAmount,
+        todayCashExpenseAmount,
+        cashVarianceAmount: todayCashSalesAmount + todayCashDueCollectionsAmount - todayCashExpenseAmount,
+      },
+    };
+  }
+
   async collectDueSalePayment(
     saleId: string,
     headerStoreId: string | undefined,

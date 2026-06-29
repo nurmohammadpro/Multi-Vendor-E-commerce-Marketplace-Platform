@@ -17,7 +17,7 @@ import { Separator } from '@/components/ui/separator';
 
 const quickActions = [
   { href: '/approvals', title: 'Approvals', detail: 'Review pending stock and price change requests.', icon: ClipboardList, permission: 'inventory.adjust.approve', feature: 'inventory' },
-  { href: '/pos', title: 'Open POS', detail: 'Run paid or due sales, print receipts, and manage shifts.', icon: ShoppingCart, permission: 'sales.pos.create', feature: 'pos' },
+  { href: '/pos', title: 'Open POS', detail: 'Run paid or due sales, print receipts, and capture checkout activity.', icon: ShoppingCart, permission: 'sales.pos.create', feature: 'pos' },
   { href: '/catalog', title: 'Catalog', detail: 'Manage categories, products, variants, and SKUs.', icon: Package, permission: 'catalog.manage', feature: 'catalog' },
   { href: '/inventory', title: 'Stock', detail: 'Review balances, adjustments, and the stock ledger.', icon: ClipboardList, permission: 'inventory.view', feature: 'inventory' },
   { href: '/reports', title: 'Reports', detail: 'Open daily sales, stock snapshots, and exports.', icon: BarChart3, permission: 'sales.report.view', feature: 'reports' },
