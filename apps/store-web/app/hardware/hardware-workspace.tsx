@@ -14,12 +14,7 @@ import {
 } from '@/components/ui/card';
 import { fieldStyle } from '../motocore-theme';
 import { fetchPrintAgentHealth, openCashDrawer, printLabel, printReceipt, type PrintAgentHealth } from '../../lib/print-agent';
-
-const STORAGE_KEYS = {
-  receiptPrinter: 'mvp_hardware_receipt_printer_name',
-  labelPrinter: 'mvp_hardware_label_printer_name',
-  agentUrl: 'mvp_hardware_print_agent_url',
-};
+import { loadWorkstationProfile, saveWorkstationProfile } from '../../lib/workstation-profile';
 
 const windowsSteps = [
   'Install the receipt printer driver in Windows.',
@@ -58,9 +53,10 @@ export function HardwareWorkspace({ canManageSettings }: { canManageSettings: bo
   const effectiveAgentUrl = useMemo(() => agentUrl.trim() || 'http://127.0.0.1:17658', [agentUrl]);
 
   useEffect(() => {
-    setReceiptPrinterName(localStorage.getItem(STORAGE_KEYS.receiptPrinter) || '');
-    setLabelPrinterName(localStorage.getItem(STORAGE_KEYS.labelPrinter) || '');
-    setAgentUrl(localStorage.getItem(STORAGE_KEYS.agentUrl) || 'http://127.0.0.1:17658');
+    const profile = loadWorkstationProfile();
+    setReceiptPrinterName(profile.receiptPrinterName);
+    setLabelPrinterName(profile.labelPrinterName);
+    setAgentUrl(profile.agentUrl);
   }, []);
 
   const refreshHealth = async (baseUrl = effectiveAgentUrl) => {
@@ -92,9 +88,11 @@ export function HardwareWorkspace({ canManageSettings }: { canManageSettings: bo
 
     setSaving(true);
     try {
-      localStorage.setItem(STORAGE_KEYS.receiptPrinter, receiptPrinterName.trim());
-      localStorage.setItem(STORAGE_KEYS.labelPrinter, labelPrinterName.trim());
-      localStorage.setItem(STORAGE_KEYS.agentUrl, effectiveAgentUrl);
+      saveWorkstationProfile({
+        receiptPrinterName,
+        labelPrinterName,
+        agentUrl: effectiveAgentUrl,
+      });
       setMessage('Printer names saved on this workstation.');
       await refreshHealth(effectiveAgentUrl);
     } finally {

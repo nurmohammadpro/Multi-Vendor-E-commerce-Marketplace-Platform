@@ -45,6 +45,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
+import { clearAdminSessionClient } from '../lib/session';
 
 type NavItem = {
   href: string;
@@ -187,6 +188,7 @@ function Header() {
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
     } finally {
+      clearAdminSessionClient();
       if (typeof window !== 'undefined') {
         window.location.href = loginUrl;
       }

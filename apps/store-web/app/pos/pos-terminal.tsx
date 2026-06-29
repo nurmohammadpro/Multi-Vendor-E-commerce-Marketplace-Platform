@@ -11,6 +11,7 @@ import {
   type PrintAgentHealth,
   type ReceiptPayload,
 } from '../../lib/print-agent';
+import { loadWorkstationProfile } from '../../lib/workstation-profile';
 import { fieldStyle, primaryButtonStyle, secondaryButtonStyle, surfaceCardStyle, tokenMutedStyle } from '../motocore-theme';
 
 type Register = {
@@ -109,6 +110,9 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
   const [printHealth, setPrintHealth] = useState<PrintAgentHealth | null>(null);
   const [printError, setPrintError] = useState<string | null>(null);
   const [lastReceiptText, setLastReceiptText] = useState('');
+  const [receiptPrinterName, setReceiptPrinterName] = useState('');
+  const [labelPrinterName, setLabelPrinterName] = useState('');
+  const [agentUrl, setAgentUrl] = useState(DEFAULT_PRINT_AGENT_URL);
 
   useEffect(() => {
     void Promise.all([
@@ -127,7 +131,14 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
   }, []);
 
   useEffect(() => {
-    void fetchPrintAgentHealth()
+    const profile = loadWorkstationProfile();
+    setReceiptPrinterName(profile.receiptPrinterName);
+    setLabelPrinterName(profile.labelPrinterName);
+    setAgentUrl(profile.agentUrl);
+  }, []);
+
+  useEffect(() => {
+    void fetchPrintAgentHealth(agentUrl)
       .then((health) => {
         setPrintHealth(health);
         setPrintError(null);
@@ -136,7 +147,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
         setPrintHealth(null);
         setPrintError(error.message);
       });
-  }, []);
+  }, [agentUrl]);
 
   const selectedRegister = useMemo(
     () => registers.find((register) => register.id === selectedRegisterId) ?? null,
@@ -338,10 +349,10 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
       if (reprintPayload.receipt) {
         setLastReceiptText(JSON.stringify(reprintPayload.receipt, null, 2));
         try {
-          await printReceipt(reprintPayload.receipt);
+          await printReceipt(reprintPayload.receipt, receiptPrinterName || undefined, agentUrl);
           let drawerWarning = '';
           if (Number(total) > 0) {
-            await openCashDrawer({}).catch(() => {
+            await openCashDrawer({ printerName: receiptPrinterName || undefined }, agentUrl).catch(() => {
               drawerWarning = ' The cash drawer did not open.';
             });
           }
@@ -377,7 +388,8 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
         ]
           .filter(Boolean)
           .join('\n'),
-      });
+        printerName: labelPrinterName || undefined,
+      }, agentUrl);
       setMessage(`Label sent for ${sku.sku_code}.`);
     } catch (error) {
       setMessage(`Label print failed: ${(error as Error).message}`);
@@ -386,7 +398,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
 
   const handleOpenDrawer = async () => {
     try {
-      await openCashDrawer({});
+      await openCashDrawer({ printerName: receiptPrinterName || undefined }, agentUrl);
       setMessage('Cash drawer command sent.');
     } catch (error) {
       setMessage(`Cash drawer failed: ${(error as Error).message}`);
@@ -410,11 +422,14 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
         <article style={cardStyle}>
           <h3 style={{ marginTop: 0 }}>Workstation Readiness</h3>
           <p style={tokenMutedStyle}>
-            Print agent URL: <code>{DEFAULT_PRINT_AGENT_URL}</code>
+            Print agent URL: <code>{agentUrl}</code>
           </p>
           <p style={{ marginBottom: 6 }}>Receipt printer: {printHealth?.printerName || 'Not detected'}</p>
           <p style={{ marginTop: 0, marginBottom: 6 }}>
             Label printer: {printHealth?.labelPrinterName || 'Not detected'}
+          </p>
+          <p style={{ marginTop: 0, marginBottom: 6, color: '#64748b' }}>
+            Saved profile: {receiptPrinterName || 'receipt printer not set'} · {labelPrinterName || 'label printer not set'}
           </p>
           <p style={{ margin: 0, color: printError ? '#fca5a5' : '#86efac' }}>
             {printError ? `Unavailable: ${printError}` : 'Silent print agent reachable'}
