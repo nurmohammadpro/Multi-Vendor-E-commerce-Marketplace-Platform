@@ -187,6 +187,7 @@ services:
         APP_DIR: apps/admin-web
         PORT: 3001
         NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://api:4000/v1}
+        NEXT_PUBLIC_LOGIN_APP_URL: ${NEXT_PUBLIC_LOGIN_APP_URL:-http://localhost:3000}
         API_BASE_URL: ${API_BASE_URL:-http://api:4000/v1}
         NEXT_PUBLIC_ADMIN_APP_NAME: ${NEXT_PUBLIC_ADMIN_APP_NAME:-Market One Admin}
         ADMIN_DEMO_BEARER_TOKEN: ${ADMIN_DEMO_BEARER_TOKEN:-}
@@ -204,6 +205,7 @@ services:
       PORT: "3001"
       API_BASE_URL: "${API_BASE_URL:-http://api:4000/v1}"
       NEXT_PUBLIC_API_BASE_URL: "${NEXT_PUBLIC_API_BASE_URL:-http://api:4000/v1}"
+      NEXT_PUBLIC_LOGIN_APP_URL: "${NEXT_PUBLIC_LOGIN_APP_URL:-http://localhost:3000}"
       NEXT_PUBLIC_ADMIN_APP_NAME: "${NEXT_PUBLIC_ADMIN_APP_NAME:-Multi Vendor Admin}"
       ADMIN_DEMO_BEARER_TOKEN: "${ADMIN_DEMO_BEARER_TOKEN:-}"
     depends_on:
@@ -221,6 +223,7 @@ services:
         APP_DIR: apps/store-web
         PORT: 3002
         NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://api:4000/v1}
+        NEXT_PUBLIC_LOGIN_APP_URL: ${NEXT_PUBLIC_LOGIN_APP_URL:-http://localhost:3000}
         API_BASE_URL: ${API_BASE_URL:-http://api:4000/v1}
         NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-Market One BD}
         NEXT_PUBLIC_PRINT_AGENT_URL: ${NEXT_PUBLIC_PRINT_AGENT_URL:-http://127.0.0.1:17658}
@@ -240,6 +243,7 @@ services:
       PORT: "3002"
       API_BASE_URL: "${API_BASE_URL:-http://api:4000/v1}"
       NEXT_PUBLIC_API_BASE_URL: "${NEXT_PUBLIC_API_BASE_URL:-http://api:4000/v1}"
+      NEXT_PUBLIC_LOGIN_APP_URL: "${NEXT_PUBLIC_LOGIN_APP_URL:-http://localhost:3000}"
       NEXT_PUBLIC_APP_NAME: "${NEXT_PUBLIC_APP_NAME:-Multi Vendor Platform}"
       NEXT_PUBLIC_PRINT_AGENT_URL: "${NEXT_PUBLIC_PRINT_AGENT_URL:-http://127.0.0.1:17658}"
       STORE_DEMO_BEARER_TOKEN: "${STORE_DEMO_BEARER_TOKEN:-}"
