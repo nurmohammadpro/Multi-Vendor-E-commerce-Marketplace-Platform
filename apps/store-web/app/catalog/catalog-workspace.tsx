@@ -28,13 +28,15 @@ type Product = {
   brand_name?: string | null;
   sku_count: number;
 };
-type Location = {
-  id: string;
-  code: string;
-  name: string;
-  location_type: string;
-  status: string;
+type VariantRow = {
+  key: string;
+  label: string;
+  skuCode: string;
+  price: string;
+  cost: string;
+  barcode: string;
 };
+
 type VariantOption = {
   id: string;
   code: string;
@@ -166,7 +168,6 @@ export function CatalogWorkspace({
   const [categories, setCategories] = useState<Category[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [locations, setLocations] = useState<Location[]>([]);
   const [selectedProductId, setSelectedProductId] = useState('');
   const [productDetail, setProductDetail] = useState<ProductDetail | null>(null);
   const [loading, setLoading] = useState(false);
@@ -254,24 +255,7 @@ export function CatalogWorkspace({
     baseSalePrice: '',
     priceStep: '',
   });
-  const [quickProductForm, setQuickProductForm] = useState({
-    categoryId: '',
-    brandId: '',
-    productCode: '',
-    name: '',
-    description: '',
-    variantMode: 'none',
-    axisOneName: 'Color',
-    axisOneValues: '',
-    axisTwoName: 'Size',
-    axisTwoValues: '',
-    salePrice: '',
-    costPrice: '',
-    compareAtPrice: '',
-    openingQtyPerSku: '',
-    locationId: '',
-    unitName: '',
-  });
+  const [productVariantRows, setProductVariantRows] = useState<VariantRow[]>([]);
 
   const variantOptionsFlat = useMemo(
     () =>
@@ -318,16 +302,6 @@ export function CatalogWorkspace({
     setProductPage(productPayload.pagination?.page ?? nextProductPage);
   };
 
-  const refreshLocations = async () => {
-    const payload = await readJson<{ locations: Location[] }>('/api/inventory/locations');
-    const nextLocations = payload.locations ?? [];
-    setLocations(nextLocations);
-    setQuickProductForm((current) => ({
-      ...current,
-      locationId: current.locationId || nextLocations[0]?.id || '',
-    }));
-  };
-
   const refreshPriceRequests = async (nextPage = priceRequestPage) => {
     const params = new URLSearchParams({ page: String(nextPage), limit: String(priceRequestPagination.limit) });
     if (priceRequestSearch.trim()) params.set('search', priceRequestSearch.trim());
@@ -350,7 +324,6 @@ export function CatalogWorkspace({
   useEffect(() => {
     void refreshBase(1, 1, 1).catch((error: Error) => setMessage(error.message));
     void refreshPriceRequests(1).catch((error: Error) => setMessage(error.message));
-    void refreshLocations().catch((error: Error) => setMessage(error.message));
   }, []);
 
   useEffect(() => {
@@ -385,6 +358,24 @@ export function CatalogWorkspace({
       priceStep: current.priceStep,
     }));
   }, [productDetail]);
+
+  const deleteEntity = async (kind: 'category' | 'brand' | 'product', id: string, name: string) => {
+    if (!window.confirm(`Delete ${kind} "${name}"? This cannot be undone.`)) return;
+    setLoading(true);
+    try {
+      await readJson(`/api/catalog/${kind}s/${id}`, { method: 'DELETE' });
+      if (kind === 'product' && selectedProductId === id) {
+        setSelectedProductId('');
+        setProductDetail(null);
+      }
+      await refreshBase();
+      setMessage(`${kind.charAt(0).toUpperCase() + kind.slice(1)} "${name}" deleted.`);
+    } catch (error) {
+      setMessage((error as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const createCategory = async () => {
     if (!categoryForm.code || !categoryForm.name) return;
@@ -434,25 +425,69 @@ export function CatalogWorkspace({
     }
   };
 
+  const addProductVariantRow = () => {
+    setProductVariantRows((current) => [
+      ...current,
+      { key: String(Date.now()), label: '', skuCode: '', price: '', cost: '', barcode: '' },
+    ]);
+  };
+
+  const removeProductVariantRow = (key: string) => {
+    setProductVariantRows((current) => current.filter((row) => row.key !== key));
+  };
+
+  const updateProductVariantRow = (key: string, field: keyof VariantRow, value: string) => {
+    setProductVariantRows((current) =>
+      current.map((row) => (row.key === key ? { ...row, [field]: value } : row)),
+    );
+  };
+
   const createProduct = async () => {
     if (!productForm.productCode || !productForm.name) return;
     setLoading(true);
     try {
-      await readJson(editingProductId ? `/api/catalog/products/${editingProductId}` : '/api/catalog/products', {
-        method: editingProductId ? 'PATCH' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          productCode: productForm.productCode,
-          name: productForm.name,
-          description: productForm.description || undefined,
-          categoryId: productForm.categoryId || undefined,
-          brandId: productForm.brandId || undefined,
-          status: 'active',
-          isTrackable: true,
-          hasVariants: productForm.hasVariants,
-          variantMode: productForm.hasVariants ? productForm.variantMode : 'none',
-        }),
-      });
+      const payload = await readJson<{ product?: { id: string }; id?: string }>(
+        editingProductId
+          ? `/api/catalog/products/${editingProductId}`
+          : '/api/catalog/products',
+        {
+          method: editingProductId ? 'PATCH' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            productCode: productForm.productCode,
+            name: productForm.name,
+            description: productForm.description || undefined,
+            categoryId: productForm.categoryId || undefined,
+            brandId: productForm.brandId || undefined,
+            status: 'active',
+            isTrackable: true,
+            hasVariants: productForm.hasVariants,
+            variantMode: productForm.hasVariants ? productForm.variantMode : 'none',
+          }),
+        },
+      );
+
+      const newProductId = payload?.product?.id || payload?.id;
+
+      if (!editingProductId && newProductId && productVariantRows.length > 0) {
+        const liveRows = productVariantRows.filter((r) => r.skuCode.trim());
+        for (const row of liveRows) {
+          await readJson('/api/catalog/skus', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              productId: newProductId,
+              skuCode: row.skuCode,
+              barcode: row.barcode || undefined,
+              variantLabel: row.label || undefined,
+              status: 'active',
+              salePrice: row.price ? Number(row.price) : undefined,
+              costPrice: row.cost ? Number(row.cost) : undefined,
+            }),
+          });
+        }
+      }
+
       await refreshBase();
       setProductForm({
         productCode: '',
@@ -463,8 +498,16 @@ export function CatalogWorkspace({
         hasVariants: false,
         variantMode: 'none',
       });
+      setProductVariantRows([]);
       setEditingProductId('');
-      setMessage(editingProductId ? 'Product updated.' : 'Product created.');
+      const variantCount = productVariantRows.filter((r) => r.skuCode.trim()).length;
+      setMessage(
+        editingProductId
+          ? 'Product updated.'
+          : variantCount > 0
+            ? `Product created with ${variantCount} variant(s).`
+            : 'Product created.',
+      );
     } catch (error) {
       setMessage((error as Error).message);
     } finally {
@@ -698,211 +741,6 @@ export function CatalogWorkspace({
     }
   };
 
-  const buildQuickVariantRows = () => {
-    const axisOneValues = quickProductForm.axisOneValues
-      .split(',')
-      .map((value) => value.trim())
-      .filter(Boolean);
-    const axisTwoValues = quickProductForm.axisTwoValues
-      .split(',')
-      .map((value) => value.trim())
-      .filter(Boolean);
-
-    if (quickProductForm.variantMode === 'none') {
-      return [
-        {
-          label: 'Base product',
-          skuCode: sanitizeSkuToken(quickProductForm.productCode || quickProductForm.name || 'SKU'),
-        },
-      ];
-    }
-
-    if (quickProductForm.variantMode === 'single') {
-      return axisOneValues.map((value) => ({
-        label: `${quickProductForm.axisOneName}: ${value}`,
-        skuCode: sanitizeSkuToken(`${quickProductForm.productCode}-${value}`),
-      }));
-    }
-
-    return axisOneValues.flatMap((axisOne) =>
-      axisTwoValues.map((axisTwo) => ({
-        label: `${quickProductForm.axisOneName}: ${axisOne} / ${quickProductForm.axisTwoName}: ${axisTwo}`,
-        skuCode: sanitizeSkuToken(`${quickProductForm.productCode}-${axisOne}-${axisTwo}`),
-      })),
-    );
-  };
-
-  const quickVariantPreview = useMemo(buildQuickVariantRows, [quickProductForm]);
-
-  const submitQuickProduct = async () => {
-    if (!quickProductForm.productCode.trim() || !quickProductForm.name.trim()) {
-      setMessage('Product code and product name are required.');
-      return;
-    }
-
-    if (quickProductForm.variantMode !== 'none' && quickVariantPreview.length === 0) {
-      setMessage('Enter variant values to generate at least one SKU.');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const createdProduct = await readJson<{ product: { id: string; product_code: string } }>('/api/catalog/products', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          productCode: quickProductForm.productCode,
-          name: quickProductForm.name,
-          description: quickProductForm.description || undefined,
-          categoryId: quickProductForm.categoryId || undefined,
-          brandId: quickProductForm.brandId || undefined,
-          status: 'active',
-          isTrackable: true,
-          hasVariants: quickProductForm.variantMode !== 'none',
-          variantMode: quickProductForm.variantMode,
-        }),
-      });
-
-      const productId = createdProduct.product.id;
-      if (quickProductForm.variantMode !== 'none') {
-        const axisGroups = [
-          {
-            enabled: true,
-            name: quickProductForm.axisOneName,
-            code: sanitizeSkuToken(quickProductForm.axisOneName).toLowerCase(),
-            values: quickProductForm.axisOneValues.split(',').map((value) => value.trim()).filter(Boolean),
-          },
-          {
-            enabled: quickProductForm.variantMode === 'multi',
-            name: quickProductForm.axisTwoName,
-            code: sanitizeSkuToken(quickProductForm.axisTwoName).toLowerCase(),
-            values: quickProductForm.axisTwoValues.split(',').map((value) => value.trim()).filter(Boolean),
-          },
-        ].filter((group) => group.enabled);
-
-        const optionMap = new Map<string, string>();
-
-        for (const group of axisGroups) {
-          const groupPayload = await readJson<{ group: { id: string } }>(`/api/catalog/products/${productId}/variant-groups`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              code: group.code || 'variant',
-              name: group.name,
-              inputType: 'text',
-              sortOrder: axisGroups.findIndex((item) => item.name === group.name),
-              isRequired: true,
-              status: 'active',
-            }),
-          });
-
-          for (const [index, value] of group.values.entries()) {
-            const optionPayload = await readJson<{ option: { id: string } }>(`/api/catalog/products/${productId}/variant-options`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                variantGroupId: groupPayload.group.id,
-                code: sanitizeSkuToken(value) || `option-${index + 1}`,
-                label: value,
-                valueText: value,
-                sortOrder: index,
-                status: 'active',
-              }),
-            });
-            optionMap.set(`${group.name}:${value}`, optionPayload.option.id);
-          }
-        }
-
-        for (const row of quickVariantPreview) {
-          const variantOptionIds = row.label === 'Base product'
-            ? []
-            : row.label.split(' / ').map((chunk) => optionMap.get(chunk)).filter(Boolean) as string[];
-
-          const skuPayload = await readJson<{ sku: { id: string } }>('/api/catalog/skus', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              productId,
-              skuCode: row.skuCode,
-              variantOptionIds,
-              unitName: quickProductForm.unitName || undefined,
-              costPrice: quickProductForm.costPrice ? Number(quickProductForm.costPrice) : null,
-              salePrice: quickProductForm.salePrice ? Number(quickProductForm.salePrice) : undefined,
-              compareAtPrice: quickProductForm.compareAtPrice ? Number(quickProductForm.compareAtPrice) : null,
-              status: 'active',
-            }),
-          });
-
-          if (quickProductForm.locationId && quickProductForm.openingQtyPerSku) {
-            await readJson('/api/inventory/initialize', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                locationId: quickProductForm.locationId,
-                skuId: skuPayload.sku.id,
-                quantity: Number(quickProductForm.openingQtyPerSku),
-                note: 'Opening stock from quick product entry',
-              }),
-            });
-          }
-        }
-      } else {
-        const skuPayload = await readJson<{ sku: { id: string } }>('/api/catalog/skus', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            productId,
-            skuCode: sanitizeSkuToken(quickProductForm.productCode),
-            unitName: quickProductForm.unitName || undefined,
-            costPrice: quickProductForm.costPrice ? Number(quickProductForm.costPrice) : null,
-            salePrice: quickProductForm.salePrice ? Number(quickProductForm.salePrice) : undefined,
-            compareAtPrice: quickProductForm.compareAtPrice ? Number(quickProductForm.compareAtPrice) : null,
-            status: 'active',
-          }),
-        });
-
-        if (quickProductForm.locationId && quickProductForm.openingQtyPerSku) {
-          await readJson('/api/inventory/initialize', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              locationId: quickProductForm.locationId,
-              skuId: skuPayload.sku.id,
-              quantity: Number(quickProductForm.openingQtyPerSku),
-              note: 'Opening stock from quick product entry',
-            }),
-          });
-        }
-      }
-
-      await refreshBase(1, 1, 1);
-      await refreshLocations();
-      setQuickProductForm({
-        categoryId: '',
-        brandId: '',
-        productCode: '',
-        name: '',
-        description: '',
-        variantMode: 'none',
-        axisOneName: 'Color',
-        axisOneValues: '',
-        axisTwoName: 'Size',
-        axisTwoValues: '',
-        salePrice: '',
-        costPrice: '',
-        compareAtPrice: '',
-        openingQtyPerSku: '',
-        locationId: locations[0]?.id || '',
-        unitName: '',
-      });
-      setMessage(`Product pipeline completed with ${quickVariantPreview.length} SKU(s).`);
-    } catch (error) {
-      setMessage((error as Error).message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <section style={{ display: 'grid', gap: 20 }}>
       {canManageCatalog ? (
@@ -942,6 +780,89 @@ export function CatalogWorkspace({
               <option value="single">Single Variant Axis</option>
               <option value="multi">Multi Variant Axes</option>
             </select>
+            {productForm.hasVariants ? (
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>Variant Rows</div>
+                  <button onClick={addProductVariantRow} style={{ ...buttonStyle, fontSize: 12, padding: '4px 10px' }} disabled={loading}>
+                    + Add Row
+                  </button>
+                </div>
+                {productVariantRows.length > 0 ? (
+                  <div style={tableWrapStyle}>
+                    <table style={tableStyle}>
+                      <thead>
+                        <tr>
+                          <th style={tableHeaderCellStyle}>Label</th>
+                          <th style={tableHeaderCellStyle}>SKU Code</th>
+                          <th style={tableHeaderCellStyle}>Price</th>
+                          <th style={tableHeaderCellStyle}>Cost</th>
+                          <th style={tableHeaderCellStyle}>Barcode</th>
+                          <th style={tableHeaderCellStyle} />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {productVariantRows.map((row) => (
+                          <tr key={row.key}>
+                            <td style={tableCellStyle}>
+                              <input
+                                value={row.label}
+                                onChange={(e) => updateProductVariantRow(row.key, 'label', e.target.value)}
+                                style={{ ...inputStyle, width: '100%' }}
+                                placeholder="e.g. Red / XL"
+                              />
+                            </td>
+                            <td style={tableCellStyle}>
+                              <input
+                                value={row.skuCode}
+                                onChange={(e) => updateProductVariantRow(row.key, 'skuCode', e.target.value)}
+                                style={{ ...inputStyle, width: '100%' }}
+                                placeholder="SKU code"
+                              />
+                            </td>
+                            <td style={tableCellStyle}>
+                              <input
+                                value={row.price}
+                                onChange={(e) => updateProductVariantRow(row.key, 'price', e.target.value)}
+                                style={{ ...inputStyle, width: 80 }}
+                                placeholder="0.00"
+                              />
+                            </td>
+                            <td style={tableCellStyle}>
+                              <input
+                                value={row.cost}
+                                onChange={(e) => updateProductVariantRow(row.key, 'cost', e.target.value)}
+                                style={{ ...inputStyle, width: 80 }}
+                                placeholder="0.00"
+                              />
+                            </td>
+                            <td style={tableCellStyle}>
+                              <input
+                                value={row.barcode}
+                                onChange={(e) => updateProductVariantRow(row.key, 'barcode', e.target.value)}
+                                style={{ ...inputStyle, width: '100%' }}
+                                placeholder="Barcode"
+                              />
+                            </td>
+                            <td style={tableCellStyle}>
+                              <button
+                                onClick={() => removeProductVariantRow(row.key)}
+                                style={{ ...buttonStyle, color: '#dc2626', borderColor: '#dc2626', fontSize: 12, padding: '2px 8px' }}
+                                disabled={loading}
+                              >
+                                X
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div style={{ color: '#94a3b8', fontSize: 13 }}>No variant rows added yet. Click "Add Row" to add variants with pricing inline.</div>
+                )}
+              </div>
+            ) : null}
             <button onClick={createProduct} style={buttonStyle} disabled={loading}>{editingProductId ? 'Save Product' : 'Create Product'}</button>
           </article>
         </section>
@@ -953,115 +874,6 @@ export function CatalogWorkspace({
           </p>
         </article>
       )}
-
-      {canManageCatalog ? (
-        <article style={cardStyle}>
-          <div style={{ display: 'grid', gap: 6, marginBottom: 16 }}>
-            <h3 style={{ marginTop: 0, marginBottom: 0 }}>Quick Product Entry</h3>
-            <p style={{ ...tokenMutedStyle, marginTop: 0 }}>
-              One flow: create the product, generate its SKU set, attach default prices, and post opening stock without jumping across separate panels.
-            </p>
-          </div>
-
-          <div style={{ display: 'grid', gap: 16 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
-              <input value={quickProductForm.productCode} onChange={(event) => setQuickProductForm((current) => ({ ...current, productCode: event.target.value }))} style={inputStyle} placeholder="Quick product code" />
-              <input value={quickProductForm.name} onChange={(event) => setQuickProductForm((current) => ({ ...current, name: event.target.value }))} style={inputStyle} placeholder="Quick product name" />
-              <select value={quickProductForm.categoryId} onChange={(event) => setQuickProductForm((current) => ({ ...current, categoryId: event.target.value }))} style={inputStyle}>
-                <option value="">Choose category</option>
-                {categories.filter((category) => category.status === 'active').map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-              </select>
-              <select value={quickProductForm.brandId} onChange={(event) => setQuickProductForm((current) => ({ ...current, brandId: event.target.value }))} style={inputStyle}>
-                <option value="">Choose brand</option>
-                {brands.filter((brand) => brand.status === 'active').map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
-              </select>
-            </div>
-
-            <textarea value={quickProductForm.description} onChange={(event) => setQuickProductForm((current) => ({ ...current, description: event.target.value }))} style={{ ...inputStyle, minHeight: 72 }} placeholder="Quick notes" />
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
-              <select value={quickProductForm.variantMode} onChange={(event) => setQuickProductForm((current) => ({ ...current, variantMode: event.target.value }))} style={inputStyle}>
-                <option value="none">Simple product</option>
-                <option value="single">One variant axis</option>
-                <option value="multi">Two variant axes</option>
-              </select>
-              <input value={quickProductForm.salePrice} onChange={(event) => setQuickProductForm((current) => ({ ...current, salePrice: event.target.value }))} style={inputStyle} placeholder="Sale price" />
-              <input value={quickProductForm.costPrice} onChange={(event) => setQuickProductForm((current) => ({ ...current, costPrice: event.target.value }))} style={inputStyle} placeholder="Cost price" />
-              <input value={quickProductForm.compareAtPrice} onChange={(event) => setQuickProductForm((current) => ({ ...current, compareAtPrice: event.target.value }))} style={inputStyle} placeholder="Compare at price" />
-              <input value={quickProductForm.openingQtyPerSku} onChange={(event) => setQuickProductForm((current) => ({ ...current, openingQtyPerSku: event.target.value }))} style={inputStyle} placeholder="Opening qty per SKU" />
-              <select value={quickProductForm.locationId} onChange={(event) => setQuickProductForm((current) => ({ ...current, locationId: event.target.value }))} style={inputStyle}>
-                <option value="">Opening stock location</option>
-                {locations.map((location) => <option key={location.id} value={location.id}>{location.code} — {location.name}</option>)}
-              </select>
-            </div>
-
-            {quickProductForm.variantMode !== 'none' ? (
-              <div style={{ display: 'grid', gridTemplateColumns: quickProductForm.variantMode === 'multi' ? '1fr 1fr' : '1fr', gap: 12 }}>
-                <article style={{ ...cardStyle, padding: 14 }}>
-                  <h4 style={{ marginTop: 0, marginBottom: 10 }}>Axis One</h4>
-                  <input value={quickProductForm.axisOneName} onChange={(event) => setQuickProductForm((current) => ({ ...current, axisOneName: event.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Axis name (e.g. Color)" />
-                  <textarea value={quickProductForm.axisOneValues} onChange={(event) => setQuickProductForm((current) => ({ ...current, axisOneValues: event.target.value }))} style={{ ...inputStyle, minHeight: 76 }} placeholder="Comma separated values, e.g. Black, White, Blue" />
-                </article>
-                {quickProductForm.variantMode === 'multi' ? (
-                  <article style={{ ...cardStyle, padding: 14 }}>
-                    <h4 style={{ marginTop: 0, marginBottom: 10 }}>Axis Two</h4>
-                    <input value={quickProductForm.axisTwoName} onChange={(event) => setQuickProductForm((current) => ({ ...current, axisTwoName: event.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Axis name (e.g. Size)" />
-                    <textarea value={quickProductForm.axisTwoValues} onChange={(event) => setQuickProductForm((current) => ({ ...current, axisTwoValues: event.target.value }))} style={{ ...inputStyle, minHeight: 76 }} placeholder="Comma separated values, e.g. S, M, L" />
-                  </article>
-                ) : null}
-              </div>
-            ) : null}
-
-            <div style={{ display: 'grid', gap: 10 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>Generated SKU preview</div>
-              <div style={tableWrapStyle}>
-                <table style={tableStyle}>
-                  <thead>
-                    <tr>
-                      <th style={tableHeaderCellStyle}>Label</th>
-                      <th style={tableHeaderCellStyle}>SKU Code</th>
-                      <th style={tableHeaderCellStyle}>Default Sale</th>
-                      <th style={tableHeaderCellStyle}>Opening Qty</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {quickVariantPreview.map((row) => (
-                      <tr key={row.skuCode}>
-                        <td style={tableCellStyle}>{row.label}</td>
-                        <td style={tableCellStyle}>{row.skuCode}</td>
-                        <td style={tableCellStyle}>{quickProductForm.salePrice || '—'}</td>
-                        <td style={tableCellStyle}>{quickProductForm.openingQtyPerSku || '0'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <button onClick={submitQuickProduct} style={buttonStyle} disabled={loading}>Run Quick Pipeline</button>
-              <button
-                onClick={() => setQuickProductForm((current) => ({
-                  ...current,
-                  productCode: '',
-                  name: '',
-                  description: '',
-                  salePrice: '',
-                  costPrice: '',
-                  compareAtPrice: '',
-                  openingQtyPerSku: '',
-                  axisOneValues: '',
-                  axisTwoValues: '',
-                }))}
-                style={buttonStyle}
-                disabled={loading}
-              >
-                Clear
-              </button>
-            </div>
-          </div>
-        </article>
-      ) : null}
 
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
         <article style={cardStyle}>
@@ -1108,6 +920,12 @@ export function CatalogWorkspace({
                               style={buttonStyle}
                             >
                               {category.status === 'inactive' ? 'Activate' : 'Archive'}
+                            </button>
+                            <button
+                              onClick={() => void deleteEntity('category', category.id, category.name)}
+                              style={{ ...buttonStyle, color: '#dc2626', borderColor: '#dc2626' }}
+                            >
+                              Delete
                             </button>
                           </div>
                         </td>
@@ -1170,6 +988,12 @@ export function CatalogWorkspace({
                               style={buttonStyle}
                             >
                               {brand.status === 'inactive' ? 'Activate' : 'Archive'}
+                            </button>
+                            <button
+                              onClick={() => void deleteEntity('brand', brand.id, brand.name)}
+                              style={{ ...buttonStyle, color: '#dc2626', borderColor: '#dc2626' }}
+                            >
+                              Delete
                             </button>
                           </div>
                         </td>
@@ -1267,6 +1091,15 @@ export function CatalogWorkspace({
                               style={buttonStyle}
                             >
                               {product.status === 'archived' ? 'Activate' : 'Archive'}
+                            </button>
+                            <button
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                void deleteEntity('product', product.id, product.name);
+                              }}
+                              style={{ ...buttonStyle, color: '#dc2626', borderColor: '#dc2626' }}
+                            >
+                              Delete
                             </button>
                           </div>
                         </td>

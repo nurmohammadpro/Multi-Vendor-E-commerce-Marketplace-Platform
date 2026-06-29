@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 
 import { CurrentAuthContext, CurrentAuthSession } from '../auth/current-auth.decorator.js';
@@ -206,6 +206,17 @@ export class CatalogController {
     );
   }
 
+  @Delete('categories/:categoryId')
+  @RequireContext('store')
+  @RequirePermissions('catalog.manage')
+  deleteCategory(
+    @Param('categoryId') categoryId: string,
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+  ) {
+    return this.catalogService.deleteCategory(categoryId, headerStoreId, authContext);
+  }
+
   @Get('brands')
   @RequireContext('store')
   @RequirePermissions('inventory.view')
@@ -249,6 +260,17 @@ export class CatalogController {
       authContext,
       updateBrandSchema.parse(payload),
     );
+  }
+
+  @Delete('brands/:brandId')
+  @RequireContext('store')
+  @RequirePermissions('catalog.manage')
+  deleteBrand(
+    @Param('brandId') brandId: string,
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+  ) {
+    return this.catalogService.deleteBrand(brandId, headerStoreId, authContext);
   }
 
   @Get('skus/search')
@@ -332,6 +354,17 @@ export class CatalogController {
       session,
       updateProductSchema.parse(payload),
     );
+  }
+
+  @Delete('products/:productId')
+  @RequireContext('store')
+  @RequirePermissions('catalog.manage')
+  deleteProduct(
+    @Param('productId') productId: string,
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+  ) {
+    return this.catalogService.deleteProduct(productId, headerStoreId, authContext);
   }
 
   @Get('products/:productId/variants')

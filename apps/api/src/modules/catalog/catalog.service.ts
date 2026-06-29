@@ -76,6 +76,29 @@ export class CatalogService {
     return { categories: items, pagination: { page, limit, total } };
   }
 
+  async deleteCategory(
+    categoryId: string,
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const result = await this.pool.query(
+      `
+        delete from catalog.categories
+        where id = $1
+          and tenant_id = (select tenant_id from store.stores where id = $2)
+        returning id
+      `,
+      [categoryId, storeId],
+    );
+
+    if (!result.rows[0]) {
+      throw new NotFoundException('Category not found');
+    }
+
+    return { ok: true };
+  }
+
   async createCategory(
     headerStoreId: string | undefined,
     authContext: StoreAuthContext | null,
@@ -213,6 +236,29 @@ export class CatalogService {
 
     const { items, total } = stripPaginationTotal(result.rows);
     return { brands: items, pagination: { page, limit, total } };
+  }
+
+  async deleteBrand(
+    brandId: string,
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const result = await this.pool.query(
+      `
+        delete from catalog.brands
+        where id = $1
+          and tenant_id = (select tenant_id from store.stores where id = $2)
+        returning id
+      `,
+      [brandId, storeId],
+    );
+
+    if (!result.rows[0]) {
+      throw new NotFoundException('Brand not found');
+    }
+
+    return { ok: true };
   }
 
   async createBrand(
@@ -581,6 +627,29 @@ export class CatalogService {
       groups: groupsResult.rows,
       skus: skuResult.rows,
     };
+  }
+
+  async deleteProduct(
+    productId: string,
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const result = await this.pool.query(
+      `
+        delete from catalog.products
+        where id = $1
+          and store_id = $2
+        returning id
+      `,
+      [productId, storeId],
+    );
+
+    if (!result.rows[0]) {
+      throw new NotFoundException('Product not found');
+    }
+
+    return { ok: true };
   }
 
   async createProduct(
