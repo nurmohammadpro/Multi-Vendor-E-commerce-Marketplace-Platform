@@ -46,11 +46,14 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import type { StoreConsoleAccess } from '../lib/access';
+import { canAccessStoreFeature, type StoreConsoleFeature } from '../lib/store-plan';
+import { clearStoreSessionClient } from '../lib/session';
 
 type NavItem = {
   href: string;
   label: string;
   permission?: string;
+  feature?: StoreConsoleFeature;
 };
 
 type WorkspaceShellProps = {
@@ -67,12 +70,19 @@ const iconMap: Record<string, typeof LayoutDashboard> = {
   '/catalog': Package,
   '/inventory': ClipboardList,
   '/pos': ShoppingCart,
+  '/customers': Users,
   '/shipping': Truck,
   '/reports': BarChart3,
+  '/disputes': Truck,
+  '/support': LifeBuoy,
   '/billing': CreditCard,
   '/session': LogIn,
   '/staff': Users,
+  '/expenses': ClipboardList,
+  '/payroll': Users,
+  '/banking': CreditCard,
   '/settings': Settings,
+  '/hardware': Wrench,
 };
 
 export function WorkspaceShell({ navItems, title, badge, children, access }: WorkspaceShellProps) {
@@ -107,7 +117,11 @@ function AppSidebar({
   access: StoreConsoleAccess;
 }) {
   const { setOpen, isMobile } = useSidebar();
-  const visibleNavItems = navItems.filter((item) => !item.permission || access.permissions.includes(item.permission));
+  const visibleNavItems = navItems.filter(
+    (item) =>
+      (!item.permission || access.permissions.includes(item.permission))
+      && canAccessStoreFeature(access, item.feature),
+  );
 
   return (
     <Sidebar collapsible="icon" variant="sidebar" className="bg-sidebar border-r border-sidebar-border">
@@ -121,6 +135,12 @@ function AppSidebar({
               <span className="font-semibold text-sm leading-tight">{title}</span>
               <span className="text-[10px] text-muted-foreground">{badge}</span>
             </div>
+          </div>
+        </div>
+        <div className="px-2 pb-2 group-data-[collapsible=icon]:hidden">
+          <div className="rounded-md border bg-muted/40 px-2.5 py-2 text-[11px] text-muted-foreground">
+            <div className="font-medium text-foreground">{access.planName} plan</div>
+            <div>{access.storeName || 'Store workspace'}</div>
           </div>
         </div>
       </SidebarHeader>
@@ -194,6 +214,7 @@ function Header({ access }: { access: StoreConsoleAccess }) {
       await fetch('/api/auth/logout', { method: 'POST' });
     } finally {
       if (typeof window !== 'undefined') {
+        clearStoreSessionClient();
         window.location.href = loginUrl;
       }
     }
@@ -220,6 +241,9 @@ function Header({ access }: { access: StoreConsoleAccess }) {
       <div className="flex items-center gap-1.5 sm:gap-2">
         <span className="hidden sm:inline-flex items-center rounded-md border bg-muted px-2 py-1 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
           {access.role === 'unknown' ? 'Limited access' : `${access.role} access`}
+        </span>
+        <span className="hidden md:inline-flex items-center rounded-md border bg-muted px-2 py-1 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+          {access.planName}
         </span>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { Button } from '@/components/ui/button';
+import { clearStoreSessionClient } from '../../lib/session';
 
 export function LogoutButton() {
   const router = useRouter();
@@ -14,7 +15,8 @@ export function LogoutButton() {
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
     } finally {
-      router.replace('/');
+      clearStoreSessionClient();
+      router.replace(process.env.NEXT_PUBLIC_LOGIN_APP_URL || '/');
       router.refresh();
       setLoading(false);
     }

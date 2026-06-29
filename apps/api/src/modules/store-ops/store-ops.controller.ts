@@ -1,0 +1,330 @@
+import { Body, Controller, Get, Headers, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { z } from 'zod';
+
+import { CurrentAuthContext, CurrentAuthSession } from '../auth/current-auth.decorator.js';
+import type { AuthSession, StoreAuthContext } from '../auth/auth.types.js';
+import { RequireContext, RequirePermissions } from '../rbac/rbac.decorators.js';
+import { PermissionsGuard } from '../rbac/permissions.guard.js';
+import { StoreOpsService } from './store-ops.service.js';
+
+const collectDuePaymentSchema = z.object({
+  amount: z.number().positive(),
+  paymentMethod: z.enum(['cash', 'card', 'mfs', 'bank_transfer']),
+  referenceNo: z.string().max(100).optional(),
+  note: z.string().max(500).optional(),
+});
+
+const expenseSchema = z.object({
+  expenseDate: z.string().date(),
+  categoryName: z.string().min(1).max(120),
+  title: z.string().min(1).max(200),
+  amount: z.number().nonnegative(),
+  paymentMethod: z.enum(['cash', 'card', 'mfs', 'bank_transfer']).default('cash'),
+  note: z.string().max(500).optional(),
+  status: z.enum(['draft', 'approved', 'void']).default('draft'),
+});
+
+const expenseUpdateSchema = expenseSchema.partial();
+
+const employeeSchema = z.object({
+  fullName: z.string().min(1).max(200),
+  mobileNo: z.string().max(30).optional(),
+  email: z.string().email().optional(),
+  roleCode: z.string().min(1).max(50),
+  employmentStatus: z.enum(['active', 'inactive', 'terminated']).default('active'),
+  joinDate: z.string().date(),
+  monthlySalary: z.number().nonnegative().default(0),
+  note: z.string().max(500).optional(),
+});
+
+const employeeUpdateSchema = employeeSchema.partial().extend({
+  mobileNo: z.string().max(30).nullable().optional(),
+  email: z.string().email().nullable().optional(),
+  note: z.string().max(500).nullable().optional(),
+});
+
+const payrollRunSchema = z.object({
+  periodStart: z.string().date(),
+  periodEnd: z.string().date(),
+  status: z.enum(['draft', 'approved', 'paid']).default('draft'),
+  note: z.string().max(500).optional(),
+  items: z.array(z.object({
+    employeeId: z.string().uuid(),
+    grossAmount: z.number().nonnegative(),
+    bonusAmount: z.number().nonnegative().default(0),
+    deductionAmount: z.number().nonnegative().default(0),
+    note: z.string().max(500).optional(),
+  })).min(1),
+});
+
+const payrollRunUpdateSchema = z.object({
+  status: z.enum(['draft', 'approved', 'paid']).optional(),
+  note: z.string().max(500).nullable().optional(),
+});
+
+const bankAccountSchema = z.object({
+  accountName: z.string().min(1).max(150),
+  bankName: z.string().min(1).max(150),
+  accountNumber: z.string().min(1).max(80),
+  openingBalance: z.number().nonnegative().default(0),
+  currentBalance: z.number().nonnegative().default(0),
+  status: z.enum(['active', 'inactive']).default('active'),
+  note: z.string().max(500).optional(),
+});
+
+const bankAccountUpdateSchema = bankAccountSchema.partial().extend({
+  note: z.string().max(500).nullable().optional(),
+});
+
+const bankEntrySchema = z.object({
+  bankAccountId: z.string().uuid(),
+  entryDate: z.string().date(),
+  entryType: z.enum(['credit', 'debit']),
+  sourceType: z.enum(['sale', 'expense', 'deposit', 'adjustment']),
+  referenceNo: z.string().max(100).optional(),
+  amount: z.number().nonnegative(),
+  status: z.enum(['pending', 'matched', 'flagged']).default('pending'),
+  note: z.string().max(500).optional(),
+});
+
+const bankEntryUpdateSchema = bankEntrySchema.partial().extend({
+  referenceNo: z.string().max(100).nullable().optional(),
+  note: z.string().max(500).nullable().optional(),
+});
+
+@Controller('store-ops')
+@UseGuards(PermissionsGuard)
+export class StoreOpsController {
+  constructor(private readonly storeOpsService: StoreOpsService) {}
+
+  @Get('customers')
+  @RequireContext('store')
+  @RequirePermissions('sales.report.view')
+  listCustomers(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @Query('query') query: string | undefined,
+  ) {
+    return this.storeOpsService.listCustomers(headerStoreId, authContext, query);
+  }
+
+  @Get('customers/:customerId')
+  @RequireContext('store')
+  @RequirePermissions('sales.report.view')
+  getCustomer(
+    @Param('customerId') customerId: string,
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+  ) {
+    return this.storeOpsService.getCustomer(customerId, headerStoreId, authContext);
+  }
+
+  @Get('due-sales')
+  @RequireContext('store')
+  @RequirePermissions('sales.report.view')
+  listDueSales(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+  ) {
+    return this.storeOpsService.listDueSales(headerStoreId, authContext);
+  }
+
+  @Get('due-sales/aging')
+  @RequireContext('store')
+  @RequirePermissions('sales.report.view')
+  getDueSalesAging(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+  ) {
+    return this.storeOpsService.getDueSalesAging(headerStoreId, authContext);
+  }
+
+  @Post('due-sales/:saleId/collections')
+  @RequireContext('store')
+  @RequirePermissions('sales.pos.create')
+  collectDueSalePayment(
+    @Param('saleId') saleId: string,
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @CurrentAuthSession() session: AuthSession | null,
+    @Body() payload: unknown,
+  ) {
+    return this.storeOpsService.collectDueSalePayment(
+      saleId,
+      headerStoreId,
+      authContext,
+      session,
+      collectDuePaymentSchema.parse(payload),
+    );
+  }
+
+  @Get('expenses')
+  @RequireContext('store')
+  @RequirePermissions('inventory.view')
+  listExpenses(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+  ) {
+    return this.storeOpsService.listExpenses(headerStoreId, authContext);
+  }
+
+  @Post('expenses')
+  @RequireContext('store')
+  @RequirePermissions('store.settings.manage')
+  createExpense(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @CurrentAuthSession() session: AuthSession | null,
+    @Body() payload: unknown,
+  ) {
+    return this.storeOpsService.createExpense(headerStoreId, authContext, session, expenseSchema.parse(payload));
+  }
+
+  @Patch('expenses/:expenseId')
+  @RequireContext('store')
+  @RequirePermissions('store.settings.manage')
+  updateExpense(
+    @Param('expenseId') expenseId: string,
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @Body() payload: unknown,
+  ) {
+    return this.storeOpsService.updateExpense(expenseId, headerStoreId, authContext, expenseUpdateSchema.parse(payload));
+  }
+
+  @Get('payroll/employees')
+  @RequireContext('store')
+  @RequirePermissions('sales.report.view')
+  listEmployees(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+  ) {
+    return this.storeOpsService.listEmployees(headerStoreId, authContext);
+  }
+
+  @Post('payroll/employees')
+  @RequireContext('store')
+  @RequirePermissions('store.settings.manage')
+  createEmployee(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @CurrentAuthSession() session: AuthSession | null,
+    @Body() payload: unknown,
+  ) {
+    return this.storeOpsService.createEmployee(headerStoreId, authContext, session, employeeSchema.parse(payload));
+  }
+
+  @Patch('payroll/employees/:employeeId')
+  @RequireContext('store')
+  @RequirePermissions('store.settings.manage')
+  updateEmployee(
+    @Param('employeeId') employeeId: string,
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @Body() payload: unknown,
+  ) {
+    return this.storeOpsService.updateEmployee(employeeId, headerStoreId, authContext, employeeUpdateSchema.parse(payload));
+  }
+
+  @Get('payroll/runs')
+  @RequireContext('store')
+  @RequirePermissions('sales.report.view')
+  listPayrollRuns(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+  ) {
+    return this.storeOpsService.listPayrollRuns(headerStoreId, authContext);
+  }
+
+  @Post('payroll/runs')
+  @RequireContext('store')
+  @RequirePermissions('store.settings.manage')
+  createPayrollRun(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @CurrentAuthSession() session: AuthSession | null,
+    @Body() payload: unknown,
+  ) {
+    return this.storeOpsService.createPayrollRun(headerStoreId, authContext, session, payrollRunSchema.parse(payload));
+  }
+
+  @Patch('payroll/runs/:payrollRunId')
+  @RequireContext('store')
+  @RequirePermissions('store.settings.manage')
+  updatePayrollRun(
+    @Param('payrollRunId') payrollRunId: string,
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @Body() payload: unknown,
+  ) {
+    return this.storeOpsService.updatePayrollRun(payrollRunId, headerStoreId, authContext, payrollRunUpdateSchema.parse(payload));
+  }
+
+  @Get('banking/accounts')
+  @RequireContext('store')
+  @RequirePermissions('sales.report.view')
+  listBankAccounts(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+  ) {
+    return this.storeOpsService.listBankAccounts(headerStoreId, authContext);
+  }
+
+  @Post('banking/accounts')
+  @RequireContext('store')
+  @RequirePermissions('store.settings.manage')
+  createBankAccount(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @CurrentAuthSession() session: AuthSession | null,
+    @Body() payload: unknown,
+  ) {
+    return this.storeOpsService.createBankAccount(headerStoreId, authContext, session, bankAccountSchema.parse(payload));
+  }
+
+  @Patch('banking/accounts/:bankAccountId')
+  @RequireContext('store')
+  @RequirePermissions('store.settings.manage')
+  updateBankAccount(
+    @Param('bankAccountId') bankAccountId: string,
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @Body() payload: unknown,
+  ) {
+    return this.storeOpsService.updateBankAccount(bankAccountId, headerStoreId, authContext, bankAccountUpdateSchema.parse(payload));
+  }
+
+  @Get('banking/entries')
+  @RequireContext('store')
+  @RequirePermissions('sales.report.view')
+  listBankEntries(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+  ) {
+    return this.storeOpsService.listBankEntries(headerStoreId, authContext);
+  }
+
+  @Post('banking/entries')
+  @RequireContext('store')
+  @RequirePermissions('store.settings.manage')
+  createBankEntry(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @CurrentAuthSession() session: AuthSession | null,
+    @Body() payload: unknown,
+  ) {
+    return this.storeOpsService.createBankEntry(headerStoreId, authContext, session, bankEntrySchema.parse(payload));
+  }
+
+  @Patch('banking/entries/:entryId')
+  @RequireContext('store')
+  @RequirePermissions('store.settings.manage')
+  updateBankEntry(
+    @Param('entryId') entryId: string,
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @Body() payload: unknown,
+  ) {
+    return this.storeOpsService.updateBankEntry(entryId, headerStoreId, authContext, bankEntryUpdateSchema.parse(payload));
+  }
+}

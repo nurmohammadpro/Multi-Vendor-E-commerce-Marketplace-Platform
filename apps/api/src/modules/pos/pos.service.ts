@@ -205,6 +205,10 @@ export class PosService {
       shiftId?: string;
       customerName?: string;
       customerPhone?: string;
+      customerEmail?: string;
+      customerShopName?: string;
+      customerAddress?: string;
+      dueDate?: string;
       discountAmount: number;
       taxAmount: number;
       shippingAmount: number;
@@ -232,6 +236,13 @@ export class PosService {
     try {
       await client.query('begin');
       const saleNo = await this.generateSaleNumber(client, storeId);
+      const customerId = await this.upsertCustomer(client, storeId, session, {
+        fullName: payload.customerName,
+        mobileNo: payload.customerPhone,
+        email: payload.customerEmail,
+        shopName: payload.customerShopName,
+        address: payload.customerAddress,
+      });
 
       const subtotalAmount = payload.items.reduce((sum, item) => sum + item.qty * item.unitPrice, 0);
       const itemDiscountTotal = payload.items.reduce((sum, item) => sum + item.discountAmount, 0);
@@ -239,6 +250,20 @@ export class PosService {
       const discountAmount = payload.discountAmount + itemDiscountTotal;
       const taxAmount = payload.taxAmount + itemTaxTotal;
       const totalAmount = subtotalAmount - discountAmount + taxAmount + payload.shippingAmount;
+      const paidAmount = payload.payments
+        .filter((payment) => payment.status === 'paid')
+        .reduce((sum, payment) => sum + payment.amount, 0);
+      const pendingAmount = payload.payments
+        .filter((payment) => payment.status === 'pending')
+        .reduce((sum, payment) => sum + payment.amount, 0);
+      const paymentStatus =
+        paidAmount >= totalAmount
+          ? 'paid'
+          : pendingAmount > 0 && paidAmount === 0
+            ? 'due'
+            : pendingAmount > 0
+              ? 'partial'
+              : 'unpaid';
 
       for (const item of payload.items) {
         await this.reserveAndDeductInventory(client, storeId, payload.locationId, item.skuId, item.qty, userId, saleNo);
@@ -261,8 +286,13 @@ export class PosService {
             shift_id,
             sale_no,
             sold_by,
+            customer_id,
             customer_name,
             customer_phone,
+            customer_email,
+            customer_shop_name,
+            customer_address,
+            due_date,
             subtotal_amount,
             discount_amount,
             tax_amount,
@@ -291,10 +321,15 @@ export class PosService {
             $11,
             $12,
             $13,
-            'paid',
-            case when $12 > 0 then 'delivery_pending' else 'completed' end,
-            'completed',
             $14,
+            $15,
+            $16,
+            $17,
+            $18,
+            $19,
+            case when $17 > 0 then 'delivery_pending' else 'completed' end,
+            'completed',
+            $20,
             now(),
             now()
           from store.stores s
@@ -308,13 +343,19 @@ export class PosService {
           payload.shiftId ?? null,
           saleNo,
           userId,
+          customerId,
           payload.customerName ?? null,
           payload.customerPhone ?? null,
+          payload.customerEmail ?? null,
+          payload.customerShopName ?? null,
+          payload.customerAddress ?? null,
+          payload.dueDate ?? null,
           subtotalAmount,
           discountAmount,
           taxAmount,
           payload.shippingAmount,
           totalAmount,
+          paymentStatus,
           payload.note ?? null,
         ],
       );
@@ -388,7 +429,7 @@ export class PosService {
               $4,
               $5,
               $6,
-              now(),
+              $7,
               now()
             )
           `,
@@ -399,6 +440,7 @@ export class PosService {
             payment.amount,
             payment.referenceNo ?? null,
             payment.status,
+            payment.status === 'paid' ? new Date().toISOString() : null,
           ],
         );
       }
@@ -767,7 +809,11 @@ export class PosService {
     );
 
     const store = storeResult.rows[0] ?? {};
-    const paidAmount = payments.reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0);
+    const paidAmount = payments.reduce(
+      (sum, payment) => sum + (payment.status === 'paid' ? Number(payment.amount ?? 0) : 0),
+      0,
+    );
+    const dueAmount = Math.max(Number(sale.total_amount ?? 0) - paidAmount, 0);
 
     return {
       saleId: sale.id ?? null,
@@ -780,6 +826,9 @@ export class PosService {
       customer: {
         name: sale.customer_name ?? null,
         phone: sale.customer_phone ?? null,
+        email: sale.customer_email ?? null,
+        shopName: sale.customer_shop_name ?? null,
+        address: sale.customer_address ?? null,
       },
       items: items.map((item) => ({
         name: item.product_name_snapshot ?? null,
@@ -797,6 +846,7 @@ export class PosService {
         shipping: Number(sale.shipping_amount ?? 0),
         total: Number(sale.total_amount ?? 0),
         paid: paidAmount,
+        due: dueAmount,
         change: Math.max(paidAmount - Number(sale.total_amount ?? 0), 0),
       },
       payments: payments.map((payment) => ({
@@ -952,6 +1002,104 @@ export class PosService {
         payload.actorId,
       ],
     );
+  }
+
+  private async upsertCustomer(
+    client: PoolClient,
+    storeId: string,
+    session: AuthSession | null,
+    payload: {
+      fullName?: string;
+      mobileNo?: string;
+      email?: string;
+      shopName?: string;
+      address?: string;
+    },
+  ) {
+    if (!payload.fullName && !payload.mobileNo && !payload.email && !payload.shopName && !payload.address) {
+      return null;
+    }
+
+    const matchResult = await client.query<{ id: string }>(
+      `
+        select id
+        from store.customers
+        where store_id = $1
+          and (
+            ($2::varchar is not null and mobile_no = $2::varchar)
+            or ($3::citext is not null and email = $3::citext)
+          )
+        order by created_at desc
+        limit 1
+      `,
+      [storeId, payload.mobileNo ?? null, payload.email ?? null],
+    );
+
+    const existingId = matchResult.rows[0]?.id;
+    if (existingId) {
+      await client.query(
+        `
+          update store.customers
+          set
+            full_name = coalesce($2, full_name),
+            mobile_no = coalesce($3, mobile_no),
+            email = coalesce($4::citext, email),
+            shop_name = coalesce($5, shop_name),
+            address = coalesce($6, address),
+            updated_at = now()
+          where id = $1
+        `,
+        [
+          existingId,
+          payload.fullName ?? null,
+          payload.mobileNo ?? null,
+          payload.email ?? null,
+          payload.shopName ?? null,
+          payload.address ?? null,
+        ],
+      );
+      return existingId;
+    }
+
+    const result = await client.query<{ id: string }>(
+      `
+        insert into store.customers (
+          id,
+          tenant_id,
+          store_id,
+          full_name,
+          mobile_no,
+          email,
+          shop_name,
+          address,
+          created_at,
+          updated_at
+        )
+        select
+          gen_random_uuid(),
+          $2,
+          $1,
+          $3,
+          $4,
+          $5::citext,
+          $6,
+          $7,
+          now(),
+          now()
+        returning id
+      `,
+      [
+        storeId,
+        session?.user.tenantId ?? '',
+        payload.fullName ?? null,
+        payload.mobileNo ?? null,
+        payload.email ?? null,
+        payload.shopName ?? null,
+        payload.address ?? null,
+      ],
+    );
+
+    return result.rows[0]?.id ?? null;
   }
 
   private assertStoreContext(headerStoreId: string | undefined, authContext: StoreAuthContext | null) {

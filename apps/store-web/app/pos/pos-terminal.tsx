@@ -102,6 +102,13 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+  const [customerEmail, setCustomerEmail] = useState('');
+  const [customerShopName, setCustomerShopName] = useState('');
+  const [customerAddress, setCustomerAddress] = useState('');
+  const [dueDate, setDueDate] = useState('');
+  const [saleMode, setSaleMode] = useState<'paid' | 'due'>('paid');
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'mfs' | 'bank_transfer'>('cash');
+  const [paymentReference, setPaymentReference] = useState('');
   const [cashReceived, setCashReceived] = useState('');
   const [openingCash, setOpeningCash] = useState('0');
   const [closingCash, setClosingCash] = useState('0');
@@ -162,9 +169,10 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
   );
 
   const changeAmount = useMemo(() => {
+    if (saleMode !== 'paid' || paymentMethod !== 'cash') return 0;
     const paid = Number(cashReceived || 0);
     return Math.max(paid - total, 0);
-  }, [cashReceived, total]);
+  }, [cashReceived, paymentMethod, saleMode, total]);
 
   const searchCatalog = async () => {
     if (!search.trim()) {
@@ -303,9 +311,18 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
       setMessage('Add at least one item to the cart.');
       return;
     }
+    if (saleMode === 'due' && !customerName.trim() && !customerPhone.trim()) {
+      setMessage('Due sales need a customer name or phone number.');
+      return;
+    }
+    if (saleMode === 'paid' && paymentMethod === 'cash' && Number(cashReceived || 0) < total) {
+      setMessage('Cash received is lower than the sale total.');
+      return;
+    }
 
     setLoading(true);
     try {
+      const saleIsDue = saleMode === 'due';
       const salePayload = await readJson<SaleCreateResponse>('/api/pos/sales', {
         method: 'POST',
         headers: {
@@ -317,6 +334,10 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
           shiftId: openShiftId || undefined,
           customerName: customerName || undefined,
           customerPhone: customerPhone || undefined,
+          customerEmail: customerEmail || undefined,
+          customerShopName: customerShopName || undefined,
+          customerAddress: customerAddress || undefined,
+          dueDate: saleIsDue && dueDate ? dueDate : undefined,
           discountAmount: 0,
           taxAmount: 0,
           shippingAmount: 0,
@@ -329,9 +350,10 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
           })),
           payments: [
             {
-              paymentMethod: 'cash',
+              paymentMethod,
               amount: total,
-              status: 'paid',
+              referenceNo: paymentReference || undefined,
+              status: saleIsDue ? 'pending' : 'paid',
             },
           ],
         }),
@@ -351,15 +373,17 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
         try {
           await printReceipt(reprintPayload.receipt, receiptPrinterName || undefined, agentUrl);
           let drawerWarning = '';
-          if (Number(total) > 0) {
+          if (!saleIsDue && paymentMethod === 'cash' && Number(total) > 0) {
             await openCashDrawer({ printerName: receiptPrinterName || undefined }, agentUrl).catch(() => {
               drawerWarning = ' The cash drawer did not open.';
             });
           }
-          setMessage(`Sale ${salePayload.sale?.saleNo ?? ''} completed and receipt printed.${drawerWarning}`);
+          setMessage(
+            `${saleIsDue ? 'Due sale' : 'Sale'} ${salePayload.sale?.saleNo ?? ''} completed and receipt printed.${drawerWarning}`,
+          );
         } catch (printFailure) {
           setMessage(
-            `Sale ${salePayload.sale?.saleNo ?? ''} completed. Silent print failed: ${(printFailure as Error).message}`,
+            `${saleIsDue ? 'Due sale' : 'Sale'} ${salePayload.sale?.saleNo ?? ''} completed. Silent print failed: ${(printFailure as Error).message}`,
           );
         }
       }
@@ -367,6 +391,13 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
       setCart([]);
       setCustomerName('');
       setCustomerPhone('');
+      setCustomerEmail('');
+      setCustomerShopName('');
+      setCustomerAddress('');
+      setDueDate('');
+      setSaleMode('paid');
+      setPaymentMethod('cash');
+      setPaymentReference('');
       setCashReceived('');
       setResults([]);
       setSearch('');
@@ -536,7 +567,39 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
           <h3 style={{ marginTop: 0 }}>Checkout</h3>
           <div style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
             <input value={customerName} onChange={(event) => setCustomerName(event.target.value)} style={inputStyle} placeholder="Customer name (optional)" />
-            <input value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} style={inputStyle} placeholder="Customer phone (optional)" />
+            <input value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} style={inputStyle} placeholder={saleMode === 'due' ? 'Customer mobile number (recommended)' : 'Customer mobile number (optional)'} />
+            <input value={customerEmail} onChange={(event) => setCustomerEmail(event.target.value)} style={inputStyle} placeholder="Customer email (optional)" />
+            <input value={customerShopName} onChange={(event) => setCustomerShopName(event.target.value)} style={inputStyle} placeholder={saleMode === 'due' ? 'Shop name (optional but helpful)' : 'Shop name (optional)'} />
+            <textarea value={customerAddress} onChange={(event) => setCustomerAddress(event.target.value)} style={{ ...inputStyle, minHeight: 76 }} placeholder={saleMode === 'due' ? 'Shop / customer address for due tracking' : 'Customer address (optional)'} />
+            {saleMode === 'due' ? (
+              <input type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} style={inputStyle} />
+            ) : null}
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
+            <select value={saleMode} onChange={(event) => setSaleMode(event.target.value as 'paid' | 'due')} style={inputStyle}>
+              <option value="paid">Paid sale</option>
+              <option value="due">Due sale</option>
+            </select>
+            <select
+              value={paymentMethod}
+              onChange={(event) => setPaymentMethod(event.target.value as 'cash' | 'card' | 'mfs' | 'bank_transfer')}
+              style={inputStyle}
+            >
+              <option value="cash">Cash</option>
+              <option value="card">Card</option>
+              <option value="mfs">MFS</option>
+              <option value="bank_transfer">Bank</option>
+            </select>
+          </div>
+
+          <div style={{ display: 'grid', gap: 8, marginBottom: 16 }}>
+            <input
+              value={paymentReference}
+              onChange={(event) => setPaymentReference(event.target.value)}
+              style={inputStyle}
+              placeholder={paymentMethod === 'cash' ? 'Payment note (optional)' : 'Reference no / transaction id'}
+            />
           </div>
 
           <div style={{ display: 'grid', gap: 10, marginBottom: 16 }}>
@@ -570,13 +633,23 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
               <span>Total</span>
               <strong>{currency(total)}</strong>
             </div>
-            <input value={cashReceived} onChange={(event) => setCashReceived(event.target.value)} style={inputStyle} placeholder="Cash received" />
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>Change</span>
-              <strong>{currency(changeAmount)}</strong>
-            </div>
+            {saleMode === 'paid' && paymentMethod === 'cash' ? (
+              <>
+                <input value={cashReceived} onChange={(event) => setCashReceived(event.target.value)} style={inputStyle} placeholder="Cash received" />
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Change</span>
+                  <strong>{currency(changeAmount)}</strong>
+                </div>
+              </>
+            ) : null}
+            {saleMode === 'due' ? (
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
+                <span>Due amount</span>
+                <strong>{currency(total)}</strong>
+              </div>
+            ) : null}
             <button onClick={checkout} style={primaryButtonStyle} disabled={loading || cart.length === 0}>
-              Complete Sale
+              {saleMode === 'due' ? 'Save Due Sale' : 'Complete Sale'}
             </button>
           </div>
         </article>

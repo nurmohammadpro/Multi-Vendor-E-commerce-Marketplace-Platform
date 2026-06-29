@@ -18,7 +18,9 @@ export class ReportingService {
             coalesce(sum(total_amount), 0) as total_sales_amount,
             count(*)::int as total_orders_count,
             coalesce(sum(discount_amount), 0) as total_discount_amount,
-            coalesce(sum(tax_amount), 0) as total_tax_amount
+            coalesce(sum(tax_amount), 0) as total_tax_amount,
+            count(*) filter (where payment_status = 'due')::int as due_sales_count,
+            coalesce(sum(total_amount) filter (where payment_status = 'due'), 0) as due_sales_amount
           from sales.sales
           where store_id = $1
             and status = 'completed'
@@ -27,7 +29,18 @@ export class ReportingService {
       ),
       this.pool.query(
         `
-          select sale_no, total_amount, payment_status, fulfillment_status, created_at
+          select
+            sale_no,
+            total_amount,
+            payment_status,
+            fulfillment_status,
+            customer_name,
+            customer_phone,
+            customer_email,
+            customer_shop_name,
+            customer_address,
+            due_date,
+            created_at
           from sales.sales
           where store_id = $1
           order by created_at desc
@@ -37,9 +50,32 @@ export class ReportingService {
       ),
     ]);
 
+    const dueSales = await this.pool.query(
+      `
+        select
+          sale_no,
+          total_amount,
+          customer_name,
+          customer_phone,
+          customer_email,
+          customer_shop_name,
+          customer_address,
+          due_date,
+          created_at
+        from sales.sales
+        where store_id = $1
+          and status = 'completed'
+          and payment_status = 'due'
+        order by created_at desc
+        limit 20
+      `,
+      [storeId],
+    );
+
     return {
       summary: summary.rows[0],
       recentSales: recentSales.rows,
+      dueSales: dueSales.rows,
     };
   }
 

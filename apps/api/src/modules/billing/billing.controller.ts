@@ -46,6 +46,16 @@ export class BillingController {
     return this.billingService.getCurrentSubscription(headerStoreId, authContext);
   }
 
+  @Get('subscription/summary')
+  @RequireContext('store')
+  @RequirePermissions('inventory.view')
+  getSubscriptionSummary(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+  ) {
+    return this.billingService.getCurrentSubscription(headerStoreId, authContext);
+  }
+
   @Post('subscription/change')
   @RequireContext('store')
   @RequirePermissions('billing.subscription.manage')
