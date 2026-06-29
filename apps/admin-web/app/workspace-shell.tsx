@@ -184,15 +184,10 @@ function Header() {
   const pathname = usePathname();
   const loginUrl = process.env.NEXT_PUBLIC_LOGIN_APP_URL || process.env.NEXT_PUBLIC_APP_URL || '/';
 
-  const handleLogout = async () => {
-    try {
-      await fetch('/api/auth/logout', { method: 'POST' });
-    } finally {
-      clearAdminSessionClient();
-      if (typeof window !== 'undefined') {
-        window.location.href = loginUrl;
-      }
-    }
+  const handleLogout = () => {
+    clearAdminSessionClient();
+    fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+    window.location.replace(loginUrl);
   };
 
   const getPageTitle = () => {
