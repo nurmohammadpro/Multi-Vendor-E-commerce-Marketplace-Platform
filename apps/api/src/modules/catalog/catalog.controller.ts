@@ -134,6 +134,21 @@ const createBrandSchema = z.object({
   status: z.enum(['active', 'inactive']).default('active'),
 });
 
+const updateCategorySchema = z.object({
+  parentId: z.string().uuid().nullable().optional(),
+  code: z.string().min(1).max(50).optional(),
+  name: z.string().min(1).max(150).optional(),
+  nameBn: z.string().max(150).nullable().optional(),
+  status: z.enum(['active', 'inactive']).optional(),
+  sortOrder: z.number().int().nonnegative().optional(),
+});
+
+const updateBrandSchema = z.object({
+  name: z.string().min(1).max(150).optional(),
+  nameBn: z.string().max(150).nullable().optional(),
+  status: z.enum(['active', 'inactive']).optional(),
+});
+
 const createProductMediaSchema = z.object({
   mediaType: z.enum(['image', 'document']),
   storagePath: z.string().min(1),
@@ -174,6 +189,23 @@ export class CatalogController {
     return this.catalogService.createCategory(headerStoreId, authContext, createCategorySchema.parse(payload));
   }
 
+  @Patch('categories/:categoryId')
+  @RequireContext('store')
+  @RequirePermissions('catalog.manage')
+  updateCategory(
+    @Param('categoryId') categoryId: string,
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @Body() payload: unknown,
+  ) {
+    return this.catalogService.updateCategory(
+      categoryId,
+      headerStoreId,
+      authContext,
+      updateCategorySchema.parse(payload),
+    );
+  }
+
   @Get('brands')
   @RequireContext('store')
   @RequirePermissions('inventory.view')
@@ -200,6 +232,23 @@ export class CatalogController {
     @Body() payload: unknown,
   ) {
     return this.catalogService.createBrand(headerStoreId, authContext, createBrandSchema.parse(payload));
+  }
+
+  @Patch('brands/:brandId')
+  @RequireContext('store')
+  @RequirePermissions('catalog.manage')
+  updateBrand(
+    @Param('brandId') brandId: string,
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @Body() payload: unknown,
+  ) {
+    return this.catalogService.updateBrand(
+      brandId,
+      headerStoreId,
+      authContext,
+      updateBrandSchema.parse(payload),
+    );
   }
 
   @Get('skus/search')
