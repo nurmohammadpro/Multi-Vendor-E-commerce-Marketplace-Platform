@@ -21,6 +21,7 @@ export type StoreConsoleAccess = {
   planName: string;
   subscriptionStatus: string | null;
   storeName: string | null;
+  storeLogoUrl: string | null;
   storeStatus: string | null;
   canManageCatalog: boolean;
   canViewInventory: boolean;
@@ -51,6 +52,7 @@ type StoreSubscriptionSummary = {
 type StoreSummaryPayload = {
   store?: {
     name?: string | null;
+    logo_url?: string | null;
     status?: string | null;
     subscription_status?: string | null;
   } | null;
@@ -71,6 +73,7 @@ export function deriveStoreConsoleAccess(
     planName?: string;
     subscriptionStatus?: string | null;
     storeName?: string | null;
+    storeLogoUrl?: string | null;
     storeStatus?: string | null;
   },
 ): StoreConsoleAccess {
@@ -101,6 +104,7 @@ export function deriveStoreConsoleAccess(
     planName: options?.planName ?? formatPlanName(planCode),
     subscriptionStatus: options?.subscriptionStatus ?? null,
     storeName: options?.storeName ?? null,
+    storeLogoUrl: options?.storeLogoUrl ?? null,
     storeStatus: options?.storeStatus ?? null,
     canManageCatalog: permissionSet.has('catalog.manage') && canAccessStoreFeature({ planCode }, 'catalog'),
     canViewInventory: permissionSet.has('inventory.view') && canAccessStoreFeature({ planCode }, 'inventory'),
@@ -142,6 +146,7 @@ export async function getStoreConsoleAccess() {
     subscriptionStatus:
       subscriptionPayload?.subscription?.status ?? storePayload?.store?.subscription_status ?? null,
     storeName: storePayload?.store?.name ?? null,
+    storeLogoUrl: storePayload?.store?.logo_url ?? null,
     storeStatus: storePayload?.store?.status ?? null,
   });
 }

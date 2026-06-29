@@ -13,7 +13,10 @@ export default async function StoreCatalogPage() {
         <h2 style={pageTitleStyle}>Catalog workspace</h2>
         <p style={pageLeadStyle}>Manage products, variants, SKUs, and pricing through the live catalog APIs.</p>
       </section>
-      <CatalogWorkspace canManageCatalog={access.canManageCatalog} />
+      <CatalogWorkspace
+        canManageCatalog={access.canManageCatalog}
+        canApprovePriceChanges={access.canApproveInventory}
+      />
     </main>
   );
 }

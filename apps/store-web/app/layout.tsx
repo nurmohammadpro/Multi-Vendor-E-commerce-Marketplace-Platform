@@ -13,6 +13,7 @@ const navItems = [
   { href: '/', label: 'Dashboard', feature: 'dashboard' },
   { href: '/catalog', label: 'Catalog', permission: 'catalog.manage', feature: 'catalog' },
   { href: '/inventory', label: 'Stock', permission: 'inventory.view', feature: 'inventory' },
+  { href: '/approvals', label: 'Approvals', permission: 'inventory.adjust.approve', feature: 'inventory' },
   { href: '/pos', label: 'Sales (POS)', permission: 'sales.pos.create', feature: 'pos' },
   { href: '/customers', label: 'Customers', permission: 'sales.report.view', feature: 'customers' },
   { href: '/reports', label: 'Reports', permission: 'sales.report.view', feature: 'reports' },

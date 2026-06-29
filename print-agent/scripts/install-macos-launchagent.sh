@@ -7,6 +7,7 @@ NODE_PATH="$(command -v node || true)"
 PORT="${MVP_PRINT_AGENT_PORT:-17658}"
 PRINTER_NAME="${MVP_PRINTER_NAME:-}"
 LABEL_PRINTER_NAME="${MVP_LABEL_PRINTER_NAME:-}"
+ALLOWED_ORIGINS="${MVP_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000,http://localhost:3002,http://127.0.0.1:3002,https://marketone.appbrainer.tech}"
 
 if [[ -z "$NODE_PATH" ]]; then
   echo "Node.js is required. Install Node.js 18+ first, then rerun this script." >&2
@@ -34,7 +35,7 @@ cat > "$PLIST_PATH" <<PLIST
     <key>MVP_PRINT_AGENT_PORT</key>
     <string>$PORT</string>
     <key>MVP_ALLOWED_ORIGINS</key>
-    <string>http://localhost:3000,http://127.0.0.1:3000,https://app.example.com</string>
+    <string>$ALLOWED_ORIGINS</string>
     <key>MVP_PRINTER_NAME</key>
     <string>$PRINTER_NAME</string>
     <key>MVP_LABEL_PRINTER_NAME</key>

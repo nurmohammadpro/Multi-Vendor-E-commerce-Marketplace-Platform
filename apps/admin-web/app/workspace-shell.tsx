@@ -13,7 +13,6 @@ import {
   Bell,
   Settings,
   LifeBuoy,
-  Wrench,
   Headphones,
   BookOpen,
   LogOut,
@@ -109,8 +108,12 @@ function AppSidebar({
       <SidebarHeader>
         <div className="flex items-center justify-between gap-1.5 px-1.5 py-1.5">
           <div className="flex items-center gap-1.5">
-            <div className="flex items-center justify-center size-7 rounded-md bg-primary/10 text-primary border">
-              <Wrench className="size-4" />
+            <div className="flex items-center justify-center size-8 rounded-md bg-white text-primary border p-1">
+              <img
+                src="/marketone-logo.svg"
+                alt="Market One logo"
+                className="h-full w-full object-contain"
+              />
             </div>
             <div className="flex flex-col group-data-[collapsible=icon]:hidden">
               <span className="font-semibold text-sm leading-tight">{title}</span>

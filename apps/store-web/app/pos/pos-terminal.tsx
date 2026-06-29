@@ -6,6 +6,7 @@ import {
   DEFAULT_PRINT_AGENT_URL,
   fetchPrintAgentHealth,
   openCashDrawer,
+  openInvoicePrintWindow,
   printLabel,
   printReceipt,
   type PrintAgentHealth,
@@ -117,6 +118,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
   const [printHealth, setPrintHealth] = useState<PrintAgentHealth | null>(null);
   const [printError, setPrintError] = useState<string | null>(null);
   const [lastReceiptText, setLastReceiptText] = useState('');
+  const [lastInvoice, setLastInvoice] = useState<ReceiptPayload | null>(null);
   const [receiptPrinterName, setReceiptPrinterName] = useState('');
   const [labelPrinterName, setLabelPrinterName] = useState('');
   const [agentUrl, setAgentUrl] = useState(DEFAULT_PRINT_AGENT_URL);
@@ -370,6 +372,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
 
       if (reprintPayload.receipt) {
         setLastReceiptText(JSON.stringify(reprintPayload.receipt, null, 2));
+        setLastInvoice(reprintPayload.receipt);
         try {
           await printReceipt(reprintPayload.receipt, receiptPrinterName || undefined, agentUrl);
           let drawerWarning = '';
@@ -433,6 +436,16 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
       setMessage('Cash drawer command sent.');
     } catch (error) {
       setMessage(`Cash drawer failed: ${(error as Error).message}`);
+    }
+  };
+
+  const handlePrintInvoice = () => {
+    if (!lastInvoice) return;
+    try {
+      openInvoicePrintWindow(lastInvoice);
+      setMessage(`Invoice ${lastInvoice.saleNo ?? ''} opened for printing.`);
+    } catch (error) {
+      setMessage((error as Error).message);
     }
   };
 
@@ -658,6 +671,51 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
       <article style={cardStyle}>
         <h3 style={{ marginTop: 0 }}>Operator Notes</h3>
         <p style={{ marginTop: 0, color: '#475569' }}>{message}</p>
+        {lastInvoice ? (
+          <div style={{ marginBottom: 16, display: 'grid', gap: 10 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+              <strong>Latest invoice preview</strong>
+              <button onClick={handlePrintInvoice} style={buttonStyle}>
+                Print Invoice
+              </button>
+            </div>
+            <div
+              style={{
+                border: '1px solid rgba(148, 163, 184, 0.22)',
+                borderRadius: 12,
+                background: '#fff',
+                padding: 16,
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start', borderBottom: '1px solid #e2e8f0', paddingBottom: 14 }}>
+                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                  {lastInvoice.store?.logoUrl ? (
+                    <img
+                      src={lastInvoice.store.logoUrl}
+                      alt={`${lastInvoice.store?.name || 'Store'} logo`}
+                      style={{ width: 60, height: 60, objectFit: 'contain', border: '1px solid #e2e8f0', borderRadius: 10, padding: 6, background: '#fff' }}
+                    />
+                  ) : null}
+                  <div>
+                    <div style={{ fontSize: 20, fontWeight: 700 }}>{lastInvoice.store?.name || 'Store'}</div>
+                    {lastInvoice.store?.phone ? <div style={{ color: '#475569' }}>{lastInvoice.store.phone}</div> : null}
+                    {lastInvoice.store?.email ? <div style={{ color: '#475569' }}>{lastInvoice.store.email}</div> : null}
+                    {lastInvoice.store?.address ? <div style={{ color: '#475569' }}>{lastInvoice.store.address}</div> : null}
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: 22, fontWeight: 700 }}>Invoice</div>
+                  <div style={{ color: '#475569' }}>No: {lastInvoice.saleNo || '—'}</div>
+                </div>
+              </div>
+              <div style={{ marginTop: 14, display: 'grid', gap: 8 }}>
+                <div><strong>Customer:</strong> {lastInvoice.customer?.name || 'Walk-in customer'}</div>
+                {lastInvoice.customer?.phone ? <div><strong>Phone:</strong> {lastInvoice.customer.phone}</div> : null}
+                {lastInvoice.customer?.address ? <div><strong>Address:</strong> {lastInvoice.customer.address}</div> : null}
+              </div>
+            </div>
+          </div>
+        ) : null}
         {lastReceiptText ? (
           <pre
             style={{
