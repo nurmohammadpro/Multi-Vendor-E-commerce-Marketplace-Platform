@@ -45,7 +45,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
-import { clearAdminSessionClient } from '../lib/session';
+import { logoutAdminClient } from '../lib/logout';
 
 type NavItem = {
   href: string;
@@ -182,13 +182,7 @@ function AppSidebar({
 
 function Header() {
   const pathname = usePathname();
-  const loginUrl = process.env.NEXT_PUBLIC_LOGIN_APP_URL || process.env.NEXT_PUBLIC_APP_URL || '/';
-
-  const handleLogout = () => {
-    clearAdminSessionClient();
-    fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
-    window.location.replace(loginUrl);
-  };
+  const handleLogout = () => logoutAdminClient();
 
   const getPageTitle = () => {
     if (pathname === '/') return 'Dashboard';
