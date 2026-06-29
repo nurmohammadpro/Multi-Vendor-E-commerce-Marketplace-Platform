@@ -9,6 +9,10 @@ if [ -f .env ]; then
         continue
         ;;
     esac
+    key=${line%%=*}
+    if [ -n "${!key+x}" ]; then
+      continue
+    fi
     export "$line"
   done < ./.env
 fi

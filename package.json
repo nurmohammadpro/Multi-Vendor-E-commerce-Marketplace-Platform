@@ -12,6 +12,8 @@
     "dev": "bash ./scripts/with-root-env.sh turbo dev",
     "lint": "bash ./scripts/with-root-env.sh turbo lint",
     "typecheck": "bash ./scripts/with-root-env.sh turbo typecheck",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
     "db:migrate": "bash ./scripts/with-root-env.sh node packages/database/src/migrate.mjs",
     "db:migrate:status": "bash ./scripts/with-root-env.sh node packages/database/src/migrate.mjs --status",
     "db:seed:bootstrap": "bash ./scripts/with-root-env.sh node packages/database/src/seed.mjs"
