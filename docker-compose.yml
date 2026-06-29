@@ -156,6 +156,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.admin
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-https://api.marketone.appbrainer.tech/v1}
+        NEXT_PUBLIC_LOGIN_APP_URL: ${NEXT_PUBLIC_LOGIN_APP_URL:-https://marketone.appbrainer.tech}
+        API_BASE_URL: ${API_BASE_URL:-https://api.marketone.appbrainer.tech/v1}
     restart: unless-stopped
     deploy:
       resources:
@@ -166,6 +170,7 @@ services:
       NODE_ENV: production
       PORT: "3001"
       HOSTNAME: "0.0.0.0"
+      NEXT_PUBLIC_LOGIN_APP_URL: "${NEXT_PUBLIC_LOGIN_APP_URL:-https://marketone.appbrainer.tech}"
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.marketone-admin.rule=Host(`admin.marketone.appbrainer.tech`)"
@@ -183,6 +188,12 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.store
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-https://api.marketone.appbrainer.tech/v1}
+        NEXT_PUBLIC_LOGIN_APP_URL: ${NEXT_PUBLIC_LOGIN_APP_URL:-https://marketone.appbrainer.tech}
+        API_BASE_URL: ${API_BASE_URL:-https://api.marketone.appbrainer.tech/v1}
+        NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-Market One BD}
+        NEXT_PUBLIC_PRINT_AGENT_URL: ${NEXT_PUBLIC_PRINT_AGENT_URL:-http://127.0.0.1:17658}
     restart: unless-stopped
     deploy:
       resources:
@@ -193,6 +204,7 @@ services:
       NODE_ENV: production
       PORT: "3002"
       HOSTNAME: "0.0.0.0"
+      NEXT_PUBLIC_LOGIN_APP_URL: "${NEXT_PUBLIC_LOGIN_APP_URL:-https://marketone.appbrainer.tech}"
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.marketone-store-app.rule=Host(`app.marketone.appbrainer.tech`)"
