@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import {
   emptyStateStyle,
@@ -8,6 +8,10 @@ import {
   pageShellStyle,
   secondaryButtonStyle,
   surfaceCardStyle,
+  tableCellStyle,
+  tableHeaderCellStyle,
+  tableStyle,
+  tableWrapStyle,
   tokenMutedStyle,
 } from '../motocore-theme';
 
@@ -51,7 +55,19 @@ type OwnerOverview = {
   todayCashSalesAmount: string | number;
   todayCashDueCollectionsAmount: string | number;
   todayCashExpenseAmount: string | number;
+  expectedCashAmount: string | number;
+  countedCashAmount: string | number | null;
   cashVarianceAmount: string | number;
+  cashCountNote?: string | null;
+  cashCountUpdatedAt?: string | null;
+  recentCashCounts?: Array<{
+    countDate: string;
+    countedCashAmount: string | number;
+    expectedCashAmount: string | number;
+    varianceAmount: string | number;
+    note?: string | null;
+    updatedAt: string;
+  }>;
 };
 
 async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
@@ -72,17 +88,42 @@ export function ApprovalsWorkspace({ canApproveInventory }: { canApproveInventor
   const [stockRequests, setStockRequests] = useState<StockAdjustmentRequest[]>([]);
   const [priceRequests, setPriceRequests] = useState<PriceChangeRequest[]>([]);
   const [decisionNote, setDecisionNote] = useState('');
+  const [countedCashAmount, setCountedCashAmount] = useState('');
+  const [cashCountNote, setCashCountNote] = useState('');
   const [message, setMessage] = useState('Review pending stock and price approvals here.');
   const [loading, setLoading] = useState(false);
+  const latestRefreshId = useRef(0);
+  const countedCashAmountRef = useRef('');
+  const cashCountNoteRef = useRef('');
+
+  const applyOverview = (nextOverview: OwnerOverview | null) => {
+    const nextCountedCashAmount =
+      nextOverview?.countedCashAmount === null || nextOverview?.countedCashAmount === undefined
+        ? ''
+        : String(nextOverview.countedCashAmount);
+    const nextCashCountNote = nextOverview?.cashCountNote ?? '';
+
+    setOverview(nextOverview);
+    countedCashAmountRef.current = nextCountedCashAmount;
+    cashCountNoteRef.current = nextCashCountNote;
+    setCountedCashAmount(nextCountedCashAmount);
+    setCashCountNote(nextCashCountNote);
+  };
 
   const refresh = async () => {
+    const refreshId = latestRefreshId.current + 1;
+    latestRefreshId.current = refreshId;
     const [overviewPayload, stockPayload, pricePayload] = await Promise.all([
       readJson<{ overview: OwnerOverview }>('/api/store-ops/owner-overview'),
       readJson<{ adjustmentRequests: StockAdjustmentRequest[] }>('/api/inventory/adjustments?status=pending'),
       readJson<{ priceChangeRequests: PriceChangeRequest[] }>('/api/catalog/price-change-requests?status=pending'),
     ]);
 
-    setOverview(overviewPayload.overview ?? null);
+    if (refreshId !== latestRefreshId.current) {
+      return;
+    }
+
+    applyOverview(overviewPayload.overview ?? null);
     setStockRequests(stockPayload.adjustmentRequests ?? []);
     setPriceRequests(pricePayload.priceChangeRequests ?? []);
   };
@@ -127,6 +168,33 @@ export function ApprovalsWorkspace({ canApproveInventory }: { canApproveInventor
     }
   };
 
+  const saveCashCount = async () => {
+    const parsedAmount = Number(countedCashAmountRef.current);
+    if (!Number.isFinite(parsedAmount) || parsedAmount < 0) {
+      setMessage('Enter a valid counted cash amount.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const payload = await readJson<{ overview: OwnerOverview }>('/api/store-ops/owner-cash-count', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          countedCashAmount: parsedAmount,
+          note: cashCountNoteRef.current || undefined,
+        }),
+      });
+      latestRefreshId.current += 1;
+      applyOverview(payload.overview ?? null);
+      setMessage('Cash count saved successfully.');
+    } catch (error) {
+      setMessage((error as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (!canApproveInventory) {
     return (
       <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
@@ -145,6 +213,9 @@ export function ApprovalsWorkspace({ canApproveInventory }: { canApproveInventor
           <div style={{ fontSize: 12, color: '#64748b' }}>Cash variance</div>
           <div style={{ fontSize: 22, fontWeight: 600 }}>{overview?.cashVarianceAmount ?? '—'}</div>
           <div style={{ color: '#64748b' }}>
+            Expected {overview?.expectedCashAmount ?? 0} · Counted {overview?.countedCashAmount ?? 'Not counted yet'}
+          </div>
+          <div style={{ color: '#64748b', marginTop: 4 }}>
             Sales {overview?.todayCashSalesAmount ?? 0} + due {overview?.todayCashDueCollectionsAmount ?? 0} - expenses {overview?.todayCashExpenseAmount ?? 0}
           </div>
         </article>
@@ -178,60 +249,175 @@ export function ApprovalsWorkspace({ canApproveInventory }: { canApproveInventor
         </p>
       </article>
 
+      <article style={surfaceCardStyle}>
+        <h3 style={{ marginTop: 0 }}>Cash count</h3>
+        <div style={{ display: 'grid', gap: 12 }}>
+          <div style={{ color: '#475569' }}>
+            Count today&apos;s drawer cash once the owner finishes counting. The saved value becomes the real counted-vs-expected variance.
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+            <label style={{ display: 'grid', gap: 6 }}>
+              <span style={{ fontSize: 12, color: '#64748b' }}>Counted cash amount</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={countedCashAmount}
+                onChange={(event) => {
+                  countedCashAmountRef.current = event.target.value;
+                  setCountedCashAmount(event.target.value);
+                }}
+                style={fieldStyle}
+                placeholder="0.00"
+              />
+            </label>
+            <label style={{ display: 'grid', gap: 6 }}>
+              <span style={{ fontSize: 12, color: '#64748b' }}>Cash count note</span>
+              <input
+                value={cashCountNote}
+                onChange={(event) => {
+                  cashCountNoteRef.current = event.target.value;
+                  setCashCountNote(event.target.value);
+                }}
+                style={fieldStyle}
+                placeholder="Optional note about the drawer count"
+              />
+            </label>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <button onClick={() => void saveCashCount()} style={secondaryButtonStyle} disabled={loading}>
+              Save cash count
+            </button>
+            <span style={tokenMutedStyle}>
+              Expected: {overview?.expectedCashAmount ?? 0} · Variance: {overview?.cashVarianceAmount ?? 0}
+            </span>
+            {overview?.cashCountUpdatedAt ? (
+              <span style={tokenMutedStyle}>Last saved: {new Date(overview.cashCountUpdatedAt).toLocaleString()}</span>
+            ) : null}
+          </div>
+        </div>
+      </article>
+
+      <article style={surfaceCardStyle}>
+        <h3 style={{ marginTop: 0 }}>Recent cash counts</h3>
+        {overview?.recentCashCounts?.length ? (
+          <div style={tableWrapStyle}>
+            <table style={tableStyle}>
+              <thead>
+                <tr>
+                  <th style={tableHeaderCellStyle}>Date</th>
+                  <th style={tableHeaderCellStyle}>Counted</th>
+                  <th style={tableHeaderCellStyle}>Expected</th>
+                  <th style={tableHeaderCellStyle}>Variance</th>
+                  <th style={tableHeaderCellStyle}>Note</th>
+                  <th style={tableHeaderCellStyle}>Updated</th>
+                </tr>
+              </thead>
+              <tbody>
+                {overview.recentCashCounts.map((entry) => (
+                  <tr key={`${entry.countDate}-${entry.updatedAt}`}>
+                    <td style={tableCellStyle}>{entry.countDate}</td>
+                    <td style={tableCellStyle}>{entry.countedCashAmount}</td>
+                    <td style={tableCellStyle}>{entry.expectedCashAmount}</td>
+                    <td style={tableCellStyle}>{entry.varianceAmount}</td>
+                    <td style={tableCellStyle}>{entry.note || '—'}</td>
+                    <td style={tableCellStyle}>{new Date(entry.updatedAt).toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div style={emptyStateStyle}>No saved cash counts yet.</div>
+        )}
+      </article>
+
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 16 }}>
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Pending stock updates</h3>
-          <div style={{ display: 'grid', gap: 10 }}>
-            {stockRequests.length ? stockRequests.map((request) => (
-              <article key={request.id} style={{ ...surfaceCardStyle, padding: 14 }}>
-                <div style={{ fontWeight: 600 }}>{request.product_name} · {request.sku_code}</div>
-                <div style={{ color: '#475569' }}>{request.location_name}</div>
-                <div style={{ color: '#334155', marginTop: 6 }}>
-                  Qty: {String(request.current_qty)} → {String(request.requested_qty)} ({Number(request.qty_delta) >= 0 ? '+' : ''}{String(request.qty_delta)})
-                </div>
-                <div style={{ color: '#64748b', marginTop: 6 }}>
-                  Requested by {request.requested_by_name || 'User'}
-                </div>
-                <div style={{ marginTop: 8, color: '#334155' }}>{request.reason}</div>
-                <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                  <button onClick={() => void decideStock(request.id, 'approve')} style={secondaryButtonStyle} disabled={loading}>Approve</button>
-                  <button onClick={() => void decideStock(request.id, 'reject')} style={secondaryButtonStyle} disabled={loading}>Reject</button>
-                </div>
-              </article>
-            )) : (
-              <div style={emptyStateStyle}>No pending stock approvals.</div>
-            )}
-          </div>
+          {stockRequests.length ? (
+            <div style={tableWrapStyle}>
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={tableHeaderCellStyle}>Product</th>
+                    <th style={tableHeaderCellStyle}>Location</th>
+                    <th style={tableHeaderCellStyle}>Current</th>
+                    <th style={tableHeaderCellStyle}>Requested</th>
+                    <th style={tableHeaderCellStyle}>Delta</th>
+                    <th style={tableHeaderCellStyle}>Requested By</th>
+                    <th style={tableHeaderCellStyle}>Reason</th>
+                    <th style={tableHeaderCellStyle}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stockRequests.map((request) => (
+                    <tr key={request.id}>
+                      <td style={tableCellStyle}>{request.product_name} · {request.sku_code}</td>
+                      <td style={tableCellStyle}>{request.location_name}</td>
+                      <td style={tableCellStyle}>{String(request.current_qty)}</td>
+                      <td style={tableCellStyle}>{String(request.requested_qty)}</td>
+                      <td style={tableCellStyle}>{Number(request.qty_delta) >= 0 ? '+' : ''}{String(request.qty_delta)}</td>
+                      <td style={tableCellStyle}>{request.requested_by_name || 'User'}</td>
+                      <td style={tableCellStyle}>{request.reason}</td>
+                      <td style={tableCellStyle}>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          <button onClick={() => void decideStock(request.id, 'approve')} style={secondaryButtonStyle} disabled={loading}>Approve</button>
+                          <button onClick={() => void decideStock(request.id, 'reject')} style={secondaryButtonStyle} disabled={loading}>Reject</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div style={emptyStateStyle}>No pending stock approvals.</div>
+          )}
         </article>
 
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Pending price updates</h3>
-          <div style={{ display: 'grid', gap: 10 }}>
-            {priceRequests.length ? priceRequests.map((request) => (
-              <article key={request.id} style={{ ...surfaceCardStyle, padding: 14 }}>
-                <div style={{ fontWeight: 600 }}>
-                  {request.product_name} · {request.sku_code}
-                  {request.variant_label ? ` · ${request.variant_label}` : ''}
-                </div>
-                <div style={{ color: '#334155', marginTop: 6 }}>
-                  Sale: {String(request.current_sale_price)} → {String(request.requested_sale_price)}
-                </div>
-                <div style={{ color: '#475569', marginTop: 4 }}>
-                  Cost: {request.current_cost_price ?? '—'} → {request.requested_cost_price ?? '—'} · Compare: {request.current_compare_at_price ?? '—'} → {request.requested_compare_at_price ?? '—'}
-                </div>
-                <div style={{ color: '#64748b', marginTop: 6 }}>
-                  Requested by {request.requested_by_name || 'User'}
-                </div>
-                <div style={{ marginTop: 8, color: '#334155' }}>{request.reason}</div>
-                <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                  <button onClick={() => void decidePrice(request.id, 'approve')} style={secondaryButtonStyle} disabled={loading}>Approve</button>
-                  <button onClick={() => void decidePrice(request.id, 'reject')} style={secondaryButtonStyle} disabled={loading}>Reject</button>
-                </div>
-              </article>
-            )) : (
-              <div style={emptyStateStyle}>No pending price approvals.</div>
-            )}
-          </div>
+          {priceRequests.length ? (
+            <div style={tableWrapStyle}>
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={tableHeaderCellStyle}>Product</th>
+                    <th style={tableHeaderCellStyle}>Sale</th>
+                    <th style={tableHeaderCellStyle}>Cost</th>
+                    <th style={tableHeaderCellStyle}>Compare</th>
+                    <th style={tableHeaderCellStyle}>Requested By</th>
+                    <th style={tableHeaderCellStyle}>Reason</th>
+                    <th style={tableHeaderCellStyle}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {priceRequests.map((request) => (
+                    <tr key={request.id}>
+                      <td style={tableCellStyle}>
+                        {request.product_name} · {request.sku_code}
+                        {request.variant_label ? ` · ${request.variant_label}` : ''}
+                      </td>
+                      <td style={tableCellStyle}>{String(request.current_sale_price)} → {String(request.requested_sale_price)}</td>
+                      <td style={tableCellStyle}>{request.current_cost_price ?? '—'} → {request.requested_cost_price ?? '—'}</td>
+                      <td style={tableCellStyle}>{request.current_compare_at_price ?? '—'} → {request.requested_compare_at_price ?? '—'}</td>
+                      <td style={tableCellStyle}>{request.requested_by_name || 'User'}</td>
+                      <td style={tableCellStyle}>{request.reason}</td>
+                      <td style={tableCellStyle}>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          <button onClick={() => void decidePrice(request.id, 'approve')} style={secondaryButtonStyle} disabled={loading}>Approve</button>
+                          <button onClick={() => void decidePrice(request.id, 'reject')} style={secondaryButtonStyle} disabled={loading}>Reject</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div style={emptyStateStyle}>No pending price approvals.</div>
+          )}
         </article>
       </section>
     </section>

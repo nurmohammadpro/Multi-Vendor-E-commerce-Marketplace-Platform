@@ -18,7 +18,8 @@ test('owner can create a due sale and collect it from customer ledger', async ({
 
     await ownerPage.getByPlaceholder('Scan barcode or search product / SKU').fill('TSHIRT-BLK-M');
     await ownerPage.getByRole('button', { name: 'Search' }).click();
-    await ownerPage.getByRole('button', { name: 'Add' }).click();
+    await ownerPage.getByRole('button', { name: 'Choose Variant' }).click();
+    await ownerPage.getByRole('button', { name: 'Add Variant' }).click();
 
     await ownerPage.locator('select').nth(2).selectOption('due');
     await ownerPage.getByPlaceholder('Customer name (optional)').fill('Asha Traders');
@@ -31,25 +32,27 @@ test('owner can create a due sale and collect it from customer ledger', async ({
     await expect(ownerPage.getByText(/Due sale INV-0001 completed/)).toBeVisible();
 
     await ownerPage.goto('http://127.0.0.1:3002/customers');
-    await expect(ownerPage.getByText('Asha Traders')).toBeVisible();
-    await expect(ownerPage.getByText('Due: 500 · Sales: 1')).toBeVisible();
+    await expect(ownerPage.getByRole('cell', { name: 'Asha Traders' })).toBeVisible();
+    await expect(ownerPage.getByRole('cell', { name: '500' }).first()).toBeVisible();
+    await expect(ownerPage.getByRole('cell', { name: '1' }).first()).toBeVisible();
 
-    await ownerPage.getByRole('button', { name: /Asha Traders/ }).click();
+    await ownerPage.getByRole('button', { name: 'Open' }).first().click();
     await expect(ownerPage.getByText('INV-0001')).toBeVisible();
-    await expect(ownerPage.getByText('Status: due · Due date: 2026-06-29')).toBeVisible();
+    await expect(ownerPage.getByRole('cell', { name: 'due' })).toBeVisible();
+    await expect(ownerPage.getByRole('cell', { name: '2026-06-29' })).toBeVisible();
 
     await ownerPage.getByPlaceholder('Collection amount').fill('200');
     await ownerPage.getByRole('button', { name: 'Collect Due' }).click();
     await expect(ownerPage.getByText('Collected due for INV-0001. Remaining: 300')).toBeVisible();
-    await expect(ownerPage.getByText('Due: 300 · Sales: 1')).toBeVisible();
-    await expect(ownerPage.getByText('Status: partial · Due date: 2026-06-29')).toBeVisible();
+    await expect(ownerPage.getByRole('cell', { name: '300' }).first()).toBeVisible();
+    await expect(ownerPage.getByRole('cell', { name: 'partial' })).toBeVisible();
 
     await ownerPage.getByRole('radio').check();
     await ownerPage.getByPlaceholder('Collection amount').fill('300');
     await ownerPage.getByRole('button', { name: 'Collect Due' }).click();
     await expect(ownerPage.getByText('Collected due for INV-0001. Remaining: 0')).toBeVisible();
     await expect(ownerPage.getByText('No due sales remain for this customer.')).toBeVisible();
-    await expect(ownerPage.getByText('Due: 0 · Sales: 1')).toBeVisible();
+    await expect(ownerPage.getByRole('cell', { name: '0' }).first()).toBeVisible();
   } finally {
     await ownerContext.close().catch(() => {});
   }

@@ -26,6 +26,11 @@ const expenseSchema = z.object({
 
 const expenseUpdateSchema = expenseSchema.partial();
 
+const ownerCashCountSchema = z.object({
+  countedCashAmount: z.number().nonnegative(),
+  note: z.string().max(500).optional(),
+});
+
 const employeeSchema = z.object({
   fullName: z.string().min(1).max(200),
   mobileNo: z.string().max(30).optional(),
@@ -174,6 +179,23 @@ export class StoreOpsController {
     @CurrentAuthContext() authContext: StoreAuthContext | null,
   ) {
     return this.storeOpsService.getOwnerOverview(headerStoreId, authContext);
+  }
+
+  @Post('owner-cash-count')
+  @RequireContext('store')
+  @RequirePermissions('inventory.adjust.approve')
+  saveOwnerCashCount(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @CurrentAuthSession() session: AuthSession | null,
+    @Body() payload: unknown,
+  ) {
+    return this.storeOpsService.saveOwnerCashCount(
+      headerStoreId,
+      authContext,
+      session,
+      ownerCashCountSchema.parse(payload),
+    );
   }
 
   @Post('due-sales/:saleId/collections')

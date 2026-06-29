@@ -2,11 +2,15 @@ import { ForbiddenException, Inject, Injectable, NotFoundException, Unauthorized
 import type { Pool, PoolClient } from 'pg';
 
 import type { AuthSession, StoreAuthContext } from '../auth/auth.types.js';
+import { AuditService } from '../audit/audit.service.js';
 import { DATABASE_POOL } from '../database/database.constants.js';
 
 @Injectable()
 export class InventoryService {
-  constructor(@Inject(DATABASE_POOL) private readonly pool: Pool) {}
+  constructor(
+    @Inject(DATABASE_POOL) private readonly pool: Pool,
+    private readonly auditService: AuditService,
+  ) {}
 
   async listLocations(headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
@@ -51,7 +55,17 @@ export class InventoryService {
       [storeId, payload.code, payload.name, payload.locationType],
     );
 
-    return { location: result.rows[0] };
+    const location = result.rows[0];
+    await this.auditService.recordStoreAction({
+      storeId,
+      actorUserId: null,
+      actionCode: 'inventory.location.create',
+      resourceType: 'inventory_location',
+      resourceId: String(location?.id ?? ''),
+      after: location ?? null,
+    });
+
+    return { location };
   }
 
   async listBalances(
@@ -150,6 +164,19 @@ export class InventoryService {
       );
 
       await client.query('commit');
+      await this.auditService.recordStoreAction({
+        storeId,
+        actorUserId: userId,
+        actionCode: 'inventory.stock.initialize',
+        resourceType: 'inventory_balance',
+        resourceId: payload.skuId,
+        after: {
+          locationId: payload.locationId,
+          skuId: payload.skuId,
+          quantity: payload.quantity,
+          note: payload.note ?? null,
+        },
+      });
       return { ok: true };
     } catch (error) {
       await client.query('rollback').catch(() => {});
@@ -220,7 +247,22 @@ export class InventoryService {
       ],
     );
 
-    return { adjustmentRequest: result.rows[0] };
+    const adjustmentRequest = result.rows[0];
+    await this.auditService.recordStoreAction({
+      storeId,
+      actorUserId: userId,
+      actionCode: 'inventory.adjustment.request',
+      resourceType: 'stock_adjustment_request',
+      resourceId: String(adjustmentRequest?.id ?? ''),
+      after: {
+        locationId: payload.locationId,
+        skuId: payload.skuId,
+        requestedQty: payload.requestedQty,
+        reason: payload.reason,
+      },
+    });
+
+    return { adjustmentRequest };
   }
 
   async listAdjustments(

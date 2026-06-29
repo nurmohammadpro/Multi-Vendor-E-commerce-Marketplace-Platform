@@ -8,6 +8,10 @@ import {
   pageShellStyle,
   secondaryButtonStyle,
   surfaceCardStyle,
+  tableCellStyle,
+  tableHeaderCellStyle,
+  tableStyle,
+  tableWrapStyle,
   tokenMutedStyle,
 } from '../motocore-theme';
 
@@ -170,27 +174,38 @@ export function CustomersWorkspace() {
             <input value={query} onChange={(event) => setQuery(event.target.value)} style={fieldStyle} placeholder="Search name, mobile, email, or shop" />
             <button onClick={() => void refresh()} style={secondaryButtonStyle}>Search</button>
           </div>
-          <div style={{ display: 'grid', gap: 10 }}>
-            {customers.length ? (
-              customers.map((customer) => (
-                <button
-                  key={customer.id}
-                  onClick={() => void loadCustomer(customer.id)}
-                  style={{ ...surfaceCardStyle, padding: 14, textAlign: 'left' }}
-                >
-                  <div style={{ fontWeight: 600 }}>{customer.full_name || customer.shop_name || customer.mobile_no || 'Unnamed customer'}</div>
-                  <div style={{ color: '#475569' }}>
-                    {customer.shop_name || 'No shop'} · {customer.mobile_no || 'No mobile'}
-                  </div>
-                  <div style={{ color: '#64748b' }}>
-                    Due: {customer.outstanding_due_amount ?? 0} · Sales: {customer.total_sales_count ?? 0}
-                  </div>
-                </button>
-              ))
-            ) : (
-              <div style={emptyStateStyle}>No customers matched this search.</div>
-            )}
-          </div>
+          {customers.length ? (
+            <div style={tableWrapStyle}>
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={tableHeaderCellStyle}>Customer</th>
+                    <th style={tableHeaderCellStyle}>Shop</th>
+                    <th style={tableHeaderCellStyle}>Contact</th>
+                    <th style={tableHeaderCellStyle}>Due</th>
+                    <th style={tableHeaderCellStyle}>Sales</th>
+                    <th style={tableHeaderCellStyle}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {customers.map((customer) => (
+                    <tr key={customer.id}>
+                      <td style={tableCellStyle}>{customer.full_name || customer.shop_name || customer.mobile_no || 'Unnamed customer'}</td>
+                      <td style={tableCellStyle}>{customer.shop_name || '—'}</td>
+                      <td style={tableCellStyle}>{customer.mobile_no || customer.email || '—'}</td>
+                      <td style={tableCellStyle}>{customer.outstanding_due_amount ?? 0}</td>
+                      <td style={tableCellStyle}>{customer.total_sales_count ?? 0}</td>
+                      <td style={tableCellStyle}>
+                        <button onClick={() => void loadCustomer(customer.id)} style={secondaryButtonStyle}>Open</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div style={emptyStateStyle}>No customers matched this search.</div>
+          )}
         </article>
 
         <article style={surfaceCardStyle}>
@@ -206,32 +221,44 @@ export function CustomersWorkspace() {
                 <div style={{ color: '#64748b' }}>{selectedCustomer.customer.address || 'No address'}</div>
               </div>
 
-              <div style={{ display: 'grid', gap: 10 }}>
-                {selectedCustomer.dueSales.length ? selectedCustomer.dueSales.map((sale) => (
-                  <label key={sale.id} style={{ ...surfaceCardStyle, padding: 14, display: 'grid', gap: 6 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-                      <strong>{sale.sale_no}</strong>
-                      <span style={{ color: '#92400e' }}>{sale.outstanding_due_amount}</span>
-                    </div>
-                    <div style={{ color: '#475569' }}>
-                      Status: {sale.payment_status} · Due date: {sale.due_date || 'Not set'}
-                    </div>
-                    <div style={{ color: '#64748b' }}>{new Date(sale.created_at).toLocaleString()}</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <input
-                        type="radio"
-                        checked={collectionForm.saleId === sale.id}
-                        onChange={() => setCollectionForm((current) => ({
-                          ...current,
-                          saleId: sale.id,
-                          amount: String(sale.outstanding_due_amount),
-                        }))}
-                      />
-                      <span>Select for collection</span>
-                    </div>
-                  </label>
-                )) : <div style={emptyStateStyle}>No due sales remain for this customer.</div>}
-              </div>
+              {selectedCustomer.dueSales.length ? (
+                <div style={tableWrapStyle}>
+                  <table style={tableStyle}>
+                    <thead>
+                      <tr>
+                        <th style={tableHeaderCellStyle}>Sale</th>
+                        <th style={tableHeaderCellStyle}>Outstanding</th>
+                        <th style={tableHeaderCellStyle}>Status</th>
+                        <th style={tableHeaderCellStyle}>Due Date</th>
+                        <th style={tableHeaderCellStyle}>Created</th>
+                        <th style={tableHeaderCellStyle}>Select</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedCustomer.dueSales.map((sale) => (
+                        <tr key={sale.id}>
+                          <td style={tableCellStyle}>{sale.sale_no}</td>
+                          <td style={{ ...tableCellStyle, color: '#92400e' }}>{sale.outstanding_due_amount}</td>
+                          <td style={tableCellStyle}>{sale.payment_status}</td>
+                          <td style={tableCellStyle}>{sale.due_date || 'Not set'}</td>
+                          <td style={tableCellStyle}>{new Date(sale.created_at).toLocaleString()}</td>
+                          <td style={tableCellStyle}>
+                            <input
+                              type="radio"
+                              checked={collectionForm.saleId === sale.id}
+                              onChange={() => setCollectionForm((current) => ({
+                                ...current,
+                                saleId: sale.id,
+                                amount: String(sale.outstanding_due_amount),
+                              }))}
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : <div style={emptyStateStyle}>No due sales remain for this customer.</div>}
 
               <div style={{ display: 'grid', gap: 10 }}>
                 <input value={collectionForm.amount} onChange={(event) => setCollectionForm((current) => ({ ...current, amount: event.target.value }))} style={fieldStyle} placeholder="Collection amount" />

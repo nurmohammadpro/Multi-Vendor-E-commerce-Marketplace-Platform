@@ -8,6 +8,10 @@ import {
   pageShellStyle,
   secondaryButtonStyle,
   surfaceCardStyle,
+  tableCellStyle,
+  tableHeaderCellStyle,
+  tableStyle,
+  tableWrapStyle,
   tokenMutedStyle,
 } from '../motocore-theme';
 
@@ -188,58 +192,68 @@ export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) 
         </div>
       </article>
 
-      <section style={{ display: 'grid', gap: 10 }}>
-        {staff.length ? (
-          staff.map((member) => (
-            <article key={member.id} style={surfaceCardStyle}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-                <div style={{ display: 'grid', gap: 4 }}>
-                  <div style={{ fontWeight: 600 }}>{member.full_name || member.email || member.phone || member.user_id}</div>
-                  <div style={{ color: '#475569' }}>
-                    {member.role_code} · {member.status} · {member.employee_number || 'No employee ID'}
-                  </div>
-                  <div style={{ color: '#64748b' }}>
-                    {member.email || '—'} · {member.phone || '—'}
-                  </div>
-                  <div style={{ color: '#64748b' }}>
-                    {member.designation || 'No designation'} · {member.department || 'No department'} · Salary: {member.monthly_salary || 0}
-                  </div>
-                  <div style={{ color: '#64748b' }}>{member.address_text || 'No address'}</div>
-                </div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {capabilities?.canUpdateManager && member.role_code === 'store_salesman' ? (
-                    <button onClick={() => updateMembership(member.id, { roleCode: 'store_manager' })} style={secondaryButtonStyle} disabled={loading}>
-                      Make Manager
-                    </button>
-                  ) : null}
-                  {capabilities?.canUpdateManager && member.role_code === 'store_manager' ? (
-                    <button onClick={() => updateMembership(member.id, { roleCode: 'store_salesman' })} style={secondaryButtonStyle} disabled={loading}>
-                      Make Salesman
-                    </button>
-                  ) : null}
-                  {member.role_code !== 'store_owner' ? (
-                    <button onClick={() => updateMembership(member.id, { status: member.status === 'suspended' ? 'active' : 'suspended' })} style={secondaryButtonStyle} disabled={loading}>
-                      {member.status === 'suspended' ? 'Activate' : 'Suspend'}
-                    </button>
-                  ) : null}
-                  {member.role_code === 'store_manager' && capabilities?.canRemoveManager ? (
-                    <button onClick={() => updateMembership(member.id, { status: 'removed' })} style={secondaryButtonStyle} disabled={loading}>
-                      Remove
-                    </button>
-                  ) : null}
-                  {member.role_code === 'store_salesman' && capabilities?.canRemoveSalesman ? (
-                    <button onClick={() => updateMembership(member.id, { status: 'removed' })} style={secondaryButtonStyle} disabled={loading}>
-                      Remove
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-            </article>
-          ))
-        ) : (
-          <div style={emptyStateStyle}>No store users are loaded yet.</div>
-        )}
-      </section>
+      {staff.length ? (
+        <div style={tableWrapStyle}>
+          <table style={tableStyle}>
+            <thead>
+              <tr>
+                <th style={tableHeaderCellStyle}>Name</th>
+                <th style={tableHeaderCellStyle}>Role</th>
+                <th style={tableHeaderCellStyle}>Status</th>
+                <th style={tableHeaderCellStyle}>Employee ID</th>
+                <th style={tableHeaderCellStyle}>Contact</th>
+                <th style={tableHeaderCellStyle}>Designation</th>
+                <th style={tableHeaderCellStyle}>Department</th>
+                <th style={tableHeaderCellStyle}>Salary</th>
+                <th style={tableHeaderCellStyle}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {staff.map((member) => (
+                <tr key={member.id}>
+                  <td style={tableCellStyle}>
+                    <div style={{ fontWeight: 600 }}>{member.full_name || member.email || member.phone || member.user_id}</div>
+                    <div style={{ color: '#64748b', marginTop: 4 }}>{member.address_text || 'No address'}</div>
+                  </td>
+                  <td style={tableCellStyle}>{member.role_code}</td>
+                  <td style={tableCellStyle}>{member.status}</td>
+                  <td style={tableCellStyle}>{member.employee_number || '—'}</td>
+                  <td style={tableCellStyle}>
+                    {member.email || '—'}
+                    <div style={{ color: '#64748b', marginTop: 4 }}>{member.phone || '—'}</div>
+                  </td>
+                  <td style={tableCellStyle}>{member.designation || '—'}</td>
+                  <td style={tableCellStyle}>{member.department || '—'}</td>
+                  <td style={tableCellStyle}>{member.monthly_salary || 0}</td>
+                  <td style={tableCellStyle}>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      {capabilities?.canUpdateManager && member.role_code === 'store_salesman' ? (
+                        <button onClick={() => updateMembership(member.id, { roleCode: 'store_manager' })} style={secondaryButtonStyle} disabled={loading}>Make Manager</button>
+                      ) : null}
+                      {capabilities?.canUpdateManager && member.role_code === 'store_manager' ? (
+                        <button onClick={() => updateMembership(member.id, { roleCode: 'store_salesman' })} style={secondaryButtonStyle} disabled={loading}>Make Salesman</button>
+                      ) : null}
+                      {member.role_code !== 'store_owner' ? (
+                        <button onClick={() => updateMembership(member.id, { status: member.status === 'suspended' ? 'active' : 'suspended' })} style={secondaryButtonStyle} disabled={loading}>
+                          {member.status === 'suspended' ? 'Activate' : 'Suspend'}
+                        </button>
+                      ) : null}
+                      {member.role_code === 'store_manager' && capabilities?.canRemoveManager ? (
+                        <button onClick={() => updateMembership(member.id, { status: 'removed' })} style={secondaryButtonStyle} disabled={loading}>Remove</button>
+                      ) : null}
+                      {member.role_code === 'store_salesman' && capabilities?.canRemoveSalesman ? (
+                        <button onClick={() => updateMembership(member.id, { status: 'removed' })} style={secondaryButtonStyle} disabled={loading}>Remove</button>
+                      ) : null}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div style={emptyStateStyle}>No store users are loaded yet.</div>
+      )}
 
       <article style={surfaceCardStyle}>
         <h3 style={{ marginTop: 0 }}>Operator Notes</h3>

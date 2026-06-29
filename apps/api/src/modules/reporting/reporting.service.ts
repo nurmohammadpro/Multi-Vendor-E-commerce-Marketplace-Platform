@@ -263,6 +263,81 @@ export class ReportingService {
     return { logs: result.rows };
   }
 
+  async getStoreAuditLogs(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    filters: {
+      search?: string;
+      actionCode?: string;
+      resourceType?: string;
+      limit: number;
+      page: number;
+    },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const offset = (filters.page - 1) * filters.limit;
+    const search = filters.search?.trim() || null;
+    const actionCode = filters.actionCode?.trim() || null;
+    const resourceType = filters.resourceType?.trim() || null;
+
+    const [rowsResult, totalResult] = await Promise.all([
+      this.pool.query(
+        `
+          select
+            id,
+            actor_user_id,
+            actor_type,
+            store_id,
+            action_code,
+            resource_type,
+            resource_id,
+            before_json,
+            after_json,
+            created_at
+          from audit.logs
+          where store_id = $1
+            and ($2::text is null or action_code = $2::text)
+            and ($3::text is null or resource_type = $3::text)
+            and (
+              $4::text is null
+              or action_code ilike '%' || $4::text || '%'
+              or resource_type ilike '%' || $4::text || '%'
+              or coalesce(resource_id::text, '') ilike '%' || $4::text || '%'
+            )
+          order by created_at desc
+          limit $5
+          offset $6
+        `,
+        [storeId, actionCode, resourceType, search, filters.limit, offset],
+      ),
+      this.pool.query<{ total: string }>(
+        `
+          select count(*)::text as total
+          from audit.logs
+          where store_id = $1
+            and ($2::text is null or action_code = $2::text)
+            and ($3::text is null or resource_type = $3::text)
+            and (
+              $4::text is null
+              or action_code ilike '%' || $4::text || '%'
+              or resource_type ilike '%' || $4::text || '%'
+              or coalesce(resource_id::text, '') ilike '%' || $4::text || '%'
+            )
+        `,
+        [storeId, actionCode, resourceType, search],
+      ),
+    ]);
+
+    return {
+      logs: rowsResult.rows,
+      pagination: {
+        page: filters.page,
+        limit: filters.limit,
+        total: Number(totalResult.rows[0]?.total ?? 0),
+      },
+    };
+  }
+
   private assertStoreContext(headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
     if (!authContext || authContext.type !== 'store') {
       throw new ForbiddenException('Store context is required');

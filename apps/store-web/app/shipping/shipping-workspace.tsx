@@ -2,7 +2,18 @@
 
 import { useEffect, useState } from 'react';
 
-import { emptyStateStyle, fieldStyle, secondaryButtonStyle, surfaceCardStyle, tokenMutedStyle } from '../motocore-theme';
+import {
+  emptyStateStyle,
+  fieldStyle,
+  pageShellStyle,
+  secondaryButtonStyle,
+  surfaceCardStyle,
+  tableCellStyle,
+  tableHeaderCellStyle,
+  tableStyle,
+  tableWrapStyle,
+  tokenMutedStyle,
+} from '../motocore-theme';
 
 type Courier = {
   id: string;
@@ -176,7 +187,7 @@ export function ShippingWorkspace({
   }
 
   return (
-    <section style={{ display: 'grid', gap: 16 }}>
+    <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
       <article style={cardStyle}>
         <h3 style={{ marginTop: 0 }}>Create Shipment</h3>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
@@ -200,36 +211,56 @@ export function ShippingWorkspace({
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
         <article style={cardStyle}>
           <h3 style={{ marginTop: 0 }}>Shipments</h3>
-          <div style={{ display: 'grid', gap: 10 }}>
-            {shipments.length ? (
-              shipments.map((shipment) => (
-                <article key={shipment.id} style={{ ...cardStyle, padding: 14 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-                    <div onClick={() => loadShipment(shipment.id)} style={{ cursor: 'pointer' }}>
-                      <div style={{ fontWeight: 600 }}>{shipment.shipment_no}</div>
-                      <div style={{ color: '#475569' }}>
-                        {shipment.customer_name} · {shipment.customer_phone}
-                      </div>
-                      <div style={{ color: '#64748b' }}>
-                        {shipment.status} · {shipment.courier_name || 'No courier'} · Fee: {shipment.delivery_fee}
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      {canManageShipping
-                        ? ['assigned', 'picked_up', 'in_transit', 'delivered', 'failed', 'returned'].map((status) => (
-                          <button key={status} onClick={() => updateStatus(shipment.id, status)} style={buttonStyle} disabled={loading || shipment.status === status}>
-                            {status}
-                          </button>
-                        ))
-                        : null}
-                    </div>
-                  </div>
-                </article>
-              ))
-            ) : (
-              <div style={emptyStateStyle}>No shipments are in the queue yet.</div>
-            )}
-          </div>
+          {shipments.length ? (
+            <div style={tableWrapStyle}>
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={tableHeaderCellStyle}>Shipment</th>
+                    <th style={tableHeaderCellStyle}>Customer</th>
+                    <th style={tableHeaderCellStyle}>Courier</th>
+                    <th style={tableHeaderCellStyle}>Fee</th>
+                    <th style={tableHeaderCellStyle}>Status</th>
+                    <th style={tableHeaderCellStyle}>Created</th>
+                    <th style={tableHeaderCellStyle}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {shipments.map((shipment) => (
+                    <tr key={shipment.id}>
+                      <td style={tableCellStyle}>
+                        <button onClick={() => void loadShipment(shipment.id)} style={secondaryButtonStyle}>{shipment.shipment_no}</button>
+                      </td>
+                      <td style={tableCellStyle}>
+                        {shipment.customer_name}
+                        <div style={{ color: '#64748b', marginTop: 4 }}>{shipment.customer_phone}</div>
+                      </td>
+                      <td style={tableCellStyle}>{shipment.courier_name || 'No courier'}</td>
+                      <td style={tableCellStyle}>{shipment.delivery_fee}</td>
+                      <td style={tableCellStyle}>{shipment.status}</td>
+                      <td style={tableCellStyle}>{new Date(shipment.created_at).toLocaleString()}</td>
+                      <td style={tableCellStyle}>
+                        {canManageShipping ? (
+                          <select
+                            value={shipment.status}
+                            onChange={(event) => void updateStatus(shipment.id, event.target.value)}
+                            style={inputStyle}
+                            disabled={loading}
+                          >
+                            {['assigned', 'picked_up', 'in_transit', 'delivered', 'failed', 'returned'].map((status) => (
+                              <option key={status} value={status}>{status}</option>
+                            ))}
+                          </select>
+                        ) : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div style={emptyStateStyle}>No shipments are in the queue yet.</div>
+          )}
         </article>
 
         <article style={cardStyle}>
@@ -243,13 +274,30 @@ export function ShippingWorkspace({
                 <div style={{ color: '#475569' }}>{selectedShipment.shipment.customer_name} · {selectedShipment.shipment.status}</div>
                 <div style={{ color: '#64748b' }}>{selectedShipment.shipment.delivery_address}</div>
               </div>
-              {selectedShipment.events.map((event) => (
-                <article key={event.id} style={{ ...cardStyle, padding: 14 }}>
-                  <div style={{ fontWeight: 600 }}>{event.event_type}</div>
-                  <div style={{ color: '#64748b' }}>{event.note}</div>
-                  <div style={{ color: '#94a3b8' }}>{new Date(event.created_at).toLocaleString()}</div>
-                </article>
-              ))}
+              {selectedShipment.events.length ? (
+                <div style={tableWrapStyle}>
+                  <table style={tableStyle}>
+                    <thead>
+                      <tr>
+                        <th style={tableHeaderCellStyle}>Event</th>
+                        <th style={tableHeaderCellStyle}>Note</th>
+                        <th style={tableHeaderCellStyle}>Time</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedShipment.events.map((event) => (
+                        <tr key={event.id}>
+                          <td style={tableCellStyle}>{event.event_type}</td>
+                          <td style={tableCellStyle}>{event.note}</td>
+                          <td style={tableCellStyle}>{new Date(event.created_at).toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div style={emptyStateStyle}>No timeline events recorded yet.</div>
+              )}
             </section>
           )}
         </article>

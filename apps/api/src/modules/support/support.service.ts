@@ -2,11 +2,15 @@ import { ForbiddenException, Inject, Injectable, NotFoundException, Unauthorized
 import type { Pool, PoolClient } from 'pg';
 
 import type { AuthSession, StoreAuthContext } from '../auth/auth.types.js';
+import { AuditService } from '../audit/audit.service.js';
 import { DATABASE_POOL } from '../database/database.constants.js';
 
 @Injectable()
 export class SupportService {
-  constructor(@Inject(DATABASE_POOL) private readonly pool: Pool) {}
+  constructor(
+    @Inject(DATABASE_POOL) private readonly pool: Pool,
+    private readonly auditService: AuditService,
+  ) {}
 
   async getStoreTickets(headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
@@ -52,7 +56,7 @@ export class SupportService {
       await client.query('begin');
       const ticketNo = await this.generateTicketNo(client, storeId);
 
-      const ticketResult = await client.query<{ id: string }>(
+      const ticketResult = await client.query<{ id: string; ticket_no: string }>(
         `
           insert into support.tickets (
             id,
@@ -90,6 +94,19 @@ export class SupportService {
       await this.insertTicketMessage(client, ticket.id, userId, payload.message, null);
 
       await client.query('commit');
+      await this.auditService.recordStoreAction({
+        storeId,
+        actorUserId: userId,
+        actionCode: 'ticket.create',
+        resourceType: 'ticket',
+        resourceId: String(ticket.id),
+        after: {
+          ticketNo: ticket.ticket_no,
+          ticketType: payload.ticketType,
+          priority: payload.priority,
+          subject: payload.subject,
+        },
+      });
       return { ticket };
     } catch (error) {
       await client.query('rollback').catch(() => {});
@@ -116,6 +133,17 @@ export class SupportService {
     await this.ensureStoreTicket(ticketId, storeId);
 
     const result = await this.insertTicketMessage(this.pool, ticketId, userId, payload.message, payload.attachmentPath ?? null);
+    await this.auditService.recordStoreAction({
+      storeId,
+      actorUserId: userId,
+      actionCode: 'ticket.message.add',
+      resourceType: 'ticket',
+      resourceId: ticketId,
+      after: {
+        messageLength: payload.message.length,
+        attachmentPath: payload.attachmentPath ?? null,
+      },
+    });
     return { message: result };
   }
 

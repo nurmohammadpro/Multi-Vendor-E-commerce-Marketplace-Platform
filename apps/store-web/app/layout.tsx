@@ -17,6 +17,7 @@ const navItems = [
   { href: '/pos', label: 'Sales (POS)', permission: 'sales.pos.create', feature: 'pos' },
   { href: '/customers', label: 'Customers', permission: 'sales.report.view', feature: 'customers' },
   { href: '/reports', label: 'Reports', permission: 'sales.report.view', feature: 'reports' },
+  { href: '/activity', label: 'Activity', permission: 'sales.report.view', feature: 'reports' },
   { href: '/disputes', label: 'Disputes', permission: 'sales.report.view', feature: 'disputes' },
   { href: '/support', label: 'Support', permission: 'sales.report.view', feature: 'support' },
   { href: '/staff', label: 'User Management', permission: 'store.staff.manage', feature: 'staff' },

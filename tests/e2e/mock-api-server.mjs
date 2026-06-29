@@ -6,6 +6,7 @@ const PORT = 4010;
 const TOKENS = {
   owner: 'e2e-owner-token',
   manager: 'e2e-manager-token',
+  salesman: 'e2e-salesman-token',
 };
 
 const OWNER_PERMISSIONS = [
@@ -29,6 +30,10 @@ const MANAGER_PERMISSIONS = [
   'sales.report.view',
 ];
 
+const SALESMAN_PERMISSIONS = [
+  'sales.pos.create',
+];
+
 const nowIso = () => new Date().toISOString();
 
 const buildState = (scenario = 'default') => {
@@ -47,6 +52,8 @@ const buildState = (scenario = 'default') => {
       shift: 0,
       sale: 0,
       salePayment: 0,
+      cashCount: 0,
+      auditLog: 0,
     },
     store: {
       id: 'store_test',
@@ -92,6 +99,7 @@ const buildState = (scenario = 'default') => {
     shifts: [],
     sales: [],
     salePayments: [],
+    auditLogs: [],
     customers: [],
     categories: [
       { id: 'cat-1', code: 'APPAREL', name: 'Apparel', status: 'active', sort_order: 0 },
@@ -198,6 +206,7 @@ const buildState = (scenario = 'default') => {
     ],
     stockRequests: [],
     priceRequests: [],
+    ownerCashCount: null,
   };
 
   if (scenario === 'default') {
@@ -280,6 +289,17 @@ const getActor = (token) => {
     };
   }
 
+  if (token === TOKENS.salesman) {
+    return {
+      id: 'user-salesman',
+      email: 'salesman@example.com',
+      phone: '+8801000000003',
+      name: 'Store Salesman',
+      roles: ['store_salesman'],
+      permissions: SALESMAN_PERMISSIONS,
+    };
+  }
+
   return null;
 };
 
@@ -287,6 +307,16 @@ const requireActor = (req, res) => {
   const actor = getActor(getToken(req));
   if (!actor) {
     send(res, 401, { error: 'Unauthorized' });
+    return null;
+  }
+  return actor;
+};
+
+const requirePermission = (req, res, permission) => {
+  const actor = requireActor(req, res);
+  if (!actor) return null;
+  if (!actor.permissions.includes(permission)) {
+    send(res, 403, { error: 'Forbidden' });
     return null;
   }
   return actor;
@@ -304,6 +334,21 @@ const getCustomer = (customerId) => state.customers.find((customer) => customer.
 const getBalance = (locationId, skuId) =>
   state.balances.find((balance) => balance.location_id === locationId && balance.sku_id === skuId) ?? null;
 const getSalePayments = (saleId) => state.salePayments.filter((payment) => payment.sale_id === saleId);
+
+const pushAuditLog = ({ actor, actionCode, resourceType, resourceId = null, after = null }) => {
+  state.auditLogs.unshift({
+    id: nextId('auditLog', 'audit'),
+    actor_user_id: actor?.id ?? null,
+    actor_type: actor ? 'user' : 'system',
+    store_id: 'store_test',
+    action_code: actionCode,
+    resource_type: resourceType,
+    resource_id: resourceId,
+    before_json: null,
+    after_json: after,
+    created_at: nowIso(),
+  });
+};
 
 const buildVariantLabel = (sku) => {
   const labels = (sku.variant_option_ids ?? [])
@@ -323,11 +368,14 @@ const toSkuPayload = (sku) => {
   const balance = state.balances.find((entry) => entry.sku_id === sku.id);
   return {
     id: sku.id,
+    product_id: sku.product_id,
     sku_code: sku.sku_code,
     barcode: sku.barcode,
     variant_label: buildVariantLabel(sku),
     variant_json: null,
     status: sku.status,
+    has_variants: product?.has_variants ?? false,
+    variant_mode: product?.variant_mode ?? 'none',
     sale_price: sku.sale_price,
     cost_price: sku.cost_price,
     compare_at_price: sku.compare_at_price,
@@ -658,6 +706,8 @@ const buildOwnerOverviewPayload = () => {
     payment.payment_method === 'cash' ? sum + Number(payment.amount ?? 0) : sum
   ), 0);
   const todayCashExpenseAmount = 0;
+  const expectedCashAmount = todayCashSalesAmount + todayCashDueCollectionsAmount - todayCashExpenseAmount;
+  const countedCashAmount = state.ownerCashCount?.counted_cash_amount ?? null;
 
   return {
     pendingStockApprovals: state.stockRequests.filter((request) => request.status === 'pending').length,
@@ -670,7 +720,19 @@ const buildOwnerOverviewPayload = () => {
     todayCashSalesAmount,
     todayCashDueCollectionsAmount,
     todayCashExpenseAmount,
-    cashVarianceAmount: todayCashSalesAmount + todayCashDueCollectionsAmount - todayCashExpenseAmount,
+    expectedCashAmount,
+    countedCashAmount,
+    cashVarianceAmount: countedCashAmount === null ? expectedCashAmount : Number(countedCashAmount) - expectedCashAmount,
+    cashCountNote: state.ownerCashCount?.note ?? null,
+    cashCountUpdatedAt: state.ownerCashCount?.updated_at ?? null,
+    recentCashCounts: state.ownerCashCount ? [{
+      countDate: state.ownerCashCount.count_date,
+      countedCashAmount: Number(state.ownerCashCount.counted_cash_amount ?? 0),
+      expectedCashAmount: Number(state.ownerCashCount.expected_cash_amount ?? 0),
+      varianceAmount: Number(state.ownerCashCount.variance_amount ?? 0),
+      note: state.ownerCashCount.note ?? null,
+      updatedAt: state.ownerCashCount.updated_at,
+    }] : [],
   };
 };
 
@@ -791,6 +853,15 @@ const server = http.createServer(async (req, res) => {
         contexts: [{ type: 'store', storeId: 'store_test', roles: ['store_manager'] }],
       });
     }
+    if ((body.email === 'salesman@example.com' || body.phone === '+8801000000003') && body.password === 'ChangeMe-Store-123!') {
+      return send(res, 200, {
+        tokenType: 'Bearer',
+        accessToken: TOKENS.salesman,
+        expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+        user: { id: 'user-salesman', tenantId: 'tenant-1', email: 'salesman@example.com', phone: '+8801000000003', preferredLocale: 'en' },
+        contexts: [{ type: 'store', storeId: 'store_test', roles: ['store_salesman'] }],
+      });
+    }
     return send(res, 401, { message: 'Invalid credentials' });
   }
 
@@ -838,7 +909,34 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (url.pathname === '/v1/billing/subscription/summary' && req.method === 'GET') {
+    const actor = requirePermission(req, res, 'inventory.view');
+    if (!actor) return;
     return send(res, 200, { subscription: { plan_code: 'pro', plan_name: 'Pro', status: 'active' } });
+  }
+
+  if (url.pathname === '/v1/audit/store-logs' && req.method === 'GET') {
+    const actor = requirePermission(req, res, 'sales.report.view');
+    if (!actor) return;
+    const search = String(url.searchParams.get('search') ?? '').trim().toLowerCase();
+    const actionCode = String(url.searchParams.get('actionCode') ?? '').trim();
+    const resourceType = String(url.searchParams.get('resourceType') ?? '').trim();
+    const page = Math.max(1, Number(url.searchParams.get('page') ?? '1') || 1);
+    const limit = Math.min(100, Math.max(1, Number(url.searchParams.get('limit') ?? '20') || 20));
+    const filtered = state.auditLogs.filter((entry) =>
+      (!actionCode || entry.action_code === actionCode)
+      && (!resourceType || entry.resource_type === resourceType)
+      && (
+        !search
+        || entry.action_code.toLowerCase().includes(search)
+        || entry.resource_type.toLowerCase().includes(search)
+        || String(entry.resource_id ?? '').toLowerCase().includes(search)
+      )
+    );
+    const start = (page - 1) * limit;
+    return send(res, 200, {
+      logs: filtered.slice(start, start + limit),
+      pagination: { page, limit, total: filtered.length },
+    });
   }
 
   if (url.pathname === '/v1/reports/store/sales' && req.method === 'GET') {
@@ -860,11 +958,37 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, { overview: buildOwnerOverviewPayload() });
   }
 
+  if (url.pathname === '/v1/store-ops/owner-cash-count' && req.method === 'POST') {
+    const actor = requirePermission(req, res, 'inventory.adjust.approve');
+    if (!actor) return;
+    const body = await parseBody(req);
+    const overview = buildOwnerOverviewPayload();
+    state.ownerCashCount = {
+      id: nextId('cashCount', 'cash-count'),
+      count_date: formatDateOnly(nowIso()),
+      counted_cash_amount: Number(body.countedCashAmount ?? 0),
+      expected_cash_amount: Number(overview.expectedCashAmount ?? 0),
+      variance_amount: Number(body.countedCashAmount ?? 0) - Number(overview.expectedCashAmount ?? 0),
+      note: body.note ?? null,
+      updated_at: nowIso(),
+    };
+    pushAuditLog({
+      actor,
+      actionCode: 'owner.cash_count.save',
+      resourceType: 'cash_count',
+      resourceId: state.ownerCashCount.id,
+      after: state.ownerCashCount,
+    });
+    return send(res, 200, { overview: buildOwnerOverviewPayload() });
+  }
+
   if (url.pathname === '/v1/stores/store_test' && req.method === 'GET') {
     return send(res, 200, { store: state.store });
   }
 
   if (url.pathname === '/v1/stores/store_test' && req.method === 'PATCH') {
+    const actor = requirePermission(req, res, 'store.settings.manage');
+    if (!actor) return;
     const body = await parseBody(req);
     state.store = {
       ...state.store,
@@ -875,6 +999,13 @@ const server = http.createServer(async (req, res) => {
       address_text: body.address ?? state.store.address_text,
       logo_url: body.logoUrl ?? state.store.logo_url,
     };
+    pushAuditLog({
+      actor,
+      actionCode: 'store.profile.update',
+      resourceType: 'store',
+      resourceId: state.store.id,
+      after: state.store,
+    });
     return send(res, 200, { store: state.store });
   }
 
@@ -883,6 +1014,8 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (url.pathname === '/v1/stores/store_test/settings' && req.method === 'PATCH') {
+    const actor = requirePermission(req, res, 'store.settings.manage');
+    if (!actor) return;
     const body = await parseBody(req);
     state.settings = {
       ...state.settings,
@@ -894,6 +1027,13 @@ const server = http.createServer(async (req, res) => {
       allow_negative_stock: body.allowNegativeStock ?? state.settings.allow_negative_stock,
       low_stock_threshold_default: body.lowStockThresholdDefault ?? state.settings.low_stock_threshold_default,
     };
+    pushAuditLog({
+      actor,
+      actionCode: 'store.settings.update',
+      resourceType: 'store_settings',
+      resourceId: state.settings.store_id,
+      after: state.settings,
+    });
     return send(res, 200, { settings: state.settings });
   }
 
@@ -902,6 +1042,8 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (url.pathname === '/v1/catalog/categories' && req.method === 'POST') {
+    const actor = requirePermission(req, res, 'catalog.manage');
+    if (!actor) return;
     const body = await parseBody(req);
     const category = {
       id: nextId('category', 'cat'),
@@ -910,6 +1052,13 @@ const server = http.createServer(async (req, res) => {
       status: body.status ?? 'active',
       sort_order: body.sortOrder ?? 0,
     };
+    pushAuditLog({
+      actor,
+      actionCode: 'catalog.category.create',
+      resourceType: 'category',
+      resourceId: category.id,
+      after: category,
+    });
     state.categories.push(category);
     return send(res, 201, { category });
   }
@@ -1240,6 +1389,20 @@ const server = http.createServer(async (req, res) => {
     if (!actor) return;
     const body = await parseBody(req);
 
+    if (body.clientRequestId) {
+      const existingSale = state.sales.find((entry) => entry.client_request_id === body.clientRequestId);
+      if (existingSale) {
+        return send(res, 201, {
+          sale: {
+            id: existingSale.id,
+            saleNo: existingSale.sale_no,
+            totalAmount: existingSale.total_amount,
+            createdAt: existingSale.created_at,
+          },
+        });
+      }
+    }
+
     if (!body.locationId) return send(res, 400, { error: 'Location is required' });
     if (!Array.isArray(body.items) || body.items.length === 0) {
       return send(res, 400, { error: 'At least one item is required' });
@@ -1321,6 +1484,7 @@ const server = http.createServer(async (req, res) => {
 
     const sale = {
       id: saleId,
+      client_request_id: body.clientRequestId ?? null,
       sale_no: saleNo,
       location_id: body.locationId,
       register_id: body.registerId ?? null,
@@ -1346,6 +1510,17 @@ const server = http.createServer(async (req, res) => {
     sale.payment_status = getComputedPaymentStatus(sale);
     upsertCustomerFromSale(sale);
     state.sales.unshift(sale);
+    pushAuditLog({
+      actor,
+      actionCode: 'sale.create',
+      resourceType: 'sale',
+      resourceId: sale.id,
+      after: {
+        saleNo: sale.sale_no,
+        totalAmount: sale.total_amount,
+        clientRequestId: sale.client_request_id,
+      },
+    });
 
     return send(res, 201, {
       sale: {
@@ -1470,10 +1645,19 @@ const server = http.createServer(async (req, res) => {
       created_at: nowIso(),
     };
     state.stockRequests.unshift(request);
+    pushAuditLog({
+      actor,
+      actionCode: 'inventory.adjustment.request',
+      resourceType: 'stock_adjustment_request',
+      resourceId: request.id,
+      after: request,
+    });
     return send(res, 201, { adjustmentRequest: buildAdjustmentPayload(request) });
   }
 
   if (/^\/v1\/inventory\/adjustments\/[^/]+\/(approve|reject)$/.test(url.pathname) && req.method === 'POST') {
+    const actor = requirePermission(req, res, 'inventory.adjust.approve');
+    if (!actor) return;
     const body = await parseBody(req);
     const [, , , , requestId, decision] = url.pathname.split('/');
     const request = state.stockRequests.find((item) => item.id === requestId);
@@ -1496,6 +1680,13 @@ const server = http.createServer(async (req, res) => {
         actorName: request.requested_by_name ?? 'Store Manager',
       });
     }
+    pushAuditLog({
+      actor,
+      actionCode: `inventory.adjustment.${decision}`,
+      resourceType: 'stock_adjustment_request',
+      resourceId: request.id,
+      after: request,
+    });
     return send(res, 200, { ok: true, decision });
   }
 

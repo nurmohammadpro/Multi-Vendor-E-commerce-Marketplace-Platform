@@ -214,6 +214,8 @@ export class StoreOpsService {
       cashSalesResult,
       cashDueCollectionsResult,
       cashExpensesResult,
+      cashCountResult,
+      cashCountHistoryResult,
     ] = await Promise.all([
       this.pool.query<{ pending_stock_count: number }>(
         `
@@ -284,6 +286,50 @@ export class StoreOpsService {
         `,
         [storeId],
       ),
+      this.pool.query<{
+        counted_cash_amount: string;
+        expected_cash_amount: string;
+        variance_amount: string;
+        note: string | null;
+        updated_at: string;
+      }>(
+        `
+          select
+            counted_cash_amount,
+            expected_cash_amount,
+            variance_amount,
+            note,
+            updated_at
+          from finance.owner_cash_counts
+          where store_id = $1
+            and count_date = current_date
+          limit 1
+        `,
+        [storeId],
+      ),
+      this.pool.query<{
+        count_date: string;
+        counted_cash_amount: string;
+        expected_cash_amount: string;
+        variance_amount: string;
+        note: string | null;
+        updated_at: string;
+      }>(
+        `
+          select
+            count_date,
+            counted_cash_amount,
+            expected_cash_amount,
+            variance_amount,
+            note,
+            updated_at
+          from finance.owner_cash_counts
+          where store_id = $1
+          order by count_date desc, updated_at desc
+          limit 7
+        `,
+        [storeId],
+      ),
     ]);
 
     const pendingStockApprovals = Number(pendingStockResult.rows[0]?.pending_stock_count ?? 0);
@@ -293,6 +339,12 @@ export class StoreOpsService {
     const todayCashSalesAmount = Number(cashSalesResult.rows[0]?.today_cash_sales_amount ?? 0);
     const todayCashDueCollectionsAmount = Number(cashDueCollectionsResult.rows[0]?.today_cash_due_collection_amount ?? 0);
     const todayCashExpenseAmount = Number(cashExpensesResult.rows[0]?.today_cash_expense_amount ?? 0);
+    const expectedCashAmount = todayCashSalesAmount + todayCashDueCollectionsAmount - todayCashExpenseAmount;
+    const savedCashCount = cashCountResult.rows[0];
+    const countedCashAmount = savedCashCount ? Number(savedCashCount.counted_cash_amount ?? 0) : null;
+    const cashVarianceAmount = countedCashAmount === null
+      ? expectedCashAmount
+      : countedCashAmount - expectedCashAmount;
 
     return {
       overview: {
@@ -304,9 +356,77 @@ export class StoreOpsService {
         todayCashSalesAmount,
         todayCashDueCollectionsAmount,
         todayCashExpenseAmount,
-        cashVarianceAmount: todayCashSalesAmount + todayCashDueCollectionsAmount - todayCashExpenseAmount,
+        expectedCashAmount,
+        countedCashAmount,
+        cashVarianceAmount,
+        cashCountNote: savedCashCount?.note ?? null,
+        cashCountUpdatedAt: savedCashCount?.updated_at ?? null,
+        recentCashCounts: cashCountHistoryResult.rows.map((entry) => ({
+          countDate: entry.count_date,
+          countedCashAmount: Number(entry.counted_cash_amount ?? 0),
+          expectedCashAmount: Number(entry.expected_cash_amount ?? 0),
+          varianceAmount: Number(entry.variance_amount ?? 0),
+          note: entry.note ?? null,
+          updatedAt: entry.updated_at,
+        })),
       },
     };
+  }
+
+  async saveOwnerCashCount(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    session: AuthSession | null,
+    payload: { countedCashAmount: number; note?: string },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    this.assertAllowedRoles(authContext, ['store_owner']);
+    const userId = this.requireUserId(session);
+    const expectedCashAmount = await this.getExpectedCashAmount(storeId);
+    const varianceAmount = payload.countedCashAmount - expectedCashAmount;
+
+    await this.pool.query(
+      `
+        insert into finance.owner_cash_counts (
+          tenant_id,
+          store_id,
+          count_date,
+          expected_cash_amount,
+          counted_cash_amount,
+          variance_amount,
+          note,
+          counted_by
+        )
+        values (
+          (select tenant_id from store.stores where id = $1),
+          $1,
+          current_date,
+          $2,
+          $3,
+          $4,
+          $5,
+          $6
+        )
+        on conflict (store_id, count_date)
+        do update set
+          expected_cash_amount = excluded.expected_cash_amount,
+          counted_cash_amount = excluded.counted_cash_amount,
+          variance_amount = excluded.variance_amount,
+          note = excluded.note,
+          counted_by = excluded.counted_by,
+          updated_at = now()
+      `,
+      [
+        storeId,
+        expectedCashAmount,
+        payload.countedCashAmount,
+        varianceAmount,
+        payload.note?.trim() || null,
+        userId,
+      ],
+    );
+
+    return this.getOwnerOverview(storeId, authContext);
   }
 
   async collectDueSalePayment(
@@ -1225,5 +1345,52 @@ export class StoreOpsService {
       throw new UnauthorizedException('Missing auth session');
     }
     return session.user.id;
+  }
+
+  private async getExpectedCashAmount(storeId: string) {
+    const [cashSalesResult, cashDueCollectionsResult, cashExpensesResult] = await Promise.all([
+      this.pool.query<{ today_cash_sales_amount: string }>(
+        `
+          select
+            coalesce(sum(sp.amount) filter (where sp.status = 'paid'), 0) as today_cash_sales_amount
+          from sales.sale_payments sp
+          join sales.sales s on s.id = sp.sale_id
+          where s.store_id = $1
+            and s.due_date is null
+            and sp.payment_method = 'cash'
+            and sp.paid_at::date = current_date
+        `,
+        [storeId],
+      ),
+      this.pool.query<{ today_cash_due_collection_amount: string }>(
+        `
+          select
+            coalesce(sum(sp.amount) filter (where sp.status = 'paid'), 0) as today_cash_due_collection_amount
+          from sales.sale_payments sp
+          join sales.sales s on s.id = sp.sale_id
+          where s.store_id = $1
+            and s.due_date is not null
+            and sp.payment_method = 'cash'
+            and sp.paid_at::date = current_date
+        `,
+        [storeId],
+      ),
+      this.pool.query<{ today_cash_expense_amount: string }>(
+        `
+          select
+            coalesce(sum(amount), 0) as today_cash_expense_amount
+          from finance.daily_expenses
+          where store_id = $1
+            and payment_method = 'cash'
+            and expense_date = current_date
+            and status <> 'void'
+        `,
+        [storeId],
+      ),
+    ]);
+
+    return Number(cashSalesResult.rows[0]?.today_cash_sales_amount ?? 0)
+      + Number(cashDueCollectionsResult.rows[0]?.today_cash_due_collection_amount ?? 0)
+      - Number(cashExpensesResult.rows[0]?.today_cash_expense_amount ?? 0);
   }
 }

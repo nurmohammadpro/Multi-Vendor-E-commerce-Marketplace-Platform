@@ -12,11 +12,20 @@ test('owner is redirected to approvals when pending items exist', async ({ page 
   await expect(page).toHaveURL(/\/approvals$/);
   await expect(page.getByText('Owner approval queue')).toBeVisible();
   await expect(page.getByText('Cash variance')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Cash count', exact: true })).toBeVisible();
   await expect(page.getByText("Today's due collections")).toBeVisible();
   await expect(page.getByText('Pending stock approvals', { exact: true })).toBeVisible();
   await expect(page.getByText('Pending price approvals', { exact: true })).toBeVisible();
   await expect(page.getByText('Pending stock updates')).toBeVisible();
   await expect(page.getByText('Pending price updates')).toBeVisible();
+});
+
+test('owner can save a counted cash amount and see real variance', async ({ page }) => {
+  await page.goto('http://127.0.0.1:3002/approvals');
+  await page.getByPlaceholder('0.00').fill('1200');
+  await page.getByRole('button', { name: 'Save cash count' }).click();
+  await expect(page.getByText('Cash count saved successfully.')).toBeVisible();
+  await expect(page.getByText(/Last saved:/)).toBeVisible();
 });
 
 test('owner can update store settings and profile', async ({ page }) => {

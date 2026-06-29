@@ -2,6 +2,7 @@ import { ForbiddenException, Inject, Injectable, NotFoundException, Unauthorized
 import type { Pool, PoolClient } from 'pg';
 
 import type { AuthSession, StoreAuthContext } from '../auth/auth.types.js';
+import { AuditService } from '../audit/audit.service.js';
 import { DATABASE_POOL } from '../database/database.constants.js';
 
 const allowedStatusTransitions: Record<string, string[]> = {
@@ -16,7 +17,10 @@ const allowedStatusTransitions: Record<string, string[]> = {
 
 @Injectable()
 export class ShippingService {
-  constructor(@Inject(DATABASE_POOL) private readonly pool: Pool) {}
+  constructor(
+    @Inject(DATABASE_POOL) private readonly pool: Pool,
+    private readonly auditService: AuditService,
+  ) {}
 
   async getCouriers(headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
@@ -60,7 +64,7 @@ export class ShippingService {
       await client.query('begin');
       const shipmentNo = await this.generateShipmentNo(client, storeId);
 
-      const result = await client.query<{ id: string }>(
+      const result = await client.query<{ id: string; shipment_no: string }>(
         `
           insert into shipping.shipments (
             id,
@@ -126,6 +130,18 @@ export class ShippingService {
       }, payload.note ?? 'Shipment created');
 
       await client.query('commit');
+      await this.auditService.recordStoreAction({
+        storeId,
+        actorUserId: userId,
+        actionCode: 'shipment.create',
+        resourceType: 'shipment',
+        resourceId: String(shipment.id),
+        after: {
+          shipmentNo: shipment.shipment_no,
+          customerName: payload.customerName,
+          deliveryFee: payload.deliveryFee,
+        },
+      });
       return { shipment };
     } catch (error) {
       await client.query('rollback').catch(() => {});
@@ -211,7 +227,7 @@ export class ShippingService {
     },
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
-    this.requireUserId(session);
+    const userId = this.requireUserId(session);
     const client = await this.pool.connect();
 
     try {
@@ -263,6 +279,19 @@ export class ShippingService {
       );
 
       await client.query('commit');
+      await this.auditService.recordStoreAction({
+        storeId,
+        actorUserId: userId,
+        actionCode: 'shipment.status.update',
+        resourceType: 'shipment',
+        resourceId: shipmentId,
+        before: { status: shipment.status },
+        after: {
+          status: payload.status,
+          trackingNo: payload.trackingNo ?? null,
+          note: payload.note ?? null,
+        },
+      });
       return { shipment: result.rows[0] };
     } catch (error) {
       await client.query('rollback').catch(() => {});

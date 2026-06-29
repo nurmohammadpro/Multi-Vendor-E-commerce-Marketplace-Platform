@@ -72,7 +72,7 @@ test('manager can build catalog variants and submit stock + price approvals for 
 
     await managerPage.getByRole('button', { name: 'Create All SKUs' }).click();
     await expect(managerPage.getByText('Created 2 variant SKU(s) with pricing.')).toBeVisible();
-    await expect(managerPage.locator('article').filter({ hasText: 'WCTEE-BLK' }).first()).toBeVisible();
+    await expect(managerPage.getByRole('cell', { name: 'WCTEE-BLK-M' })).toBeVisible();
 
     const blackSkuId = await managerPage.evaluate(async () => {
       const productResponse = await fetch('/api/catalog/products');
@@ -82,8 +82,8 @@ test('manager can build catalog variants and submit stock + price approvals for 
 
       const detailResponse = await fetch(`/api/catalog/products/${product.id}`);
       const detailPayload = await detailResponse.json();
-      const sku = detailPayload.skus.find((entry: { id: string; sku_code: string }) => entry.sku_code === 'WCTEE-BLK');
-      if (!sku) throw new Error('WCTEE-BLK SKU not found');
+      const sku = detailPayload.skus.find((entry: { id: string; sku_code: string }) => entry.sku_code === 'WCTEE-BLK-M');
+      if (!sku) throw new Error('WCTEE-BLK-M SKU not found');
 
       return sku.id as string;
     });
@@ -131,11 +131,12 @@ test('manager can build catalog variants and submit stock + price approvals for 
     await expect(ownerPage.getByText('No pending price approvals.')).toBeVisible();
 
     await managerPage.goto('http://127.0.0.1:3002/inventory');
-    await expect(managerPage.getByText('On hand: 18 · Available: 18 · Reserved: 0')).toBeVisible();
+    await expect(managerPage.getByRole('cell', { name: 'World Class Tee · WCTEE-BLK-M' }).first()).toBeVisible();
+    await expect(managerPage.getByRole('cell', { name: '18' }).first()).toBeVisible();
 
     await managerPage.goto('http://127.0.0.1:3002/catalog');
     await managerPage.getByText('World Class Tee').first().click();
-    await expect(managerPage.getByText('Price: 760')).toBeVisible();
+    await expect(managerPage.getByRole('cell', { name: '760' }).first()).toBeVisible();
   } finally {
     await managerContext.close().catch(() => {});
     await ownerContext.close().catch(() => {});

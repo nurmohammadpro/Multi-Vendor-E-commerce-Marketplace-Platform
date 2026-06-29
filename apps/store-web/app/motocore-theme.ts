@@ -20,8 +20,7 @@ export const pageShellStyle: CSSProperties = {
   minHeight: '100dvh',
   padding: '20px 16px 28px',
   color: motocoreColors.ink,
-  background:
-    'radial-gradient(circle at top left, rgba(37, 99, 235, 0.08), transparent 28%), radial-gradient(circle at top right, rgba(37, 99, 235, 0.04), transparent 24%), linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%)',
+  background: motocoreColors.background,
   fontFamily:
     'var(--font-geist-sans), Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
 };
@@ -130,9 +129,9 @@ export const primaryButtonStyle: CSSProperties = {
   minHeight: 32,
   padding: '0 12px',
   borderRadius: 6,
-  border: `1px solid ${motocoreColors.accent}`,
-  background: motocoreColors.accent,
-  color: '#fff',
+  border: `1px solid ${motocoreColors.ink}`,
+  background: motocoreColors.ink,
+  color: '#f8fafc',
   font: 'inherit',
   fontSize: 13,
   fontWeight: 500,
@@ -186,4 +185,36 @@ export const emptyStateStyle: CSSProperties = {
   color: motocoreColors.muted,
   background: 'rgba(255, 255, 255, 0.72)',
   lineHeight: 1.5,
+};
+
+export const tableWrapStyle: CSSProperties = {
+  overflowX: 'auto',
+  border: `1px solid ${motocoreColors.border}`,
+  borderRadius: 8,
+  background: '#ffffff',
+};
+
+export const tableStyle: CSSProperties = {
+  width: '100%',
+  borderCollapse: 'collapse',
+  fontSize: 13,
+};
+
+export const tableHeaderCellStyle: CSSProperties = {
+  padding: '10px 12px',
+  textAlign: 'left',
+  fontSize: 11,
+  letterSpacing: '0.08em',
+  textTransform: 'uppercase',
+  color: motocoreColors.muted,
+  borderBottom: `1px solid ${motocoreColors.border}`,
+  background: motocoreColors.backgroundAlt,
+  whiteSpace: 'nowrap',
+};
+
+export const tableCellStyle: CSSProperties = {
+  padding: '10px 12px',
+  borderBottom: `1px solid ${motocoreColors.border}`,
+  color: motocoreColors.ink,
+  verticalAlign: 'top',
 };

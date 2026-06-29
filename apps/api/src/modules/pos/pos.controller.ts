@@ -25,6 +25,7 @@ const closeShiftSchema = z.object({
 });
 
 const createSaleSchema = z.object({
+  clientRequestId: z.string().uuid().optional(),
   locationId: z.string().uuid(),
   registerId: z.string().uuid().optional(),
   shiftId: z.string().uuid().optional(),
@@ -141,15 +142,20 @@ export class PosController {
   @RequirePermissions('sales.pos.create')
   createSale(
     @Headers('x-store-id') headerStoreId: string | undefined,
+    @Headers('x-idempotency-key') idempotencyKey: string | undefined,
     @CurrentAuthContext() authContext: StoreAuthContext | null,
     @CurrentAuthSession() session: AuthSession | null,
     @Body() payload: unknown,
   ) {
+    const parsed = createSaleSchema.parse(payload);
     return this.posService.createSale(
       headerStoreId,
       authContext,
       session,
-      createSaleSchema.parse(payload),
+      {
+        ...parsed,
+        clientRequestId: parsed.clientRequestId ?? idempotencyKey,
+      },
     );
   }
 

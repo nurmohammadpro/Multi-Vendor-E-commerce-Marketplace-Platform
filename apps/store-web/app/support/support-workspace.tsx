@@ -8,6 +8,10 @@ import {
   pageShellStyle,
   secondaryButtonStyle,
   surfaceCardStyle,
+  tableCellStyle,
+  tableHeaderCellStyle,
+  tableStyle,
+  tableWrapStyle,
   tokenMutedStyle,
 } from '../motocore-theme';
 
@@ -188,32 +192,40 @@ export function SupportWorkspace({
 
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>{kind === 'dispute' ? 'Open cases' : 'Open tickets'}</h3>
-          <div style={{ display: 'grid', gap: 10 }}>
-            {tickets.length ? (
-              tickets.map((ticket) => (
-                <button
-                  key={ticket.id}
-                  onClick={() => void loadTicket(ticket.id)}
-                  style={{
-                    ...surfaceCardStyle,
-                    padding: 14,
-                    textAlign: 'left',
-                    borderColor: selectedTicket?.ticket.id === ticket.id ? '#2563eb' : 'rgba(148, 163, 184, 0.22)',
-                  }}
-                >
-                  <div style={{ fontWeight: 600 }}>{ticket.subject}</div>
-                  <div style={{ color: '#475569' }}>
-                    {ticket.ticket_no} · {ticket.priority} · {ticket.status}
-                  </div>
-                  <div style={{ color: '#64748b' }}>{new Date(ticket.created_at).toLocaleString()}</div>
-                </button>
-              ))
-            ) : (
-              <div style={emptyStateStyle}>
-                {kind === 'dispute' ? 'No dispute cases yet.' : 'No support tickets yet.'}
-              </div>
-            )}
-          </div>
+          {tickets.length ? (
+            <div style={tableWrapStyle}>
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={tableHeaderCellStyle}>Ticket</th>
+                    <th style={tableHeaderCellStyle}>Subject</th>
+                    <th style={tableHeaderCellStyle}>Priority</th>
+                    <th style={tableHeaderCellStyle}>Status</th>
+                    <th style={tableHeaderCellStyle}>Created</th>
+                    <th style={tableHeaderCellStyle}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tickets.map((ticket) => (
+                    <tr key={ticket.id} style={{ background: selectedTicket?.ticket.id === ticket.id ? 'rgba(241,245,249,0.9)' : '#fff' }}>
+                      <td style={tableCellStyle}>{ticket.ticket_no}</td>
+                      <td style={tableCellStyle}>{ticket.subject}</td>
+                      <td style={tableCellStyle}>{ticket.priority}</td>
+                      <td style={tableCellStyle}>{ticket.status}</td>
+                      <td style={tableCellStyle}>{new Date(ticket.created_at).toLocaleString()}</td>
+                      <td style={tableCellStyle}>
+                        <button onClick={() => void loadTicket(ticket.id)} style={secondaryButtonStyle}>Open</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div style={emptyStateStyle}>
+              {kind === 'dispute' ? 'No dispute cases yet.' : 'No support tickets yet.'}
+            </div>
+          )}
         </article>
       </section>
 
@@ -227,19 +239,32 @@ export function SupportWorkspace({
                 {selectedTicket.ticket.ticket_no} · {selectedTicket.ticket.priority} · {selectedTicket.ticket.status}
               </div>
             </div>
-            <div style={{ display: 'grid', gap: 10 }}>
-              {selectedTicket.messages.length ? (
-                selectedTicket.messages.map((item) => (
-                  <article key={item.id} style={{ ...surfaceCardStyle, padding: 14 }}>
-                    <div style={{ fontWeight: 600 }}>{item.author_name || 'Store operator'}</div>
-                    <div style={{ color: '#475569', whiteSpace: 'pre-wrap' }}>{item.message}</div>
-                    <div style={{ color: '#64748b' }}>{new Date(item.created_at).toLocaleString()}</div>
-                  </article>
-                ))
-              ) : (
-                <div style={emptyStateStyle}>No messages in this thread yet.</div>
-              )}
-            </div>
+            {selectedTicket.messages.length ? (
+              <div style={tableWrapStyle}>
+                <table style={tableStyle}>
+                  <thead>
+                    <tr>
+                      <th style={tableHeaderCellStyle}>Author</th>
+                      <th style={tableHeaderCellStyle}>Message</th>
+                      <th style={tableHeaderCellStyle}>Attachment</th>
+                      <th style={tableHeaderCellStyle}>Time</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedTicket.messages.map((item) => (
+                      <tr key={item.id}>
+                        <td style={tableCellStyle}>{item.author_name || 'Store operator'}</td>
+                        <td style={{ ...tableCellStyle, whiteSpace: 'pre-wrap' }}>{item.message}</td>
+                        <td style={tableCellStyle}>{item.attachment_path || '—'}</td>
+                        <td style={tableCellStyle}>{new Date(item.created_at).toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div style={emptyStateStyle}>No messages in this thread yet.</div>
+            )}
             <textarea
               value={reply}
               onChange={(event) => setReply(event.target.value)}

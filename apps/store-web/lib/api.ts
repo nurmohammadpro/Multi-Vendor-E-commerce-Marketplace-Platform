@@ -1,5 +1,8 @@
 import { cookies } from 'next/headers';
 
+const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
+const DEFAULT_RETRY_DELAYS_MS = [350, 900];
+
 function normalizeApiBaseUrl(value: string) {
   const trimmed = value.trim().replace(/\/+$/, '');
   if (!trimmed) return '';
@@ -103,15 +106,86 @@ export function buildStoreApiUrl(path: string) {
   return `${apiBaseUrl}${path}`;
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function mergeAbortSignals(...signals: Array<AbortSignal | undefined>) {
+  const available = signals.filter(Boolean) as AbortSignal[];
+  if (available.length <= 1) {
+    return available[0];
+  }
+
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  for (const signal of available) {
+    if (signal.aborted) {
+      controller.abort();
+      return controller.signal;
+    }
+    signal.addEventListener('abort', abort, { once: true });
+  }
+  return controller.signal;
+}
+
+function isRetriableStatus(status: number) {
+  return status === 408 || status === 425 || status === 429 || status >= 500;
+}
+
+function canRetryRequest(method: string, headers: Headers) {
+  const normalizedMethod = method.toUpperCase();
+  if (['GET', 'HEAD', 'OPTIONS'].includes(normalizedMethod)) return true;
+  return Boolean(headers.get('x-idempotency-key'));
+}
+
+async function fetchStoreApiWithRetry(
+  path: string,
+  init?: RequestInit,
+) {
+  const method = init?.method || 'GET';
+  const headers = new Headers(await getStoreApiHeaders(init?.headers));
+  const attempts = canRetryRequest(method, headers) ? DEFAULT_RETRY_DELAYS_MS.length + 1 : 1;
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const timeoutController = new AbortController();
+    const timeoutId = setTimeout(() => timeoutController.abort(), DEFAULT_REQUEST_TIMEOUT_MS);
+
+    try {
+      const response = await fetch(buildStoreApiUrl(path), {
+        ...init,
+        method,
+        headers,
+        cache: 'no-store',
+        signal: mergeAbortSignals(init?.signal ?? undefined, timeoutController.signal),
+      });
+
+      if (!isRetriableStatus(response.status) || attempt === attempts - 1) {
+        clearTimeout(timeoutId);
+        return response;
+      }
+    } catch (error) {
+      lastError = error as Error;
+      if (attempt === attempts - 1) {
+        clearTimeout(timeoutId);
+        throw lastError;
+      }
+    } finally {
+      clearTimeout(timeoutId);
+    }
+
+    await sleep(DEFAULT_RETRY_DELAYS_MS[attempt] ?? DEFAULT_RETRY_DELAYS_MS.at(-1) ?? 500);
+  }
+
+  throw lastError ?? new Error(`Store API request failed for ${path}`);
+}
+
 export async function fetchStoreApi<T>(path: string): Promise<T | null> {
   if (!await isStoreApiConfigured()) {
     return null;
   }
 
-  const response = await fetch(buildStoreApiUrl(path), {
-    headers: await getStoreApiHeaders(),
-    cache: 'no-store',
-  });
+  const response = await fetchStoreApiWithRetry(path, { headers: await getStoreApiHeaders() });
 
   if (!response.ok) {
     return null;
@@ -130,9 +204,5 @@ export async function requestStoreApi(path: string, init?: RequestInit) {
     });
   }
 
-  return fetch(buildStoreApiUrl(path), {
-    ...init,
-    headers: await getStoreApiHeaders(init?.headers),
-    cache: 'no-store',
-  });
+  return fetchStoreApiWithRetry(path, init);
 }

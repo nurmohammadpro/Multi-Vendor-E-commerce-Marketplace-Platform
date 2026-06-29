@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   DEFAULT_PRINT_AGENT_URL,
@@ -13,7 +13,18 @@ import {
   type ReceiptPayload,
 } from '../../lib/print-agent';
 import { loadWorkstationProfile } from '../../lib/workstation-profile';
-import { fieldStyle, primaryButtonStyle, secondaryButtonStyle, surfaceCardStyle, tokenMutedStyle } from '../motocore-theme';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import {
+  fieldStyle,
+  primaryButtonStyle,
+  secondaryButtonStyle,
+  surfaceCardStyle,
+  tableCellStyle,
+  tableHeaderCellStyle,
+  tableStyle,
+  tableWrapStyle,
+  tokenMutedStyle,
+} from '../motocore-theme';
 
 type Register = {
   id: string;
@@ -33,12 +44,35 @@ type Location = {
 
 type SkuSearchResult = {
   id: string;
+  product_id: string;
   sku_code: string;
   barcode?: string | null;
   variant_label?: string | null;
+  variant_json?: Record<string, unknown> | null;
   product_name: string;
+  has_variants?: boolean;
+  variant_mode?: string | null;
   sale_price?: string | number | null;
   available_qty?: string | number | null;
+};
+
+type ProductVariantDetail = {
+  product: {
+    id: string;
+    product_code: string;
+    name: string;
+    has_variants: boolean;
+    variant_mode: string;
+  };
+  skus: Array<{
+    id: string;
+    sku_code: string;
+    barcode?: string | null;
+    variant_label?: string | null;
+    sale_price?: string | number | null;
+    available_qty?: string | number | null;
+    status: string;
+  }>;
 };
 
 type CartItem = {
@@ -102,6 +136,9 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
   const [selectedLocationId, setSelectedLocationId] = useState('');
   const [search, setSearch] = useState('');
   const [results, setResults] = useState<SkuSearchResult[]>([]);
+  const [variantPickerOpen, setVariantPickerOpen] = useState(false);
+  const [variantProduct, setVariantProduct] = useState<ProductVariantDetail | null>(null);
+  const [variantPickerHint, setVariantPickerHint] = useState('');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -124,6 +161,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
   const [receiptPrinterName, setReceiptPrinterName] = useState('');
   const [labelPrinterName, setLabelPrinterName] = useState('');
   const [agentUrl, setAgentUrl] = useState(DEFAULT_PRINT_AGENT_URL);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     void Promise.all([
@@ -160,6 +198,27 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
       });
   }, [agentUrl]);
 
+  useEffect(() => {
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
+    }
+
+    if (!search.trim()) {
+      setResults([]);
+      return;
+    }
+
+    searchDebounceRef.current = setTimeout(() => {
+      void searchCatalog(search.trim());
+    }, 180);
+
+    return () => {
+      if (searchDebounceRef.current) {
+        clearTimeout(searchDebounceRef.current);
+      }
+    };
+  }, [search]);
+
   const selectedRegister = useMemo(
     () => registers.find((register) => register.id === selectedRegisterId) ?? null,
     [registers, selectedRegisterId],
@@ -178,29 +237,62 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
     return Math.max(paid - total, 0);
   }, [cashReceived, paymentMethod, saleMode, total]);
 
-  const searchCatalog = async () => {
-    if (!search.trim()) {
-      setResults([]);
-      return;
+  const groupedResults = useMemo(() => {
+    const groups = new Map<string, {
+      productId: string;
+      productName: string;
+      hasVariants: boolean;
+      variantMode: string | null;
+      skuCount: number;
+      lowestPrice: number;
+      totalAvailable: number;
+      skus: SkuSearchResult[];
+    }>();
+
+    for (const sku of results) {
+      const existing = groups.get(sku.product_id);
+      const salePrice = Number(sku.sale_price ?? 0);
+      const availableQty = Number(sku.available_qty ?? 0);
+      if (existing) {
+        existing.skuCount += 1;
+        existing.totalAvailable += availableQty;
+        existing.lowestPrice = Math.min(existing.lowestPrice, salePrice);
+        existing.skus.push(sku);
+        continue;
+      }
+
+      groups.set(sku.product_id, {
+        productId: sku.product_id,
+        productName: sku.product_name,
+        hasVariants: Boolean(sku.has_variants),
+        variantMode: sku.variant_mode ?? null,
+        skuCount: 1,
+        lowestPrice: salePrice,
+        totalAvailable: availableQty,
+        skus: [sku],
+      });
     }
 
-    setLoading(true);
+    return Array.from(groups.values());
+  }, [results]);
+
+  const clearSearchState = () => {
+    setSearch('');
+    setResults([]);
+  };
+
+  const openVariantPicker = async (productId: string, hint = '') => {
     try {
-      const query = new URLSearchParams({
-        q: search.trim(),
-        limit: '20',
-      });
-      const payload = await readJson<{ skus: SkuSearchResult[] }>(`/api/pos/search?${query.toString()}`);
-      setResults(payload.skus ?? []);
-      setMessage(`Found ${payload.skus?.length ?? 0} matching SKU(s).`);
+      const payload = await readJson<ProductVariantDetail>(`/api/catalog/products/${productId}`);
+      setVariantProduct(payload);
+      setVariantPickerHint(hint);
+      setVariantPickerOpen(true);
     } catch (error) {
       setMessage((error as Error).message);
-    } finally {
-      setLoading(false);
     }
   };
 
-  const addToCart = (sku: SkuSearchResult) => {
+  const addSkuToCart = (sku: Pick<SkuSearchResult, 'id' | 'sku_code' | 'product_name' | 'variant_label' | 'sale_price' | 'available_qty' | 'barcode'>) => {
     setCart((current) => {
       const index = current.findIndex((item) => item.skuId === sku.id);
       if (index >= 0) {
@@ -226,6 +318,40 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
         },
       ];
     });
+  };
+
+  const searchCatalog = async (queryText = search.trim()) => {
+    if (!queryText) {
+      setResults([]);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const query = new URLSearchParams({
+        q: queryText,
+        limit: '20',
+      });
+      const payload = await readJson<{ skus: SkuSearchResult[] }>(`/api/pos/search?${query.toString()}`);
+      setResults(payload.skus ?? []);
+      const exactBarcodeMatch = (payload.skus ?? []).find((sku) => sku.barcode && sku.barcode === queryText);
+      if (exactBarcodeMatch) {
+        if (exactBarcodeMatch.has_variants) {
+          await openVariantPicker(exactBarcodeMatch.product_id, `Barcode ${queryText} matched this product. Choose the exact variant.`);
+        } else {
+          addSkuToCart(exactBarcodeMatch);
+          clearSearchState();
+          setMessage(`${exactBarcodeMatch.product_name} added to cart from barcode scan.`);
+        }
+        return;
+      }
+
+      setMessage(`Found ${payload.skus?.length ?? 0} matching SKU(s).`);
+    } catch (error) {
+      setMessage((error as Error).message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const updateCartQty = (skuId: string, nextQty: number) => {
@@ -327,12 +453,17 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
     setLoading(true);
     try {
       const saleIsDue = saleMode === 'due';
+      const clientRequestId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `sale-${Date.now()}`;
       const salePayload = await readJson<SaleCreateResponse>('/api/pos/sales', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'x-idempotency-key': clientRequestId,
         },
         body: JSON.stringify({
+          clientRequestId,
           locationId: selectedLocationId,
           registerId: selectedRegisterId || undefined,
           shiftId: SHOW_SHIFT_CONTROLS ? openShiftId || undefined : undefined,
@@ -404,8 +535,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
       setPaymentMethod('cash');
       setPaymentReference('');
       setCashReceived('');
-      setResults([]);
-      setSearch('');
+      clearSearchState();
     } catch (error) {
       setMessage((error as Error).message);
     } finally {
@@ -538,7 +668,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
 
       <section style={{ display: 'grid', gridTemplateColumns: '1.1fr 0.9fr', gap: 16 }}>
         <article style={cardStyle}>
-          <h3 style={{ marginTop: 0 }}>Catalog Search</h3>
+          <h3 style={{ marginTop: 0 }}>Product Search</h3>
           <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
             <input
               value={search}
@@ -546,44 +676,59 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
               onKeyDown={(event) => {
                 if (event.key === 'Enter') {
                   event.preventDefault();
-                  void searchCatalog();
+                  void searchCatalog(search.trim());
                 }
               }}
               style={inputStyle}
               placeholder="Scan barcode or search product / SKU"
             />
-            <button onClick={searchCatalog} style={buttonStyle} disabled={loading}>
+            <button onClick={() => void searchCatalog(search.trim())} style={buttonStyle} disabled={loading}>
               Search
             </button>
           </div>
 
-          <div style={{ display: 'grid', gap: 10 }}>
-            {results.map((sku) => (
-              <article key={sku.id} style={{ ...cardStyle, padding: 14 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-                  <div>
-                    <div style={{ fontWeight: 600 }}>{sku.product_name}</div>
-                    <div style={{ color: '#475569' }}>
-                      {sku.sku_code}
-                      {sku.variant_label ? ` · ${sku.variant_label}` : ''}
-                    </div>
-                    <div style={{ color: '#64748b' }}>
-                      Stock: {Number(sku.available_qty ?? 0)} · Price: {currency(Number(sku.sale_price ?? 0))}
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={() => handlePrintLabel(sku)} style={buttonStyle}>
-                      Label
-                    </button>
-                    <button onClick={() => addToCart(sku)} style={buttonStyle}>
-                      Add
-                    </button>
-                  </div>
-                </div>
-              </article>
-            ))}
-            {results.length === 0 ? <p style={{ marginBottom: 0, color: '#64748b' }}>No search results yet.</p> : null}
-          </div>
+          {groupedResults.length ? (
+            <div style={tableWrapStyle}>
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={tableHeaderCellStyle}>Product</th>
+                    <th style={tableHeaderCellStyle}>Variants</th>
+                    <th style={tableHeaderCellStyle}>Available</th>
+                    <th style={tableHeaderCellStyle}>Start Price</th>
+                    <th style={tableHeaderCellStyle}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {groupedResults.map((group) => (
+                    <tr key={group.productId}>
+                      <td style={tableCellStyle}>
+                        <div style={{ fontWeight: 600 }}>{group.productName}</div>
+                        <div style={{ color: '#64748b', marginTop: 4 }}>
+                          {group.hasVariants ? `${group.variantMode || 'variant'} product` : group.skus[0]?.sku_code}
+                        </div>
+                      </td>
+                      <td style={tableCellStyle}>{group.hasVariants ? group.skuCount : 1}</td>
+                      <td style={tableCellStyle}>{group.totalAvailable}</td>
+                      <td style={tableCellStyle}>{currency(group.lowestPrice)}</td>
+                      <td style={tableCellStyle}>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          {group.hasVariants ? (
+                            <button onClick={() => void openVariantPicker(group.productId)} style={buttonStyle}>Choose Variant</button>
+                          ) : (
+                            <button onClick={() => addSkuToCart(group.skus[0])} style={buttonStyle}>Add</button>
+                          )}
+                          <button onClick={() => handlePrintLabel(group.skus[0])} style={buttonStyle}>Label</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p style={{ marginBottom: 0, color: '#64748b' }}>No search results yet.</p>
+          )}
         </article>
 
         <article style={cardStyle}>
@@ -625,31 +770,48 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
             />
           </div>
 
-          <div style={{ display: 'grid', gap: 10, marginBottom: 16 }}>
-            {cart.map((item) => (
-              <article key={item.skuId} style={{ ...cardStyle, padding: 14 }}>
-                <div style={{ fontWeight: 600 }}>{item.productName}</div>
-                <div style={{ color: '#475569' }}>
-                  {item.skuCode}
-                  {item.variantLabel ? ` · ${item.variantLabel}` : ''}
-                </div>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 10 }}>
-                  <button onClick={() => updateCartQty(item.skuId, item.qty - 1)} style={buttonStyle}>
-                    -
-                  </button>
-                  <span>{item.qty}</span>
-                  <button onClick={() => updateCartQty(item.skuId, item.qty + 1)} style={buttonStyle}>
-                    +
-                  </button>
-                  <span style={{ marginLeft: 'auto' }}>{currency(item.qty * item.unitPrice)}</span>
-                  <button onClick={() => removeFromCart(item.skuId)} style={buttonStyle}>
-                    Remove
-                  </button>
-                </div>
-              </article>
-            ))}
-            {cart.length === 0 ? <p style={{ marginBottom: 0, color: '#64748b' }}>Cart is empty.</p> : null}
-          </div>
+          {cart.length ? (
+            <div style={{ ...tableWrapStyle, marginBottom: 16 }}>
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={tableHeaderCellStyle}>Item</th>
+                    <th style={tableHeaderCellStyle}>Price</th>
+                    <th style={tableHeaderCellStyle}>Qty</th>
+                    <th style={tableHeaderCellStyle}>Total</th>
+                    <th style={tableHeaderCellStyle}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cart.map((item) => (
+                    <tr key={item.skuId}>
+                      <td style={tableCellStyle}>
+                        <div style={{ fontWeight: 600 }}>{item.productName}</div>
+                        <div style={{ color: '#64748b', marginTop: 4 }}>
+                          {item.skuCode}
+                          {item.variantLabel ? ` · ${item.variantLabel}` : ''}
+                        </div>
+                      </td>
+                      <td style={tableCellStyle}>{currency(item.unitPrice)}</td>
+                      <td style={tableCellStyle}>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <button onClick={() => updateCartQty(item.skuId, item.qty - 1)} style={buttonStyle}>-</button>
+                          <span>{item.qty}</span>
+                          <button onClick={() => updateCartQty(item.skuId, item.qty + 1)} style={buttonStyle}>+</button>
+                        </div>
+                      </td>
+                      <td style={tableCellStyle}>{currency(item.qty * item.unitPrice)}</td>
+                      <td style={tableCellStyle}>
+                        <button onClick={() => removeFromCart(item.skuId)} style={buttonStyle}>Remove</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p style={{ marginBottom: 16, color: '#64748b' }}>Cart is empty.</p>
+          )}
 
           <div style={{ display: 'grid', gap: 8 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -658,9 +820,9 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
             </div>
             {saleMode === 'paid' && paymentMethod === 'cash' ? (
               <>
-                <input value={cashReceived} onChange={(event) => setCashReceived(event.target.value)} style={inputStyle} placeholder="Cash received" />
+                <input value={cashReceived} onChange={(event) => setCashReceived(event.target.value)} style={inputStyle} placeholder="Amount paid by customer" />
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Change</span>
+                  <span>Change due</span>
                   <strong>{currency(changeAmount)}</strong>
                 </div>
               </>
@@ -677,6 +839,69 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
           </div>
         </article>
       </section>
+
+      <Sheet open={variantPickerOpen} onOpenChange={setVariantPickerOpen}>
+        <SheetContent side="right" className="sm:max-w-2xl">
+          <SheetHeader>
+            <SheetTitle>{variantProduct?.product.name || 'Choose variant'}</SheetTitle>
+            <SheetDescription>
+              {variantPickerHint || 'Select the exact variant before adding it to the cart.'}
+            </SheetDescription>
+          </SheetHeader>
+          <div style={{ marginTop: 16 }}>
+            {variantProduct?.skus?.length ? (
+              <div style={tableWrapStyle}>
+                <table style={tableStyle}>
+                  <thead>
+                    <tr>
+                      <th style={tableHeaderCellStyle}>SKU</th>
+                      <th style={tableHeaderCellStyle}>Variant</th>
+                      <th style={tableHeaderCellStyle}>Barcode</th>
+                      <th style={tableHeaderCellStyle}>Available</th>
+                      <th style={tableHeaderCellStyle}>Price</th>
+                      <th style={tableHeaderCellStyle}>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {variantProduct.skus.map((sku) => (
+                      <tr key={sku.id}>
+                        <td style={tableCellStyle}>{sku.sku_code}</td>
+                        <td style={tableCellStyle}>{sku.variant_label || 'Default'}</td>
+                        <td style={tableCellStyle}>{sku.barcode || '—'}</td>
+                        <td style={tableCellStyle}>{Number(sku.available_qty ?? 0)}</td>
+                        <td style={tableCellStyle}>{currency(Number(sku.sale_price ?? 0))}</td>
+                        <td style={tableCellStyle}>
+                          <button
+                            onClick={() => {
+                              addSkuToCart({
+                                id: sku.id,
+                                sku_code: sku.sku_code,
+                                barcode: sku.barcode,
+                                variant_label: sku.variant_label,
+                                product_name: variantProduct.product.name,
+                                sale_price: sku.sale_price,
+                                available_qty: sku.available_qty,
+                              });
+                              setVariantPickerOpen(false);
+                              clearSearchState();
+                              setMessage(`${variantProduct.product.name} variant added to cart.`);
+                            }}
+                            style={secondaryButtonStyle}
+                          >
+                            Add Variant
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div style={tokenMutedStyle}>No variants loaded for this product yet.</div>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <article style={cardStyle}>
         <h3 style={{ marginTop: 0 }}>Operator Notes</h3>
