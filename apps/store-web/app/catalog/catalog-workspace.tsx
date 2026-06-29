@@ -138,7 +138,13 @@ async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
   return payload as T;
 }
 
-export function CatalogWorkspace({ canManageCatalog }: { canManageCatalog: boolean }) {
+export function CatalogWorkspace({
+  canManageCatalog,
+  canApprovePriceChanges,
+}: {
+  canManageCatalog: boolean;
+  canApprovePriceChanges: boolean;
+}) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -183,7 +189,27 @@ export function CatalogWorkspace({ canManageCatalog }: { canManageCatalog: boole
     costPrice: '',
     salePrice: '',
     compareAtPrice: '',
+    reason: '',
   });
+  const [approvalNote, setApprovalNote] = useState('');
+  const [priceChangeRequests, setPriceChangeRequests] = useState<Array<{
+    id: string;
+    sku_id: string;
+    sku_code: string;
+    product_name: string;
+    variant_label?: string | null;
+    current_sale_price: string | number;
+    requested_sale_price: string | number;
+    current_cost_price?: string | number | null;
+    requested_cost_price?: string | number | null;
+    current_compare_at_price?: string | number | null;
+    requested_compare_at_price?: string | number | null;
+    reason: string;
+    status: string;
+    requested_by_name?: string | null;
+    decision_note?: string | null;
+    created_at: string;
+  }>>([]);
   const [variantSelection, setVariantSelection] = useState<Record<string, string[]>>({});
   const [variantRows, setVariantRows] = useState<VariantMatrixRow[]>([]);
   const [variantPricing, setVariantPricing] = useState({
@@ -201,6 +227,12 @@ export function CatalogWorkspace({ canManageCatalog }: { canManageCatalog: boole
       ),
     [productDetail],
   );
+  const selectedPriceSku = useMemo(
+    () => productDetail?.skus.find((sku) => sku.id === priceForm.skuId) ?? null,
+    [priceForm.skuId, productDetail],
+  );
+  const selectedSkuHasCurrentPrice = selectedPriceSku?.sale_price !== null && selectedPriceSku?.sale_price !== undefined;
+  const shouldRequestPriceApproval = selectedSkuHasCurrentPrice && !canApprovePriceChanges;
 
   const refreshBase = async () => {
     const [categoryPayload, brandPayload, productPayload] = await Promise.all([
@@ -211,6 +243,11 @@ export function CatalogWorkspace({ canManageCatalog }: { canManageCatalog: boole
     setCategories(categoryPayload.categories ?? []);
     setBrands(brandPayload.brands ?? []);
     setProducts(productPayload.products ?? []);
+  };
+
+  const refreshPriceRequests = async () => {
+    const payload = await readJson<{ priceChangeRequests: typeof priceChangeRequests }>('/api/catalog/price-change-requests');
+    setPriceChangeRequests(payload.priceChangeRequests ?? []);
   };
 
   const refreshDetail = async (productId = selectedProductId) => {
@@ -224,6 +261,7 @@ export function CatalogWorkspace({ canManageCatalog }: { canManageCatalog: boole
 
   useEffect(() => {
     void refreshBase().catch((error: Error) => setMessage(error.message));
+    void refreshPriceRequests().catch((error: Error) => setMessage(error.message));
   }, []);
 
   useEffect(() => {
@@ -434,7 +472,8 @@ export function CatalogWorkspace({ canManageCatalog }: { canManageCatalog: boole
     if (!priceForm.skuId || !priceForm.salePrice) return;
     setLoading(true);
     try {
-      await readJson('/api/catalog/prices', {
+      const path = shouldRequestPriceApproval ? '/api/catalog/price-change-requests' : '/api/catalog/prices';
+      await readJson(path, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -442,11 +481,34 @@ export function CatalogWorkspace({ canManageCatalog }: { canManageCatalog: boole
           costPrice: priceForm.costPrice ? Number(priceForm.costPrice) : null,
           salePrice: Number(priceForm.salePrice),
           compareAtPrice: priceForm.compareAtPrice ? Number(priceForm.compareAtPrice) : null,
+          reason: shouldRequestPriceApproval ? priceForm.reason : undefined,
         }),
       });
       await refreshDetail(selectedProductId);
-      setPriceForm({ skuId: '', costPrice: '', salePrice: '', compareAtPrice: '' });
-      setMessage('Price created.');
+      await refreshPriceRequests();
+      setPriceForm({ skuId: '', costPrice: '', salePrice: '', compareAtPrice: '', reason: '' });
+      setMessage(shouldRequestPriceApproval ? 'Price update submitted for owner approval.' : 'Price saved.');
+    } catch (error) {
+      setMessage((error as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const decidePriceRequest = async (requestId: string, decision: 'approve' | 'reject') => {
+    setLoading(true);
+    try {
+      await readJson(`/api/catalog/price-change-requests/${requestId}/${decision}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          decisionNote: approvalNote || undefined,
+        }),
+      });
+      await refreshPriceRequests();
+      await refreshDetail(selectedProductId);
+      setApprovalNote('');
+      setMessage(`Price request ${decision}d successfully.`);
     } catch (error) {
       setMessage((error as Error).message);
     } finally {
@@ -835,10 +897,30 @@ export function CatalogWorkspace({ canManageCatalog }: { canManageCatalog: boole
                       <option value="">Select SKU</option>
                       {productDetail.skus.map((sku) => <option key={sku.id} value={sku.id}>{sku.sku_code}</option>)}
                     </select>
+                    {selectedPriceSku ? (
+                      <div style={{ marginBottom: 10, color: '#475569', fontSize: 14 }}>
+                        Current price: {selectedSkuHasCurrentPrice ? String(selectedPriceSku.sale_price) : 'No price yet'}
+                        {selectedPriceSku.variant_label ? ` · ${selectedPriceSku.variant_label}` : ''}
+                      </div>
+                    ) : null}
                     <input value={priceForm.costPrice} onChange={(e) => setPriceForm((v) => ({ ...v, costPrice: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Cost price" />
                     <input value={priceForm.salePrice} onChange={(e) => setPriceForm((v) => ({ ...v, salePrice: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Sale price" />
                     <input value={priceForm.compareAtPrice} onChange={(e) => setPriceForm((v) => ({ ...v, compareAtPrice: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Compare at price" />
-                    <button onClick={createPrice} style={buttonStyle} disabled={loading}>Save Price</button>
+                    {shouldRequestPriceApproval ? (
+                      <textarea
+                        value={priceForm.reason}
+                        onChange={(e) => setPriceForm((v) => ({ ...v, reason: e.target.value }))}
+                        style={{ ...inputStyle, minHeight: 78, marginBottom: 10 }}
+                        placeholder="Reason for manager price update request"
+                      />
+                    ) : null}
+                    <button
+                      onClick={createPrice}
+                      style={buttonStyle}
+                      disabled={loading || (shouldRequestPriceApproval && priceForm.reason.trim().length < 3)}
+                    >
+                      {shouldRequestPriceApproval ? 'Request Price Approval' : 'Save Price'}
+                    </button>
                   </article>
                 ) : null}
               </div>
@@ -856,6 +938,50 @@ export function CatalogWorkspace({ canManageCatalog }: { canManageCatalog: boole
                   </article>
                 ))}
               </div>
+
+              <article style={{ ...cardStyle, padding: 14 }}>
+                <h4 style={{ marginTop: 0 }}>Price Approval Queue</h4>
+                {canApprovePriceChanges ? (
+                  <textarea
+                    value={approvalNote}
+                    onChange={(event) => setApprovalNote(event.target.value)}
+                    style={{ ...inputStyle, minHeight: 72, marginBottom: 12 }}
+                    placeholder="Optional approval note"
+                  />
+                ) : null}
+                <div style={{ display: 'grid', gap: 10 }}>
+                  {priceChangeRequests.length ? priceChangeRequests.map((request) => (
+                    <article key={request.id} style={{ ...cardStyle, padding: 12 }}>
+                      <div style={{ fontWeight: 600 }}>
+                        {request.product_name} · {request.sku_code}
+                        {request.variant_label ? ` · ${request.variant_label}` : ''}
+                      </div>
+                      <div style={{ color: '#475569', marginTop: 4 }}>
+                        Sale: {String(request.current_sale_price)} → {String(request.requested_sale_price)}
+                      </div>
+                      <div style={{ color: '#475569' }}>
+                        Cost: {request.current_cost_price ?? '—'} → {request.requested_cost_price ?? '—'} · Compare: {request.current_compare_at_price ?? '—'} → {request.requested_compare_at_price ?? '—'}
+                      </div>
+                      <div style={{ color: '#64748b', marginTop: 4 }}>
+                        {request.status} · Requested by {request.requested_by_name || 'User'}
+                      </div>
+                      <div style={{ color: '#334155', marginTop: 8 }}>{request.reason}</div>
+                      {canApprovePriceChanges && request.status === 'pending' ? (
+                        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                          <button onClick={() => decidePriceRequest(request.id, 'approve')} style={buttonStyle} disabled={loading}>
+                            Approve
+                          </button>
+                          <button onClick={() => decidePriceRequest(request.id, 'reject')} style={buttonStyle} disabled={loading}>
+                            Reject
+                          </button>
+                        </div>
+                      ) : null}
+                    </article>
+                  )) : (
+                    <p style={{ marginBottom: 0, color: '#64748b' }}>No price requests yet.</p>
+                  )}
+                </div>
+              </article>
             </section>
           )}
         </article>

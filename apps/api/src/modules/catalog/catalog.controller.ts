@@ -105,6 +105,20 @@ const createPriceSchema = z.object({
   effectiveTo: z.string().datetime().nullable().optional(),
 });
 
+const createPriceChangeRequestSchema = z.object({
+  skuId: z.string().uuid(),
+  costPrice: z.number().nonnegative().nullable().optional(),
+  salePrice: z.number().nonnegative(),
+  compareAtPrice: z.number().nonnegative().nullable().optional(),
+  effectiveFrom: z.string().datetime().optional(),
+  effectiveTo: z.string().datetime().nullable().optional(),
+  reason: z.string().min(3),
+});
+
+const decisionSchema = z.object({
+  decisionNote: z.string().optional(),
+});
+
 const createCategorySchema = z.object({
   parentId: z.string().uuid().optional(),
   code: z.string().min(1).max(50),
@@ -383,6 +397,72 @@ export class CatalogController {
       authContext,
       session,
       createPriceSchema.parse(payload),
+    );
+  }
+
+  @Get('price-change-requests')
+  @RequireContext('store')
+  @RequirePermissions('inventory.view')
+  listPriceChangeRequests(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @Query('status') status?: string,
+  ) {
+    return this.catalogService.listPriceChangeRequests(headerStoreId, authContext, status);
+  }
+
+  @Post('price-change-requests')
+  @RequireContext('store')
+  @RequirePermissions('catalog.manage')
+  requestPriceChange(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @CurrentAuthSession() session: AuthSession | null,
+    @Body() payload: unknown,
+  ) {
+    return this.catalogService.requestPriceChange(
+      headerStoreId,
+      authContext,
+      session,
+      createPriceChangeRequestSchema.parse(payload),
+    );
+  }
+
+  @Post('price-change-requests/:requestId/approve')
+  @RequireContext('store')
+  @RequirePermissions('inventory.adjust.approve')
+  approvePriceChange(
+    @Param('requestId') requestId: string,
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @CurrentAuthSession() session: AuthSession | null,
+    @Body() payload: unknown,
+  ) {
+    return this.catalogService.approvePriceChange(
+      requestId,
+      headerStoreId,
+      authContext,
+      session,
+      decisionSchema.parse(payload),
+    );
+  }
+
+  @Post('price-change-requests/:requestId/reject')
+  @RequireContext('store')
+  @RequirePermissions('inventory.adjust.approve')
+  rejectPriceChange(
+    @Param('requestId') requestId: string,
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @CurrentAuthSession() session: AuthSession | null,
+    @Body() payload: unknown,
+  ) {
+    return this.catalogService.rejectPriceChange(
+      requestId,
+      headerStoreId,
+      authContext,
+      session,
+      decisionSchema.parse(payload),
     );
   }
 }

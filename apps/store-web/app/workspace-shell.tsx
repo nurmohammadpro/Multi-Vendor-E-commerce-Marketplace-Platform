@@ -69,6 +69,7 @@ const iconMap: Record<string, typeof LayoutDashboard> = {
   '/': LayoutDashboard,
   '/catalog': Package,
   '/inventory': ClipboardList,
+  '/approvals': ClipboardList,
   '/pos': ShoppingCart,
   '/customers': Users,
   '/shipping': Truck,
@@ -128,8 +129,16 @@ function AppSidebar({
       <SidebarHeader>
         <div className="flex items-center justify-between gap-1.5 px-1.5 py-1.5">
           <div className="flex items-center gap-1.5">
-            <div className="flex items-center justify-center size-7 rounded-md bg-primary/10 text-primary border">
-              <Wrench className="size-4" />
+            <div className="flex items-center justify-center size-8 rounded-md border bg-white p-1">
+              {access.storeLogoUrl ? (
+                <img
+                  src={access.storeLogoUrl}
+                  alt={`${access.storeName || 'Store'} logo`}
+                  className="h-full w-full object-contain"
+                />
+              ) : (
+                <Wrench className="size-4 text-primary" />
+              )}
             </div>
             <div className="flex flex-col group-data-[collapsible=icon]:hidden">
               <span className="font-semibold text-sm leading-tight">{title}</span>

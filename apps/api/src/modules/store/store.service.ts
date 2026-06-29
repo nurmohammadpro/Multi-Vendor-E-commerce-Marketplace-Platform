@@ -75,6 +75,8 @@ type CreateStaffMemberPayload = StaffEmploymentProfilePayload & {
 type CreateStorePayload = {
   name: string;
   nameBn?: string;
+  logoUrl?: string;
+  address?: string;
   phone: string;
   email?: string;
   timezone: string;
@@ -93,6 +95,8 @@ type AdminCreateStorePayload = CreateStorePayload & {
 type UpdateStorePayload = {
   name?: string;
   nameBn?: string | null;
+  logoUrl?: string | null;
+  address?: string | null;
   phone?: string;
   email?: string | null;
   status?: 'pending' | 'active' | 'suspended' | 'inactive';
@@ -151,6 +155,8 @@ export class StoreService {
             store_code,
             name,
             name_bn,
+            logo_url,
+            address_text,
             slug,
             phone,
             email,
@@ -168,7 +174,9 @@ export class StoreService {
             $4,
             $5,
             $6,
-            $7::citext,
+            $7,
+            $8,
+            $9::citext,
             'active',
             'active',
             now(),
@@ -188,9 +196,9 @@ export class StoreService {
           )
           select
             cs.id,
-            $8,
+            $10,
             'BDT',
-            $9,
+            $11,
             false,
             now(),
             now()
@@ -229,6 +237,8 @@ export class StoreService {
         storeCode,
         payload.name,
         payload.nameBn ?? null,
+        payload.logoUrl ?? null,
+        payload.address ?? null,
         slug,
         payload.phone,
         payload.email ?? null,
@@ -354,6 +364,8 @@ export class StoreService {
         id: string;
         store_code: string;
         name: string;
+        logo_url: string | null;
+        address_text: string | null;
         slug: string;
         status: string;
       }>(
@@ -365,6 +377,8 @@ export class StoreService {
             store_code,
             name,
             name_bn,
+            logo_url,
+            address_text,
             slug,
             phone,
             email,
@@ -382,13 +396,15 @@ export class StoreService {
             $5,
             $6,
             $7,
-            $8::citext,
+            $8,
+            $9,
+            $10::citext,
             'active',
             'active',
             now(),
             now()
           )
-          returning id, store_code, name, slug, status
+          returning id, store_code, name, logo_url, address_text, slug, status
         `,
         [
           tenantId,
@@ -396,6 +412,8 @@ export class StoreService {
           storeCode,
           payload.name,
           payload.nameBn ?? null,
+          payload.logoUrl ?? null,
+          payload.address ?? null,
           slug,
           payload.phone,
           payload.email ?? null,
@@ -547,6 +565,8 @@ export class StoreService {
           s.id,
           s.store_code,
           s.name,
+          s.logo_url,
+          s.address_text,
           s.slug,
           s.phone,
           s.email,
@@ -682,6 +702,8 @@ export class StoreService {
       id: string;
       store_code: string;
       name: string;
+      logo_url: string | null;
+      address_text: string | null;
       slug: string;
       phone: string;
       email: string | null;
@@ -693,17 +715,21 @@ export class StoreService {
         set
           name = coalesce($2, name),
           name_bn = case when $3::text is null then name_bn else $3 end,
-          phone = coalesce($4, phone),
-          email = case when $5::citext is null then email else $5::citext end,
-          status = coalesce($6, status),
+          logo_url = case when $4::text is null then logo_url else $4 end,
+          address_text = case when $5::text is null then address_text else $5 end,
+          phone = coalesce($6, phone),
+          email = case when $7::citext is null then email else $7::citext end,
+          status = coalesce($8, status),
           updated_at = now()
         where id = $1
-        returning id, store_code, name, slug, phone, email, status, updated_at
+        returning id, store_code, name, logo_url, address_text, slug, phone, email, status, updated_at
       `,
       [
         storeId,
         payload.name ?? null,
         payload.nameBn === undefined ? null : payload.nameBn,
+        payload.logoUrl === undefined ? null : payload.logoUrl,
+        payload.address === undefined ? null : payload.address,
         payload.phone ?? null,
         payload.email === undefined ? null : payload.email,
         payload.status ?? null,
@@ -887,6 +913,8 @@ export class StoreService {
           s.store_code,
           s.name,
           s.name_bn,
+          s.logo_url,
+          s.address_text,
           s.slug,
           s.phone,
           s.email,
@@ -928,6 +956,8 @@ export class StoreService {
       id: string;
       store_code: string;
       name: string;
+      logo_url: string | null;
+      address_text: string | null;
       slug: string;
       phone: string;
       email: string | null;
@@ -939,17 +969,21 @@ export class StoreService {
         set
           name = coalesce($2, name),
           name_bn = case when $3::text is null then name_bn else $3 end,
-          phone = coalesce($4, phone),
-          email = case when $5::citext is null then email else $5::citext end,
-          status = coalesce($6, status),
+          logo_url = case when $4::text is null then logo_url else $4 end,
+          address_text = case when $5::text is null then address_text else $5 end,
+          phone = coalesce($6, phone),
+          email = case when $7::citext is null then email else $7::citext end,
+          status = coalesce($8, status),
           updated_at = now()
         where id = $1
-        returning id, store_code, name, slug, phone, email, status, updated_at
+        returning id, store_code, name, logo_url, address_text, slug, phone, email, status, updated_at
       `,
       [
         storeId,
         payload.name ?? null,
         payload.nameBn === undefined ? null : payload.nameBn,
+        payload.logoUrl === undefined ? null : payload.logoUrl,
+        payload.address === undefined ? null : payload.address,
         payload.phone ?? null,
         payload.email === undefined ? null : payload.email,
         payload.status ?? null,

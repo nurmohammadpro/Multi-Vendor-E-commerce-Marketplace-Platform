@@ -8,7 +8,10 @@ const PORT = Number(process.env.MVP_PRINT_AGENT_PORT || 17658);
 const PRINTER_NAME = process.env.MVP_PRINTER_NAME || '';
 const LABEL_PRINTER_NAME = process.env.MVP_LABEL_PRINTER_NAME || '';
 const ALLOWED_ORIGINS = new Set(
-  (process.env.MVP_ALLOWED_ORIGINS || 'http://localhost:3000,http://127.0.0.1:3000,https://app.example.com')
+  (
+    process.env.MVP_ALLOWED_ORIGINS
+    || 'http://localhost:3000,http://127.0.0.1:3000,http://localhost:3002,http://127.0.0.1:3002,https://marketone.appbrainer.tech'
+  )
     .split(',')
     .map((value) => value.trim())
     .filter(Boolean),
@@ -258,6 +261,8 @@ const server = http.createServer(async (req, res) => {
         labelPrinting: true,
         cashDrawer: true,
         barcodePrinting: true,
+        rawPrinting: true,
+        logoPrinting: true,
       },
     });
     return;
@@ -278,6 +283,26 @@ const server = http.createServer(async (req, res) => {
     try {
       const payload = await parseBody(req);
       await printLabel(payload);
+      json(res, 200, { ok: true });
+    } catch (error) {
+      json(res, error.statusCode || 500, { ok: false, error: String(error.message || error) });
+    }
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/print/raw') {
+    try {
+      const payload = await parseBody(req);
+      const bytes =
+        typeof payload.base64 === 'string' && payload.base64
+          ? Buffer.from(payload.base64, 'base64')
+          : Array.isArray(payload.bytes)
+            ? Buffer.from(payload.bytes)
+            : null;
+      if (!bytes?.length) {
+        throw new Error('Raw print payload is empty');
+      }
+      await printRawBytes(bytes, payload.printerName);
       json(res, 200, { ok: true });
     } catch (error) {
       json(res, error.statusCode || 500, { ok: false, error: String(error.message || error) });

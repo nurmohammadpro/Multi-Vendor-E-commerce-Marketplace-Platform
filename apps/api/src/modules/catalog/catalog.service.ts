@@ -16,6 +16,15 @@ type VariantOptionRow = {
   status: string;
 };
 
+type LatestPriceRow = {
+  id: string;
+  cost_price: string | null;
+  sale_price: string;
+  compare_at_price: string | null;
+  effective_from: string;
+  effective_to: string | null;
+};
+
 @Injectable()
 export class CatalogService {
   constructor(@Inject(DATABASE_POOL) private readonly pool: Pool) {}
@@ -1324,6 +1333,314 @@ export class CatalogService {
     return {
       price: result.rows[0],
     };
+  }
+
+  async listPriceChangeRequests(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    status?: string,
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const result = await this.pool.query(
+      `
+        select
+          pcr.id,
+          pcr.sku_id,
+          sku.sku_code,
+          p.name as product_name,
+          sku.variant_label,
+          pcr.current_cost_price,
+          pcr.current_sale_price,
+          pcr.current_compare_at_price,
+          pcr.requested_cost_price,
+          pcr.requested_sale_price,
+          pcr.requested_compare_at_price,
+          pcr.requested_effective_from,
+          pcr.requested_effective_to,
+          pcr.reason,
+          pcr.status,
+          pcr.requested_by,
+          requester.full_name as requested_by_name,
+          pcr.decided_by,
+          decider.full_name as decided_by_name,
+          pcr.decided_at,
+          pcr.decision_note,
+          pcr.created_at
+        from catalog.price_change_requests pcr
+        join catalog.skus sku on sku.id = pcr.sku_id
+        join catalog.products p on p.id = sku.product_id
+        left join identity.user_profiles requester on requester.user_id = pcr.requested_by
+        left join identity.user_profiles decider on decider.user_id = pcr.decided_by
+        where pcr.store_id = $1
+          and ($2::text is null or pcr.status = $2::text)
+        order by pcr.created_at desc
+      `,
+      [storeId, status ?? null],
+    );
+
+    return { priceChangeRequests: result.rows };
+  }
+
+  async requestPriceChange(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    session: AuthSession | null,
+    payload: {
+      skuId: string;
+      costPrice?: number | null;
+      salePrice: number;
+      compareAtPrice?: number | null;
+      effectiveFrom?: string;
+      effectiveTo?: string | null;
+      reason: string;
+    },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const userId = this.requireUserId(session);
+    const latestPrice = await this.getLatestPriceForSku(storeId, payload.skuId);
+
+    if (!latestPrice) {
+      throw new NotFoundException('No current price exists for this SKU yet');
+    }
+
+    const result = await this.pool.query(
+      `
+        insert into catalog.price_change_requests (
+          id,
+          tenant_id,
+          store_id,
+          sku_id,
+          current_price_id,
+          requested_by,
+          current_cost_price,
+          current_sale_price,
+          current_compare_at_price,
+          requested_cost_price,
+          requested_sale_price,
+          requested_compare_at_price,
+          requested_effective_from,
+          requested_effective_to,
+          reason,
+          status,
+          created_at,
+          updated_at
+        )
+        select
+          gen_random_uuid(),
+          s.tenant_id,
+          s.id,
+          $2,
+          $3,
+          $4,
+          $5,
+          $6,
+          $7,
+          $8,
+          $9,
+          $10,
+          $11,
+          $12,
+          $13,
+          'pending',
+          now(),
+          now()
+        from store.stores s
+        where s.id = $1
+        returning id, sku_id, requested_sale_price, status, created_at
+      `,
+      [
+        storeId,
+        payload.skuId,
+        latestPrice.id,
+        userId,
+        latestPrice.cost_price === null ? null : Number(latestPrice.cost_price),
+        Number(latestPrice.sale_price),
+        latestPrice.compare_at_price === null ? null : Number(latestPrice.compare_at_price),
+        payload.costPrice ?? null,
+        payload.salePrice,
+        payload.compareAtPrice ?? null,
+        payload.effectiveFrom ?? new Date().toISOString(),
+        payload.effectiveTo ?? null,
+        payload.reason,
+      ],
+    );
+
+    return { priceChangeRequest: result.rows[0] };
+  }
+
+  async approvePriceChange(
+    requestId: string,
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    session: AuthSession | null,
+    payload: { decisionNote?: string },
+  ) {
+    return this.decidePriceChange(
+      requestId,
+      headerStoreId,
+      authContext,
+      session,
+      'approved',
+      payload.decisionNote,
+    );
+  }
+
+  async rejectPriceChange(
+    requestId: string,
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    session: AuthSession | null,
+    payload: { decisionNote?: string },
+  ) {
+    return this.decidePriceChange(
+      requestId,
+      headerStoreId,
+      authContext,
+      session,
+      'rejected',
+      payload.decisionNote,
+    );
+  }
+
+  private async decidePriceChange(
+    requestId: string,
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    session: AuthSession | null,
+    decision: 'approved' | 'rejected',
+    decisionNote?: string,
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const userId = this.requireUserId(session);
+    const client = await this.pool.connect();
+
+    try {
+      await client.query('begin');
+
+      const requestResult = await client.query<{
+        id: string;
+        sku_id: string;
+        status: string;
+        requested_cost_price: string | null;
+        requested_sale_price: string;
+        requested_compare_at_price: string | null;
+        requested_effective_from: string;
+        requested_effective_to: string | null;
+      }>(
+        `
+          select
+            id,
+            sku_id,
+            status,
+            requested_cost_price,
+            requested_sale_price,
+            requested_compare_at_price,
+            requested_effective_from,
+            requested_effective_to
+          from catalog.price_change_requests
+          where id = $1
+            and store_id = $2
+          limit 1
+          for update
+        `,
+        [requestId, storeId],
+      );
+
+      const request = requestResult.rows[0];
+      if (!request) {
+        throw new NotFoundException('Price change request not found');
+      }
+
+      if (request.status !== 'pending') {
+        throw new ForbiddenException('Only pending price requests can be decided');
+      }
+
+      let approvedPriceId: string | null = null;
+      if (decision === 'approved') {
+        const priceResult = await client.query<{ id: string }>(
+          `
+            insert into catalog.prices (
+              id,
+              tenant_id,
+              store_id,
+              sku_id,
+              cost_price,
+              sale_price,
+              compare_at_price,
+              effective_from,
+              effective_to,
+              created_at,
+              created_by
+            )
+            select
+              gen_random_uuid(),
+              s.tenant_id,
+              s.id,
+              $2,
+              $3,
+              $4,
+              $5,
+              $6,
+              $7,
+              now(),
+              $8
+            from store.stores s
+            where s.id = $1
+            returning id
+          `,
+          [
+            storeId,
+            request.sku_id,
+            request.requested_cost_price === null ? null : Number(request.requested_cost_price),
+            Number(request.requested_sale_price),
+            request.requested_compare_at_price === null ? null : Number(request.requested_compare_at_price),
+            request.requested_effective_from,
+            request.requested_effective_to,
+            userId,
+          ],
+        );
+        approvedPriceId = priceResult.rows[0]?.id ?? null;
+      }
+
+      await client.query(
+        `
+          update catalog.price_change_requests
+          set status = $2,
+              decided_by = $3,
+              decided_at = now(),
+              decision_note = $4,
+              approved_price_id = $5,
+              updated_at = now()
+          where id = $1
+        `,
+        [requestId, decision, userId, decisionNote ?? null, approvedPriceId],
+      );
+
+      await client.query('commit');
+      return { ok: true, decision, approvedPriceId };
+    } catch (error) {
+      await client.query('rollback').catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  private async getLatestPriceForSku(storeId: string, skuId: string) {
+    const result = await this.pool.query<LatestPriceRow>(
+      `
+        select id, cost_price, sale_price, compare_at_price, effective_from, effective_to
+        from catalog.prices
+        where store_id = $1
+          and sku_id = $2
+          and (effective_to is null or effective_to > now())
+        order by effective_from desc, created_at desc
+        limit 1
+      `,
+      [storeId, skuId],
+    );
+
+    return result.rows[0] ?? null;
   }
 
   private async resolveVariantSelection(

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Loader2, Mail, Lock } from 'lucide-react';
 
 import { getWorkspaceUrl, hasOnlyAdminContext, hasOnlyStoreContext, login, storeToken } from '@/lib/auth';
+import { IntroSplash } from './intro-splash';
 
 type FormErrors = {
   identifier?: string;
@@ -73,14 +74,26 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="w-full max-w-md">
+    <>
+      <IntroSplash />
+      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+        <div className="w-full max-w-md">
         {/* Card */}
-        <div className="rounded-md border border-border bg-card transition-[border-color,background-color,box-shadow] duration-200 hover:border-foreground/15 hover:shadow-[0_10px_30px_rgba(0,0,0,0.04)]">
+          <div className="rounded-md border border-border bg-card transition-[border-color,background-color,box-shadow] duration-200 hover:border-foreground/15 hover:shadow-[0_10px_30px_rgba(0,0,0,0.04)]">
           {/* Header */}
-          <div className="border-b border-border px-6 py-6">
+            <div className="border-b border-border px-6 py-6">
+              <div className="mb-5 flex flex-col items-center">
+                <img
+                  src="/marketone-logo.svg"
+                  alt="Market One logo"
+                  className="h-16 w-16 object-contain"
+                />
+                <p className="mt-3 text-center text-xs font-medium uppercase tracking-[0.28em] text-muted-foreground">
+                  Market One BD
+                </p>
+              </div>
             {/* Role toggle */}
-            <div className="mb-5 flex rounded-md border border-border bg-muted p-0.5">
+              <div className="mb-5 flex rounded-md border border-border bg-muted p-0.5">
               <button
                 type="button"
                 onClick={() => setLoginRole('admin')}
@@ -103,23 +116,23 @@ export default function LoginPage() {
               >
                 Store Staff
               </button>
+              </div>
+
+              <h2
+                className="text-center text-2xl font-semibold tracking-tight"
+                style={{ color: 'rgb(17, 17, 17)' }}
+              >
+                {loginRole === 'admin' ? 'Admin sign in' : 'Store sign in'}
+              </h2>
+              <p className="mt-2 text-center text-sm text-muted-foreground">
+                {loginRole === 'admin'
+                  ? 'Manage stores, staff, and platform settings.'
+                  : 'Sign in with your store credentials.'}
+              </p>
             </div>
 
-            <h2
-              className="text-center text-2xl font-semibold tracking-tight"
-              style={{ color: 'rgb(17, 17, 17)' }}
-            >
-              {loginRole === 'admin' ? 'Admin sign in' : 'Store sign in'}
-            </h2>
-            <p className="mt-2 text-center text-sm text-muted-foreground">
-              {loginRole === 'admin'
-                ? 'Manage stores, staff, and platform settings.'
-                : 'Sign in with your store credentials.'}
-            </p>
-          </div>
-
           {/* Form */}
-          <div className="px-6 py-6">
+            <div className="px-6 py-6">
             {errors.general && (
               <div className="mb-4 rounded-md border border-destructive/20 bg-destructive/10 px-3 py-2">
                 <p className="text-xs text-destructive">{errors.general}</p>
@@ -202,12 +215,10 @@ export default function LoginPage() {
                 )}
               </button>
             </form>
+            </div>
           </div>
-
         </div>
-
-        
       </div>
-    </div>
+    </>
   );
 }

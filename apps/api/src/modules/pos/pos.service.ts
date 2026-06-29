@@ -798,7 +798,10 @@ export class PosService {
       `
         select
           s.name,
+          s.logo_url,
           s.phone,
+          s.email,
+          s.address_text,
           ss.receipt_footer
         from store.stores s
         left join store.store_settings ss on ss.store_id = s.id
@@ -820,7 +823,10 @@ export class PosService {
       saleNo: sale.sale_no ?? null,
       store: {
         name: store.name ?? null,
+        logoUrl: store.logo_url ?? null,
         phone: store.phone ?? null,
+        email: store.email ?? null,
+        address: store.address_text ?? null,
         footer: store.receipt_footer ?? null,
       },
       customer: {

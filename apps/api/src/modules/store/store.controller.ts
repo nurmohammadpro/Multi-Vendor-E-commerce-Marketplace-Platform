@@ -7,9 +7,23 @@ import { RequireContext, RequirePermissions } from '../rbac/rbac.decorators.js';
 import { PermissionsGuard } from '../rbac/permissions.guard.js';
 import { StoreService } from './store.service.js';
 
+const storeLogoSchema = z.string().max(2_000_000).refine((value) => {
+  if (value.startsWith('data:image/')) return true;
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}, {
+  message: 'Store logo must be an image data URL or an http/https URL',
+});
+
 const createStoreSchema = z.object({
   name: z.string().min(1).max(200),
   nameBn: z.string().max(200).optional(),
+  logoUrl: storeLogoSchema.optional(),
+  address: z.string().max(1000).optional(),
   phone: z.string().min(8).max(30),
   email: z.string().email().optional(),
   timezone: z.string().max(100).default('Asia/Dhaka'),
@@ -34,6 +48,8 @@ const resetOwnerPasswordSchema = z.object({
 const updateStoreSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   nameBn: z.string().max(200).nullable().optional(),
+  logoUrl: storeLogoSchema.nullable().optional(),
+  address: z.string().max(1000).nullable().optional(),
   phone: z.string().min(8).max(30).optional(),
   email: z.string().email().nullable().optional(),
   status: z.enum(['pending', 'active', 'suspended', 'inactive']).optional(),

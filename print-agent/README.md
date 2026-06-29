@@ -51,6 +51,7 @@ http://127.0.0.1:17658/health
 
 - `GET /health`
 - `POST /print/receipt`
+- `POST /print/raw`
 - `POST /print/label`
 - `POST /hardware/drawer-open`
 
@@ -94,6 +95,12 @@ With printer names:
 
 ```bash
 MVP_PRINTER_NAME="XP-Q80A" MVP_LABEL_PRINTER_NAME="XP-420B" ./scripts/install-macos-launchagent.sh
+```
+
+With custom allowed origins:
+
+```bash
+MVP_ALLOWED_ORIGINS="http://localhost:3000,http://127.0.0.1:3000,http://localhost:3002,http://127.0.0.1:3002,https://marketone.appbrainer.tech" ./scripts/install-macos-launchagent.sh
 ```
 
 Uninstall:

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { type ChangeEvent, useEffect, useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -29,6 +29,8 @@ type StoreRow = {
   id: string;
   store_code: string;
   name: string;
+  logo_url?: string | null;
+  address_text?: string | null;
   slug: string;
   phone: string;
   email?: string | null;
@@ -51,6 +53,8 @@ type StoreRow = {
 type StoreFormState = {
   name: string;
   nameBn: string;
+  logoUrl: string;
+  address: string;
   phone: string;
   email: string;
   timezone: string;
@@ -64,6 +68,8 @@ type StoreFormState = {
 const emptyForm: StoreFormState = {
   name: '',
   nameBn: '',
+  logoUrl: '',
+  address: '',
   phone: '',
   email: '',
   timezone: 'Asia/Dhaka',
@@ -97,6 +103,15 @@ function statusTone(status: StoreStatus) {
   if (status === 'inactive') return 'secondary';
   if (status === 'suspended') return 'outline';
   return 'outline';
+}
+
+async function fileToDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error('Failed to read logo file.'));
+    reader.readAsDataURL(file);
+  });
 }
 
 export function StoresWorkspace() {
@@ -188,6 +203,8 @@ export function StoresWorkspace() {
     setForm({
       name: store.name,
       nameBn: '',
+      logoUrl: store.logo_url || '',
+      address: store.address_text || '',
       phone: store.phone,
       email: store.email || '',
       timezone: 'Asia/Dhaka',
@@ -211,6 +228,8 @@ export function StoresWorkspace() {
       const payload = {
         name: form.name.trim(),
         nameBn: form.nameBn.trim() || undefined,
+        logoUrl: form.logoUrl.trim() || undefined,
+        address: form.address.trim() || undefined,
         phone: form.phone.trim(),
         email: form.email.trim() || undefined,
         timezone: form.timezone.trim() || 'Asia/Dhaka',
@@ -228,6 +247,8 @@ export function StoresWorkspace() {
           body: JSON.stringify({
             name: payload.name,
             nameBn: payload.nameBn ?? null,
+            logoUrl: payload.logoUrl ?? null,
+            address: payload.address ?? null,
             phone: payload.phone,
             email: payload.email ?? null,
           }),
@@ -324,6 +345,29 @@ export function StoresWorkspace() {
     }
   };
 
+  const handleLogoFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setMessage('Please upload an image file for the store logo.');
+      return;
+    }
+    if (file.size > 1024 * 1024) {
+      setMessage('Store logo must be 1MB or smaller.');
+      return;
+    }
+
+    try {
+      const dataUrl = await fileToDataUrl(file);
+      setForm((current) => ({ ...current, logoUrl: dataUrl }));
+      setMessage('Store logo uploaded and ready to save.');
+    } catch (error) {
+      setMessage((error as Error).message);
+    } finally {
+      event.target.value = '';
+    }
+  };
+
   return (
     <section className="flex flex-col gap-4">
       <Card>
@@ -369,6 +413,42 @@ export function StoresWorkspace() {
                 value={form.nameBn}
                 onChange={(event) => setForm((current) => ({ ...current, nameBn: event.target.value }))}
                 placeholder="ডেমো স্টোর"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="storeLogoUrl">Store logo URL</Label>
+              <Input
+                id="storeLogoUrl"
+                type="url"
+                value={form.logoUrl}
+                onChange={(event) => setForm((current) => ({ ...current, logoUrl: event.target.value }))}
+                placeholder="https://example.com/store-logo.svg"
+              />
+              <p className="text-xs text-muted-foreground">
+                This logo will be shown at the top of the store sidebar.
+              </p>
+              <Input id="storeLogoFile" type="file" accept="image/*" onChange={(event) => void handleLogoFileChange(event)} />
+              {form.logoUrl ? (
+                <div className="flex items-center gap-3 rounded-md border border-border/60 bg-muted/30 p-3">
+                  <img src={form.logoUrl} alt="Store logo preview" className="h-14 w-14 rounded-md object-contain bg-white p-1" />
+                  <Button
+                    variant="outline"
+                    type="button"
+                    onClick={() => setForm((current) => ({ ...current, logoUrl: '' }))}
+                  >
+                    Remove logo
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="storeAddress">Store address</Label>
+              <textarea
+                id="storeAddress"
+                value={form.address}
+                onChange={(event) => setForm((current) => ({ ...current, address: event.target.value }))}
+                placeholder="House, road, area, city"
+                className="min-h-24 w-full rounded-md border border-input bg-transparent px-3 py-2.5 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
               />
             </div>
             <div className="space-y-2">
@@ -577,6 +657,12 @@ export function StoresWorkspace() {
                     <div className="text-sm text-muted-foreground">
                       {store.store_code} · {store.slug} · Staff {store.staff_count}
                     </div>
+                    {store.logo_url ? (
+                      <div className="text-xs text-muted-foreground">Logo: {store.logo_url}</div>
+                    ) : null}
+                    {store.address_text ? (
+                      <div className="text-xs text-muted-foreground">Address: {store.address_text}</div>
+                    ) : null}
                     <div className="text-sm text-muted-foreground">
                       Owner: {store.owner_name || '—'} · {store.owner_email || store.email || '—'}
                     </div>
