@@ -63,11 +63,72 @@ const inviteStaffSchema = z.object({
   message: 'invitedEmail or invitedPhone is required',
 });
 
+const employeeAccessProfileSchema = z.object({
+  joinDate: z.string().date().optional(),
+  monthlySalary: z.number().nonnegative().optional(),
+  employmentStatus: z.enum(['active', 'inactive', 'terminated']).optional(),
+  employmentType: z.string().min(1).max(50).optional(),
+  designation: z.string().min(1).max(100).optional(),
+  department: z.string().min(1).max(100).optional(),
+  emergencyContactName: z.string().min(1).max(200).optional(),
+  emergencyContactPhone: z.string().min(1).max(30).optional(),
+  salaryPaymentMode: z.enum(['cash', 'bank_transfer', 'mobile_banking']).optional(),
+  bankName: z.string().min(1).max(150).optional(),
+  bankAccountName: z.string().min(1).max(200).optional(),
+  bankAccountNumber: z.string().min(1).max(80).optional(),
+  mobileBankingType: z.string().min(1).max(50).optional(),
+  mobileBankingNumber: z.string().min(1).max(30).optional(),
+  educationSummary: z.string().max(3000).optional(),
+  experienceSummary: z.string().max(3000).optional(),
+  trainingSummary: z.string().max(3000).optional(),
+  note: z.string().max(1000).optional(),
+});
+
+const createStaffMemberSchema = z.object({
+  fullName: z.string().min(1).max(200),
+  phone: z.string().min(8).max(30),
+  email: z.string().email(),
+  password: z.string().min(10),
+  address: z.string().min(1).max(1000),
+  roleCode: z.enum(['store_manager', 'store_salesman']),
+}).extend(employeeAccessProfileSchema.shape);
+
 const updateMembershipSchema = z.object({
   status: z.enum(['active', 'suspended', 'removed']).optional(),
   roleCode: z.enum(['store_owner', 'store_manager', 'store_salesman']).optional(),
-}).refine((value) => Boolean(value.status || value.roleCode), {
-  message: 'status or roleCode is required',
+  fullName: z.string().min(1).max(200).optional(),
+  phone: z.string().min(8).max(30).nullable().optional(),
+  email: z.string().email().nullable().optional(),
+  password: z.string().min(10).optional(),
+  address: z.string().min(1).max(1000).nullable().optional(),
+}).extend(employeeAccessProfileSchema.partial().shape).refine((value) => Boolean(
+  value.status
+  || value.roleCode
+  || value.fullName
+  || value.phone !== undefined
+  || value.email !== undefined
+  || value.password
+  || value.address !== undefined
+  || value.joinDate
+  || value.monthlySalary !== undefined
+  || value.employmentStatus
+  || value.employmentType
+  || value.designation
+  || value.department
+  || value.emergencyContactName
+  || value.emergencyContactPhone
+  || value.salaryPaymentMode
+  || value.bankName
+  || value.bankAccountName
+  || value.bankAccountNumber
+  || value.mobileBankingType
+  || value.mobileBankingNumber
+  || value.educationSummary
+  || value.experienceSummary
+  || value.trainingSummary
+  || value.note !== undefined
+), {
+  message: 'At least one membership or profile field is required',
 });
 
 @Controller('stores')
@@ -159,6 +220,25 @@ export class StoreController {
     @CurrentAuthSession() session: AuthSession | null,
   ) {
     return this.storeService.getStaff(storeId, headerStoreId, authContext, session);
+  }
+
+  @Post(':storeId/staff')
+  @RequireContext('store')
+  @RequirePermissions('store.staff.manage')
+  createStaffMember(
+    @Param('storeId') storeId: string,
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @CurrentAuthSession() session: AuthSession | null,
+    @Body() payload: unknown,
+  ) {
+    return this.storeService.createStaffMember(
+      storeId,
+      headerStoreId,
+      authContext,
+      session,
+      createStaffMemberSchema.parse(payload),
+    );
   }
 
   @Post(':storeId/invitations')

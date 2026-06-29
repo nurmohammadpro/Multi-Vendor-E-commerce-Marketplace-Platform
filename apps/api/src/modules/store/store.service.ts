@@ -1,7 +1,7 @@
 import { randomBytes, createHash } from 'node:crypto';
 
 import { ForbiddenException, Inject, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
-import type { Pool } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 import { hashPassword } from '@mvp/auth';
 
 import type { AdminAuthContext, AuthSession, StoreAuthContext } from '../auth/auth.types.js';
@@ -17,6 +17,59 @@ type InviteStaffPayload = {
 type UpdateMembershipPayload = {
   status?: 'active' | 'suspended' | 'removed';
   roleCode?: 'store_owner' | 'store_manager' | 'store_salesman';
+  fullName?: string;
+  phone?: string | null;
+  email?: string | null;
+  password?: string;
+  address?: string | null;
+  joinDate?: string;
+  monthlySalary?: number;
+  employmentStatus?: 'active' | 'inactive' | 'terminated';
+  employmentType?: string;
+  designation?: string;
+  department?: string;
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
+  salaryPaymentMode?: 'cash' | 'bank_transfer' | 'mobile_banking';
+  bankName?: string;
+  bankAccountName?: string;
+  bankAccountNumber?: string;
+  mobileBankingType?: string;
+  mobileBankingNumber?: string;
+  educationSummary?: string;
+  experienceSummary?: string;
+  trainingSummary?: string;
+  note?: string | null;
+};
+
+type StaffEmploymentProfilePayload = {
+  joinDate?: string;
+  monthlySalary?: number;
+  employmentStatus?: 'active' | 'inactive' | 'terminated';
+  employmentType?: string;
+  designation?: string;
+  department?: string;
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
+  salaryPaymentMode?: 'cash' | 'bank_transfer' | 'mobile_banking';
+  bankName?: string;
+  bankAccountName?: string;
+  bankAccountNumber?: string;
+  mobileBankingType?: string;
+  mobileBankingNumber?: string;
+  educationSummary?: string;
+  experienceSummary?: string;
+  trainingSummary?: string;
+  note?: string | null;
+};
+
+type CreateStaffMemberPayload = StaffEmploymentProfilePayload & {
+  fullName: string;
+  phone: string;
+  email: string;
+  password: string;
+  address: string;
+  roleCode: 'store_manager' | 'store_salesman';
 };
 
 type CreateStorePayload = {
@@ -1045,11 +1098,19 @@ export class StoreService {
           r.code as role_code,
           u.email,
           u.phone,
-          up.full_name
+          up.full_name,
+          up.address_text,
+          he.id as employee_id,
+          he.employee_number,
+          he.designation,
+          he.department,
+          he.employment_status,
+          he.monthly_salary
         from access.store_memberships sm
         join access.roles r on r.id = sm.role_id
         join identity.users u on u.id = sm.user_id
         left join identity.user_profiles up on up.user_id = u.id
+        left join hr.employees he on he.store_id = sm.store_id and he.user_id = sm.user_id
         where sm.store_id = $1
         order by sm.created_at asc
       `,
@@ -1061,6 +1122,161 @@ export class StoreService {
       actorRole,
       capabilities: this.getStaffCapabilities(actorRole),
     };
+  }
+
+  async createStaffMember(
+    storeId: string,
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    session: AuthSession | null,
+    payload: CreateStaffMemberPayload,
+  ) {
+    this.assertStoreAccess(storeId, headerStoreId, authContext);
+    const actorUserId = this.requireUserId(session);
+    const actorRole = this.requireStoreActorRole(authContext);
+    this.assertCanInviteStaff(actorRole, payload.roleCode);
+
+    const client = await this.pool.connect();
+    try {
+      await client.query('begin');
+
+      const storeContext = await client.query<{ tenant_id: string }>(
+        `
+          select tenant_id
+          from store.stores
+          where id = $1
+          limit 1
+          for update
+        `,
+        [storeId],
+      );
+
+      const tenantId = storeContext.rows[0]?.tenant_id;
+      if (!tenantId) {
+        throw new NotFoundException('Store not found');
+      }
+
+      await this.assertUniqueUserIdentity(client, payload.email, payload.phone);
+
+      const passwordHash = await hashPassword(payload.password);
+      const userResult = await client.query<{ id: string }>(
+        `
+          insert into identity.users (
+            id,
+            tenant_id,
+            email,
+            phone,
+            password_hash,
+            status,
+            preferred_locale,
+            created_at,
+            updated_at
+          )
+          values (
+            gen_random_uuid(),
+            $1,
+            $2::citext,
+            $3,
+            $4,
+            'active',
+            'en',
+            now(),
+            now()
+          )
+          returning id
+        `,
+        [tenantId, payload.email, payload.phone, passwordHash],
+      );
+
+      const userId = userResult.rows[0]?.id;
+      if (!userId) {
+        throw new Error('Unable to create store user');
+      }
+
+      await client.query(
+        `
+          insert into identity.user_profiles (
+            user_id,
+            full_name,
+            address_text,
+            created_at,
+            updated_at
+          )
+          values ($1, $2, $3, now(), now())
+        `,
+        [userId, payload.fullName, payload.address],
+      );
+
+      const roleId = await this.findRoleIdWithClient(client, payload.roleCode);
+      await client.query(
+        `
+          insert into access.store_memberships (
+            id,
+            tenant_id,
+            store_id,
+            user_id,
+            role_id,
+            status,
+            joined_at,
+            created_at,
+            updated_at
+          )
+          values (
+            gen_random_uuid(),
+            $1,
+            $2,
+            $3,
+            $4,
+            'active',
+            now(),
+            now(),
+            now()
+          )
+        `,
+        [tenantId, storeId, userId, roleId],
+      );
+
+      const employee = await this.upsertLinkedEmployee(client, {
+        storeId,
+        tenantId,
+        userId,
+        fullName: payload.fullName,
+        phone: payload.phone,
+        email: payload.email,
+        roleCode: payload.roleCode,
+        address: payload.address,
+        membershipStatus: 'active',
+        profile: payload,
+      });
+
+      await client.query('commit');
+
+      const response = {
+        userId,
+        employeeId: employee.id,
+        employeeNumber: employee.employee_number,
+        roleCode: payload.roleCode,
+        email: payload.email,
+        phone: payload.phone,
+      };
+
+      await this.auditService.recordUserAction({
+        tenantId,
+        actorUserId,
+        storeId,
+        actionCode: 'store.staff.create',
+        resourceType: 'store_membership',
+        resourceId: userId,
+        after: response,
+      });
+
+      return response;
+    } catch (error) {
+      await client.query('rollback').catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async inviteStaff(
@@ -1150,9 +1366,10 @@ export class StoreService {
       user_id: string;
       role_id: string;
       status: string;
+      tenant_id: string;
     }>(
       `
-        select id, user_id, role_id, status
+        select id, user_id, role_id, status, tenant_id
         from access.store_memberships
         where id = $1
           and store_id = $2
@@ -1171,21 +1388,120 @@ export class StoreService {
 
     const nextRoleId = payload.roleCode ? await this.findRoleId(payload.roleCode) : currentMembership.role_id;
     const nextStatus = payload.status ?? currentMembership.status;
+    const nextRoleCode = payload.roleCode ?? targetRole;
 
-    await this.pool.query(
-      `
-        update access.store_memberships
-        set role_id = $2,
-            status = $3,
-            updated_at = now()
-        where id = $1
-      `,
-      [membershipId, nextRoleId, nextStatus],
-    );
+    const client = await this.pool.connect();
+    try {
+      await client.query('begin');
+
+      if (payload.email !== undefined || payload.phone !== undefined) {
+        await this.assertUniqueUserIdentity(
+          client,
+          payload.email ?? null,
+          payload.phone ?? null,
+          currentMembership.user_id,
+        );
+      }
+
+      const passwordHash = payload.password ? await hashPassword(payload.password) : null;
+
+      if (
+        payload.email !== undefined
+        || payload.phone !== undefined
+        || passwordHash
+      ) {
+        await client.query(
+          `
+            update identity.users
+            set
+              email = case when $2::citext is null then email else $2::citext end,
+              phone = case when $3::varchar is null then phone else $3::varchar end,
+              password_hash = coalesce($4, password_hash),
+              updated_at = now()
+            where id = $1
+          `,
+          [
+            currentMembership.user_id,
+            payload.email === undefined ? null : payload.email,
+            payload.phone === undefined ? null : payload.phone,
+            passwordHash,
+          ],
+        );
+      }
+
+      if (
+        payload.fullName
+        || payload.address !== undefined
+      ) {
+        await client.query(
+          `
+            update identity.user_profiles
+            set
+              full_name = coalesce($2, full_name),
+              address_text = case when $3::text is null then address_text else $3::text end,
+              updated_at = now()
+            where user_id = $1
+          `,
+          [
+            currentMembership.user_id,
+            payload.fullName ?? null,
+            payload.address === undefined ? null : payload.address,
+          ],
+        );
+      }
+
+      await client.query(
+        `
+          update access.store_memberships
+          set role_id = $2,
+              status = $3,
+              updated_at = now()
+          where id = $1
+        `,
+        [membershipId, nextRoleId, nextStatus],
+      );
+
+      const userSnapshot = await client.query<{
+        full_name: string | null;
+        email: string | null;
+        phone: string | null;
+        address_text: string | null;
+      }>(
+        `
+          select up.full_name, u.email::text, u.phone, up.address_text
+          from identity.users u
+          left join identity.user_profiles up on up.user_id = u.id
+          where u.id = $1
+          limit 1
+        `,
+        [currentMembership.user_id],
+      );
+
+      const profileRow = userSnapshot.rows[0];
+      await this.upsertLinkedEmployee(client, {
+        storeId,
+        tenantId: currentMembership.tenant_id,
+        userId: currentMembership.user_id,
+        fullName: payload.fullName ?? profileRow?.full_name ?? 'Store Employee',
+        phone: payload.phone === undefined ? profileRow?.phone ?? null : payload.phone,
+        email: payload.email === undefined ? profileRow?.email ?? null : payload.email,
+        roleCode: nextRoleCode,
+        address: payload.address === undefined ? profileRow?.address_text ?? null : payload.address,
+        membershipStatus: nextStatus as 'active' | 'invited' | 'suspended' | 'removed',
+        profile: payload,
+      });
+
+      await client.query('commit');
+    } catch (error) {
+      await client.query('rollback').catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
 
     const response = {
       membershipId,
-      roleCode: payload.roleCode ?? null,
+      roleCode: nextRoleCode,
       status: nextStatus,
       updatedBy: session.user.id,
     };
@@ -1379,6 +1695,310 @@ export class StoreService {
     }
   }
 
+  private async findRoleIdWithClient(client: PoolClient, roleCode: string) {
+    const result = await client.query<{ id: string }>(
+      `
+        select id
+        from access.roles
+        where code = $1
+        limit 1
+      `,
+      [roleCode],
+    );
+
+    const role = result.rows[0];
+    if (!role) {
+      throw new NotFoundException(`Role ${roleCode} not found`);
+    }
+
+    return role.id;
+  }
+
+  private async assertUniqueUserIdentity(
+    client: PoolClient,
+    email: string | null | undefined,
+    phone: string | null | undefined,
+    excludeUserId?: string,
+  ) {
+    const result = await client.query<{ id: string; email: string | null; phone: string | null }>(
+      `
+        select id, email::text, phone
+        from identity.users
+        where (
+          ($1::citext is not null and email = $1::citext)
+          or ($2::varchar is not null and phone = $2::varchar)
+        )
+          and ($3::uuid is null or id <> $3::uuid)
+        limit 1
+      `,
+      [email ?? null, phone ?? null, excludeUserId ?? null],
+    );
+
+    const existing = result.rows[0];
+    if (!existing) {
+      return;
+    }
+
+    if (email && existing.email?.toLowerCase() === email.toLowerCase()) {
+      throw new ForbiddenException('A user with this email already exists');
+    }
+
+    if (phone && existing.phone === phone) {
+      throw new ForbiddenException('A user with this phone already exists');
+    }
+  }
+
+  private async generateEmployeeNumber(client: PoolClient, storeId: string) {
+    const storeResult = await client.query<{ store_code: string }>(
+      `
+        select store_code
+        from store.stores
+        where id = $1
+        limit 1
+      `,
+      [storeId],
+    );
+
+    const storeCode = storeResult.rows[0]?.store_code ?? 'STORE';
+    const prefix = this.normalizeStoreCodeFragment(storeCode).replace(/-/g, '').slice(0, 6) || 'STORE';
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const countResult = await client.query<{ total: string }>(
+        `
+          select count(*)::text as total
+          from hr.employees
+          where store_id = $1
+        `,
+        [storeId],
+      );
+
+      const nextNumber = Number(countResult.rows[0]?.total ?? '0') + 1 + attempt;
+      const candidate = `${prefix}-${String(nextNumber).padStart(4, '0')}`;
+      const existing = await client.query<{ id: string }>(
+        `
+          select id
+          from hr.employees
+          where store_id = $1
+            and employee_number = $2
+          limit 1
+        `,
+        [storeId, candidate],
+      );
+
+      if (!existing.rows[0]) {
+        return candidate;
+      }
+    }
+
+    return `${prefix}-${upperHex(randomBytes(2))}`;
+  }
+
+  private mapMembershipToEmploymentStatus(
+    membershipStatus: 'active' | 'invited' | 'suspended' | 'removed',
+    explicitStatus?: 'active' | 'inactive' | 'terminated',
+  ) {
+    if (membershipStatus === 'removed') return 'terminated';
+    if (membershipStatus === 'suspended') return 'inactive';
+    return explicitStatus ?? 'active';
+  }
+
+  private async upsertLinkedEmployee(
+    client: PoolClient,
+    payload: {
+      storeId: string;
+      tenantId: string;
+      userId: string;
+      fullName: string;
+      phone?: string | null;
+      email?: string | null;
+      roleCode: string;
+      address?: string | null;
+      membershipStatus: 'active' | 'invited' | 'suspended' | 'removed';
+      profile: StaffEmploymentProfilePayload & { note?: string | null };
+    },
+  ) {
+    const existingEmployee = await client.query<{ id: string; employee_number: string | null }>(
+      `
+        select id, employee_number
+        from hr.employees
+        where store_id = $1
+          and user_id = $2
+        limit 1
+      `,
+      [payload.storeId, payload.userId],
+    );
+
+    const employeeNumber = existingEmployee.rows[0]?.employee_number ?? await this.generateEmployeeNumber(client, payload.storeId);
+    const employmentStatus = this.mapMembershipToEmploymentStatus(payload.membershipStatus, payload.profile.employmentStatus);
+    const joinDate = payload.profile.joinDate ?? new Date().toISOString().slice(0, 10);
+
+    if (!existingEmployee.rows[0]) {
+      const insertResult = await client.query(
+        `
+          insert into hr.employees (
+            id,
+            tenant_id,
+            store_id,
+            user_id,
+            employee_number,
+            full_name,
+            mobile_no,
+            email,
+            role_code,
+            employment_status,
+            join_date,
+            monthly_salary,
+            address_text,
+            employment_type,
+            designation,
+            department,
+            emergency_contact_name,
+            emergency_contact_phone,
+            salary_payment_mode,
+            bank_name,
+            bank_account_name,
+            bank_account_number,
+            mobile_banking_type,
+            mobile_banking_number,
+            education_summary,
+            experience_summary,
+            training_summary,
+            note,
+            created_at,
+            updated_at
+          )
+          values (
+            gen_random_uuid(),
+            $1,
+            $2,
+            $3,
+            $4,
+            $5,
+            $6,
+            $7::citext,
+            $8,
+            $9,
+            $10::date,
+            $11,
+            $12,
+            $13,
+            $14,
+            $15,
+            $16,
+            $17,
+            $18,
+            $19,
+            $20,
+            $21,
+            $22,
+            $23,
+            $24,
+            $25,
+            $26,
+            $27,
+            now(),
+            now()
+          )
+          returning *
+        `,
+        [
+          payload.tenantId,
+          payload.storeId,
+          payload.userId,
+          employeeNumber,
+          payload.fullName,
+          payload.phone ?? null,
+          payload.email ?? null,
+          payload.roleCode,
+          employmentStatus,
+          joinDate,
+          payload.profile.monthlySalary ?? 0,
+          payload.address ?? null,
+          payload.profile.employmentType ?? 'permanent',
+          payload.profile.designation ?? null,
+          payload.profile.department ?? null,
+          payload.profile.emergencyContactName ?? null,
+          payload.profile.emergencyContactPhone ?? null,
+          payload.profile.salaryPaymentMode ?? null,
+          payload.profile.bankName ?? null,
+          payload.profile.bankAccountName ?? null,
+          payload.profile.bankAccountNumber ?? null,
+          payload.profile.mobileBankingType ?? null,
+          payload.profile.mobileBankingNumber ?? null,
+          payload.profile.educationSummary ?? null,
+          payload.profile.experienceSummary ?? null,
+          payload.profile.trainingSummary ?? null,
+          payload.profile.note ?? null,
+        ],
+      );
+
+      return insertResult.rows[0];
+    }
+
+    const updateResult = await client.query(
+      `
+        update hr.employees
+        set
+          full_name = coalesce($3, full_name),
+          mobile_no = case when $4::varchar is null then mobile_no else $4::varchar end,
+          email = case when $5::citext is null then email else $5::citext end,
+          role_code = coalesce($6, role_code),
+          employment_status = coalesce($7, employment_status),
+          join_date = coalesce($8::date, join_date),
+          monthly_salary = coalesce($9, monthly_salary),
+          address_text = case when $10::text is null then address_text else $10::text end,
+          employment_type = coalesce($11, employment_type),
+          designation = case when $12::varchar is null then designation else $12::varchar end,
+          department = case when $13::varchar is null then department else $13::varchar end,
+          emergency_contact_name = case when $14::varchar is null then emergency_contact_name else $14::varchar end,
+          emergency_contact_phone = case when $15::varchar is null then emergency_contact_phone else $15::varchar end,
+          salary_payment_mode = case when $16::varchar is null then salary_payment_mode else $16::varchar end,
+          bank_name = case when $17::varchar is null then bank_name else $17::varchar end,
+          bank_account_name = case when $18::varchar is null then bank_account_name else $18::varchar end,
+          bank_account_number = case when $19::varchar is null then bank_account_number else $19::varchar end,
+          mobile_banking_type = case when $20::varchar is null then mobile_banking_type else $20::varchar end,
+          mobile_banking_number = case when $21::varchar is null then mobile_banking_number else $21::varchar end,
+          education_summary = case when $22::text is null then education_summary else $22::text end,
+          experience_summary = case when $23::text is null then experience_summary else $23::text end,
+          training_summary = case when $24::text is null then training_summary else $24::text end,
+          note = case when $25::text is null then note else $25::text end,
+          updated_at = now()
+        where store_id = $1
+          and user_id = $2
+        returning *
+      `,
+      [
+        payload.storeId,
+        payload.userId,
+        payload.fullName,
+        payload.phone === undefined ? null : payload.phone,
+        payload.email === undefined ? null : payload.email,
+        payload.roleCode,
+        employmentStatus,
+        payload.profile.joinDate ?? null,
+        payload.profile.monthlySalary ?? null,
+        payload.address === undefined ? null : payload.address,
+        payload.profile.employmentType ?? null,
+        payload.profile.designation ?? null,
+        payload.profile.department ?? null,
+        payload.profile.emergencyContactName ?? null,
+        payload.profile.emergencyContactPhone ?? null,
+        payload.profile.salaryPaymentMode ?? null,
+        payload.profile.bankName ?? null,
+        payload.profile.bankAccountName ?? null,
+        payload.profile.bankAccountNumber ?? null,
+        payload.profile.mobileBankingType ?? null,
+        payload.profile.mobileBankingNumber ?? null,
+        payload.profile.educationSummary ?? null,
+        payload.profile.experienceSummary ?? null,
+        payload.profile.trainingSummary ?? null,
+        payload.profile.note === undefined ? null : payload.profile.note,
+      ],
+    );
+
+    return updateResult.rows[0];
+  }
+
   private assertAdminContext(authContext: AdminAuthContext | null) {
     if (!authContext || authContext.type !== 'admin') {
       throw new ForbiddenException('Admin context is required');
@@ -1569,4 +2189,8 @@ export class StoreService {
 
     throw new Error('Unable to generate a unique store slug');
   }
+}
+
+function upperHex(buffer: Buffer) {
+  return buffer.toString('hex').toUpperCase();
 }

@@ -30,16 +30,32 @@ const employeeSchema = z.object({
   fullName: z.string().min(1).max(200),
   mobileNo: z.string().max(30).optional(),
   email: z.string().email().optional(),
+  addressText: z.string().min(1).max(1000),
   roleCode: z.string().min(1).max(50),
   employmentStatus: z.enum(['active', 'inactive', 'terminated']).default('active'),
   joinDate: z.string().date(),
+  employmentType: z.string().min(1).max(50).default('permanent'),
+  designation: z.string().max(100).optional(),
+  department: z.string().max(100).optional(),
   monthlySalary: z.number().nonnegative().default(0),
+  emergencyContactName: z.string().max(200).optional(),
+  emergencyContactPhone: z.string().max(30).optional(),
+  salaryPaymentMode: z.enum(['cash', 'bank_transfer', 'mobile_banking']).optional(),
+  bankName: z.string().max(150).optional(),
+  bankAccountName: z.string().max(200).optional(),
+  bankAccountNumber: z.string().max(80).optional(),
+  mobileBankingType: z.string().max(50).optional(),
+  mobileBankingNumber: z.string().max(30).optional(),
+  educationSummary: z.string().max(3000).optional(),
+  experienceSummary: z.string().max(3000).optional(),
+  trainingSummary: z.string().max(3000).optional(),
   note: z.string().max(500).optional(),
 });
 
 const employeeUpdateSchema = employeeSchema.partial().extend({
   mobileNo: z.string().max(30).nullable().optional(),
   email: z.string().email().nullable().optional(),
+  addressText: z.string().max(1000).nullable().optional(),
   note: z.string().max(500).nullable().optional(),
 });
 
@@ -60,6 +76,17 @@ const payrollRunSchema = z.object({
 const payrollRunUpdateSchema = z.object({
   status: z.enum(['draft', 'approved', 'paid']).optional(),
   note: z.string().max(500).nullable().optional(),
+});
+
+const hardwareProfileSchema = z.object({
+  bundlePreset: z.string().max(120).nullable().optional(),
+  receiptPrinterModel: z.string().max(150).nullable().optional(),
+  labelPrinterModel: z.string().max(150).nullable().optional(),
+  barcodeScannerModel: z.string().max(150).nullable().optional(),
+  cashDrawerModel: z.string().max(150).nullable().optional(),
+  silentPrintingEnabled: z.boolean().optional(),
+  printAgentAutostart: z.enum(['windows_task', 'mac_launchagent', 'manual']).optional(),
+  notes: z.string().max(1000).nullable().optional(),
 });
 
 const bankAccountSchema = z.object({
@@ -258,6 +285,28 @@ export class StoreOpsController {
     @Body() payload: unknown,
   ) {
     return this.storeOpsService.updatePayrollRun(payrollRunId, headerStoreId, authContext, payrollRunUpdateSchema.parse(payload));
+  }
+
+  @Get('hardware/profile')
+  @RequireContext('store')
+  @RequirePermissions('store.settings.manage')
+  getHardwareProfile(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+  ) {
+    return this.storeOpsService.getHardwareProfile(headerStoreId, authContext);
+  }
+
+  @Patch('hardware/profile')
+  @RequireContext('store')
+  @RequirePermissions('store.settings.manage')
+  updateHardwareProfile(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @CurrentAuthSession() session: AuthSession | null,
+    @Body() payload: unknown,
+  ) {
+    return this.storeOpsService.updateHardwareProfile(headerStoreId, authContext, session, hardwareProfileSchema.parse(payload));
   }
 
   @Get('banking/accounts')
