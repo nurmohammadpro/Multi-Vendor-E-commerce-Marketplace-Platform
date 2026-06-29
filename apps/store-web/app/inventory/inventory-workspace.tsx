@@ -86,10 +86,14 @@ async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
 export function InventoryWorkspace({
   canViewInventory,
   canAdjustInventory,
+  canDirectAdjustInventory,
+  canRequestAdjustInventory,
   canApproveInventory,
 }: {
   canViewInventory: boolean;
   canAdjustInventory: boolean;
+  canDirectAdjustInventory: boolean;
+  canRequestAdjustInventory: boolean;
   canApproveInventory: boolean;
 }) {
   const [locations, setLocations] = useState<Location[]>([]);
@@ -298,7 +302,9 @@ export function InventoryWorkspace({
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Stock Actions</h3>
           {!canAdjustInventory ? (
-            <p style={tokenMutedStyle}>Your role can review inventory, but direct adjustments are restricted.</p>
+            <p style={tokenMutedStyle}>Your role can review inventory, but stock changes are restricted.</p>
+          ) : !canDirectAdjustInventory ? (
+            <p style={tokenMutedStyle}>You can request quantity changes, but only owner-level roles can post stock directly.</p>
           ) : null}
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, marginBottom: 12 }}>
             <input
@@ -329,10 +335,10 @@ export function InventoryWorkspace({
           <input value={quantity} onChange={(event) => setQuantity(event.target.value)} style={{ ...fieldStyle, marginBottom: 12 }} placeholder="Quantity or requested final qty" />
           <textarea value={reason} onChange={(event) => setReason(event.target.value)} style={{ ...fieldStyle, minHeight: 88, marginBottom: 12 }} placeholder="Reason / note" />
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button onClick={initializeStock} style={secondaryButtonStyle} disabled={!canInitializeStock || !canAdjustInventory}>
+            <button onClick={initializeStock} style={secondaryButtonStyle} disabled={!canInitializeStock || !canDirectAdjustInventory}>
               Initialize Stock
             </button>
-            <button onClick={requestAdjustment} style={secondaryButtonStyle} disabled={!canRequestAdjustment || !canAdjustInventory}>
+            <button onClick={requestAdjustment} style={secondaryButtonStyle} disabled={!canRequestAdjustment || !canRequestAdjustInventory}>
               Request Change
             </button>
           </div>

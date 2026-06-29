@@ -18,6 +18,8 @@ export default async function StoreInventoryPage() {
       <InventoryWorkspace
         canApproveInventory={access.canApproveInventory}
         canAdjustInventory={access.canAdjustInventory}
+        canDirectAdjustInventory={access.canDirectAdjustInventory}
+        canRequestAdjustInventory={access.canRequestAdjustInventory}
         canViewInventory={access.canViewInventory}
       />
     </div>
