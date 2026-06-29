@@ -92,8 +92,8 @@ export default function LoginPage() {
   return (
     <>
       <IntroSplash onComplete={() => setSplashComplete(true)} />
-      <div className="flex min-h-screen items-center justify-center bg-background px-4">
-        <div className="w-full max-w-md">
+      <div className={`login-shell flex min-h-screen items-center justify-center bg-background px-4 ${splashComplete ? 'login-shell--ready' : ''}`}>
+        <div className={`login-panel w-full max-w-md ${splashComplete ? 'login-panel--ready' : ''}`}>
         {/* Card */}
           <div className="rounded-md border border-border bg-card transition-[border-color,background-color,box-shadow] duration-200 hover:border-foreground/15 hover:shadow-[0_10px_30px_rgba(0,0,0,0.04)]">
           {/* Header */}
