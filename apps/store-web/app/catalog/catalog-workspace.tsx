@@ -2,7 +2,17 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
-import { emptyStateStyle, fieldStyle, secondaryButtonStyle, surfaceCardStyle, tokenMutedStyle } from '../motocore-theme';
+import {
+  emptyStateStyle,
+  fieldStyle,
+  secondaryButtonStyle,
+  surfaceCardStyle,
+  tableCellStyle,
+  tableHeaderCellStyle,
+  tableStyle,
+  tableWrapStyle,
+  tokenMutedStyle,
+} from '../motocore-theme';
 
 type Category = { id: string; code: string; name: string; status: string };
 type Brand = { id: string; name: string; status: string };
@@ -658,26 +668,42 @@ export function CatalogWorkspace({
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
         <article style={cardStyle}>
           <h3 style={{ marginTop: 0 }}>Products</h3>
-          <div style={{ display: 'grid', gap: 10 }}>
-            {products.map((product) => (
-              <article
-                key={product.id}
-                onClick={() => setSelectedProductId(product.id)}
-                  style={{
-                    ...cardStyle,
-                    padding: 14,
-                    cursor: 'pointer',
-                    border: selectedProductId === product.id ? '1px solid #2563eb' : '1px solid rgba(148, 163, 184, 0.22)',
-                  }}
-                >
-                <div style={{ fontWeight: 600 }}>{product.name}</div>
-                <div style={{ color: '#475569' }}>{product.product_code}</div>
-                <div style={{ color: '#64748b' }}>
-                  {product.variant_mode} · {product.sku_count} SKU(s) · {product.status}
-                </div>
-              </article>
-            ))}
-          </div>
+          {products.length ? (
+            <div style={tableWrapStyle}>
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={tableHeaderCellStyle}>Product</th>
+                    <th style={tableHeaderCellStyle}>Code</th>
+                    <th style={tableHeaderCellStyle}>Category</th>
+                    <th style={tableHeaderCellStyle}>Brand</th>
+                    <th style={tableHeaderCellStyle}>Variant Mode</th>
+                    <th style={tableHeaderCellStyle}>SKUs</th>
+                    <th style={tableHeaderCellStyle}>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {products.map((product) => (
+                    <tr
+                      key={product.id}
+                      onClick={() => setSelectedProductId(product.id)}
+                      style={{ cursor: 'pointer', background: selectedProductId === product.id ? 'rgba(241,245,249,0.9)' : '#fff' }}
+                    >
+                      <td style={tableCellStyle}><strong>{product.name}</strong></td>
+                      <td style={tableCellStyle}>{product.product_code}</td>
+                      <td style={tableCellStyle}>{product.category_name || '—'}</td>
+                      <td style={tableCellStyle}>{product.brand_name || '—'}</td>
+                      <td style={tableCellStyle}>{product.variant_mode}</td>
+                      <td style={tableCellStyle}>{product.sku_count}</td>
+                      <td style={tableCellStyle}>{product.status}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div style={emptyStateStyle}>No products yet.</div>
+          )}
         </article>
 
         <article style={cardStyle}>
@@ -724,20 +750,29 @@ export function CatalogWorkspace({
                 ) : null}
               </div>
 
-              <div style={{ display: 'grid', gap: 10 }}>
-                {productDetail.groups.map((group) => (
-                  <article key={group.id} style={{ ...cardStyle, padding: 14 }}>
-                    <div style={{ fontWeight: 600 }}>{group.name}</div>
-                    <div style={{ color: '#475569', marginBottom: 8 }}>{group.code} · {group.input_type}</div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                      {group.options.map((option) => (
-                        <span key={option.id} style={{ padding: '4px 8px', borderRadius: 6, background: '#ffffff', border: '1px solid rgba(148, 163, 184, 0.22)' }}>
-                          {option.label}
-                        </span>
-                      ))}
-                    </div>
-                  </article>
-                ))}
+              <div style={tableWrapStyle}>
+                <table style={tableStyle}>
+                  <thead>
+                    <tr>
+                      <th style={tableHeaderCellStyle}>Group</th>
+                      <th style={tableHeaderCellStyle}>Code</th>
+                      <th style={tableHeaderCellStyle}>Type</th>
+                      <th style={tableHeaderCellStyle}>Required</th>
+                      <th style={tableHeaderCellStyle}>Options</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {productDetail.groups.map((group) => (
+                      <tr key={group.id}>
+                        <td style={tableCellStyle}>{group.name}</td>
+                        <td style={tableCellStyle}>{group.code}</td>
+                        <td style={tableCellStyle}>{group.input_type}</td>
+                        <td style={tableCellStyle}>{group.is_required ? 'Yes' : 'No'}</td>
+                        <td style={tableCellStyle}>{group.options.map((option) => option.label).join(', ') || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
 
               {canManageCatalog ? (
@@ -837,20 +872,34 @@ export function CatalogWorkspace({
                   </div>
 
                   {variantRows.length > 0 ? (
-                    <div style={{ display: 'grid', gap: 10, marginTop: 14 }}>
-                      {variantRows.map((row) => (
-                        <article key={row.key} style={{ ...cardStyle, padding: 12 }}>
-                          <div style={{ fontWeight: 600, marginBottom: 4 }}>{row.variantLabel}</div>
-                          <div style={{ color: '#64748b', marginBottom: 10 }}>{row.variantOptionIds.length} option(s) · {row.key}</div>
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 8 }}>
-                            <input value={row.skuCode} onChange={(event) => updateVariantRow(row.key, 'skuCode', event.target.value)} style={inputStyle} placeholder="SKU code" />
-                            <input value={row.barcode} onChange={(event) => updateVariantRow(row.key, 'barcode', event.target.value)} style={inputStyle} placeholder="Barcode" />
-                            <input value={row.salePrice} onChange={(event) => updateVariantRow(row.key, 'salePrice', event.target.value)} style={inputStyle} placeholder="Sale price" />
-                            <input value={row.costPrice} onChange={(event) => updateVariantRow(row.key, 'costPrice', event.target.value)} style={inputStyle} placeholder="Cost price" />
-                            <input value={row.compareAtPrice} onChange={(event) => updateVariantRow(row.key, 'compareAtPrice', event.target.value)} style={inputStyle} placeholder="Compare at price" />
-                          </div>
-                        </article>
-                      ))}
+                    <div style={{ ...tableWrapStyle, marginTop: 14 }}>
+                      <table style={tableStyle}>
+                        <thead>
+                          <tr>
+                            <th style={tableHeaderCellStyle}>Variant</th>
+                            <th style={tableHeaderCellStyle}>SKU</th>
+                            <th style={tableHeaderCellStyle}>Barcode</th>
+                            <th style={tableHeaderCellStyle}>Sale Price</th>
+                            <th style={tableHeaderCellStyle}>Cost Price</th>
+                            <th style={tableHeaderCellStyle}>Compare Price</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {variantRows.map((row) => (
+                            <tr key={row.key}>
+                              <td style={tableCellStyle}>
+                                <div style={{ fontWeight: 600 }}>{row.variantLabel}</div>
+                                <div style={{ color: '#64748b', marginTop: 4 }}>{row.variantOptionIds.length} option(s)</div>
+                              </td>
+                              <td style={tableCellStyle}><input value={row.skuCode} onChange={(event) => updateVariantRow(row.key, 'skuCode', event.target.value)} style={inputStyle} placeholder="SKU code" /></td>
+                              <td style={tableCellStyle}><input value={row.barcode} onChange={(event) => updateVariantRow(row.key, 'barcode', event.target.value)} style={inputStyle} placeholder="Barcode" /></td>
+                              <td style={tableCellStyle}><input value={row.salePrice} onChange={(event) => updateVariantRow(row.key, 'salePrice', event.target.value)} style={inputStyle} placeholder="Sale price" /></td>
+                              <td style={tableCellStyle}><input value={row.costPrice} onChange={(event) => updateVariantRow(row.key, 'costPrice', event.target.value)} style={inputStyle} placeholder="Cost price" /></td>
+                              <td style={tableCellStyle}><input value={row.compareAtPrice} onChange={(event) => updateVariantRow(row.key, 'compareAtPrice', event.target.value)} style={inputStyle} placeholder="Compare at price" /></td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   ) : null}
                 </article>
@@ -925,18 +974,31 @@ export function CatalogWorkspace({
                 ) : null}
               </div>
 
-              <div style={{ display: 'grid', gap: 10 }}>
-                {productDetail.skus.map((sku) => (
-                  <article key={sku.id} style={{ ...cardStyle, padding: 14 }}>
-                    <div style={{ fontWeight: 600 }}>{sku.sku_code}</div>
-                    <div style={{ color: '#475569' }}>
-                      {sku.variant_label || 'No variant label'} · {sku.status}
-                    </div>
-                    <div style={{ color: '#64748b' }}>
-                      Barcode: {sku.barcode || '—'} · Available: {Number(sku.available_qty ?? 0)} · Price: {sku.sale_price ?? '—'}
-                    </div>
-                  </article>
-                ))}
+              <div style={tableWrapStyle}>
+                <table style={tableStyle}>
+                  <thead>
+                    <tr>
+                      <th style={tableHeaderCellStyle}>SKU</th>
+                      <th style={tableHeaderCellStyle}>Variant</th>
+                      <th style={tableHeaderCellStyle}>Status</th>
+                      <th style={tableHeaderCellStyle}>Barcode</th>
+                      <th style={tableHeaderCellStyle}>Available</th>
+                      <th style={tableHeaderCellStyle}>Price</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {productDetail.skus.map((sku) => (
+                      <tr key={sku.id}>
+                        <td style={tableCellStyle}>{sku.sku_code}</td>
+                        <td style={tableCellStyle}>{sku.variant_label || 'No variant label'}</td>
+                        <td style={tableCellStyle}>{sku.status}</td>
+                        <td style={tableCellStyle}>{sku.barcode || '—'}</td>
+                        <td style={tableCellStyle}>{Number(sku.available_qty ?? 0)}</td>
+                        <td style={tableCellStyle}>{sku.sale_price ?? '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
 
               <article style={{ ...cardStyle, padding: 14 }}>
@@ -949,38 +1011,50 @@ export function CatalogWorkspace({
                     placeholder="Optional approval note"
                   />
                 ) : null}
-                <div style={{ display: 'grid', gap: 10 }}>
-                  {priceChangeRequests.length ? priceChangeRequests.map((request) => (
-                    <article key={request.id} style={{ ...cardStyle, padding: 12 }}>
-                      <div style={{ fontWeight: 600 }}>
-                        {request.product_name} · {request.sku_code}
-                        {request.variant_label ? ` · ${request.variant_label}` : ''}
-                      </div>
-                      <div style={{ color: '#475569', marginTop: 4 }}>
-                        Sale: {String(request.current_sale_price)} → {String(request.requested_sale_price)}
-                      </div>
-                      <div style={{ color: '#475569' }}>
-                        Cost: {request.current_cost_price ?? '—'} → {request.requested_cost_price ?? '—'} · Compare: {request.current_compare_at_price ?? '—'} → {request.requested_compare_at_price ?? '—'}
-                      </div>
-                      <div style={{ color: '#64748b', marginTop: 4 }}>
-                        {request.status} · Requested by {request.requested_by_name || 'User'}
-                      </div>
-                      <div style={{ color: '#334155', marginTop: 8 }}>{request.reason}</div>
-                      {canApprovePriceChanges && request.status === 'pending' ? (
-                        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                          <button onClick={() => decidePriceRequest(request.id, 'approve')} style={buttonStyle} disabled={loading}>
-                            Approve
-                          </button>
-                          <button onClick={() => decidePriceRequest(request.id, 'reject')} style={buttonStyle} disabled={loading}>
-                            Reject
-                          </button>
-                        </div>
-                      ) : null}
-                    </article>
-                  )) : (
-                    <p style={{ marginBottom: 0, color: '#64748b' }}>No price requests yet.</p>
-                  )}
-                </div>
+                {priceChangeRequests.length ? (
+                  <div style={tableWrapStyle}>
+                    <table style={tableStyle}>
+                      <thead>
+                        <tr>
+                          <th style={tableHeaderCellStyle}>Product</th>
+                          <th style={tableHeaderCellStyle}>Sale</th>
+                          <th style={tableHeaderCellStyle}>Cost</th>
+                          <th style={tableHeaderCellStyle}>Compare</th>
+                          <th style={tableHeaderCellStyle}>Status</th>
+                          <th style={tableHeaderCellStyle}>Requested By</th>
+                          <th style={tableHeaderCellStyle}>Reason</th>
+                          <th style={tableHeaderCellStyle}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {priceChangeRequests.map((request) => (
+                          <tr key={request.id}>
+                            <td style={tableCellStyle}>
+                              {request.product_name} · {request.sku_code}
+                              {request.variant_label ? ` · ${request.variant_label}` : ''}
+                            </td>
+                            <td style={tableCellStyle}>{String(request.current_sale_price)} → {String(request.requested_sale_price)}</td>
+                            <td style={tableCellStyle}>{request.current_cost_price ?? '—'} → {request.requested_cost_price ?? '—'}</td>
+                            <td style={tableCellStyle}>{request.current_compare_at_price ?? '—'} → {request.requested_compare_at_price ?? '—'}</td>
+                            <td style={tableCellStyle}>{request.status}</td>
+                            <td style={tableCellStyle}>{request.requested_by_name || 'User'}</td>
+                            <td style={tableCellStyle}>{request.reason}</td>
+                            <td style={tableCellStyle}>
+                              {canApprovePriceChanges && request.status === 'pending' ? (
+                                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                  <button onClick={() => decidePriceRequest(request.id, 'approve')} style={buttonStyle} disabled={loading}>Approve</button>
+                                  <button onClick={() => decidePriceRequest(request.id, 'reject')} style={buttonStyle} disabled={loading}>Reject</button>
+                                </div>
+                              ) : '—'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p style={{ marginBottom: 0, color: '#64748b' }}>No price requests yet.</p>
+                )}
               </article>
             </section>
           )}

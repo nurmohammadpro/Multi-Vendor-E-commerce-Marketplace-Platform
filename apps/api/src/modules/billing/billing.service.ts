@@ -2,11 +2,15 @@ import { ForbiddenException, Inject, Injectable, NotFoundException, Unauthorized
 import type { Pool, PoolClient } from 'pg';
 
 import type { AuthSession, StoreAuthContext } from '../auth/auth.types.js';
+import { AuditService } from '../audit/audit.service.js';
 import { DATABASE_POOL } from '../database/database.constants.js';
 
 @Injectable()
 export class BillingService {
-  constructor(@Inject(DATABASE_POOL) private readonly pool: Pool) {}
+  constructor(
+    @Inject(DATABASE_POOL) private readonly pool: Pool,
+    private readonly auditService: AuditService,
+  ) {}
 
   async getPlans(headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
@@ -77,7 +81,7 @@ export class BillingService {
     payload: { planCode: 'basic' | 'standard' | 'pro'; autoRenew: boolean },
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
-    this.requireUserId(session);
+    const userId = this.requireUserId(session);
 
     const client = await this.pool.connect();
     try {
@@ -131,6 +135,19 @@ export class BillingService {
       );
 
       await client.query('commit');
+      await this.auditService.recordStoreAction({
+        storeId,
+        actorUserId: userId,
+        actionCode: 'subscription.change',
+        resourceType: 'subscription',
+        resourceId: String(result.rows[0]?.id ?? ''),
+        after: {
+          planCode: plan.code,
+          autoRenew: payload.autoRenew,
+          renewalAt,
+        },
+      });
+
       return {
         subscription: {
           ...result.rows[0],
@@ -226,7 +243,7 @@ export class BillingService {
     },
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
-    this.requireUserId(session);
+    const userId = this.requireUserId(session);
 
     const client = await this.pool.connect();
     try {
@@ -252,6 +269,21 @@ export class BillingService {
       const invoice = invoiceResult.rows[0];
       if (!invoice) {
         throw new NotFoundException('Invoice not found');
+      }
+
+      const currentPaymentsResult = await client.query<{ paid_amount: string }>(
+        `
+          select coalesce(sum(case when status = 'paid' then amount else 0 end), 0) as paid_amount
+          from billing.invoice_payments
+          where invoice_id = $1
+        `,
+        [invoiceId],
+      );
+
+      const currentPaidAmount = Number(currentPaymentsResult.rows[0]?.paid_amount ?? 0);
+      const totalAmount = Number(invoice.total_amount);
+      if (payload.status === 'paid' && currentPaidAmount + payload.amount > totalAmount) {
+        throw new ForbiddenException('Payment amount exceeds the remaining invoice balance');
       }
 
       const paymentResult = await client.query(
@@ -301,7 +333,6 @@ export class BillingService {
       );
 
       const paidAmount = Number(totalsResult.rows[0]?.paid_amount ?? 0);
-      const totalAmount = Number(invoice.total_amount);
       const nextStatus = paidAmount >= totalAmount ? 'paid' : invoice.status === 'draft' ? 'issued' : invoice.status;
 
       await client.query(
@@ -316,6 +347,22 @@ export class BillingService {
       );
 
       await client.query('commit');
+      await this.auditService.recordStoreAction({
+        storeId,
+        actorUserId: userId,
+        actionCode: 'invoice.payment.recorded',
+        resourceType: 'invoice',
+        resourceId: invoiceId,
+        after: {
+          paymentMethod: payload.paymentMethod,
+          amount: payload.amount,
+          status: payload.status,
+          paidAmount,
+          totalAmount,
+          nextStatus,
+        },
+      });
+
       return {
         payment: paymentResult.rows[0],
         invoice: {

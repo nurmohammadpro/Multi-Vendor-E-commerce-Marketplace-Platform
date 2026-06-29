@@ -74,6 +74,7 @@ const iconMap: Record<string, typeof LayoutDashboard> = {
   '/customers': Users,
   '/shipping': Truck,
   '/reports': BarChart3,
+  '/activity': ClipboardList,
   '/disputes': Truck,
   '/support': LifeBuoy,
   '/billing': CreditCard,

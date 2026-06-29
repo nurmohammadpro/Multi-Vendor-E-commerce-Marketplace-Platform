@@ -26,8 +26,22 @@ export async function signInAsManager(page: Page) {
   await page.getByRole('button', { name: 'Sign in' }).click();
 }
 
-export async function setStoreSession(context: BrowserContext, role: 'owner' | 'manager' = 'owner') {
-  const token = role === 'owner' ? 'e2e-owner-token' : 'e2e-manager-token';
+export async function signInAsSalesman(page: Page) {
+  await page.goto('http://127.0.0.1:3000/');
+  await page.waitForTimeout(2600);
+  await page.getByLabel('Email').fill('salesman@example.com');
+  await page.getByLabel('Password').fill('ChangeMe-Store-123!');
+  await page.getByRole('button', { name: 'Store Staff' }).click();
+  await page.getByRole('button', { name: 'Sign in' }).click();
+}
+
+export async function setStoreSession(context: BrowserContext, role: 'owner' | 'manager' | 'salesman' = 'owner') {
+  const token =
+    role === 'owner'
+      ? 'e2e-owner-token'
+      : role === 'manager'
+        ? 'e2e-manager-token'
+        : 'e2e-salesman-token';
   await context.addCookies([
     {
       name: 'auth_token',

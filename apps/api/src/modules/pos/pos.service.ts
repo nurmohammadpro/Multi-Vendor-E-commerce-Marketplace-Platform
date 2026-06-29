@@ -2,11 +2,15 @@ import { ForbiddenException, Inject, Injectable, NotFoundException, Unauthorized
 import type { Pool, PoolClient } from 'pg';
 
 import type { AuthSession, StoreAuthContext } from '../auth/auth.types.js';
+import { AuditService } from '../audit/audit.service.js';
 import { DATABASE_POOL } from '../database/database.constants.js';
 
 @Injectable()
 export class PosService {
-  constructor(@Inject(DATABASE_POOL) private readonly pool: Pool) {}
+  constructor(
+    @Inject(DATABASE_POOL) private readonly pool: Pool,
+    private readonly auditService: AuditService,
+  ) {}
 
   async getRegisters(headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
@@ -157,7 +161,17 @@ export class PosService {
       [storeId, payload.registerId, userId, payload.openingCash],
     );
 
-    return { shift: result.rows[0] };
+    const shift = result.rows[0];
+    await this.auditService.recordStoreAction({
+      storeId,
+      actorUserId: userId,
+      actionCode: 'shift.open',
+      resourceType: 'register_shift',
+      resourceId: String(shift?.id ?? ''),
+      after: shift ?? null,
+    });
+
+    return { shift };
   }
 
   async closeShift(
@@ -192,6 +206,15 @@ export class PosService {
       throw new NotFoundException('Open shift not found');
     }
 
+    await this.auditService.recordStoreAction({
+      storeId,
+      actorUserId: userId,
+      actionCode: 'shift.close',
+      resourceType: 'register_shift',
+      resourceId: String(shift.id),
+      after: shift,
+    });
+
     return { shift };
   }
 
@@ -200,6 +223,7 @@ export class PosService {
     authContext: StoreAuthContext | null,
     session: AuthSession | null,
     payload: {
+      clientRequestId?: string;
       locationId: string;
       registerId?: string;
       shiftId?: string;
@@ -235,6 +259,42 @@ export class PosService {
 
     try {
       await client.query('begin');
+
+      if (payload.clientRequestId) {
+        const existingSaleResult = await client.query<{
+          id: string;
+          sale_no: string;
+          total_amount: string;
+          created_at: string;
+        }>(
+          `
+            select id, sale_no, total_amount, created_at
+            from sales.sales
+            where store_id = $1
+              and client_request_id = $2
+            limit 1
+          `,
+          [storeId, payload.clientRequestId],
+        );
+
+        const existingSale = existingSaleResult.rows[0];
+        if (existingSale) {
+          await client.query('rollback');
+          return {
+            sale: {
+              id: existingSale.id,
+              saleNo: existingSale.sale_no,
+              totalAmount: Number(existingSale.total_amount),
+              subtotalAmount: null,
+              discountAmount: null,
+              taxAmount: null,
+              shippingAmount: null,
+              createdAt: existingSale.created_at,
+            },
+          };
+        }
+      }
+
       const saleNo = await this.generateSaleNumber(client, storeId);
       const customerId = await this.upsertCustomer(client, storeId, session, {
         fullName: payload.customerName,
@@ -284,6 +344,7 @@ export class PosService {
             location_id,
             register_id,
             shift_id,
+            client_request_id,
             sale_no,
             sold_by,
             customer_id,
@@ -327,9 +388,10 @@ export class PosService {
             $17,
             $18,
             $19,
-            case when $17 > 0 then 'delivery_pending' else 'completed' end,
+            case when $18 > 0 then 'delivery_pending' else 'completed' end,
             'completed',
             $20,
+            $21,
             now(),
             now()
           from store.stores s
@@ -341,6 +403,7 @@ export class PosService {
           payload.locationId,
           payload.registerId ?? null,
           payload.shiftId ?? null,
+          payload.clientRequestId ?? null,
           saleNo,
           userId,
           customerId,
@@ -484,6 +547,21 @@ export class PosService {
       );
 
       await client.query('commit');
+      await this.auditService.recordStoreAction({
+        storeId,
+        actorUserId: userId,
+        actionCode: 'sale.create',
+        resourceType: 'sale',
+        resourceId: String(sale.id),
+        after: {
+          saleNo: sale.sale_no,
+          totalAmount,
+          paymentStatus,
+          clientRequestId: payload.clientRequestId ?? null,
+          itemCount: payload.items.length,
+        },
+      });
+
       return {
         sale: {
           id: sale.id,
@@ -672,6 +750,19 @@ export class PosService {
       }
 
       await client.query('commit');
+      await this.auditService.recordStoreAction({
+        storeId,
+        actorUserId: userId,
+        actionCode: 'sale.return',
+        resourceType: 'sale_return',
+        resourceId: saleReturnId,
+        after: {
+          saleId,
+          refundAmount: payload.refundAmount,
+          itemCount: payload.items.length,
+        },
+      });
+
       return {
         saleReturn: {
           id: saleReturnId,

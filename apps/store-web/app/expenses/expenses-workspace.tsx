@@ -2,7 +2,18 @@
 
 import { useEffect, useState } from 'react';
 
-import { emptyStateStyle, fieldStyle, pageShellStyle, secondaryButtonStyle, surfaceCardStyle, tokenMutedStyle } from '../motocore-theme';
+import {
+  emptyStateStyle,
+  fieldStyle,
+  pageShellStyle,
+  secondaryButtonStyle,
+  surfaceCardStyle,
+  tableCellStyle,
+  tableHeaderCellStyle,
+  tableStyle,
+  tableWrapStyle,
+  tokenMutedStyle,
+} from '../motocore-theme';
 
 type Expense = {
   id: string;
@@ -114,33 +125,54 @@ export function ExpensesWorkspace() {
 
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Recent Expenses</h3>
-          <div style={{ display: 'grid', gap: 10 }}>
-            {expenses.length ? expenses.map((expense) => (
-              <button
-                key={expense.id}
-                onClick={() => {
-                  setSelectedExpenseId(expense.id);
-                  setForm({
-                    expenseDate: expense.expense_date?.slice(0, 10) || new Date().toISOString().slice(0, 10),
-                    categoryName: expense.category_name,
-                    title: expense.title,
-                    amount: String(expense.amount),
-                    paymentMethod: expense.payment_method,
-                    status: expense.status,
-                    note: expense.note || '',
-                  });
-                }}
-                style={{ ...surfaceCardStyle, padding: 14, textAlign: 'left' }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-                  <strong>{expense.title}</strong>
-                  <span>{expense.amount}</span>
-                </div>
-                <div style={{ color: '#475569' }}>{expense.category_name} · {expense.payment_method} · {expense.status}</div>
-                <div style={{ color: '#64748b' }}>{expense.expense_date}</div>
-              </button>
-            )) : <div style={emptyStateStyle}>No expenses recorded yet.</div>}
-          </div>
+          {expenses.length ? (
+            <div style={tableWrapStyle}>
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={tableHeaderCellStyle}>Date</th>
+                    <th style={tableHeaderCellStyle}>Title</th>
+                    <th style={tableHeaderCellStyle}>Category</th>
+                    <th style={tableHeaderCellStyle}>Method</th>
+                    <th style={tableHeaderCellStyle}>Status</th>
+                    <th style={tableHeaderCellStyle}>Amount</th>
+                    <th style={tableHeaderCellStyle}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {expenses.map((expense) => (
+                    <tr key={expense.id}>
+                      <td style={tableCellStyle}>{expense.expense_date}</td>
+                      <td style={tableCellStyle}>{expense.title}</td>
+                      <td style={tableCellStyle}>{expense.category_name}</td>
+                      <td style={tableCellStyle}>{expense.payment_method}</td>
+                      <td style={tableCellStyle}>{expense.status}</td>
+                      <td style={tableCellStyle}>{expense.amount}</td>
+                      <td style={tableCellStyle}>
+                        <button
+                          onClick={() => {
+                            setSelectedExpenseId(expense.id);
+                            setForm({
+                              expenseDate: expense.expense_date?.slice(0, 10) || new Date().toISOString().slice(0, 10),
+                              categoryName: expense.category_name,
+                              title: expense.title,
+                              amount: String(expense.amount),
+                              paymentMethod: expense.payment_method,
+                              status: expense.status,
+                              note: expense.note || '',
+                            });
+                          }}
+                          style={secondaryButtonStyle}
+                        >
+                          Edit
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : <div style={emptyStateStyle}>No expenses recorded yet.</div>}
         </article>
       </section>
 

@@ -4,15 +4,15 @@ import { useEffect, useState } from 'react';
 
 import {
   emptyStateStyle,
-  fieldStyle,
   metricLabelStyle,
   metricValueStyle,
   pageShellStyle,
-  pageTitleStyle,
-  sectionIntroStyle,
-  sectionLabelStyle,
   secondaryButtonStyle,
   surfaceCardStyle,
+  tableCellStyle,
+  tableHeaderCellStyle,
+  tableStyle,
+  tableWrapStyle,
   tokenMutedStyle,
 } from '../motocore-theme';
 
@@ -153,79 +153,101 @@ export function ReportsWorkspace({ canViewReports }: { canViewReports: boolean }
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Recent Sales</h3>
-          <div style={{ display: 'grid', gap: 10 }}>
-            {sales?.recentSales.map((sale) => (
-              <article key={sale.sale_no} style={{ ...surfaceCardStyle, padding: 14 }}>
-                <div style={{ fontWeight: 600 }}>{sale.sale_no}</div>
-                <div style={{ color: '#475569' }}>
-                  {sale.total_amount} · {sale.payment_status} · {sale.fulfillment_status}
-                </div>
-                {sale.payment_status === 'due' ? (
-                  <div style={{ color: '#92400e', marginTop: 6 }}>
-                    {(sale.customer_name || sale.customer_shop_name) ? `${sale.customer_name || 'Unknown customer'}${sale.customer_shop_name ? ` · ${sale.customer_shop_name}` : ''}` : 'Customer details are missing'}
-                  </div>
-                ) : null}
-                <div style={{ color: '#64748b' }}>{new Date(sale.created_at).toLocaleString()}</div>
-              </article>
-            )) ?? <p style={tokenMutedStyle}>No sales data yet.</p>}
-          </div>
+          {sales?.recentSales?.length ? (
+            <div style={tableWrapStyle}>
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={tableHeaderCellStyle}>Sale</th>
+                    <th style={tableHeaderCellStyle}>Amount</th>
+                    <th style={tableHeaderCellStyle}>Payment</th>
+                    <th style={tableHeaderCellStyle}>Fulfillment</th>
+                    <th style={tableHeaderCellStyle}>Customer</th>
+                    <th style={tableHeaderCellStyle}>Created</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sales.recentSales.map((sale) => (
+                    <tr key={sale.sale_no}>
+                      <td style={tableCellStyle}>{sale.sale_no}</td>
+                      <td style={tableCellStyle}>{sale.total_amount}</td>
+                      <td style={tableCellStyle}>{sale.payment_status}</td>
+                      <td style={tableCellStyle}>{sale.fulfillment_status}</td>
+                      <td style={tableCellStyle}>{sale.customer_name || sale.customer_shop_name || '—'}</td>
+                      <td style={tableCellStyle}>{new Date(sale.created_at).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : <p style={tokenMutedStyle}>No sales data yet.</p>}
         </article>
 
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Inventory Snapshot</h3>
-          <div style={{ display: 'grid', gap: 10 }}>
-            {inventory?.balances.map((balance) => (
-              <article key={`${balance.location_name}-${balance.sku_code}`} style={{ ...surfaceCardStyle, padding: 14 }}>
-                <div style={{ fontWeight: 600 }}>{balance.product_name}</div>
-                <div style={{ color: '#475569' }}>
-                  {balance.sku_code} · {balance.location_name}
-                </div>
-                <div style={{ color: '#64748b' }}>
-                  On hand: {balance.on_hand_qty} · Available: {balance.available_qty}
-                </div>
-              </article>
-            )) ?? <p style={tokenMutedStyle}>No inventory data yet.</p>}
-          </div>
+          {inventory?.balances?.length ? (
+            <div style={tableWrapStyle}>
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={tableHeaderCellStyle}>Product</th>
+                    <th style={tableHeaderCellStyle}>SKU</th>
+                    <th style={tableHeaderCellStyle}>Location</th>
+                    <th style={tableHeaderCellStyle}>On Hand</th>
+                    <th style={tableHeaderCellStyle}>Available</th>
+                    <th style={tableHeaderCellStyle}>Updated</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {inventory.balances.map((balance) => (
+                    <tr key={`${balance.location_name}-${balance.sku_code}`}>
+                      <td style={tableCellStyle}>{balance.product_name}</td>
+                      <td style={tableCellStyle}>{balance.sku_code}</td>
+                      <td style={tableCellStyle}>{balance.location_name}</td>
+                      <td style={tableCellStyle}>{balance.on_hand_qty}</td>
+                      <td style={tableCellStyle}>{balance.available_qty}</td>
+                      <td style={tableCellStyle}>{new Date(balance.updated_at).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : <p style={tokenMutedStyle}>No inventory data yet.</p>}
         </article>
       </section>
 
       <article style={surfaceCardStyle}>
         <h3 style={{ marginTop: 0 }}>Due Sales Follow-up</h3>
-        <div style={{ display: 'grid', gap: 10 }}>
-          {sales?.dueSales?.length ? (
-            sales.dueSales.map((sale) => (
-              <article key={`due-${sale.sale_no}`} style={{ ...surfaceCardStyle, padding: 14, borderColor: 'rgba(217, 119, 6, 0.28)', background: 'rgba(245, 158, 11, 0.06)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-                  <div>
-                    <div style={{ fontWeight: 600 }}>{sale.sale_no}</div>
-                    <div style={{ color: '#92400e' }}>Due amount: {sale.total_amount}</div>
-                  </div>
-                  <div style={{ color: '#64748b' }}>{new Date(sale.created_at).toLocaleString()}</div>
-                </div>
-                <div style={{ color: '#475569', marginTop: 10 }}>
-                  Customer: {sale.customer_name || 'Missing'}
-                </div>
-                <div style={{ color: '#475569' }}>
-                  Shop: {sale.customer_shop_name || 'Missing'}
-                </div>
-                <div style={{ color: '#475569' }}>
-                  Phone: {sale.customer_phone || 'Missing'}
-                </div>
-                <div style={{ color: '#475569' }}>
-                  Email: {sale.customer_email || 'Missing'}
-                </div>
-                <div style={{ color: '#475569' }}>
-                  Due date: {sale.due_date || 'Missing'}
-                </div>
-                <div style={{ color: '#475569' }}>
-                  Address: {sale.customer_address || 'Missing'}
-                </div>
-              </article>
-            ))
-          ) : (
-            <div style={emptyStateStyle}>No due sales are waiting for collection.</div>
-          )}
-        </div>
+        {sales?.dueSales?.length ? (
+          <div style={tableWrapStyle}>
+            <table style={tableStyle}>
+              <thead>
+                <tr>
+                  <th style={tableHeaderCellStyle}>Sale</th>
+                  <th style={tableHeaderCellStyle}>Due Amount</th>
+                  <th style={tableHeaderCellStyle}>Customer</th>
+                  <th style={tableHeaderCellStyle}>Phone</th>
+                  <th style={tableHeaderCellStyle}>Due Date</th>
+                  <th style={tableHeaderCellStyle}>Created</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sales.dueSales.map((sale) => (
+                  <tr key={`due-${sale.sale_no}`}>
+                    <td style={tableCellStyle}>{sale.sale_no}</td>
+                    <td style={{ ...tableCellStyle, color: '#92400e' }}>{sale.total_amount}</td>
+                    <td style={tableCellStyle}>{sale.customer_name || sale.customer_shop_name || 'Missing'}</td>
+                    <td style={tableCellStyle}>{sale.customer_phone || 'Missing'}</td>
+                    <td style={tableCellStyle}>{sale.due_date || 'Missing'}</td>
+                    <td style={tableCellStyle}>{new Date(sale.created_at).toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div style={emptyStateStyle}>No due sales are waiting for collection.</div>
+        )}
       </article>
 
       <article style={surfaceCardStyle}>

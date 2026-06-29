@@ -9,8 +9,12 @@ import {
   metricValueStyle,
   pageShellStyle,
   secondaryButtonStyle,
-  tokenMutedStyle,
   surfaceCardStyle,
+  tableCellStyle,
+  tableHeaderCellStyle,
+  tableStyle,
+  tableWrapStyle,
+  tokenMutedStyle,
 } from '../motocore-theme';
 
 type Plan = {
@@ -224,44 +228,74 @@ export function BillingWorkspace({ canManageBilling }: { canManageBilling: boole
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Plans</h3>
-          <div style={{ display: 'grid', gap: 10 }}>
-            {plans.length ? (
-              plans.map((plan) => (
-                <article key={plan.id} style={{ ...surfaceCardStyle, padding: 14 }}>
-                  <div style={{ fontWeight: 600 }}>{plan.name}</div>
-                  <div style={{ color: '#475569' }}>
-                    {plan.price_amount} / {plan.billing_cycle}
-                  </div>
-                  <div style={{ color: '#64748b' }}>
-                    {Array.isArray(plan.features_json) ? plan.features_json.join(', ') : 'Feature set configured'}
-                  </div>
-                </article>
-              ))
-            ) : (
-              <div style={emptyStateStyle}>No plan definitions are available yet.</div>
-            )}
-          </div>
+          {plans.length ? (
+            <div style={tableWrapStyle}>
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={tableHeaderCellStyle}>Plan</th>
+                    <th style={tableHeaderCellStyle}>Code</th>
+                    <th style={tableHeaderCellStyle}>Price</th>
+                    <th style={tableHeaderCellStyle}>Cycle</th>
+                    <th style={tableHeaderCellStyle}>Status</th>
+                    <th style={tableHeaderCellStyle}>Features</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {plans.map((plan) => (
+                    <tr key={plan.id}>
+                      <td style={tableCellStyle}>{plan.name}</td>
+                      <td style={tableCellStyle}>{plan.code}</td>
+                      <td style={tableCellStyle}>{plan.price_amount}</td>
+                      <td style={tableCellStyle}>{plan.billing_cycle}</td>
+                      <td style={tableCellStyle}>{plan.status}</td>
+                      <td style={tableCellStyle}>{Array.isArray(plan.features_json) ? plan.features_json.join(', ') : 'Feature set configured'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div style={emptyStateStyle}>No plan definitions are available yet.</div>
+          )}
         </article>
 
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Invoices</h3>
-          <div style={{ display: 'grid', gap: 10 }}>
-            {invoices.length ? (
-              invoices.map((invoice) => (
-                <article key={invoice.id} onClick={() => loadInvoice(invoice.id)} style={{ ...surfaceCardStyle, padding: 14, cursor: 'pointer' }}>
-                  <div style={{ fontWeight: 600 }}>{invoice.invoice_no}</div>
-                  <div style={{ color: '#475569' }}>
-                    {invoice.invoice_type} · {invoice.status}
-                  </div>
-                  <div style={{ color: '#64748b' }}>
-                    Total: {invoice.total_amount} · Paid: {invoice.paid_amount}
-                  </div>
-                </article>
-              ))
-            ) : (
-              <div style={emptyStateStyle}>No invoices are ready for review yet.</div>
-            )}
-          </div>
+          {invoices.length ? (
+            <div style={tableWrapStyle}>
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={tableHeaderCellStyle}>Invoice</th>
+                    <th style={tableHeaderCellStyle}>Type</th>
+                    <th style={tableHeaderCellStyle}>Status</th>
+                    <th style={tableHeaderCellStyle}>Total</th>
+                    <th style={tableHeaderCellStyle}>Paid</th>
+                    <th style={tableHeaderCellStyle}>Due</th>
+                    <th style={tableHeaderCellStyle}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {invoices.map((invoice) => (
+                    <tr key={invoice.id}>
+                      <td style={tableCellStyle}>{invoice.invoice_no}</td>
+                      <td style={tableCellStyle}>{invoice.invoice_type}</td>
+                      <td style={tableCellStyle}>{invoice.status}</td>
+                      <td style={tableCellStyle}>{invoice.total_amount}</td>
+                      <td style={tableCellStyle}>{invoice.paid_amount}</td>
+                      <td style={tableCellStyle}>{invoice.due_at ? new Date(invoice.due_at).toLocaleDateString() : '—'}</td>
+                      <td style={tableCellStyle}>
+                        <button onClick={() => void loadInvoice(invoice.id)} style={secondaryButtonStyle}>Open</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div style={emptyStateStyle}>No invoices are ready for review yet.</div>
+          )}
         </article>
       </section>
 
@@ -291,21 +325,36 @@ export function BillingWorkspace({ canManageBilling }: { canManageBilling: boole
               <input value={paymentForm.referenceNo} onChange={(e) => setPaymentForm((v) => ({ ...v, referenceNo: e.target.value }))} style={fieldStyle} placeholder="Reference no" />
             </div>
             <button onClick={payInvoice} style={secondaryButtonStyle} disabled={!canPayInvoice}>Record Payment</button>
-            <div style={{ display: 'grid', gap: 8 }}>
-              {selectedInvoice.payments.length ? (
-                selectedInvoice.payments.map((payment) => (
-                  <article key={payment.id} style={{ ...surfaceCardStyle, padding: 14 }}>
-                    <div style={{ fontWeight: 600 }}>{payment.payment_method}</div>
-                    <div style={{ color: '#475569' }}>
-                      {payment.status} · {payment.amount}
-                    </div>
-                    <div style={{ color: '#64748b' }}>{payment.reference_no || 'No reference'}</div>
-                  </article>
-                ))
-              ) : (
-                <div style={emptyStateStyle}>No payment records exist for this invoice yet.</div>
-              )}
-            </div>
+            {selectedInvoice.payments.length ? (
+              <div style={tableWrapStyle}>
+                <table style={tableStyle}>
+                  <thead>
+                    <tr>
+                      <th style={tableHeaderCellStyle}>Method</th>
+                      <th style={tableHeaderCellStyle}>Gateway</th>
+                      <th style={tableHeaderCellStyle}>Amount</th>
+                      <th style={tableHeaderCellStyle}>Status</th>
+                      <th style={tableHeaderCellStyle}>Reference</th>
+                      <th style={tableHeaderCellStyle}>Paid At</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedInvoice.payments.map((payment) => (
+                      <tr key={payment.id}>
+                        <td style={tableCellStyle}>{payment.payment_method}</td>
+                        <td style={tableCellStyle}>{payment.gateway_provider || '—'}</td>
+                        <td style={tableCellStyle}>{payment.amount}</td>
+                        <td style={tableCellStyle}>{payment.status}</td>
+                        <td style={tableCellStyle}>{payment.reference_no || 'No reference'}</td>
+                        <td style={tableCellStyle}>{payment.paid_at ? new Date(payment.paid_at).toLocaleString() : '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div style={emptyStateStyle}>No payment records exist for this invoice yet.</div>
+            )}
           </section>
         )}
       </article>

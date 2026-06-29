@@ -2,7 +2,18 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
-import { emptyStateStyle, fieldStyle, pageShellStyle, secondaryButtonStyle, surfaceCardStyle, tokenMutedStyle } from '../motocore-theme';
+import {
+  emptyStateStyle,
+  fieldStyle,
+  pageShellStyle,
+  secondaryButtonStyle,
+  surfaceCardStyle,
+  tableCellStyle,
+  tableHeaderCellStyle,
+  tableStyle,
+  tableWrapStyle,
+  tokenMutedStyle,
+} from '../motocore-theme';
 
 type Employee = {
   id: string;
@@ -245,19 +256,37 @@ export function PayrollWorkspace() {
 
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Employees</h3>
-          <div style={{ display: 'grid', gap: 10 }}>
-            {employees.length ? employees.map((employee) => (
-              <article key={employee.id} style={{ ...surfaceCardStyle, padding: 14 }}>
-                <div style={{ fontWeight: 600 }}>{employee.full_name} · {employee.employee_number || 'Pending ID'}</div>
-                <div style={{ color: '#475569' }}>{employee.role_code} · {employee.employment_status} · {employee.designation || 'No designation'}</div>
-                <div style={{ color: '#64748b' }}>
-                  {employee.mobile_no || 'No mobile'} · {employee.email || 'No email'} · Salary: {employee.monthly_salary}
-                </div>
-                <div style={{ color: '#64748b' }}>{employee.address_text || 'No address'}</div>
-                <div style={{ color: '#64748b' }}>{employee.education_summary || employee.experience_summary || employee.training_summary || 'Add education, experience, and training details to strengthen HR records.'}</div>
-              </article>
-            )) : <div style={emptyStateStyle}>No employees added yet.</div>}
-          </div>
+          {employees.length ? (
+            <div style={tableWrapStyle}>
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={tableHeaderCellStyle}>Employee</th>
+                    <th style={tableHeaderCellStyle}>Role</th>
+                    <th style={tableHeaderCellStyle}>Designation</th>
+                    <th style={tableHeaderCellStyle}>Contact</th>
+                    <th style={tableHeaderCellStyle}>Salary</th>
+                    <th style={tableHeaderCellStyle}>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {employees.map((employee) => (
+                    <tr key={employee.id}>
+                      <td style={tableCellStyle}>
+                        {employee.full_name}
+                        <div style={{ color: '#64748b', marginTop: 4 }}>{employee.employee_number || 'Pending ID'}</div>
+                      </td>
+                      <td style={tableCellStyle}>{employee.role_code}</td>
+                      <td style={tableCellStyle}>{employee.designation || '—'}</td>
+                      <td style={tableCellStyle}>{employee.mobile_no || employee.email || '—'}</td>
+                      <td style={tableCellStyle}>{employee.monthly_salary}</td>
+                      <td style={tableCellStyle}>{employee.employment_status}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : <div style={emptyStateStyle}>No employees added yet.</div>}
         </article>
       </section>
 
@@ -282,44 +311,82 @@ export function PayrollWorkspace() {
 
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Payroll Draft Preview</h3>
-          <div style={{ display: 'grid', gap: 10 }}>
-            {payrollPreview.length ? payrollPreview.map((employee) => (
-              <article key={employee.employeeId} style={{ ...surfaceCardStyle, padding: 14 }}>
-                <div style={{ display: 'grid', gap: 8 }}>
-                  <strong>{employee.label}</strong>
-                  <div style={{ color: '#64748b' }}>Gross salary: {employee.gross.toFixed(2)}</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(120px, 1fr))', gap: 8 }}>
-                    <input value={adjustments[employee.employeeId]?.bonus || ''} onChange={(event) => setAdjustments((current) => ({ ...current, [employee.employeeId]: { ...(current[employee.employeeId] ?? { bonus: '', deduction: '', note: '' }), bonus: event.target.value } }))} style={fieldStyle} placeholder="Bonus" />
-                    <input value={adjustments[employee.employeeId]?.deduction || ''} onChange={(event) => setAdjustments((current) => ({ ...current, [employee.employeeId]: { ...(current[employee.employeeId] ?? { bonus: '', deduction: '', note: '' }), deduction: event.target.value } }))} style={fieldStyle} placeholder="Deduction" />
-                    <input value={adjustments[employee.employeeId]?.note || ''} onChange={(event) => setAdjustments((current) => ({ ...current, [employee.employeeId]: { ...(current[employee.employeeId] ?? { bonus: '', deduction: '', note: '' }), note: event.target.value } }))} style={fieldStyle} placeholder="Item note" />
-                  </div>
-                  <div style={{ color: '#475569' }}>Net payable: {employee.net.toFixed(2)}</div>
-                </div>
-              </article>
-            )) : <div style={emptyStateStyle}>No employees available for payroll yet.</div>}
-          </div>
+          {payrollPreview.length ? (
+            <div style={tableWrapStyle}>
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={tableHeaderCellStyle}>Employee</th>
+                    <th style={tableHeaderCellStyle}>Gross</th>
+                    <th style={tableHeaderCellStyle}>Bonus</th>
+                    <th style={tableHeaderCellStyle}>Deduction</th>
+                    <th style={tableHeaderCellStyle}>Note</th>
+                    <th style={tableHeaderCellStyle}>Net</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {payrollPreview.map((employee) => (
+                    <tr key={employee.employeeId}>
+                      <td style={tableCellStyle}>{employee.label}</td>
+                      <td style={tableCellStyle}>{employee.gross.toFixed(2)}</td>
+                      <td style={tableCellStyle}>
+                        <input value={adjustments[employee.employeeId]?.bonus || ''} onChange={(event) => setAdjustments((current) => ({ ...current, [employee.employeeId]: { ...(current[employee.employeeId] ?? { bonus: '', deduction: '', note: '' }), bonus: event.target.value } }))} style={fieldStyle} placeholder="Bonus" />
+                      </td>
+                      <td style={tableCellStyle}>
+                        <input value={adjustments[employee.employeeId]?.deduction || ''} onChange={(event) => setAdjustments((current) => ({ ...current, [employee.employeeId]: { ...(current[employee.employeeId] ?? { bonus: '', deduction: '', note: '' }), deduction: event.target.value } }))} style={fieldStyle} placeholder="Deduction" />
+                      </td>
+                      <td style={tableCellStyle}>
+                        <input value={adjustments[employee.employeeId]?.note || ''} onChange={(event) => setAdjustments((current) => ({ ...current, [employee.employeeId]: { ...(current[employee.employeeId] ?? { bonus: '', deduction: '', note: '' }), note: event.target.value } }))} style={fieldStyle} placeholder="Item note" />
+                      </td>
+                      <td style={tableCellStyle}>{employee.net.toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : <div style={emptyStateStyle}>No employees available for payroll yet.</div>}
         </article>
       </section>
 
       <article style={surfaceCardStyle}>
         <h3 style={{ marginTop: 0 }}>Payroll Runs</h3>
-        <div style={{ display: 'grid', gap: 10 }}>
-          {runs.length ? runs.map((run) => (
-            <article key={run.id} style={{ ...surfaceCardStyle, padding: 14 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-                <strong>{run.payroll_no || run.id} · {run.period_start} to {run.period_end}</strong>
-                <span>{run.total_amount}</span>
-              </div>
-              <div style={{ color: '#475569' }}>
-                {run.status} · {run.total_employees || run.item_count} employee(s) · Bonus {run.total_bonus_amount || 0} · Deduction {run.total_deduction_amount || 0}
-              </div>
-              <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                <button onClick={() => void updateRunStatus(run.id, 'approved')} style={secondaryButtonStyle} disabled={loading}>Approve</button>
-                <button onClick={() => void updateRunStatus(run.id, 'paid')} style={secondaryButtonStyle} disabled={loading}>Mark Paid</button>
-              </div>
-            </article>
-          )) : <div style={emptyStateStyle}>No payroll runs created yet.</div>}
-        </div>
+        {runs.length ? (
+          <div style={tableWrapStyle}>
+            <table style={tableStyle}>
+              <thead>
+                <tr>
+                  <th style={tableHeaderCellStyle}>Run</th>
+                  <th style={tableHeaderCellStyle}>Period</th>
+                  <th style={tableHeaderCellStyle}>Employees</th>
+                  <th style={tableHeaderCellStyle}>Bonus</th>
+                  <th style={tableHeaderCellStyle}>Deduction</th>
+                  <th style={tableHeaderCellStyle}>Total</th>
+                  <th style={tableHeaderCellStyle}>Status</th>
+                  <th style={tableHeaderCellStyle}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {runs.map((run) => (
+                  <tr key={run.id}>
+                    <td style={tableCellStyle}>{run.payroll_no || run.id}</td>
+                    <td style={tableCellStyle}>{run.period_start} → {run.period_end}</td>
+                    <td style={tableCellStyle}>{run.total_employees || run.item_count}</td>
+                    <td style={tableCellStyle}>{run.total_bonus_amount || 0}</td>
+                    <td style={tableCellStyle}>{run.total_deduction_amount || 0}</td>
+                    <td style={tableCellStyle}>{run.total_amount}</td>
+                    <td style={tableCellStyle}>{run.status}</td>
+                    <td style={tableCellStyle}>
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        <button onClick={() => void updateRunStatus(run.id, 'approved')} style={secondaryButtonStyle} disabled={loading}>Approve</button>
+                        <button onClick={() => void updateRunStatus(run.id, 'paid')} style={secondaryButtonStyle} disabled={loading}>Mark Paid</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : <div style={emptyStateStyle}>No payroll runs created yet.</div>}
       </article>
 
       <article style={surfaceCardStyle}>

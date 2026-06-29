@@ -1,0 +1,150 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+
+import {
+  emptyStateStyle,
+  fieldStyle,
+  pageShellStyle,
+  secondaryButtonStyle,
+  surfaceCardStyle,
+  tableCellStyle,
+  tableHeaderCellStyle,
+  tableStyle,
+  tableWrapStyle,
+  tokenMutedStyle,
+} from '../motocore-theme';
+
+type AuditLog = {
+  id: string;
+  actor_user_id?: string | null;
+  actor_type: string;
+  store_id?: string | null;
+  action_code: string;
+  resource_type: string;
+  resource_id?: string | null;
+  before_json?: Record<string, unknown> | null;
+  after_json?: Record<string, unknown> | null;
+  created_at: string;
+};
+
+type AuditPayload = {
+  logs: AuditLog[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+  };
+};
+
+async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
+  const response = await fetch(input, init);
+  const payload = (await response.json().catch(() => null)) as T | { error?: string } | null;
+  if (!response.ok) {
+    throw new Error(payload && typeof payload === 'object' && 'error' in payload && payload.error ? payload.error : `Request failed with ${response.status}`);
+  }
+  return payload as T;
+}
+
+export function ActivityWorkspace() {
+  const [logs, setLogs] = useState<AuditLog[]>([]);
+  const [message, setMessage] = useState('Operational activity is loading.');
+  const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState('');
+  const [actionCode, setActionCode] = useState('');
+  const [resourceType, setResourceType] = useState('');
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0 });
+
+  const refresh = async (nextPage = page) => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({
+        page: String(nextPage),
+        limit: String(pagination.limit),
+      });
+      if (search.trim()) params.set('search', search.trim());
+      if (actionCode.trim()) params.set('actionCode', actionCode.trim());
+      if (resourceType.trim()) params.set('resourceType', resourceType.trim());
+      const payload = await readJson<AuditPayload>(`/api/audit/logs?${params.toString()}`);
+      setLogs(payload.logs ?? []);
+      setPagination(payload.pagination ?? { page: nextPage, limit: 20, total: payload.logs?.length ?? 0 });
+      setPage(payload.pagination?.page ?? nextPage);
+      setMessage(`Loaded ${payload.logs?.length ?? 0} audit records.`);
+    } catch (error) {
+      setMessage((error as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void refresh(1);
+  }, []);
+
+  const totalPages = Math.max(1, Math.ceil((pagination.total || 0) / (pagination.limit || 20)));
+
+  return (
+    <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
+      <article style={surfaceCardStyle}>
+        <h3 style={{ marginTop: 0 }}>Activity filters</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1.4fr) repeat(2, minmax(180px, 1fr)) auto', gap: 10 }}>
+          <input value={search} onChange={(event) => setSearch(event.target.value)} style={fieldStyle} placeholder="Search action, resource, or record id" />
+          <input value={actionCode} onChange={(event) => setActionCode(event.target.value)} style={fieldStyle} placeholder="Action code" />
+          <input value={resourceType} onChange={(event) => setResourceType(event.target.value)} style={fieldStyle} placeholder="Resource type" />
+          <button onClick={() => void refresh(1)} style={secondaryButtonStyle} disabled={loading}>Apply</button>
+        </div>
+      </article>
+
+      <article style={surfaceCardStyle}>
+        <h3 style={{ marginTop: 0 }}>Audit trail</h3>
+        {logs.length ? (
+          <div style={tableWrapStyle}>
+            <table style={tableStyle}>
+              <thead>
+                <tr>
+                  <th style={tableHeaderCellStyle}>Time</th>
+                  <th style={tableHeaderCellStyle}>Action</th>
+                  <th style={tableHeaderCellStyle}>Resource</th>
+                  <th style={tableHeaderCellStyle}>Record</th>
+                  <th style={tableHeaderCellStyle}>Actor</th>
+                  <th style={tableHeaderCellStyle}>After</th>
+                </tr>
+              </thead>
+              <tbody>
+                {logs.map((log) => (
+                  <tr key={log.id}>
+                    <td style={tableCellStyle}>{new Date(log.created_at).toLocaleString()}</td>
+                    <td style={tableCellStyle}>{log.action_code}</td>
+                    <td style={tableCellStyle}>{log.resource_type}</td>
+                    <td style={tableCellStyle}>{log.resource_id || '—'}</td>
+                    <td style={tableCellStyle}>{log.actor_type}{log.actor_user_id ? ` · ${log.actor_user_id}` : ''}</td>
+                    <td style={tableCellStyle}>
+                      <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontSize: 12, color: '#475569' }}>
+                        {JSON.stringify(log.after_json ?? {}, null, 2)}
+                      </pre>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div style={emptyStateStyle}>No audit logs matched the current filters.</div>
+        )}
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginTop: 12 }}>
+          <span style={tokenMutedStyle}>Page {page} of {totalPages} · {pagination.total} total record(s)</span>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => void refresh(Math.max(1, page - 1))} style={secondaryButtonStyle} disabled={loading || page <= 1}>Previous</button>
+            <button onClick={() => void refresh(Math.min(totalPages, page + 1))} style={secondaryButtonStyle} disabled={loading || page >= totalPages}>Next</button>
+          </div>
+        </div>
+      </article>
+
+      <article style={surfaceCardStyle}>
+        <h3 style={{ marginTop: 0 }}>Operator Notes</h3>
+        <p style={tokenMutedStyle}>{message}</p>
+      </article>
+    </section>
+  );
+}

@@ -8,6 +8,10 @@ import {
   pageShellStyle,
   secondaryButtonStyle,
   surfaceCardStyle,
+  tableCellStyle,
+  tableHeaderCellStyle,
+  tableStyle,
+  tableWrapStyle,
   tokenMutedStyle,
 } from '../motocore-theme';
 
@@ -280,23 +284,38 @@ export function InventoryWorkspace({
               </option>
             ))}
           </select>
-          <div style={{ display: 'grid', gap: 10 }}>
-            {balances.length ? (
-              balances.map((balance) => (
-                <article key={`${balance.location_id}-${balance.sku_id}`} style={{ ...surfaceCardStyle, padding: 14 }}>
-                  <div style={{ fontWeight: 600 }}>{balance.product_name}</div>
-                  <div style={{ color: '#475569' }}>
-                    {balance.sku_code} · {balance.location_name}
-                  </div>
-                  <div style={{ color: '#64748b' }}>
-                    On hand: {Number(balance.on_hand_qty)} · Available: {Number(balance.available_qty)} · Reserved: {Number(balance.reserved_qty)}
-                  </div>
-                </article>
-              ))
-            ) : (
-              <div style={emptyStateStyle}>No balances found for the current filter.</div>
-            )}
-          </div>
+          {balances.length ? (
+            <div style={tableWrapStyle}>
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={tableHeaderCellStyle}>Product</th>
+                    <th style={tableHeaderCellStyle}>SKU</th>
+                    <th style={tableHeaderCellStyle}>Location</th>
+                    <th style={tableHeaderCellStyle}>On Hand</th>
+                    <th style={tableHeaderCellStyle}>Available</th>
+                    <th style={tableHeaderCellStyle}>Reserved</th>
+                    <th style={tableHeaderCellStyle}>Updated</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {balances.map((balance) => (
+                    <tr key={`${balance.location_id}-${balance.sku_id}`}>
+                      <td style={tableCellStyle}>{balance.product_name}</td>
+                      <td style={tableCellStyle}>{balance.sku_code}</td>
+                      <td style={tableCellStyle}>{balance.location_name}</td>
+                      <td style={tableCellStyle}>{Number(balance.on_hand_qty)}</td>
+                      <td style={tableCellStyle}>{Number(balance.available_qty)}</td>
+                      <td style={tableCellStyle}>{Number(balance.reserved_qty)}</td>
+                      <td style={tableCellStyle}>{new Date(balance.updated_at).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div style={emptyStateStyle}>No balances found for the current filter.</div>
+          )}
         </article>
 
         <article style={surfaceCardStyle}>
@@ -354,65 +373,83 @@ export function InventoryWorkspace({
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Adjustment Queue</h3>
           <textarea value={decisionNote} onChange={(event) => setDecisionNote(event.target.value)} style={{ ...fieldStyle, minHeight: 72, marginBottom: 12 }} placeholder="Decision note for approve/reject" />
-          <div style={{ display: 'grid', gap: 10 }}>
-            {adjustments.length ? (
-              adjustments.map((request) => (
-                <article key={request.id} style={{ ...surfaceCardStyle, padding: 14 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-                    <div>
-                      <div style={{ fontWeight: 600 }}>{request.product_name}</div>
-                      <div style={{ color: '#475569' }}>
-                        {request.sku_code} · {request.location_name}
-                      </div>
-                      <div style={{ color: '#64748b' }}>
-                        Current: {Number(request.current_qty)} → Requested: {Number(request.requested_qty)} ({Number(request.qty_delta) >= 0 ? '+' : ''}{Number(request.qty_delta)})
-                      </div>
-                      <div style={{ color: '#475569' }}>Reason: {request.reason}</div>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ marginBottom: 8 }}>{request.status}</div>
-                      {request.status === 'pending' && canApproveInventory ? (
-                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                          <button onClick={() => decideAdjustment(request.id, 'approve')} style={secondaryButtonStyle} disabled={loading}>
-                            Approve
-                          </button>
-                          <button onClick={() => decideAdjustment(request.id, 'reject')} style={secondaryButtonStyle} disabled={loading}>
-                            Reject
-                          </button>
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-                </article>
-              ))
-            ) : (
-              <div style={emptyStateStyle}>No adjustment requests yet.</div>
-            )}
-          </div>
+          {adjustments.length ? (
+            <div style={tableWrapStyle}>
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={tableHeaderCellStyle}>Product</th>
+                    <th style={tableHeaderCellStyle}>Location</th>
+                    <th style={tableHeaderCellStyle}>Current</th>
+                    <th style={tableHeaderCellStyle}>Requested</th>
+                    <th style={tableHeaderCellStyle}>Delta</th>
+                    <th style={tableHeaderCellStyle}>Reason</th>
+                    <th style={tableHeaderCellStyle}>Status</th>
+                    <th style={tableHeaderCellStyle}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {adjustments.map((request) => (
+                    <tr key={request.id}>
+                      <td style={tableCellStyle}>{request.product_name} · {request.sku_code}</td>
+                      <td style={tableCellStyle}>{request.location_name}</td>
+                      <td style={tableCellStyle}>{Number(request.current_qty)}</td>
+                      <td style={tableCellStyle}>{Number(request.requested_qty)}</td>
+                      <td style={tableCellStyle}>{Number(request.qty_delta) >= 0 ? '+' : ''}{Number(request.qty_delta)}</td>
+                      <td style={tableCellStyle}>{request.reason}</td>
+                      <td style={tableCellStyle}>{request.status}</td>
+                      <td style={tableCellStyle}>
+                        {request.status === 'pending' && canApproveInventory ? (
+                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                            <button onClick={() => decideAdjustment(request.id, 'approve')} style={secondaryButtonStyle} disabled={loading}>Approve</button>
+                            <button onClick={() => decideAdjustment(request.id, 'reject')} style={secondaryButtonStyle} disabled={loading}>Reject</button>
+                          </div>
+                        ) : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div style={emptyStateStyle}>No adjustment requests yet.</div>
+          )}
         </article>
 
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Recent Ledger</h3>
-          <div style={{ display: 'grid', gap: 10 }}>
-            {ledger.length ? (
-              ledger.slice(0, 12).map((entry) => (
-                <article key={entry.id} style={{ ...surfaceCardStyle, padding: 14 }}>
-                  <div style={{ fontWeight: 600 }}>{entry.product_name}</div>
-                  <div style={{ color: '#475569' }}>
-                    {entry.sku_code} · {entry.location_name}
-                  </div>
-                  <div style={{ color: '#64748b' }}>
-                    {entry.movement_type} · {Number(entry.qty_delta) >= 0 ? '+' : ''}{Number(entry.qty_delta)}
-                  </div>
-                  <div style={{ color: '#475569' }}>
-                    {entry.actor_name || 'System'} · {new Date(entry.created_at).toLocaleString()}
-                  </div>
-                </article>
-              ))
-            ) : (
-              <div style={emptyStateStyle}>No ledger entries yet.</div>
-            )}
-          </div>
+          {ledger.length ? (
+            <div style={tableWrapStyle}>
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={tableHeaderCellStyle}>Product</th>
+                    <th style={tableHeaderCellStyle}>Location</th>
+                    <th style={tableHeaderCellStyle}>Movement</th>
+                    <th style={tableHeaderCellStyle}>Qty</th>
+                    <th style={tableHeaderCellStyle}>Actor</th>
+                    <th style={tableHeaderCellStyle}>Note</th>
+                    <th style={tableHeaderCellStyle}>Time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ledger.slice(0, 20).map((entry) => (
+                    <tr key={entry.id}>
+                      <td style={tableCellStyle}>{entry.product_name} · {entry.sku_code}</td>
+                      <td style={tableCellStyle}>{entry.location_name}</td>
+                      <td style={tableCellStyle}>{entry.movement_type}</td>
+                      <td style={tableCellStyle}>{Number(entry.qty_delta) >= 0 ? '+' : ''}{Number(entry.qty_delta)}</td>
+                      <td style={tableCellStyle}>{entry.actor_name || 'System'}</td>
+                      <td style={tableCellStyle}>{entry.note || '—'}</td>
+                      <td style={tableCellStyle}>{new Date(entry.created_at).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div style={emptyStateStyle}>No ledger entries yet.</div>
+          )}
         </article>
       </section>
 

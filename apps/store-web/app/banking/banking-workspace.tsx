@@ -2,7 +2,18 @@
 
 import { useEffect, useState } from 'react';
 
-import { emptyStateStyle, fieldStyle, pageShellStyle, secondaryButtonStyle, surfaceCardStyle, tokenMutedStyle } from '../motocore-theme';
+import {
+  emptyStateStyle,
+  fieldStyle,
+  pageShellStyle,
+  secondaryButtonStyle,
+  surfaceCardStyle,
+  tableCellStyle,
+  tableHeaderCellStyle,
+  tableStyle,
+  tableWrapStyle,
+  tokenMutedStyle,
+} from '../motocore-theme';
 
 type BankAccount = {
   id: string;
@@ -156,15 +167,34 @@ export function BankingWorkspace() {
             <input value={accountForm.currentBalance} onChange={(event) => setAccountForm((current) => ({ ...current, currentBalance: event.target.value }))} style={fieldStyle} placeholder="Current balance" />
             <button onClick={saveAccount} style={secondaryButtonStyle} disabled={loading}>Save Bank Account</button>
           </div>
-          <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
-            {accounts.length ? accounts.map((account) => (
-              <article key={account.id} style={{ ...surfaceCardStyle, padding: 14 }}>
-                <div style={{ fontWeight: 600 }}>{account.account_name}</div>
-                <div style={{ color: '#475569' }}>{account.bank_name} · {account.account_number}</div>
-                <div style={{ color: '#64748b' }}>Opening: {account.opening_balance} · Current: {account.current_balance}</div>
-              </article>
-            )) : <div style={emptyStateStyle}>No bank accounts saved yet.</div>}
-          </div>
+          {accounts.length ? (
+            <div style={{ ...tableWrapStyle, marginTop: 12 }}>
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={tableHeaderCellStyle}>Account</th>
+                    <th style={tableHeaderCellStyle}>Bank</th>
+                    <th style={tableHeaderCellStyle}>Number</th>
+                    <th style={tableHeaderCellStyle}>Opening</th>
+                    <th style={tableHeaderCellStyle}>Current</th>
+                    <th style={tableHeaderCellStyle}>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {accounts.map((account) => (
+                    <tr key={account.id}>
+                      <td style={tableCellStyle}>{account.account_name}</td>
+                      <td style={tableCellStyle}>{account.bank_name}</td>
+                      <td style={tableCellStyle}>{account.account_number}</td>
+                      <td style={tableCellStyle}>{account.opening_balance}</td>
+                      <td style={tableCellStyle}>{account.current_balance}</td>
+                      <td style={tableCellStyle}>{account.status}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : <div style={emptyStateStyle}>No bank accounts saved yet.</div>}
         </article>
 
         <article style={surfaceCardStyle}>
@@ -196,18 +226,36 @@ export function BankingWorkspace() {
             </select>
             <button onClick={saveEntry} style={secondaryButtonStyle} disabled={loading}>Save Entry</button>
           </div>
-          <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
-            {entries.length ? entries.map((entry) => (
-              <article key={entry.id} style={{ ...surfaceCardStyle, padding: 14 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-                  <strong>{entry.account_name}</strong>
-                  <span>{entry.amount}</span>
-                </div>
-                <div style={{ color: '#475569' }}>{entry.entry_type} · {entry.source_type} · {entry.status}</div>
-                <div style={{ color: '#64748b' }}>{entry.entry_date} · {entry.reference_no || 'No reference'}</div>
-              </article>
-            )) : <div style={emptyStateStyle}>No reconciliation entries saved yet.</div>}
-          </div>
+          {entries.length ? (
+            <div style={{ ...tableWrapStyle, marginTop: 12 }}>
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={tableHeaderCellStyle}>Account</th>
+                    <th style={tableHeaderCellStyle}>Date</th>
+                    <th style={tableHeaderCellStyle}>Type</th>
+                    <th style={tableHeaderCellStyle}>Source</th>
+                    <th style={tableHeaderCellStyle}>Amount</th>
+                    <th style={tableHeaderCellStyle}>Status</th>
+                    <th style={tableHeaderCellStyle}>Reference</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {entries.map((entry) => (
+                    <tr key={entry.id}>
+                      <td style={tableCellStyle}>{entry.account_name}</td>
+                      <td style={tableCellStyle}>{entry.entry_date}</td>
+                      <td style={tableCellStyle}>{entry.entry_type}</td>
+                      <td style={tableCellStyle}>{entry.source_type}</td>
+                      <td style={tableCellStyle}>{entry.amount}</td>
+                      <td style={tableCellStyle}>{entry.status}</td>
+                      <td style={tableCellStyle}>{entry.reference_no || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : <div style={emptyStateStyle}>No reconciliation entries saved yet.</div>}
         </article>
       </section>
 

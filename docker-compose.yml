@@ -218,7 +218,7 @@ services:
       NEXT_PUBLIC_LOGIN_APP_URL: "${NEXT_PUBLIC_LOGIN_APP_URL:-https://marketone.appbrainer.tech}"
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.marketone-store-app.rule=Host(`app.marketone.appbrainer.tech`)"
+      - "traefik.http.routers.marketone-store-app.rule=Host(`app.marketone.appbrainer.tech`) || Host(`store.marketone.appbrainer.tech`)"
       - "traefik.http.routers.marketone-store-app.entrypoints=websecure"
       - "traefik.http.routers.marketone-store-app.tls.certResolver=letsencrypt"
       - "traefik.http.routers.marketone-store-app.service=marketone-store"
