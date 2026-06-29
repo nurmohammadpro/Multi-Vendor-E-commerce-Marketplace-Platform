@@ -17,6 +17,7 @@ import { ReportingModule } from './modules/reporting/reporting.module.js';
 import { ShippingModule } from './modules/shipping/shipping.module.js';
 import { StorageModule } from './modules/storage/storage.module.js';
 import { StoreModule } from './modules/store/store.module.js';
+import { StoreOpsModule } from './modules/store-ops/store-ops.module.js';
 import { SupportModule } from './modules/support/support.module.js';
 
 @Module({
@@ -27,6 +28,7 @@ import { SupportModule } from './modules/support/support.module.js';
     RbacModule,
     AdminsModule,
     StoreModule,
+    StoreOpsModule,
     CatalogModule,
     InventoryModule,
     OpsModule,

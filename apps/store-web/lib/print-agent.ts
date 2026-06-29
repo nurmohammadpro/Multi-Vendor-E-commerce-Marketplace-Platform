@@ -27,6 +27,9 @@ export type ReceiptPayload = {
   customer?: {
     name?: string | null;
     phone?: string | null;
+    email?: string | null;
+    shopName?: string | null;
+    address?: string | null;
   };
   items?: Array<{
     name?: string | null;
@@ -42,11 +45,13 @@ export type ReceiptPayload = {
     shipping?: number;
     total?: number;
     paid?: number;
+    due?: number;
     change?: number;
   };
   payments?: Array<{
     paymentMethod?: string | null;
     amount?: number;
+    status?: string | null;
   }>;
   printedAt?: string | null;
 };
@@ -68,6 +73,9 @@ export function formatReceiptText(receipt: ReceiptPayload) {
     receipt.printedAt ? `Printed: ${new Date(receipt.printedAt).toLocaleString()}` : null,
     receipt.customer?.name ? `Customer: ${receipt.customer.name}` : null,
     receipt.customer?.phone ? `Phone: ${receipt.customer.phone}` : null,
+    receipt.customer?.email ? `Email: ${receipt.customer.email}` : null,
+    receipt.customer?.shopName ? `Shop: ${receipt.customer.shopName}` : null,
+    receipt.customer?.address ? `Address: ${receipt.customer.address}` : null,
     '------------------------------',
     ...(receipt.items ?? []).flatMap((item) => [
       item.name || 'Item',
@@ -81,12 +89,14 @@ export function formatReceiptText(receipt: ReceiptPayload) {
     `Shipping: ${money(receipt.totals?.shipping)}`,
     `Total: ${money(receipt.totals?.total)}`,
     `Paid: ${money(receipt.totals?.paid)}`,
+    `Due: ${money(receipt.totals?.due)}`,
     `Change: ${money(receipt.totals?.change)}`,
     ...(receipt.payments?.length
       ? [
           '------------------------------',
           ...receipt.payments.map(
-            (payment) => `${payment.paymentMethod || 'payment'}: ${money(payment.amount)}`,
+            (payment) =>
+              `${payment.paymentMethod || 'payment'}${payment.status ? ` (${payment.status})` : ''}: ${money(payment.amount)}`,
           ),
         ]
       : []),

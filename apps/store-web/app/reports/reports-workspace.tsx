@@ -22,12 +22,31 @@ type SalesReport = {
     total_orders_count: number;
     total_discount_amount: string | number;
     total_tax_amount: string | number;
+    due_sales_count: number;
+    due_sales_amount: string | number;
   };
   recentSales: Array<{
     sale_no: string;
     total_amount: string | number;
     payment_status: string;
     fulfillment_status: string;
+    customer_name?: string | null;
+    customer_phone?: string | null;
+    customer_email?: string | null;
+    customer_shop_name?: string | null;
+    customer_address?: string | null;
+    due_date?: string | null;
+    created_at: string;
+  }>;
+  dueSales: Array<{
+    sale_no: string;
+    total_amount: string | number;
+    customer_name?: string | null;
+    customer_phone?: string | null;
+    customer_email?: string | null;
+    customer_shop_name?: string | null;
+    customer_address?: string | null;
+    due_date?: string | null;
     created_at: string;
   }>;
 };
@@ -122,6 +141,13 @@ export function ReportsWorkspace({ canViewReports }: { canViewReports: boolean }
           <div style={metricLabelStyle}>Available Qty</div>
           <div style={metricValueStyle}>{inventory?.summary.total_available_qty ?? '—'}</div>
         </article>
+        <article style={surfaceCardStyle}>
+          <div style={metricLabelStyle}>Due Sales</div>
+          <div style={metricValueStyle}>{sales?.summary.due_sales_count ?? '—'}</div>
+          <div style={{ color: '#64748b', fontSize: 12, marginTop: 4 }}>
+            Amount: {sales?.summary.due_sales_amount ?? '—'}
+          </div>
+        </article>
       </section>
 
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
@@ -134,6 +160,11 @@ export function ReportsWorkspace({ canViewReports }: { canViewReports: boolean }
                 <div style={{ color: '#475569' }}>
                   {sale.total_amount} · {sale.payment_status} · {sale.fulfillment_status}
                 </div>
+                {sale.payment_status === 'due' ? (
+                  <div style={{ color: '#92400e', marginTop: 6 }}>
+                    {(sale.customer_name || sale.customer_shop_name) ? `${sale.customer_name || 'Unknown customer'}${sale.customer_shop_name ? ` · ${sale.customer_shop_name}` : ''}` : 'Customer details are missing'}
+                  </div>
+                ) : null}
                 <div style={{ color: '#64748b' }}>{new Date(sale.created_at).toLocaleString()}</div>
               </article>
             )) ?? <p style={tokenMutedStyle}>No sales data yet.</p>}
@@ -157,6 +188,45 @@ export function ReportsWorkspace({ canViewReports }: { canViewReports: boolean }
           </div>
         </article>
       </section>
+
+      <article style={surfaceCardStyle}>
+        <h3 style={{ marginTop: 0 }}>Due Sales Follow-up</h3>
+        <div style={{ display: 'grid', gap: 10 }}>
+          {sales?.dueSales?.length ? (
+            sales.dueSales.map((sale) => (
+              <article key={`due-${sale.sale_no}`} style={{ ...surfaceCardStyle, padding: 14, borderColor: 'rgba(217, 119, 6, 0.28)', background: 'rgba(245, 158, 11, 0.06)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                  <div>
+                    <div style={{ fontWeight: 600 }}>{sale.sale_no}</div>
+                    <div style={{ color: '#92400e' }}>Due amount: {sale.total_amount}</div>
+                  </div>
+                  <div style={{ color: '#64748b' }}>{new Date(sale.created_at).toLocaleString()}</div>
+                </div>
+                <div style={{ color: '#475569', marginTop: 10 }}>
+                  Customer: {sale.customer_name || 'Missing'}
+                </div>
+                <div style={{ color: '#475569' }}>
+                  Shop: {sale.customer_shop_name || 'Missing'}
+                </div>
+                <div style={{ color: '#475569' }}>
+                  Phone: {sale.customer_phone || 'Missing'}
+                </div>
+                <div style={{ color: '#475569' }}>
+                  Email: {sale.customer_email || 'Missing'}
+                </div>
+                <div style={{ color: '#475569' }}>
+                  Due date: {sale.due_date || 'Missing'}
+                </div>
+                <div style={{ color: '#475569' }}>
+                  Address: {sale.customer_address || 'Missing'}
+                </div>
+              </article>
+            ))
+          ) : (
+            <div style={emptyStateStyle}>No due sales are waiting for collection.</div>
+          )}
+        </div>
+      </article>
 
       <article style={surfaceCardStyle}>
         <h3 style={{ marginTop: 0 }}>Exports</h3>
