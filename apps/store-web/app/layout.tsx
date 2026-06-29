@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type { Metadata, Viewport } from 'next';
 
+import { Toaster } from '@/components/ui/sonner';
 import './globals.css';
 import { WorkspaceShell } from './workspace-shell';
 import { getStoreConsoleAccess, type StoreConsoleFeature } from '../lib/access';
@@ -64,6 +65,7 @@ export default async function StoreLayout({ children }: { children: ReactNode })
         >
           {children}
         </WorkspaceShell>
+        <Toaster />
       </body>
     </html>
   );

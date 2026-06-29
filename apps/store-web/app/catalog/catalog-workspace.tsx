@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
+import { ConfirmDialog } from '@/components/confirm-dialog';
 import {
   emptyStateStyle,
   fieldStyle,
@@ -256,6 +257,10 @@ export function CatalogWorkspace({
     priceStep: '',
   });
   const [productVariantRows, setProductVariantRows] = useState<VariantRow[]>([]);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmTitle, setConfirmTitle] = useState('');
+  const [confirmDescription, setConfirmDescription] = useState('');
+  const [confirmAction, setConfirmAction] = useState<() => void>(() => {});
 
   const variantOptionsFlat = useMemo(
     () =>
@@ -359,22 +364,28 @@ export function CatalogWorkspace({
     }));
   }, [productDetail]);
 
-  const deleteEntity = async (kind: 'category' | 'brand' | 'product', id: string, name: string) => {
-    if (!window.confirm(`Delete ${kind} "${name}"? This cannot be undone.`)) return;
-    setLoading(true);
-    try {
-      await readJson(`/api/catalog/${kind}s/${id}`, { method: 'DELETE' });
-      if (kind === 'product' && selectedProductId === id) {
-        setSelectedProductId('');
-        setProductDetail(null);
+  const openDeleteConfirm = (kind: 'category' | 'brand' | 'product', id: string, name: string) => {
+    setConfirmTitle(`Delete ${kind}`);
+    setConfirmDescription(`Delete ${kind} "${name}"? This cannot be undone.`);
+    setConfirmAction(() => async () => {
+      setConfirmOpen(false);
+      setLoading(true);
+      try {
+        const kindPath = kind === 'category' ? 'categories' : `${kind}s`;
+        await readJson(`/api/catalog/${kindPath}/${id}`, { method: 'DELETE' });
+        if (kind === 'product' && selectedProductId === id) {
+          setSelectedProductId('');
+          setProductDetail(null);
+        }
+        await refreshBase();
+        setMessage(`${kind.charAt(0).toUpperCase() + kind.slice(1)} "${name}" deleted.`);
+      } catch (error) {
+        setMessage((error as Error).message);
+      } finally {
+        setLoading(false);
       }
-      await refreshBase();
-      setMessage(`${kind.charAt(0).toUpperCase() + kind.slice(1)} "${name}" deleted.`);
-    } catch (error) {
-      setMessage((error as Error).message);
-    } finally {
-      setLoading(false);
-    }
+    });
+    setConfirmOpen(true);
   };
 
   const createCategory = async () => {
@@ -922,7 +933,7 @@ export function CatalogWorkspace({
                               {category.status === 'inactive' ? 'Activate' : 'Archive'}
                             </button>
                             <button
-                              onClick={() => void deleteEntity('category', category.id, category.name)}
+                              onClick={() => openDeleteConfirm('category', category.id, category.name)}
                               style={{ ...buttonStyle, color: '#dc2626', borderColor: '#dc2626' }}
                             >
                               Delete
@@ -990,7 +1001,7 @@ export function CatalogWorkspace({
                               {brand.status === 'inactive' ? 'Activate' : 'Archive'}
                             </button>
                             <button
-                              onClick={() => void deleteEntity('brand', brand.id, brand.name)}
+                              onClick={() => openDeleteConfirm('brand', brand.id, brand.name)}
                               style={{ ...buttonStyle, color: '#dc2626', borderColor: '#dc2626' }}
                             >
                               Delete
@@ -1095,7 +1106,7 @@ export function CatalogWorkspace({
                             <button
                               onClick={(event) => {
                                 event.stopPropagation();
-                                void deleteEntity('product', product.id, product.name);
+                                openDeleteConfirm('product', product.id, product.name);
                               }}
                               style={{ ...buttonStyle, color: '#dc2626', borderColor: '#dc2626' }}
                             >
@@ -1582,6 +1593,14 @@ export function CatalogWorkspace({
         <h3 style={{ marginTop: 0 }}>Operator Notes</h3>
         <p style={{ marginBottom: 0, color: '#475569' }}>{message}</p>
       </article>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title={confirmTitle}
+        description={confirmDescription}
+        onAction={confirmAction}
+      />
     </section>
   );
 }
