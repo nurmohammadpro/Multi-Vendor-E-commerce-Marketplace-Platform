@@ -18,6 +18,7 @@ import {
   tokenMutedStyle,
 } from '../motocore-theme';
 import { ListPager, type PaginationState, totalPagesFor } from '../list-pager';
+import { stackedFilterGridStyle, useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
 
 type Location = {
   id: string;
@@ -110,6 +111,7 @@ export function InventoryWorkspace({
   canRequestAdjustInventory: boolean;
   canApproveInventory: boolean;
 }) {
+  const compact = useCompactLayout();
   const [locations, setLocations] = useState<Location[]>([]);
   const [balances, setBalances] = useState<Balance[]>([]);
   const [adjustments, setAdjustments] = useState<AdjustmentRequest[]>([]);
@@ -133,6 +135,7 @@ export function InventoryWorkspace({
   const [decisionNote, setDecisionNote] = useState('');
   const [message, setMessage] = useState('Inventory live workspace is ready.');
   const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<'balances' | 'control' | 'requests' | 'ledger'>('balances');
 
   const selectedSku = useMemo(
     () => skuResults.find((sku) => sku.id === selectedSkuId) ?? null,
@@ -324,6 +327,18 @@ export function InventoryWorkspace({
 
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
+      {compact ? (
+        <WorkspaceTabs
+          active={activeTab}
+          onChange={(key) => setActiveTab(key as 'balances' | 'control' | 'requests' | 'ledger')}
+          tabs={[
+            { key: 'balances', label: 'Balances' },
+            { key: 'control', label: 'Stock Control' },
+            { key: 'requests', label: 'Requests' },
+            { key: 'ledger', label: 'Ledger' },
+          ]}
+        />
+      ) : null}
       {!locations.length ? (
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Inventory setup</h3>
@@ -333,6 +348,7 @@ export function InventoryWorkspace({
         </article>
       ) : null}
 
+      {(!compact || activeTab === 'balances') ? (
       <article style={surfaceCardStyle}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start', marginBottom: 12 }}>
           <div>
@@ -369,7 +385,7 @@ export function InventoryWorkspace({
             </option>
           ))}
         </select>
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, marginBottom: 12 }}>
+        <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
           <input value={balanceSearch} onChange={(event) => setBalanceSearch(event.target.value)} style={fieldStyle} placeholder="Search product, SKU, or location" />
           <button onClick={() => void refreshInventory(1, adjustmentPage, ledgerPage, selectedLocationId)} style={secondaryButtonStyle} disabled={loading}>Search</button>
         </div>
@@ -438,8 +454,11 @@ export function InventoryWorkspace({
           <div style={emptyStateStyle}>No balances found yet. Products will appear here automatically after at least one active stock location exists for this store.</div>
         )}
       </article>
+      ) : null}
 
-      <section style={{ ...sectionPanelStyle, gridTemplateColumns: '1.1fr 0.9fr' }}>
+      {(!compact || activeTab === 'control' || activeTab === 'requests') ? (
+      <section style={{ ...sectionPanelStyle, gridTemplateColumns: compact ? '1fr' : '1.1fr 0.9fr' }}>
+        {!compact || activeTab === 'control' ? (
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Stock Control</h3>
           <p style={{ ...tokenMutedStyle, marginBottom: 12 }}>
@@ -450,7 +469,7 @@ export function InventoryWorkspace({
           ) : !canDirectAdjustInventory ? (
             <p style={tokenMutedStyle}>You can request quantity changes, but only owner-level roles can post stock directly.</p>
           ) : null}
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, marginBottom: 12 }}>
+          <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
             <input
               value={skuSearch}
               onChange={(event) => setSkuSearch(event.target.value)}
@@ -492,10 +511,12 @@ export function InventoryWorkspace({
             </p>
           ) : null}
         </article>
+        ) : null}
 
+        {!compact || activeTab === 'requests' ? (
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Adjustment Queue</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(140px, 180px) auto', gap: 8, marginBottom: 12 }}>
+          <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
             <input value={adjustmentSearch} onChange={(event) => setAdjustmentSearch(event.target.value)} style={fieldStyle} placeholder="Search product, SKU, location, reason" />
             <select value={adjustmentStatus} onChange={(event) => setAdjustmentStatus(event.target.value)} style={fieldStyle}>
               <option value="">All statuses</option>
@@ -558,12 +579,15 @@ export function InventoryWorkspace({
             <div style={emptyStateStyle}>No adjustment requests yet.</div>
           )}
         </article>
+        ) : null}
 
       </section>
+      ) : null}
 
+      {(!compact || activeTab === 'ledger') ? (
       <article style={{ ...surfaceCardStyle, borderStyle: 'solid' }}>
         <h3 style={{ marginTop: 0 }}>Ledger</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, marginBottom: 12 }}>
+        <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
           <input value={ledgerSearch} onChange={(event) => setLedgerSearch(event.target.value)} style={fieldStyle} placeholder="Search product, SKU, location, movement" />
           <button onClick={() => void refreshInventory(balancePage, adjustmentPage, 1, selectedLocationId)} style={secondaryButtonStyle} disabled={loading}>Search</button>
         </div>
@@ -610,6 +634,7 @@ export function InventoryWorkspace({
           <div style={emptyStateStyle}>No ledger entries yet.</div>
         )}
       </article>
+      ) : null}
 
       <article style={surfaceCardStyle}>
         <h3 style={{ marginTop: 0 }}>Operator Notes</h3>
