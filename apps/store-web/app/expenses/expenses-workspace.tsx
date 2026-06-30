@@ -18,6 +18,7 @@ import {
   tokenMutedStyle,
 } from '../motocore-theme';
 import { ListPager, type PaginationState, totalPagesFor } from '../list-pager';
+import { stackedFilterGridStyle, useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
 
 type Expense = {
   id: string;
@@ -38,6 +39,7 @@ async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
 }
 
 export function ExpensesWorkspace() {
+  const compact = useCompactLayout();
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [selectedExpenseId, setSelectedExpenseId] = useState('');
   const [message, setMessage] = useState('Daily expense workflow is ready.');
@@ -54,6 +56,7 @@ export function ExpensesWorkspace() {
     status: 'draft',
     note: '',
   });
+  const [activeTab, setActiveTab] = useState<'record' | 'list'>('list');
 
   const refresh = async (nextPage = 1) => {
     const params = new URLSearchParams({ page: String(nextPage), limit: String(pagination.limit) });
@@ -104,7 +107,18 @@ export function ExpensesWorkspace() {
 
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
-      <section style={{ ...sectionPanelStyle, gridTemplateColumns: 'minmax(320px, 0.9fr) minmax(420px, 1.1fr)' }}>
+      {compact ? (
+        <WorkspaceTabs
+          active={activeTab}
+          onChange={(key) => setActiveTab(key as 'record' | 'list')}
+          tabs={[
+            { key: 'list', label: 'Expenses' },
+            { key: 'record', label: 'Record' },
+          ]}
+        />
+      ) : null}
+      <section style={{ ...sectionPanelStyle, gridTemplateColumns: compact ? '1fr' : 'minmax(320px, 0.9fr) minmax(420px, 1.1fr)' }}>
+        {!compact || activeTab === 'record' ? (
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Record Expense</h3>
           <div style={{ display: 'grid', gap: 10 }}>
@@ -127,10 +141,12 @@ export function ExpensesWorkspace() {
             <button onClick={saveExpense} style={accentButtonStyle} disabled={loading}>{selectedExpenseId ? 'Update Expense' : 'Save Expense'}</button>
           </div>
         </article>
+        ) : null}
 
+        {!compact || activeTab === 'list' ? (
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Expenses</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, marginBottom: 12 }}>
+          <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
             <input value={search} onChange={(event) => setSearch(event.target.value)} style={fieldStyle} placeholder="Search title, category, method, or status" />
             <button onClick={() => void refresh(1)} style={secondaryButtonStyle} disabled={loading}>Search</button>
           </div>
@@ -193,6 +209,7 @@ export function ExpensesWorkspace() {
             </>
           ) : <div style={emptyStateStyle}>No expenses recorded yet.</div>}
         </article>
+        ) : null}
       </section>
 
       <article style={surfaceCardStyle}>

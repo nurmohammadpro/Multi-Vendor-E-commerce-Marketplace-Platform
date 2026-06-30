@@ -16,6 +16,7 @@ import {
   tableWrapStyle,
   tokenMutedStyle,
 } from '../motocore-theme';
+import { useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
 
 type SalesReport = {
   summary: {
@@ -104,10 +105,12 @@ function formatQty(value: number | string | null | undefined) {
 }
 
 export function ReportsWorkspace({ canViewReports }: { canViewReports: boolean }) {
+  const compact = useCompactLayout();
   const [sales, setSales] = useState<SalesReport | null>(null);
   const [inventory, setInventory] = useState<InventoryReport | null>(null);
   const [message, setMessage] = useState('Reports workspace is ready.');
   const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<'summary' | 'sales' | 'inventory' | 'due' | 'exports'>('summary');
 
   const refresh = async () => {
     const [salesPayload, inventoryPayload] = await Promise.all([
@@ -153,6 +156,20 @@ export function ReportsWorkspace({ canViewReports }: { canViewReports: boolean }
 
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
+      {compact ? (
+        <WorkspaceTabs
+          active={activeTab}
+          onChange={(key) => setActiveTab(key as 'summary' | 'sales' | 'inventory' | 'due' | 'exports')}
+          tabs={[
+            { key: 'summary', label: 'Summary' },
+            { key: 'sales', label: 'Sales' },
+            { key: 'inventory', label: 'Inventory' },
+            { key: 'due', label: 'Due' },
+            { key: 'exports', label: 'Exports' },
+          ]}
+        />
+      ) : null}
+      {(!compact || activeTab === 'summary') ? (
       <section style={{ ...sectionPanelStyle, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
         <article style={surfaceCardStyle}>
           <div style={metricLabelStyle}>Total Sales</div>
@@ -178,8 +195,10 @@ export function ReportsWorkspace({ canViewReports }: { canViewReports: boolean }
           </div>
         </article>
       </section>
+      ) : null}
 
-      <section style={{ ...sectionPanelStyle, gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
+      <section style={{ ...sectionPanelStyle, gridTemplateColumns: compact ? '1fr' : 'repeat(auto-fit, minmax(320px, 1fr))' }}>
+        {!compact || activeTab === 'sales' ? (
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Recent Sales</h3>
           {sales?.recentSales?.length ? (
@@ -211,7 +230,9 @@ export function ReportsWorkspace({ canViewReports }: { canViewReports: boolean }
             </div>
           ) : <p style={tokenMutedStyle}>No sales data yet.</p>}
         </article>
+        ) : null}
 
+        {!compact || activeTab === 'inventory' ? (
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Inventory Snapshot</h3>
           {inventory?.balances?.length ? (
@@ -243,8 +264,10 @@ export function ReportsWorkspace({ canViewReports }: { canViewReports: boolean }
             </div>
           ) : <p style={tokenMutedStyle}>No inventory data yet.</p>}
         </article>
+        ) : null}
       </section>
 
+      {(!compact || activeTab === 'due') ? (
       <article style={surfaceCardStyle}>
         <h3 style={{ marginTop: 0 }}>Due Sales Follow-up</h3>
         {sales?.dueSales?.length ? (
@@ -278,7 +301,9 @@ export function ReportsWorkspace({ canViewReports }: { canViewReports: boolean }
           <div style={emptyStateStyle}>No due sales are waiting for collection.</div>
         )}
       </article>
+      ) : null}
 
+      {(!compact || activeTab === 'exports') ? (
       <article style={surfaceCardStyle}>
         <h3 style={{ marginTop: 0 }}>Exports</h3>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -288,6 +313,7 @@ export function ReportsWorkspace({ canViewReports }: { canViewReports: boolean }
           <button onClick={() => createExport('support')} style={accentButtonStyle} disabled={loading}>Export Support</button>
         </div>
       </article>
+      ) : null}
 
       <article style={surfaceCardStyle}>
         <h3 style={{ marginTop: 0 }}>Operator Notes</h3>

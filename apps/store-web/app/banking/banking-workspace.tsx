@@ -18,6 +18,7 @@ import {
   tokenMutedStyle,
 } from '../motocore-theme';
 import { ListPager, type PaginationState, totalPagesFor } from '../list-pager';
+import { stackedFilterGridStyle, useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
 
 type BankAccount = {
   id: string;
@@ -51,6 +52,7 @@ async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
 }
 
 export function BankingWorkspace() {
+  const compact = useCompactLayout();
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [entries, setEntries] = useState<BankEntry[]>([]);
   const [message, setMessage] = useState('Banking reconciliation is ready.');
@@ -80,6 +82,7 @@ export function BankingWorkspace() {
     status: 'pending',
     note: '',
   });
+  const [activeTab, setActiveTab] = useState<'accounts' | 'entries'>('accounts');
 
   const refresh = async (nextAccountPage = accountPage, nextEntryPage = entryPage) => {
     const accountParams = new URLSearchParams({ page: String(nextAccountPage), limit: String(accountPagination.limit) });
@@ -171,7 +174,18 @@ export function BankingWorkspace() {
 
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
-      <section style={{ ...sectionPanelStyle, gridTemplateColumns: 'minmax(320px, 0.95fr) minmax(420px, 1.05fr)' }}>
+      {compact ? (
+        <WorkspaceTabs
+          active={activeTab}
+          onChange={(key) => setActiveTab(key as 'accounts' | 'entries')}
+          tabs={[
+            { key: 'accounts', label: 'Accounts' },
+            { key: 'entries', label: 'Entries' },
+          ]}
+        />
+      ) : null}
+      <section style={{ ...sectionPanelStyle, gridTemplateColumns: compact ? '1fr' : 'minmax(320px, 0.95fr) minmax(420px, 1.05fr)' }}>
+        {!compact || activeTab === 'accounts' ? (
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Bank Accounts</h3>
           <div style={{ display: 'grid', gap: 10 }}>
@@ -182,7 +196,7 @@ export function BankingWorkspace() {
             <input value={accountForm.currentBalance} onChange={(event) => setAccountForm((current) => ({ ...current, currentBalance: event.target.value }))} style={fieldStyle} placeholder="Current balance" />
             <button onClick={saveAccount} style={accentButtonStyle} disabled={loading}>Save Bank Account</button>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, marginTop: 12 }}>
+          <div style={{ ...stackedFilterGridStyle, marginTop: 12 }}>
             <input value={accountSearch} onChange={(event) => setAccountSearch(event.target.value)} style={fieldStyle} placeholder="Search account, bank, or number" />
             <button onClick={() => void refresh(1, entryPage)} style={secondaryButtonStyle} disabled={loading}>Search</button>
           </div>
@@ -225,7 +239,9 @@ export function BankingWorkspace() {
             </>
           ) : <div style={{ ...emptyStateStyle, marginTop: 12 }}>No bank accounts saved yet.</div>}
         </article>
+        ) : null}
 
+        {!compact || activeTab === 'entries' ? (
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Reconciliation Entries</h3>
           <div style={{ display: 'grid', gap: 10 }}>
@@ -255,7 +271,7 @@ export function BankingWorkspace() {
             </select>
             <button onClick={saveEntry} style={accentButtonStyle} disabled={loading}>Save Entry</button>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, marginTop: 12 }}>
+          <div style={{ ...stackedFilterGridStyle, marginTop: 12 }}>
             <input value={entrySearch} onChange={(event) => setEntrySearch(event.target.value)} style={fieldStyle} placeholder="Search account, reference, or source" />
             <button onClick={() => void refresh(accountPage, 1)} style={secondaryButtonStyle} disabled={loading}>Search</button>
           </div>
@@ -300,6 +316,7 @@ export function BankingWorkspace() {
             </>
           ) : <div style={{ ...emptyStateStyle, marginTop: 12 }}>No reconciliation entries saved yet.</div>}
         </article>
+        ) : null}
       </section>
 
       <article style={surfaceCardStyle}>
