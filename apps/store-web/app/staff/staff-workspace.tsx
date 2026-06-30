@@ -15,6 +15,7 @@ import {
   tokenMutedStyle,
 } from '../motocore-theme';
 import { ListPager, type PaginationState, totalPagesFor } from '../list-pager';
+import { stackedFilterGridStyle, useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
 
 type StaffMember = {
   id: string;
@@ -73,6 +74,7 @@ const defaultForm = {
 };
 
 export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) {
+  const compact = useCompactLayout();
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [capabilities, setCapabilities] = useState<StaffCapabilities | null>(null);
   const [message, setMessage] = useState('User management is ready.');
@@ -81,6 +83,7 @@ export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) 
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState<PaginationState>({ page: 1, limit: 12, total: 0 });
+  const [activeTab, setActiveTab] = useState<'create' | 'users'>('users');
 
   const refresh = async (nextPage = 1) => {
     const params = new URLSearchParams({ page: String(nextPage), limit: String(pagination.limit) });
@@ -166,6 +169,17 @@ export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) 
 
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
+      {compact ? (
+        <WorkspaceTabs
+          active={activeTab}
+          onChange={(key) => setActiveTab(key as 'create' | 'users')}
+          tabs={[
+            { key: 'users', label: 'Users' },
+            { key: 'create', label: 'Create User' },
+          ]}
+        />
+      ) : null}
+      {(!compact || activeTab === 'create') ? (
       <article style={surfaceCardStyle}>
         <h3 style={{ marginTop: 0 }}>Create user with system access</h3>
         <p style={tokenMutedStyle}>
@@ -201,10 +215,12 @@ export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) 
           </span>
         </div>
       </article>
+      ) : null}
 
+      {(!compact || activeTab === 'users') ? (
       <article style={surfaceCardStyle}>
         <h3 style={{ marginTop: 0 }}>Store Users</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, marginBottom: 12 }}>
+        <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
           <input value={search} onChange={(event) => setSearch(event.target.value)} style={fieldStyle} placeholder="Search name, phone, email, employee id, role" />
           <button onClick={() => void refresh(1)} style={secondaryButtonStyle} disabled={loading}>Search</button>
         </div>
@@ -281,6 +297,7 @@ export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) 
           <div style={emptyStateStyle}>No store users are loaded yet.</div>
         )}
       </article>
+      ) : null}
 
       <article style={surfaceCardStyle}>
         <h3 style={{ marginTop: 0 }}>Operator Notes</h3>
