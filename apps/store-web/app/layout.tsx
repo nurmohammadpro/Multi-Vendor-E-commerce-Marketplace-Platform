@@ -7,22 +7,32 @@ import { WorkspaceShell } from './workspace-shell';
 import { getStoreConsoleAccess, type StoreConsoleFeature } from '../lib/access';
 
 export const metadata: Metadata = {
-  title: 'Store Console',
-  description: 'Phase 1 store operating system',
+  title: 'Market One BD Store Console',
+  applicationName: 'Market One BD',
+  description: 'Installable multi-vendor store operating system for POS, inventory, billing, approvals, and retail workflows.',
   manifest: '/manifest.webmanifest',
   icons: {
-    icon: '/marketone-logo.svg',
-    apple: '/marketone-logo.svg',
+    icon: [
+      { url: '/pwa/icon-32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/pwa/icon-192.png', sizes: '192x192', type: 'image/png' },
+    ],
+    apple: [{ url: '/pwa/icon-180.png', sizes: '180x180', type: 'image/png' }],
+    shortcut: ['/pwa/icon-192.png'],
   },
   appleWebApp: {
     capable: true,
-    title: 'MarketOne',
-    statusBarStyle: 'default',
+    title: 'Market One BD',
+    statusBarStyle: 'black-translucent',
+  },
+  formatDetection: {
+    telephone: false,
+    email: false,
+    address: false,
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: '#ffffff',
+  themeColor: '#0f172a',
 };
 
 const navItems = [
