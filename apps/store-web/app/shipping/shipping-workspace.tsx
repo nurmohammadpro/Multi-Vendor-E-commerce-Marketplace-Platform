@@ -17,6 +17,7 @@ import {
   tableWrapStyle,
   tokenMutedStyle,
 } from '../motocore-theme';
+import { stackedFilterGridStyle, useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
 
 type Courier = {
   id: string;
@@ -77,6 +78,7 @@ export function ShippingWorkspace({
   canManageShipping: boolean;
   canViewShipping: boolean;
 }) {
+  const compact = useCompactLayout();
   const [couriers, setCouriers] = useState<Courier[]>([]);
   const [shipments, setShipments] = useState<Shipment[]>([]);
   const [selectedShipment, setSelectedShipment] = useState<ShipmentDetail | null>(null);
@@ -99,6 +101,7 @@ export function ShippingWorkspace({
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 20, total: 0 });
   const canCreateShipment = Boolean(form.customerName.trim() && form.customerPhone.trim() && form.deliveryAddress.trim() && !loading);
+  const [activeTab, setActiveTab] = useState<'create' | 'shipments' | 'timeline'>('shipments');
 
   const refresh = async (nextPage = 1) => {
     const params = new URLSearchParams({
@@ -210,6 +213,18 @@ export function ShippingWorkspace({
 
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
+      {compact ? (
+        <WorkspaceTabs
+          active={activeTab}
+          onChange={(key) => setActiveTab(key as 'create' | 'shipments' | 'timeline')}
+          tabs={[
+            { key: 'shipments', label: 'Shipments' },
+            { key: 'create', label: 'Create' },
+            { key: 'timeline', label: 'Timeline' },
+          ]}
+        />
+      ) : null}
+      {(!compact || activeTab === 'create') ? (
       <article style={{ ...cardStyle, ...sectionPanelStyle }}>
         <h3 style={{ marginTop: 0 }}>Create Shipment</h3>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
@@ -229,11 +244,13 @@ export function ShippingWorkspace({
         <textarea value={form.deliveryAddress} onChange={(e) => setForm((v) => ({ ...v, deliveryAddress: e.target.value }))} style={{ ...inputStyle, minHeight: 90, marginTop: 10, marginBottom: 10 }} placeholder="Delivery address" />
         <button onClick={createShipment} style={accentButtonStyle} disabled={!canCreateShipment || !canManageShipping}>Create Shipment</button>
       </article>
+      ) : null}
 
-      <section style={{ ...sectionPanelStyle, gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
+      <section style={{ ...sectionPanelStyle, gridTemplateColumns: compact ? '1fr' : 'repeat(auto-fit, minmax(320px, 1fr))' }}>
+        {!compact || activeTab === 'shipments' ? (
         <article style={cardStyle}>
           <h3 style={{ marginTop: 0 }}>Shipments</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) minmax(180px, 200px) auto', gap: 10, marginBottom: 12 }}>
+          <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
             <input value={search} onChange={(event) => setSearch(event.target.value)} style={inputStyle} placeholder="Search shipment, customer, phone" />
             <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} style={inputStyle}>
               <option value="">All statuses</option>
@@ -305,7 +322,9 @@ export function ShippingWorkspace({
             </div>
           </div>
         </article>
+        ) : null}
 
+        {!compact || activeTab === 'timeline' ? (
         <article style={cardStyle}>
           <h3 style={{ marginTop: 0 }}>Shipment Timeline</h3>
           {!selectedShipment ? (
@@ -344,6 +363,7 @@ export function ShippingWorkspace({
             </section>
           )}
         </article>
+        ) : null}
       </section>
 
       <article style={cardStyle}>
