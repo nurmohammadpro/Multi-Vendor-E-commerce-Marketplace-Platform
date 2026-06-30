@@ -107,7 +107,7 @@ export default function LoginPage() {
               <div className="mb-5 flex flex-col items-center">
                 <img
                   src="/marketone-logo.svg"
-                  alt="Market One logo"
+                  alt="Market One BD logo"
                   className={`login-brand-logo h-16 w-16 object-contain ${splashComplete ? 'login-brand-logo--ready' : ''}`}
                 />
                 <p className={`login-brand-text mt-3 text-center text-xs font-medium uppercase tracking-[0.28em] text-muted-foreground ${splashComplete ? 'login-brand-text--ready' : ''}`}>

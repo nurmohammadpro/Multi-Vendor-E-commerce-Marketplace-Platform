@@ -18,6 +18,12 @@ import {
   tokenMutedStyle,
 } from './motocore-theme';
 
+function formatQty(value: number | string | null | undefined) {
+  const numeric = Number(value ?? 0);
+  if (Number.isNaN(numeric)) return '0';
+  return Number.isInteger(numeric) ? String(numeric) : String(numeric).replace(/\.?0+$/, '');
+}
+
 const quickActions = [
   { href: '/approvals', title: 'Approvals', detail: 'Review pending stock and price change requests.', icon: ClipboardList, permission: 'inventory.adjust.approve', feature: 'inventory' },
   { href: '/pos', title: 'Open POS', detail: 'Run paid or due sales, print receipts, and capture checkout activity.', icon: ShoppingCart, permission: 'sales.pos.create', feature: 'pos' },
@@ -115,7 +121,7 @@ export default async function StoreDashboardPage() {
       <div style={{ ...sectionPanelStyle, gridTemplateColumns: 'repeat(4, 1fr)' }}>
         <MetricCard title="Total Sales" value={salesReport?.summary?.total_sales_amount ?? '—'} note="Completed sales pulled from the reporting API." />
         <MetricCard title="Orders" value={salesReport?.summary?.total_orders_count ?? '—'} note="Recent completed order volume." />
-        <MetricCard title="Available Stock" value={inventoryReport?.summary?.total_available_qty ?? '—'} note="Available inventory across store locations." />
+        <MetricCard title="Available Stock" value={inventoryReport?.summary ? formatQty(inventoryReport.summary.total_available_qty) : '—'} note="Available inventory across store locations." />
         <MetricCard title="Active Plan" value={access.planName} note="The current store subscription tier." />
       </div>
 

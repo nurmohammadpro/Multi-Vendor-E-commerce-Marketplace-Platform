@@ -26,12 +26,12 @@ export function IntroSplash({ onComplete }: { onComplete?: () => void }) {
       <div className="intro-splash__card">
         <img
           src="/marketone-logo.svg"
-          alt="Market One logo"
+          alt="Market One BD logo"
           className="intro-splash__logo"
         />
         <div className="intro-splash__text">
-          <span className="intro-splash__eyebrow">Market One</span>
-          <span className="intro-splash__title">Multi-vendor operations, ready to go</span>
+          <span className="intro-splash__eyebrow">Market One BD</span>
+          <span className="intro-splash__title">Your One Stop Marketplace</span>
         </div>
       </div>
     </div>

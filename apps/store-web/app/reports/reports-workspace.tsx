@@ -77,6 +77,12 @@ async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
   return payload as T;
 }
 
+function formatQty(value: number | string | null | undefined) {
+  const numeric = Number(value ?? 0);
+  if (Number.isNaN(numeric)) return '0';
+  return Number.isInteger(numeric) ? String(numeric) : String(numeric).replace(/\.?0+$/, '');
+}
+
 export function ReportsWorkspace({ canViewReports }: { canViewReports: boolean }) {
   const [sales, setSales] = useState<SalesReport | null>(null);
   const [inventory, setInventory] = useState<InventoryReport | null>(null);
@@ -140,7 +146,7 @@ export function ReportsWorkspace({ canViewReports }: { canViewReports: boolean }
         </article>
         <article style={surfaceCardStyle}>
           <div style={metricLabelStyle}>Available Qty</div>
-          <div style={metricValueStyle}>{inventory?.summary.total_available_qty ?? '—'}</div>
+          <div style={metricValueStyle}>{inventory ? formatQty(inventory.summary.total_available_qty) : '—'}</div>
         </article>
         <article style={surfaceCardStyle}>
           <div style={metricLabelStyle}>Due Sales</div>
@@ -205,8 +211,8 @@ export function ReportsWorkspace({ canViewReports }: { canViewReports: boolean }
                       <td style={tableCellStyle}>{balance.product_name}</td>
                       <td style={tableCellStyle}>{balance.sku_code}</td>
                       <td style={tableCellStyle}>{balance.location_name}</td>
-                      <td style={tableCellStyle}>{balance.on_hand_qty}</td>
-                      <td style={tableCellStyle}>{balance.available_qty}</td>
+                      <td style={tableCellStyle}>{formatQty(balance.on_hand_qty)}</td>
+                      <td style={tableCellStyle}>{formatQty(balance.available_qty)}</td>
                       <td style={tableCellStyle}>{new Date(balance.updated_at).toLocaleString()}</td>
                     </tr>
                   ))}

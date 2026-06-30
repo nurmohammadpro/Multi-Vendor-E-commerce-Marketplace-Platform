@@ -87,6 +87,12 @@ type ProductDetail = {
   }>;
 };
 
+function formatQty(value: number | string | null | undefined) {
+  const numeric = Number(value ?? 0);
+  if (Number.isNaN(numeric)) return '0';
+  return Number.isInteger(numeric) ? String(numeric) : String(numeric).replace(/\.?0+$/, '');
+}
+
 type VariantMatrixRow = {
   key: string;
   skuCode: string;
@@ -1734,7 +1740,7 @@ export function CatalogWorkspace({
                         <td style={tableCellStyle}>{sku.variant_label || 'No variant label'}</td>
                         <td style={tableCellStyle}>{sku.status}</td>
                         <td style={tableCellStyle}>{sku.barcode || '—'}</td>
-                        <td style={tableCellStyle}>{Number(sku.available_qty ?? 0)}</td>
+                        <td style={tableCellStyle}>{formatQty(sku.available_qty)}</td>
                         <td style={tableCellStyle}>{sku.sale_price ?? '—'}</td>
                       </tr>
                     ))}

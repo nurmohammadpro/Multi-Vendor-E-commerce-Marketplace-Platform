@@ -10,6 +10,7 @@ import { PosService } from './pos.service.js';
 const searchCatalogSchema = z.object({
   barcode: z.string().max(80).optional(),
   q: z.string().max(120).optional(),
+  locationId: z.string().uuid().optional(),
   limit: z.coerce.number().int().positive().max(100).default(25),
 }).refine((value) => Boolean(value.barcode || value.q), {
   message: 'barcode or q is required',
@@ -95,11 +96,13 @@ export class PosController {
     @CurrentAuthContext() authContext: StoreAuthContext | null,
     @Query('barcode') barcode: string | undefined,
     @Query('q') query: string | undefined,
+    @Query('locationId') locationId: string | undefined,
     @Query('limit') limit: string | undefined,
   ) {
     const payload = searchCatalogSchema.parse({
       barcode,
       q: query,
+      locationId,
       limit,
     });
 

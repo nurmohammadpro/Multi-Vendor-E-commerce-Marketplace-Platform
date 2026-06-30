@@ -357,6 +357,7 @@ export function renderInvoiceHtml(receipt: ReceiptPayload) {
       .totals-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0; }
       .totals-row.total { font-size: 18px; font-weight: 700; border-bottom: 0; padding-top: 14px; }
       .customer, .payments { color: #334155; font-size: 14px; line-height: 1.6; }
+      .invoice-footer { margin-top: 28px; padding-top: 16px; border-top: 1px solid #e2e8f0; color: #64748b; font-size: 12px; text-align: center; }
       @media print {
         body { background: #fff; }
         .page { max-width: none; margin: 0; padding: 20px; }
@@ -419,6 +420,7 @@ export function renderInvoiceHtml(receipt: ReceiptPayload) {
 
       ${payments ? `<div class="section"><h2>Payments</h2><ul class="payments">${payments}</ul></div>` : ''}
       ${receipt.store?.footer ? `<div class="section"><h2>Footer</h2><div class="customer">${escapeHtml(receipt.store.footer)}</div></div>` : ''}
+      <div class="invoice-footer">Developed and maintained by Market One BD · Your One Stop Marketplace</div>
     </div>
   </body>
 </html>`;
@@ -427,7 +429,7 @@ export function renderInvoiceHtml(receipt: ReceiptPayload) {
 export function openInvoicePrintWindow(receipt: ReceiptPayload) {
   const printWindow = window.open('', '_blank', 'noopener,noreferrer');
   if (!printWindow) {
-    throw new Error('Popup blocked while opening the invoice window.');
+    return false;
   }
 
   printWindow.document.open();
@@ -435,6 +437,7 @@ export function openInvoicePrintWindow(receipt: ReceiptPayload) {
   printWindow.document.close();
   printWindow.focus();
   printWindow.print();
+  return true;
 }
 
 export async function printReceipt(receipt: ReceiptPayload, printerName?: string, baseUrl = DEFAULT_PRINT_AGENT_URL) {
