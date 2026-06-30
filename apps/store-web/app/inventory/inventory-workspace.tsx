@@ -91,6 +91,12 @@ async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
   return payload as T;
 }
 
+function formatQty(value: number | string | null | undefined) {
+  const numeric = Number(value ?? 0);
+  if (Number.isNaN(numeric)) return '0';
+  return Number.isInteger(numeric) ? String(numeric) : String(numeric).replace(/\.?0+$/, '');
+}
+
 export function InventoryWorkspace({
   canViewInventory,
   canAdjustInventory,
@@ -340,10 +346,10 @@ export function InventoryWorkspace({
               Rows: <strong>{balanceSummary.visibleRows}</strong>
             </div>
             <div style={{ padding: '8px 12px', borderRadius: 10, border: '1px solid rgba(148,163,184,0.22)', background: '#fff', fontSize: 13 }}>
-              On hand: <strong>{balanceSummary.onHand}</strong>
+              On hand: <strong>{formatQty(balanceSummary.onHand)}</strong>
             </div>
             <div style={{ padding: '8px 12px', borderRadius: 10, border: '1px solid rgba(148,163,184,0.22)', background: '#fff', fontSize: 13 }}>
-              Available: <strong>{balanceSummary.available}</strong>
+              Available: <strong>{formatQty(balanceSummary.available)}</strong>
             </div>
           </div>
         </div>
@@ -389,9 +395,9 @@ export function InventoryWorkspace({
                       <td style={tableCellStyle}>{balance.product_name}</td>
                       <td style={tableCellStyle}>{balance.sku_code}</td>
                       <td style={tableCellStyle}>{balance.location_name}</td>
-                      <td style={tableCellStyle}>{Number(balance.on_hand_qty)}</td>
-                      <td style={tableCellStyle}>{Number(balance.available_qty)}</td>
-                      <td style={tableCellStyle}>{Number(balance.reserved_qty)}</td>
+                      <td style={tableCellStyle}>{formatQty(balance.on_hand_qty)}</td>
+                      <td style={tableCellStyle}>{formatQty(balance.available_qty)}</td>
+                      <td style={tableCellStyle}>{formatQty(balance.reserved_qty)}</td>
                       <td style={tableCellStyle}>{new Date(balance.updated_at).toLocaleString()}</td>
                       <td style={tableCellStyle}>
                         <button

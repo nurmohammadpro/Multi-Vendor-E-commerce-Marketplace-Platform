@@ -81,7 +81,7 @@ export class PosService {
   async searchCatalog(
     headerStoreId: string | undefined,
     authContext: StoreAuthContext | null,
-    payload: { barcode?: string; q?: string; limit: number },
+    payload: { barcode?: string; q?: string; locationId?: string; limit: number },
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
 
@@ -104,6 +104,7 @@ export class PosService {
             coalesce(sum(b.available_qty), 0) as available_qty
           from inventory.balances b
           where b.store_id = $1
+            and ($4::uuid is null or b.location_id = $4::uuid)
           group by b.sku_id
         )
         select
@@ -146,9 +147,9 @@ export class PosService {
           p.name asc,
           sku.variant_label asc nulls first,
           sku.created_at asc
-        limit $4
+        limit $5
       `,
-      [storeId, payload.barcode ?? null, payload.q ?? null, payload.limit],
+      [storeId, payload.barcode ?? null, payload.q ?? null, payload.locationId ?? null, payload.limit],
     );
 
     return {

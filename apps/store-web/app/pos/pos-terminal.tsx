@@ -115,6 +115,11 @@ type ReprintResponse = {
 const SHOW_SHIFT_CONTROLS = false;
 
 const currency = (value: number) => value.toFixed(2);
+const formatQty = (value: number | string | null | undefined) => {
+  const numeric = Number(value ?? 0);
+  if (Number.isNaN(numeric)) return '0';
+  return Number.isInteger(numeric) ? String(numeric) : String(numeric).replace(/\.?0+$/, '');
+};
 
 const cardStyle = surfaceCardStyle;
 const compactCardStyle = compactSurfaceCardStyle;
@@ -123,6 +128,10 @@ const buttonStyle = secondaryButtonStyle;
 
 function isLoopbackAgent(url: string) {
   return url.includes('127.0.0.1') || url.includes('localhost');
+}
+
+function getSkuAvailableQty(sku: Pick<SkuSearchResult, 'available_qty'> | Pick<ProductVariantDetail['skus'][number], 'available_qty'>) {
+  return Number(sku.available_qty ?? 0);
 }
 
 async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
@@ -324,25 +333,52 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
     setShowSuggestions(false);
   };
 
-  const openVariantPicker = async (productId: string, hint = '') => {
-    try {
-      const payload = await readJson<ProductVariantDetail>(`/api/catalog/products/${productId}`);
-      setVariantProduct(payload);
-      setVariantPickerHint(hint);
-      setVariantPickerOpen(true);
-    } catch (error) {
-      setMessage((error as Error).message);
-    }
+  const openVariantPicker = (
+    group: {
+      productId: string;
+      productName: string;
+      hasVariants: boolean;
+      variantMode: string | null;
+      skus: SkuSearchResult[];
+    },
+    hint = '',
+  ) => {
+    setVariantProduct({
+      product: {
+        id: group.productId,
+        product_code: '',
+        name: group.productName,
+        has_variants: group.hasVariants,
+        variant_mode: group.variantMode ?? 'multi',
+      },
+      skus: group.skus.map((sku) => ({
+        id: sku.id,
+        sku_code: sku.sku_code,
+        barcode: sku.barcode,
+        variant_label: sku.variant_label,
+        sale_price: sku.sale_price,
+        available_qty: sku.available_qty,
+        status: 'active',
+      })),
+    });
+    setVariantPickerHint(hint);
+    setVariantPickerOpen(true);
   };
 
   const addSkuToCart = (sku: Pick<SkuSearchResult, 'id' | 'sku_code' | 'product_name' | 'variant_label' | 'sale_price' | 'available_qty' | 'barcode'>) => {
+    const availableQty = getSkuAvailableQty(sku);
+    if (availableQty <= 0) {
+      setMessage(`${sku.product_name} is out of stock in the selected location.`);
+      return;
+    }
+
     setCart((current) => {
       const index = current.findIndex((item) => item.skuId === sku.id);
       if (index >= 0) {
         const next = [...current];
         next[index] = {
           ...next[index],
-          qty: Math.min(next[index].qty + 1, Math.max(1, Number(sku.available_qty ?? 0))),
+          qty: Math.min(next[index].qty + 1, availableQty),
         };
         return next;
       }
@@ -356,7 +392,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
           variantLabel: sku.variant_label,
           unitPrice: Number(sku.sale_price ?? 0),
           qty: 1,
-          availableQty: Number(sku.available_qty ?? 0),
+          availableQty,
           barcode: sku.barcode,
         },
       ];
@@ -377,12 +413,22 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
         q: queryText,
         limit: '20',
       });
+      if (selectedLocationId) {
+        query.set('locationId', selectedLocationId);
+      }
       const payload = await readJson<{ skus: SkuSearchResult[] }>(`/api/pos/search?${query.toString()}`);
       setResults(payload.skus ?? []);
       const exactBarcodeMatch = (payload.skus ?? []).find((sku) => sku.barcode && sku.barcode === queryText);
       if (exactBarcodeMatch) {
         if (exactBarcodeMatch.has_variants) {
-          await openVariantPicker(exactBarcodeMatch.product_id, `Barcode ${queryText} matched this product. Choose the exact variant.`);
+          const matchingGroup = (payload.skus ?? []).filter((sku) => sku.product_id === exactBarcodeMatch.product_id);
+          openVariantPicker({
+            productId: exactBarcodeMatch.product_id,
+            productName: exactBarcodeMatch.product_name,
+            hasVariants: true,
+            variantMode: exactBarcodeMatch.variant_mode ?? null,
+            skus: matchingGroup,
+          }, `Barcode ${queryText} matched this product. Choose the exact variant.`);
         } else {
           addSkuToCart(exactBarcodeMatch);
           clearSearchState();
@@ -493,6 +539,11 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
     }
     if (saleMode === 'paid' && paymentMethod === 'cash' && Number(cashReceived || 0) < total) {
       setMessage('Cash received is lower than the sale total.');
+      return;
+    }
+    const invalidItem = cart.find((item) => item.availableQty <= 0 || item.qty > item.availableQty);
+    if (invalidItem) {
+      setMessage(`${invalidItem.productName} does not have enough stock in the selected location.`);
       return;
     }
 
@@ -622,11 +673,9 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
 
   const handlePrintInvoice = () => {
     if (!lastInvoice) return;
-    try {
-      openInvoicePrintWindow(lastInvoice);
+    const opened = openInvoicePrintWindow(lastInvoice);
+    if (opened) {
       setMessage(`Invoice ${lastInvoice.saleNo ?? ''} opened for printing.`);
-    } catch (error) {
-      setMessage((error as Error).message);
     }
   };
 
@@ -726,7 +775,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                           {group.hasVariants
                             ? `${group.variantMode || 'variant'} · ${group.skuCount} variant(s)`
                             : group.skus[0]?.sku_code}
-                          {' · '}Available: {group.totalAvailable}
+                          {' · '}Available: {formatQty(group.totalAvailable)}
                           {' · '}From {currency(group.lowestPrice)}
                         </div>
                       </div>
@@ -736,7 +785,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                             onMouseDown={(e) => e.preventDefault()}
                             onClick={() => {
                               setShowSuggestions(false);
-                              void openVariantPicker(group.productId);
+                              openVariantPicker(group);
                             }}
                             style={accentButtonStyle}
                           >
@@ -748,11 +797,14 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                             onClick={() => {
                               addSkuToCart(group.skus[0]);
                               clearSearchState();
-                              setMessage(`${group.productName} added to cart.`);
+                              if (getSkuAvailableQty(group.skus[0]) > 0) {
+                                setMessage(`${group.productName} added to cart.`);
+                              }
                             }}
                             style={neutralButtonStyle}
+                            disabled={getSkuAvailableQty(group.skus[0]) <= 0}
                           >
-                            Add
+                            {getSkuAvailableQty(group.skus[0]) <= 0 ? 'Out of Stock' : 'Add'}
                           </button>
                         )}
                         <button
@@ -935,11 +987,15 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                         <td style={tableCellStyle}>{sku.sku_code}</td>
                         <td style={tableCellStyle}>{sku.variant_label || 'Default'}</td>
                         <td style={tableCellStyle}>{sku.barcode || '—'}</td>
-                        <td style={tableCellStyle}>{Number(sku.available_qty ?? 0)}</td>
+                        <td style={tableCellStyle}>{formatQty(sku.available_qty)}</td>
                         <td style={tableCellStyle}>{currency(Number(sku.sale_price ?? 0))}</td>
                         <td style={tableCellStyle}>
                           <button
                             onClick={() => {
+                              if (getSkuAvailableQty(sku) <= 0) {
+                                setMessage(`${variantProduct.product.name} is out of stock in the selected location.`);
+                                return;
+                              }
                               addSkuToCart({
                                 id: sku.id,
                                 sku_code: sku.sku_code,
@@ -954,8 +1010,9 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                               setMessage(`${variantProduct.product.name} variant added to cart.`);
                             }}
                             style={secondaryButtonStyle}
+                            disabled={getSkuAvailableQty(sku) <= 0}
                           >
-                            Add Variant
+                            {getSkuAvailableQty(sku) <= 0 ? 'Out of Stock' : 'Add Variant'}
                           </button>
                         </td>
                       </tr>
@@ -1111,6 +1168,9 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                 <div><strong>Customer:</strong> {lastInvoice.customer?.name || 'Walk-in customer'}</div>
                 {lastInvoice.customer?.phone ? <div><strong>Phone:</strong> {lastInvoice.customer.phone}</div> : null}
                 {lastInvoice.customer?.address ? <div><strong>Address:</strong> {lastInvoice.customer.address}</div> : null}
+              </div>
+              <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid #e2e8f0', textAlign: 'center', color: '#64748b', fontSize: 12 }}>
+                Developed and maintained by Market One BD · Your One Stop Marketplace
               </div>
             </div>
           </div>
