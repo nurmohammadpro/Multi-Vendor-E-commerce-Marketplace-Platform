@@ -637,124 +637,198 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
 
   return (
     <section style={{ display: 'grid', gap: 20 }}>
-      <section style={{ display: 'grid', gridTemplateColumns: '1.1fr 0.9fr', gap: 16 }}>
-        <article style={cardStyle}>
-          <h3 style={{ marginTop: 0 }}>Product Search</h3>
-          <div style={{ position: 'relative' }}>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <div style={{ position: 'relative', flex: 1 }}>
-                <input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  onFocus={() => { if (groupedResults.length > 0) setShowSuggestions(true); }}
-                  onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault();
-                      void searchCatalog(search.trim());
-                    }
-                    if (event.key === 'Escape') {
-                      setShowSuggestions(false);
-                    }
-                  }}
-                  style={{ ...inputStyle, width: '100%' }}
-                  placeholder="Scan barcode or search product / SKU"
-                />
-                {searching ? (
-                  <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: 12 }}>
-                    searching...
-                  </span>
-                ) : null}
+      <section style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.3fr) minmax(360px, 0.7fr)', gap: 16 }}>
+        <section style={{ display: 'grid', gap: 16 }}>
+          <article style={cardStyle}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start', marginBottom: 12 }}>
+              <div>
+                <h3 style={{ marginTop: 0, marginBottom: 6 }}>Product Search</h3>
+                <p style={{ margin: 0, color: '#475569' }}>
+                  Search, scan, select variant if needed, then keep checkout moving.
+                </p>
               </div>
-              <button onClick={() => void searchCatalog(search.trim())} style={buttonStyle} disabled={loading}>
-                Search
-              </button>
+              <div style={{ display: 'grid', gap: 4, fontSize: 12, color: '#64748b', textAlign: 'right' }}>
+                <div>Register: {selectedRegister?.name || 'Not selected'}</div>
+                <div>Location: {locations.find((location) => location.id === selectedLocationId)?.name || 'Not selected'}</div>
+              </div>
             </div>
 
-            {showSuggestions && groupedResults.length > 0 ? (
-              <div
-                style={{
-                  position: 'absolute',
-                  left: 0,
-                  right: 0,
-                  top: '100%',
-                  zIndex: 50,
-                  marginTop: 4,
-                  background: '#fff',
-                  borderRadius: 10,
-                  border: '1px solid rgba(148,163,184,0.25)',
-                  boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
-                  maxHeight: 340,
-                  overflowY: 'auto',
-                }}
-              >
-                {groupedResults.map((group) => (
-                  <div
-                    key={group.productId}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '10px 12px',
-                      borderBottom: '1px solid rgba(148,163,184,0.1)',
-                      cursor: 'pointer',
+            <div style={{ position: 'relative' }}>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ position: 'relative', flex: 1 }}>
+                  <input
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    onFocus={() => { if (groupedResults.length > 0) setShowSuggestions(true); }}
+                    onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault();
+                        void searchCatalog(search.trim());
+                      }
+                      if (event.key === 'Escape') {
+                        setShowSuggestions(false);
+                      }
                     }}
-                    onMouseDown={(e) => e.preventDefault()}
-                  >
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, fontSize: 14 }}>{group.productName}</div>
-                      <div style={{ color: '#64748b', fontSize: 12, marginTop: 2 }}>
-                        {group.hasVariants
-                          ? `${group.variantMode || 'variant'} · ${group.skuCount} variant(s)`
-                          : group.skus[0]?.sku_code}
-                        {' · '}Available: {group.totalAvailable}
-                        {' · '}From {currency(group.lowestPrice)}
+                    style={{ ...inputStyle, width: '100%' }}
+                    placeholder="Scan barcode or search product / SKU"
+                  />
+                  {searching ? (
+                    <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: 12 }}>
+                      searching...
+                    </span>
+                  ) : null}
+                </div>
+                <button onClick={() => void searchCatalog(search.trim())} style={buttonStyle} disabled={loading}>
+                  Search
+                </button>
+              </div>
+
+              {showSuggestions && groupedResults.length > 0 ? (
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: 0,
+                    right: 0,
+                    top: '100%',
+                    zIndex: 50,
+                    marginTop: 4,
+                    background: '#fff',
+                    borderRadius: 10,
+                    border: '1px solid rgba(148,163,184,0.25)',
+                    boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
+                    maxHeight: 340,
+                    overflowY: 'auto',
+                  }}
+                >
+                  {groupedResults.map((group) => (
+                    <div
+                      key={group.productId}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '10px 12px',
+                        borderBottom: '1px solid rgba(148,163,184,0.1)',
+                        cursor: 'pointer',
+                      }}
+                      onMouseDown={(e) => e.preventDefault()}
+                    >
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, fontSize: 14 }}>{group.productName}</div>
+                        <div style={{ color: '#64748b', fontSize: 12, marginTop: 2 }}>
+                          {group.hasVariants
+                            ? `${group.variantMode || 'variant'} · ${group.skuCount} variant(s)`
+                            : group.skus[0]?.sku_code}
+                          {' · '}Available: {group.totalAvailable}
+                          {' · '}From {currency(group.lowestPrice)}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 6, flexShrink: 0, marginLeft: 12 }}>
+                        {group.hasVariants ? (
+                          <button
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => {
+                              setShowSuggestions(false);
+                              void openVariantPicker(group.productId);
+                            }}
+                            style={{ ...buttonStyle, fontSize: 12, padding: '4px 10px' }}
+                          >
+                            Choose Variant
+                          </button>
+                        ) : (
+                          <button
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => {
+                              addSkuToCart(group.skus[0]);
+                              clearSearchState();
+                              setMessage(`${group.productName} added to cart.`);
+                            }}
+                            style={{ ...buttonStyle, fontSize: 12, padding: '4px 10px' }}
+                          >
+                            Add
+                          </button>
+                        )}
+                        <button
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            handlePrintLabel(group.skus[0]);
+                          }}
+                          style={{ ...buttonStyle, fontSize: 12, padding: '4px 10px' }}
+                        >
+                          Label
+                        </button>
                       </div>
                     </div>
-                    <div style={{ display: 'flex', gap: 6, flexShrink: 0, marginLeft: 12 }}>
-                      {group.hasVariants ? (
-                        <button
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => {
-                            setShowSuggestions(false);
-                            void openVariantPicker(group.productId);
-                          }}
-                          style={{ ...buttonStyle, fontSize: 12, padding: '4px 10px' }}
-                        >
-                          Choose Variant
-                        </button>
-                      ) : (
-                        <button
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => {
-                            addSkuToCart(group.skus[0]);
-                            clearSearchState();
-                            setMessage(`${group.productName} added to cart.`);
-                          }}
-                          style={{ ...buttonStyle, fontSize: 12, padding: '4px 10px' }}
-                        >
-                          Add
-                        </button>
-                      )}
-                      <button
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => {
-                          handlePrintLabel(group.skus[0]);
-                        }}
-                        style={{ ...buttonStyle, fontSize: 12, padding: '4px 10px' }}
-                      >
-                        Label
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </article>
+
+          <article style={cardStyle}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
+              <div>
+                <h3 style={{ marginTop: 0, marginBottom: 6 }}>Cart</h3>
+                <p style={{ margin: 0, color: '#475569' }}>
+                  Keep the cart tight: selling price, quantity, line total, and nothing distracting.
+                </p>
               </div>
-            ) : null}
-          </div>
-        </article>
+              <div style={{ fontSize: 12, color: '#64748b' }}>
+                {cart.length} item(s) · Total {currency(total)}
+              </div>
+            </div>
+            {cart.length ? (
+              <div style={tableWrapStyle}>
+                <table style={tableStyle}>
+                  <thead>
+                    <tr>
+                      <th style={tableHeaderCellStyle}>Item</th>
+                      <th style={tableHeaderCellStyle}>Price</th>
+                      <th style={tableHeaderCellStyle}>Qty</th>
+                      <th style={tableHeaderCellStyle}>Total</th>
+                      <th style={tableHeaderCellStyle}>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cart.map((item) => (
+                      <tr key={item.skuId}>
+                        <td style={tableCellStyle}>
+                          <div style={{ fontWeight: 600 }}>{item.productName}</div>
+                          <div style={{ color: '#64748b', marginTop: 4 }}>
+                            {item.skuCode}
+                            {item.variantLabel ? ` · ${item.variantLabel}` : ''}
+                          </div>
+                        </td>
+                        <td style={tableCellStyle}>{currency(item.unitPrice)}</td>
+                        <td style={tableCellStyle}>
+                          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                            <button onClick={() => updateCartQty(item.skuId, item.qty - 1)} style={buttonStyle}>-</button>
+                            <span>{item.qty}</span>
+                            <button onClick={() => updateCartQty(item.skuId, item.qty + 1)} style={buttonStyle}>+</button>
+                          </div>
+                        </td>
+                        <td style={tableCellStyle}>{currency(item.qty * item.unitPrice)}</td>
+                        <td style={tableCellStyle}>
+                          <button onClick={() => removeFromCart(item.skuId)} style={buttonStyle}>Remove</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p style={{ marginBottom: 0, color: '#64748b' }}>Cart is empty. Scan or search a product to start the sale.</p>
+            )}
+          </article>
+        </section>
 
         <article style={cardStyle}>
-          <h3 style={{ marginTop: 0 }}>Checkout</h3>
+          <h3 style={{ marginTop: 0, marginBottom: 6 }}>Checkout</h3>
+          <p style={{ marginTop: 0, color: '#475569' }}>
+            Customer details stay optional for paid sales, while cash change stays visible for the cashier.
+          </p>
+
           <div style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
             <input value={customerName} onChange={(event) => setCustomerName(event.target.value)} style={inputStyle} placeholder="Customer name (optional)" />
             <input value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} style={inputStyle} placeholder={saleMode === 'due' ? 'Customer mobile number (recommended)' : 'Customer mobile number (optional)'} />
@@ -793,49 +867,6 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
             />
           </div>
 
-          {cart.length ? (
-            <div style={{ ...tableWrapStyle, marginBottom: 16 }}>
-              <table style={tableStyle}>
-                <thead>
-                  <tr>
-                    <th style={tableHeaderCellStyle}>Item</th>
-                    <th style={tableHeaderCellStyle}>Price</th>
-                    <th style={tableHeaderCellStyle}>Qty</th>
-                    <th style={tableHeaderCellStyle}>Total</th>
-                    <th style={tableHeaderCellStyle}>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {cart.map((item) => (
-                    <tr key={item.skuId}>
-                      <td style={tableCellStyle}>
-                        <div style={{ fontWeight: 600 }}>{item.productName}</div>
-                        <div style={{ color: '#64748b', marginTop: 4 }}>
-                          {item.skuCode}
-                          {item.variantLabel ? ` · ${item.variantLabel}` : ''}
-                        </div>
-                      </td>
-                      <td style={tableCellStyle}>{currency(item.unitPrice)}</td>
-                      <td style={tableCellStyle}>
-                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                          <button onClick={() => updateCartQty(item.skuId, item.qty - 1)} style={buttonStyle}>-</button>
-                          <span>{item.qty}</span>
-                          <button onClick={() => updateCartQty(item.skuId, item.qty + 1)} style={buttonStyle}>+</button>
-                        </div>
-                      </td>
-                      <td style={tableCellStyle}>{currency(item.qty * item.unitPrice)}</td>
-                      <td style={tableCellStyle}>
-                        <button onClick={() => removeFromCart(item.skuId)} style={buttonStyle}>Remove</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <p style={{ marginBottom: 16, color: '#64748b' }}>Cart is empty.</p>
-          )}
-
           <div style={{ display: 'grid', gap: 8 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span>Total</span>
@@ -856,9 +887,14 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                 <strong>{currency(total)}</strong>
               </div>
             ) : null}
-            <button onClick={checkout} style={primaryButtonStyle} disabled={loading || cart.length === 0}>
+            <button onClick={checkout} style={primaryButtonStyle} disabled={loading || cart.length === 0 || !selectedLocationId}>
               {saleMode === 'due' ? 'Save Due Sale' : 'Complete Sale'}
             </button>
+            {!selectedLocationId ? (
+              <div style={{ fontSize: 12, color: '#b45309' }}>
+                Select a stock location below before completing the sale.
+              </div>
+            ) : null}
           </div>
         </article>
       </section>
@@ -965,7 +1001,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
         </SheetContent>
       </Sheet>
 
-      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
         <article style={{ ...cardStyle, padding: 14 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
             <h4 style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Workstation</h4>

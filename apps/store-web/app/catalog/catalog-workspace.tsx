@@ -837,187 +837,257 @@ export function CatalogWorkspace({
   return (
     <section style={{ display: 'grid', gap: 20 }}>
       {canManageCatalog ? (
-        <section style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.2fr', gap: 16 }}>
+        <section style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.35fr) minmax(320px, 0.65fr)', gap: 16 }}>
           <article style={cardStyle}>
-            <h3 style={{ marginTop: 0 }}>Category</h3>
-            <select
-              value={categoryForm.parentId}
-              onChange={(e) => setCategoryForm((v) => ({ ...v, parentId: e.target.value }))}
-              style={{ ...inputStyle, marginBottom: 10 }}
-            >
-              <option value="">No parent (top-level)</option>
-              {parentOptions.filter((c) => c.id !== editingCategoryId).map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-            <input value={categoryForm.code} onChange={(e) => setCategoryForm((v) => ({ ...v, code: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Code" />
-            <input value={categoryForm.name} onChange={(e) => setCategoryForm((v) => ({ ...v, name: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Name" />
-            <button onClick={createCategory} style={buttonStyle} disabled={loading}>{editingCategoryId ? 'Save Category' : 'Create Category'}</button>
-          </article>
-
-          <article style={cardStyle}>
-            <h3 style={{ marginTop: 0 }}>Brand</h3>
-            <input value={brandForm.name} onChange={(e) => setBrandForm({ name: e.target.value })} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Brand name" />
-            <button onClick={createBrand} style={buttonStyle} disabled={loading}>{editingBrandId ? 'Save Brand' : 'Create Brand'}</button>
-          </article>
-
-          <article style={cardStyle}>
-            <h3 style={{ marginTop: 0 }}>Product</h3>
-            <input value={productForm.productCode} onChange={(e) => setProductForm((v) => ({ ...v, productCode: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Product code" />
-            <input value={productForm.name} onChange={(e) => setProductForm((v) => ({ ...v, name: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Product name" />
-            <textarea value={productForm.description} onChange={(e) => setProductForm((v) => ({ ...v, description: e.target.value }))} style={{ ...inputStyle, minHeight: 70, marginBottom: 10 }} placeholder="Description" />
-            <select value={productForm.categoryId} onChange={(e) => setProductForm((v) => ({ ...v, categoryId: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }}>
-              <option value="">No category</option>
-              {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-            </select>
-            <select value={productForm.brandId} onChange={(e) => setProductForm((v) => ({ ...v, brandId: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }}>
-              <option value="">No brand</option>
-              {brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
-            </select>
-            {!productForm.hasVariants ? (
-              <div style={{ ...tableWrapStyle, marginBottom: 10 }}>
-                <table style={tableStyle}>
-                  <thead>
-                    <tr>
-                      <th style={tableHeaderCellStyle}>Default SKU</th>
-                      <th style={tableHeaderCellStyle}>Barcode</th>
-                      <th style={tableHeaderCellStyle}>Selling Price</th>
-                      <th style={tableHeaderCellStyle}>Cost Price</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td style={tableCellStyle}>
-                        <input
-                          value={productForm.defaultSkuCode}
-                          onChange={(e) => setProductForm((v) => ({ ...v, defaultSkuCode: e.target.value }))}
-                          style={{ ...inputStyle, width: '100%' }}
-                          placeholder={sanitizeSkuToken(productForm.productCode || 'SKU')}
-                        />
-                      </td>
-                      <td style={tableCellStyle}>
-                        <input
-                          value={productForm.defaultBarcode}
-                          onChange={(e) => setProductForm((v) => ({ ...v, defaultBarcode: e.target.value }))}
-                          style={{ ...inputStyle, width: '100%' }}
-                          placeholder="Optional barcode"
-                        />
-                      </td>
-                      <td style={tableCellStyle}>
-                        <input
-                          value={productForm.defaultSalePrice}
-                          onChange={(e) => setProductForm((v) => ({ ...v, defaultSalePrice: e.target.value }))}
-                          style={{ ...inputStyle, width: 110 }}
-                          placeholder="0.00"
-                        />
-                      </td>
-                      <td style={tableCellStyle}>
-                        <input
-                          value={productForm.defaultCostPrice}
-                          onChange={(e) => setProductForm((v) => ({ ...v, defaultCostPrice: e.target.value }))}
-                          style={{ ...inputStyle, width: 110 }}
-                          placeholder="0.00"
-                        />
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+            <div style={{ display: 'grid', gap: 16 }}>
+              <div>
+                <h3 style={{ marginTop: 0, marginBottom: 6 }}>Product Builder</h3>
+                <p style={{ margin: 0, color: '#475569' }}>
+                  Keep product entry in one guided flow: basic info, selling setup, then optional variants.
+                </p>
               </div>
-            ) : null}
-            <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
-              <input type="checkbox" checked={productForm.hasVariants} onChange={(e) => setProductForm((v) => ({ ...v, hasVariants: e.target.checked, variantMode: e.target.checked ? 'single' : 'none' }))} />
-              Has manual variants
-            </label>
-            <select value={productForm.variantMode} onChange={(e) => setProductForm((v) => ({ ...v, variantMode: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} disabled={!productForm.hasVariants}>
-              <option value="none">None</option>
-              <option value="single">Single Variant Axis</option>
-              <option value="multi">Multi Variant Axes</option>
-            </select>
-            {productForm.hasVariants ? (
-              <div style={{ marginBottom: 10 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <div style={{ fontWeight: 600, fontSize: 14 }}>Variant Rows</div>
-                  <button onClick={addProductVariantRow} style={{ ...buttonStyle, fontSize: 12, padding: '4px 10px' }} disabled={loading}>
-                    + Add Row
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 6 }}>1. Product identity</div>
+                  <input value={productForm.productCode} onChange={(e) => setProductForm((v) => ({ ...v, productCode: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Product code" />
+                  <input value={productForm.name} onChange={(e) => setProductForm((v) => ({ ...v, name: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Product name" />
+                  <textarea value={productForm.description} onChange={(e) => setProductForm((v) => ({ ...v, description: e.target.value }))} style={{ ...inputStyle, minHeight: 82, marginBottom: 0 }} placeholder="Description (optional)" />
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 6 }}>2. Classification</div>
+                  <select value={productForm.categoryId} onChange={(e) => setProductForm((v) => ({ ...v, categoryId: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }}>
+                    <option value="">No category</option>
+                    {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+                  </select>
+                  <select value={productForm.brandId} onChange={(e) => setProductForm((v) => ({ ...v, brandId: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }}>
+                    <option value="">No brand</option>
+                    {brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
+                  </select>
+                  <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.5 }}>
+                    Categories and brands stay manageable separately, but product creation stays in this single flow.
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 8 }}>3. Product type</div>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  <button
+                    onClick={() => setProductForm((v) => ({ ...v, hasVariants: false, variantMode: 'none' }))}
+                    style={{
+                      ...buttonStyle,
+                      background: !productForm.hasVariants ? 'rgba(15, 23, 42, 0.06)' : '#fff',
+                      borderColor: !productForm.hasVariants ? '#0f172a' : undefined,
+                    }}
+                    disabled={loading}
+                  >
+                    Simple Product
+                  </button>
+                  <button
+                    onClick={() => setProductForm((v) => ({ ...v, hasVariants: true, variantMode: v.variantMode === 'none' ? 'single' : v.variantMode }))}
+                    style={{
+                      ...buttonStyle,
+                      background: productForm.hasVariants ? 'rgba(15, 23, 42, 0.06)' : '#fff',
+                      borderColor: productForm.hasVariants ? '#0f172a' : undefined,
+                    }}
+                    disabled={loading}
+                  >
+                    Product With Variants
                   </button>
                 </div>
-                {productVariantRows.length > 0 ? (
-                  <div style={tableWrapStyle}>
+              </div>
+
+              {!productForm.hasVariants ? (
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 8 }}>4. Sellable SKU and pricing</div>
+                  <div style={{ ...tableWrapStyle, marginBottom: 0 }}>
                     <table style={tableStyle}>
                       <thead>
                         <tr>
-                          <th style={tableHeaderCellStyle}>Label</th>
-                          <th style={tableHeaderCellStyle}>SKU Code</th>
+                          <th style={tableHeaderCellStyle}>Default SKU</th>
+                          <th style={tableHeaderCellStyle}>Barcode</th>
                           <th style={tableHeaderCellStyle}>Selling Price</th>
                           <th style={tableHeaderCellStyle}>Cost Price</th>
-                          <th style={tableHeaderCellStyle}>Barcode</th>
-                          <th style={tableHeaderCellStyle} />
                         </tr>
                       </thead>
                       <tbody>
-                        {productVariantRows.map((row) => (
-                          <tr key={row.key}>
-                            <td style={tableCellStyle}>
-                              <input
-                                value={row.label}
-                                onChange={(e) => updateProductVariantRow(row.key, 'label', e.target.value)}
-                                style={{ ...inputStyle, width: '100%' }}
-                                placeholder="e.g. Red / XL"
-                              />
-                            </td>
-                            <td style={tableCellStyle}>
-                              <input
-                                value={row.skuCode}
-                                onChange={(e) => updateProductVariantRow(row.key, 'skuCode', e.target.value)}
-                                style={{ ...inputStyle, width: '100%' }}
-                                placeholder={buildManualVariantSkuCode(productForm.productCode || 'SKU', row.label || 'VAR')}
-                              />
-                            </td>
-                            <td style={tableCellStyle}>
-                              <input
-                                value={row.price}
-                                onChange={(e) => updateProductVariantRow(row.key, 'price', e.target.value)}
-                                style={{ ...inputStyle, width: 80 }}
-                                placeholder="0.00"
-                              />
-                            </td>
-                            <td style={tableCellStyle}>
-                              <input
-                                value={row.cost}
-                                onChange={(e) => updateProductVariantRow(row.key, 'cost', e.target.value)}
-                                style={{ ...inputStyle, width: 80 }}
-                                placeholder="0.00"
-                              />
-                            </td>
-                            <td style={tableCellStyle}>
-                              <input
-                                value={row.barcode}
-                                onChange={(e) => updateProductVariantRow(row.key, 'barcode', e.target.value)}
-                                style={{ ...inputStyle, width: '100%' }}
-                                placeholder="Barcode"
-                              />
-                            </td>
-                            <td style={tableCellStyle}>
-                              <button
-                                onClick={() => removeProductVariantRow(row.key)}
-                                style={{ ...buttonStyle, color: '#dc2626', borderColor: '#dc2626', fontSize: 12, padding: '2px 8px' }}
-                                disabled={loading}
-                              >
-                                X
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
+                        <tr>
+                          <td style={tableCellStyle}>
+                            <input
+                              value={productForm.defaultSkuCode}
+                              onChange={(e) => setProductForm((v) => ({ ...v, defaultSkuCode: e.target.value }))}
+                              style={{ ...inputStyle, width: '100%' }}
+                              placeholder={sanitizeSkuToken(productForm.productCode || 'SKU')}
+                            />
+                          </td>
+                          <td style={tableCellStyle}>
+                            <input
+                              value={productForm.defaultBarcode}
+                              onChange={(e) => setProductForm((v) => ({ ...v, defaultBarcode: e.target.value }))}
+                              style={{ ...inputStyle, width: '100%' }}
+                              placeholder="Optional barcode"
+                            />
+                          </td>
+                          <td style={tableCellStyle}>
+                            <input
+                              value={productForm.defaultSalePrice}
+                              onChange={(e) => setProductForm((v) => ({ ...v, defaultSalePrice: e.target.value }))}
+                              style={{ ...inputStyle, width: 110 }}
+                              placeholder="0.00"
+                            />
+                          </td>
+                          <td style={tableCellStyle}>
+                            <input
+                              value={productForm.defaultCostPrice}
+                              onChange={(e) => setProductForm((v) => ({ ...v, defaultCostPrice: e.target.value }))}
+                              style={{ ...inputStyle, width: 110 }}
+                              placeholder="0.00"
+                            />
+                          </td>
+                        </tr>
                       </tbody>
                     </table>
                   </div>
-                ) : (
-                  <div style={{ color: '#94a3b8', fontSize: 13 }}>No variant rows added yet. Click "Add Row" to create ready-to-sell variants with barcode, selling price, and cost price in one step.</div>
-                )}
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gap: 12 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 220px) 1fr', gap: 12, alignItems: 'end' }}>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 6 }}>4. Variant structure</div>
+                      <select value={productForm.variantMode} onChange={(e) => setProductForm((v) => ({ ...v, variantMode: e.target.value }))} style={inputStyle}>
+                        <option value="single">Single Variant Axis</option>
+                        <option value="multi">Multi Variant Axes</option>
+                      </select>
+                    </div>
+                    <div style={{ fontSize: 12, color: '#64748b' }}>
+                      Use quick manual rows for fast setup now. The deeper builder below remains available for advanced group and matrix management after product creation.
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>5. Ready-to-sell variant rows</div>
+                      <button onClick={addProductVariantRow} style={{ ...buttonStyle, fontSize: 12, padding: '4px 10px' }} disabled={loading}>
+                        + Add Row
+                      </button>
+                    </div>
+                    {productVariantRows.length > 0 ? (
+                      <div style={tableWrapStyle}>
+                        <table style={tableStyle}>
+                          <thead>
+                            <tr>
+                              <th style={tableHeaderCellStyle}>Variant label</th>
+                              <th style={tableHeaderCellStyle}>SKU Code</th>
+                              <th style={tableHeaderCellStyle}>Selling Price</th>
+                              <th style={tableHeaderCellStyle}>Cost Price</th>
+                              <th style={tableHeaderCellStyle}>Barcode</th>
+                              <th style={tableHeaderCellStyle} />
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {productVariantRows.map((row) => (
+                              <tr key={row.key}>
+                                <td style={tableCellStyle}>
+                                  <input
+                                    value={row.label}
+                                    onChange={(e) => updateProductVariantRow(row.key, 'label', e.target.value)}
+                                    style={{ ...inputStyle, width: '100%' }}
+                                    placeholder="e.g. 90/90-12 / Red"
+                                  />
+                                </td>
+                                <td style={tableCellStyle}>
+                                  <input
+                                    value={row.skuCode}
+                                    onChange={(e) => updateProductVariantRow(row.key, 'skuCode', e.target.value)}
+                                    style={{ ...inputStyle, width: '100%' }}
+                                    placeholder={buildManualVariantSkuCode(productForm.productCode || 'SKU', row.label || 'VAR')}
+                                  />
+                                </td>
+                                <td style={tableCellStyle}>
+                                  <input
+                                    value={row.price}
+                                    onChange={(e) => updateProductVariantRow(row.key, 'price', e.target.value)}
+                                    style={{ ...inputStyle, width: 80 }}
+                                    placeholder="0.00"
+                                  />
+                                </td>
+                                <td style={tableCellStyle}>
+                                  <input
+                                    value={row.cost}
+                                    onChange={(e) => updateProductVariantRow(row.key, 'cost', e.target.value)}
+                                    style={{ ...inputStyle, width: 80 }}
+                                    placeholder="0.00"
+                                  />
+                                </td>
+                                <td style={tableCellStyle}>
+                                  <input
+                                    value={row.barcode}
+                                    onChange={(e) => updateProductVariantRow(row.key, 'barcode', e.target.value)}
+                                    style={{ ...inputStyle, width: '100%' }}
+                                    placeholder="Barcode"
+                                  />
+                                </td>
+                                <td style={tableCellStyle}>
+                                  <button
+                                    onClick={() => removeProductVariantRow(row.key)}
+                                    style={{ ...buttonStyle, color: '#dc2626', borderColor: '#dc2626', fontSize: 12, padding: '2px 8px' }}
+                                    disabled={loading}
+                                  >
+                                    X
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div style={{ color: '#94a3b8', fontSize: 13 }}>
+                        No variant rows added yet. Add the ready-to-sell combinations you actually stock and price.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <div style={{ fontSize: 12, color: '#64748b' }}>
+                  {productForm.hasVariants
+                    ? 'Create the product first, then continue into the advanced variant builder below if needed.'
+                    : 'A simple product creates one sellable SKU directly in this step.'}
+                </div>
+                <button onClick={createProduct} style={buttonStyle} disabled={loading}>
+                  {editingProductId ? 'Save Product' : 'Create Product'}
+                </button>
               </div>
-            ) : null}
-            <button onClick={createProduct} style={buttonStyle} disabled={loading}>{editingProductId ? 'Save Product' : 'Create Product'}</button>
+            </div>
           </article>
+
+          <section style={{ display: 'grid', gap: 16 }}>
+            <article style={cardStyle}>
+              <h3 style={{ marginTop: 0 }}>Category</h3>
+              <select
+                value={categoryForm.parentId}
+                onChange={(e) => setCategoryForm((v) => ({ ...v, parentId: e.target.value }))}
+                style={{ ...inputStyle, marginBottom: 10 }}
+              >
+                <option value="">No parent (top-level)</option>
+                {parentOptions.filter((c) => c.id !== editingCategoryId).map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              <input value={categoryForm.code} onChange={(e) => setCategoryForm((v) => ({ ...v, code: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Code" />
+              <input value={categoryForm.name} onChange={(e) => setCategoryForm((v) => ({ ...v, name: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Name" />
+              <button onClick={createCategory} style={buttonStyle} disabled={loading}>{editingCategoryId ? 'Save Category' : 'Create Category'}</button>
+            </article>
+
+            <article style={cardStyle}>
+              <h3 style={{ marginTop: 0 }}>Brand</h3>
+              <input value={brandForm.name} onChange={(e) => setBrandForm({ name: e.target.value })} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Brand name" />
+              <button onClick={createBrand} style={buttonStyle} disabled={loading}>{editingBrandId ? 'Save Brand' : 'Create Brand'}</button>
+            </article>
+          </section>
         </section>
       ) : (
         <article style={cardStyle}>

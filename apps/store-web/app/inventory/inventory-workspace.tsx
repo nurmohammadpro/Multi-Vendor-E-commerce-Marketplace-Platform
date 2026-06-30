@@ -304,9 +304,132 @@ export function InventoryWorkspace({
   const totalBalancePages = totalPagesFor(balancePagination);
   const totalAdjustmentPages = totalPagesFor(adjustmentPagination);
   const totalLedgerPages = totalPagesFor(ledgerPagination);
+  const balanceSummary = useMemo(
+    () => ({
+      visibleRows: balances.length,
+      onHand: balances.reduce((sum, balance) => sum + Number(balance.on_hand_qty ?? 0), 0),
+      available: balances.reduce((sum, balance) => sum + Number(balance.available_qty ?? 0), 0),
+    }),
+    [balances],
+  );
 
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
+      {!locations.length ? (
+        <article style={surfaceCardStyle}>
+          <h3 style={{ marginTop: 0 }}>Inventory setup</h3>
+          <p style={tokenMutedStyle}>
+            This store does not have an active stock location yet. A default location is now provisioned automatically, so refresh the page if balances were blank before.
+          </p>
+        </article>
+      ) : null}
+
+      <article style={surfaceCardStyle}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start', marginBottom: 12 }}>
+          <div>
+            <h3 style={{ marginTop: 0, marginBottom: 6 }}>Live Balances</h3>
+            <p style={{ ...tokenMutedStyle, marginBottom: 0 }}>
+              Stock should appear here as soon as the store has an active location and sellable SKUs.
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <div style={{ padding: '8px 12px', borderRadius: 10, border: '1px solid rgba(148,163,184,0.22)', background: '#fff', fontSize: 13 }}>
+              Rows: <strong>{balanceSummary.visibleRows}</strong>
+            </div>
+            <div style={{ padding: '8px 12px', borderRadius: 10, border: '1px solid rgba(148,163,184,0.22)', background: '#fff', fontSize: 13 }}>
+              On hand: <strong>{balanceSummary.onHand}</strong>
+            </div>
+            <div style={{ padding: '8px 12px', borderRadius: 10, border: '1px solid rgba(148,163,184,0.22)', background: '#fff', fontSize: 13 }}>
+              Available: <strong>{balanceSummary.available}</strong>
+            </div>
+          </div>
+        </div>
+        <select
+          value={selectedLocationId}
+          onChange={(event) => {
+            const nextLocationId = event.target.value;
+            setSelectedLocationId(nextLocationId);
+            void refreshInventory(1, adjustmentPage, ledgerPage, nextLocationId).catch((error: Error) => setMessage(error.message));
+          }}
+          style={{ ...fieldStyle, marginBottom: 12 }}
+        >
+          <option value="">All locations</option>
+          {locations.map((location) => (
+            <option key={location.id} value={location.id}>
+              {location.code} — {location.name}
+            </option>
+          ))}
+        </select>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, marginBottom: 12 }}>
+          <input value={balanceSearch} onChange={(event) => setBalanceSearch(event.target.value)} style={fieldStyle} placeholder="Search product, SKU, or location" />
+          <button onClick={() => void refreshInventory(1, adjustmentPage, ledgerPage, selectedLocationId)} style={secondaryButtonStyle} disabled={loading}>Search</button>
+        </div>
+        {balances.length ? (
+          <>
+            <div style={tableWrapStyle}>
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={tableHeaderCellStyle}>Product</th>
+                    <th style={tableHeaderCellStyle}>SKU</th>
+                    <th style={tableHeaderCellStyle}>Location</th>
+                    <th style={tableHeaderCellStyle}>On Hand</th>
+                    <th style={tableHeaderCellStyle}>Available</th>
+                    <th style={tableHeaderCellStyle}>Reserved</th>
+                    <th style={tableHeaderCellStyle}>Updated</th>
+                    <th style={tableHeaderCellStyle}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {balances.map((balance) => (
+                    <tr key={`${balance.location_id}-${balance.sku_id}`}>
+                      <td style={tableCellStyle}>{balance.product_name}</td>
+                      <td style={tableCellStyle}>{balance.sku_code}</td>
+                      <td style={tableCellStyle}>{balance.location_name}</td>
+                      <td style={tableCellStyle}>{Number(balance.on_hand_qty)}</td>
+                      <td style={tableCellStyle}>{Number(balance.available_qty)}</td>
+                      <td style={tableCellStyle}>{Number(balance.reserved_qty)}</td>
+                      <td style={tableCellStyle}>{new Date(balance.updated_at).toLocaleString()}</td>
+                      <td style={tableCellStyle}>
+                        <button
+                          onClick={() => {
+                            setSelectedLocationId(balance.location_id);
+                            setSelectedSkuId(balance.sku_id);
+                            setSkuSearch(balance.sku_code);
+                            setSkuResults([
+                              {
+                                id: balance.sku_id,
+                                sku_code: balance.sku_code,
+                                product_name: balance.product_name,
+                              },
+                            ]);
+                            setMessage(`Loaded ${balance.sku_code} into stock control.`);
+                          }}
+                          style={secondaryButtonStyle}
+                          disabled={loading}
+                        >
+                          Use in Stock Control
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <ListPager
+              loading={loading}
+              page={balancePage}
+              pagination={balancePagination}
+              label="balance row(s)"
+              onPrevious={() => void refreshInventory(Math.max(1, balancePage - 1), adjustmentPage, ledgerPage, selectedLocationId)}
+              onNext={() => void refreshInventory(Math.min(totalBalancePages, balancePage + 1), adjustmentPage, ledgerPage, selectedLocationId)}
+            />
+          </>
+        ) : (
+          <div style={emptyStateStyle}>No balances found yet. Products will appear here automatically after at least one active stock location exists for this store.</div>
+        )}
+      </article>
+
       <section style={{ display: 'grid', gridTemplateColumns: '1.1fr 0.9fr', gap: 16 }}>
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Stock Control</h3>
@@ -476,75 +599,6 @@ export function InventoryWorkspace({
           </>
         ) : (
           <div style={emptyStateStyle}>No ledger entries yet.</div>
-        )}
-      </article>
-
-      <article style={surfaceCardStyle}>
-        <h3 style={{ marginTop: 0 }}>Live Balances</h3>
-        <p style={{ ...tokenMutedStyle, marginBottom: 12 }}>
-          Every sellable SKU should appear here automatically after creation, even before quantity is added.
-        </p>
-        <select
-          value={selectedLocationId}
-          onChange={(event) => {
-            const nextLocationId = event.target.value;
-            setSelectedLocationId(nextLocationId);
-            void refreshInventory(1, adjustmentPage, ledgerPage, nextLocationId).catch((error: Error) => setMessage(error.message));
-          }}
-          style={{ ...fieldStyle, marginBottom: 12 }}
-        >
-          <option value="">All locations</option>
-          {locations.map((location) => (
-            <option key={location.id} value={location.id}>
-              {location.code} — {location.name}
-            </option>
-          ))}
-        </select>
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, marginBottom: 12 }}>
-          <input value={balanceSearch} onChange={(event) => setBalanceSearch(event.target.value)} style={fieldStyle} placeholder="Search product, SKU, or location" />
-          <button onClick={() => void refreshInventory(1, adjustmentPage, ledgerPage, selectedLocationId)} style={secondaryButtonStyle} disabled={loading}>Search</button>
-        </div>
-        {balances.length ? (
-          <>
-            <div style={tableWrapStyle}>
-              <table style={tableStyle}>
-                <thead>
-                  <tr>
-                    <th style={tableHeaderCellStyle}>Product</th>
-                    <th style={tableHeaderCellStyle}>SKU</th>
-                    <th style={tableHeaderCellStyle}>Location</th>
-                    <th style={tableHeaderCellStyle}>On Hand</th>
-                    <th style={tableHeaderCellStyle}>Available</th>
-                    <th style={tableHeaderCellStyle}>Reserved</th>
-                    <th style={tableHeaderCellStyle}>Updated</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {balances.map((balance) => (
-                    <tr key={`${balance.location_id}-${balance.sku_id}`}>
-                      <td style={tableCellStyle}>{balance.product_name}</td>
-                      <td style={tableCellStyle}>{balance.sku_code}</td>
-                      <td style={tableCellStyle}>{balance.location_name}</td>
-                      <td style={tableCellStyle}>{Number(balance.on_hand_qty)}</td>
-                      <td style={tableCellStyle}>{Number(balance.available_qty)}</td>
-                      <td style={tableCellStyle}>{Number(balance.reserved_qty)}</td>
-                      <td style={tableCellStyle}>{new Date(balance.updated_at).toLocaleString()}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <ListPager
-              loading={loading}
-              page={balancePage}
-              pagination={balancePagination}
-              label="balance row(s)"
-              onPrevious={() => void refreshInventory(Math.max(1, balancePage - 1), adjustmentPage, ledgerPage, selectedLocationId)}
-              onNext={() => void refreshInventory(Math.min(totalBalancePages, balancePage + 1), adjustmentPage, ledgerPage, selectedLocationId)}
-            />
-          </>
-        ) : (
-          <div style={emptyStateStyle}>No balances found yet. Create a product with a SKU first, then the stock list will appear here automatically.</div>
         )}
       </article>
 
