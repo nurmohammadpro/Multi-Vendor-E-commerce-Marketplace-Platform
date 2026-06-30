@@ -3,9 +3,12 @@
 import { useEffect, useState } from 'react';
 
 import {
+  accentButtonStyle,
   emptyStateStyle,
   fieldStyle,
+  neutralButtonStyle,
   pageShellStyle,
+  sectionPanelStyle,
   secondaryButtonStyle,
   surfaceCardStyle,
   tableCellStyle,
@@ -168,7 +171,7 @@ export function BankingWorkspace() {
 
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
-      <section style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 0.95fr) minmax(420px, 1.05fr)', gap: 16 }}>
+      <section style={{ ...sectionPanelStyle, gridTemplateColumns: 'minmax(320px, 0.95fr) minmax(420px, 1.05fr)' }}>
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Bank Accounts</h3>
           <div style={{ display: 'grid', gap: 10 }}>
@@ -177,7 +180,7 @@ export function BankingWorkspace() {
             <input value={accountForm.accountNumber} onChange={(event) => setAccountForm((current) => ({ ...current, accountNumber: event.target.value }))} style={fieldStyle} placeholder="Account number" />
             <input value={accountForm.openingBalance} onChange={(event) => setAccountForm((current) => ({ ...current, openingBalance: event.target.value }))} style={fieldStyle} placeholder="Opening balance" />
             <input value={accountForm.currentBalance} onChange={(event) => setAccountForm((current) => ({ ...current, currentBalance: event.target.value }))} style={fieldStyle} placeholder="Current balance" />
-            <button onClick={saveAccount} style={secondaryButtonStyle} disabled={loading}>Save Bank Account</button>
+            <button onClick={saveAccount} style={accentButtonStyle} disabled={loading}>Save Bank Account</button>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, marginTop: 12 }}>
             <input value={accountSearch} onChange={(event) => setAccountSearch(event.target.value)} style={fieldStyle} placeholder="Search account, bank, or number" />
@@ -250,7 +253,7 @@ export function BankingWorkspace() {
               <option value="matched">Matched</option>
               <option value="flagged">Flagged</option>
             </select>
-            <button onClick={saveEntry} style={secondaryButtonStyle} disabled={loading}>Save Entry</button>
+            <button onClick={saveEntry} style={accentButtonStyle} disabled={loading}>Save Entry</button>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, marginTop: 12 }}>
             <input value={entrySearch} onChange={(event) => setEntrySearch(event.target.value)} style={fieldStyle} placeholder="Search account, reference, or source" />

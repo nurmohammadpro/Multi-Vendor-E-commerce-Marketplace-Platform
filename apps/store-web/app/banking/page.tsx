@@ -1,7 +1,5 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-
 import { getStoreConsoleAccess } from '../../lib/access';
-import { pageShellStyle, sectionLabelStyle, tokenMutedStyle } from '../motocore-theme';
+import { emptyStateStyle, pageIntroCardStyle, pageLeadStyle, pageShellStyle, pageTitleStyle, sectionIntroStyle, sectionLabelStyle, surfaceCardStyle } from '../motocore-theme';
 import { BankingWorkspace } from './banking-workspace';
 
 export default async function StoreBankingPage() {
@@ -9,20 +7,20 @@ export default async function StoreBankingPage() {
 
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
-      <div style={{ maxWidth: 900 }}>
+      <div style={{ ...sectionIntroStyle, ...pageIntroCardStyle, maxWidth: 900 }}>
         <div style={sectionLabelStyle}>Banking Reconciliation</div>
-        <h2 style={{ margin: '8px 0 8px', fontSize: 'clamp(20px, 2vw, 28px)', fontWeight: 500, letterSpacing: '-0.02em' }}>Bank accounts and reconciliation entries</h2>
-        <p style={tokenMutedStyle}>
+        <h2 style={pageTitleStyle}>Bank accounts and reconciliation entries</h2>
+        <p style={pageLeadStyle}>
           Track bank accounts, add statement-side entries, and manage matched or flagged reconciliation items.
         </p>
       </div>
       {access.canUseBankingReconciliation ? (
         <BankingWorkspace />
       ) : (
-        <Card>
-          <CardHeader><CardTitle>Banking Reconciliation locked</CardTitle></CardHeader>
-          <CardContent className="text-sm text-muted-foreground">Upgrade to Pro to use this workflow.</CardContent>
-        </Card>
+        <article style={surfaceCardStyle}>
+          <h3 style={{ marginTop: 0 }}>Banking Reconciliation locked</h3>
+          <div style={emptyStateStyle}>Upgrade to Pro to use this workflow.</div>
+        </article>
       )}
     </section>
   );

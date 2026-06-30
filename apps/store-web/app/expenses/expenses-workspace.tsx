@@ -3,10 +3,13 @@
 import { useEffect, useState } from 'react';
 
 import {
+  accentButtonStyle,
   emptyStateStyle,
   fieldStyle,
+  sectionPanelStyle,
   pageShellStyle,
   secondaryButtonStyle,
+  subtleButtonStyle,
   surfaceCardStyle,
   tableCellStyle,
   tableHeaderCellStyle,
@@ -101,7 +104,7 @@ export function ExpensesWorkspace() {
 
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
-      <section style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 0.9fr) minmax(420px, 1.1fr)', gap: 16 }}>
+      <section style={{ ...sectionPanelStyle, gridTemplateColumns: 'minmax(320px, 0.9fr) minmax(420px, 1.1fr)' }}>
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Record Expense</h3>
           <div style={{ display: 'grid', gap: 10 }}>
@@ -121,7 +124,7 @@ export function ExpensesWorkspace() {
               <option value="void">Void</option>
             </select>
             <textarea value={form.note} onChange={(event) => setForm((current) => ({ ...current, note: event.target.value }))} style={{ ...fieldStyle, minHeight: 90 }} placeholder="Note" />
-            <button onClick={saveExpense} style={secondaryButtonStyle} disabled={loading}>{selectedExpenseId ? 'Update Expense' : 'Save Expense'}</button>
+            <button onClick={saveExpense} style={accentButtonStyle} disabled={loading}>{selectedExpenseId ? 'Update Expense' : 'Save Expense'}</button>
           </div>
         </article>
 
@@ -169,7 +172,7 @@ export function ExpensesWorkspace() {
                                 note: expense.note || '',
                               });
                             }}
-                            style={secondaryButtonStyle}
+                            style={subtleButtonStyle}
                           >
                             Edit
                           </button>

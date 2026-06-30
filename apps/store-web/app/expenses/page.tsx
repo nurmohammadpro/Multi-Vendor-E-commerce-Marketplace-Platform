@@ -1,7 +1,5 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-
 import { getStoreConsoleAccess } from '../../lib/access';
-import { pageShellStyle, sectionLabelStyle, tokenMutedStyle } from '../motocore-theme';
+import { emptyStateStyle, pageIntroCardStyle, pageLeadStyle, pageShellStyle, pageTitleStyle, sectionIntroStyle, sectionLabelStyle, surfaceCardStyle } from '../motocore-theme';
 import { ExpensesWorkspace } from './expenses-workspace';
 
 export default async function StoreExpensesPage() {
@@ -9,20 +7,20 @@ export default async function StoreExpensesPage() {
 
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
-      <div style={{ maxWidth: 900 }}>
+      <div style={{ ...sectionIntroStyle, ...pageIntroCardStyle, maxWidth: 900 }}>
         <div style={sectionLabelStyle}>Daily Expense</div>
-        <h2 style={{ margin: '8px 0 8px', fontSize: 'clamp(20px, 2vw, 28px)', fontWeight: 500, letterSpacing: '-0.02em' }}>Daily expense control</h2>
-        <p style={tokenMutedStyle}>
+        <h2 style={pageTitleStyle}>Daily expense control</h2>
+        <p style={pageLeadStyle}>
           Record, review, and update day-level operating expenses for the store.
         </p>
       </div>
       {access.canUseDailyExpense ? (
         <ExpensesWorkspace />
       ) : (
-        <Card>
-          <CardHeader><CardTitle>Daily Expense locked</CardTitle></CardHeader>
-          <CardContent className="text-sm text-muted-foreground">Upgrade to Standard to use this workflow.</CardContent>
-        </Card>
+        <article style={surfaceCardStyle}>
+          <h3 style={{ marginTop: 0 }}>Daily Expense locked</h3>
+          <div style={emptyStateStyle}>Upgrade to Standard to use this workflow.</div>
+        </article>
       )}
     </section>
   );

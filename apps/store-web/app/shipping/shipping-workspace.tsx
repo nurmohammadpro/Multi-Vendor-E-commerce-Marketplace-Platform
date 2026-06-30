@@ -3,10 +3,13 @@
 import { useEffect, useState } from 'react';
 
 import {
+  accentButtonStyle,
   emptyStateStyle,
   fieldStyle,
+  neutralButtonStyle,
   pageShellStyle,
-  secondaryButtonStyle,
+  sectionPanelStyle,
+  subtleButtonStyle,
   surfaceCardStyle,
   tableCellStyle,
   tableHeaderCellStyle,
@@ -57,7 +60,6 @@ type Pagination = {
 
 const cardStyle = surfaceCardStyle;
 const inputStyle = fieldStyle;
-const buttonStyle = secondaryButtonStyle;
 
 async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
   const response = await fetch(input, init);
@@ -208,7 +210,7 @@ export function ShippingWorkspace({
 
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
-      <article style={cardStyle}>
+      <article style={{ ...cardStyle, ...sectionPanelStyle }}>
         <h3 style={{ marginTop: 0 }}>Create Shipment</h3>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
           <input value={form.saleId} onChange={(e) => setForm((v) => ({ ...v, saleId: e.target.value }))} style={inputStyle} placeholder="Sale ID (optional)" />
@@ -225,10 +227,10 @@ export function ShippingWorkspace({
           <input value={form.note} onChange={(e) => setForm((v) => ({ ...v, note: e.target.value }))} style={inputStyle} placeholder="Note" />
         </div>
         <textarea value={form.deliveryAddress} onChange={(e) => setForm((v) => ({ ...v, deliveryAddress: e.target.value }))} style={{ ...inputStyle, minHeight: 90, marginTop: 10, marginBottom: 10 }} placeholder="Delivery address" />
-        <button onClick={createShipment} style={buttonStyle} disabled={!canCreateShipment || !canManageShipping}>Create Shipment</button>
+        <button onClick={createShipment} style={accentButtonStyle} disabled={!canCreateShipment || !canManageShipping}>Create Shipment</button>
       </article>
 
-      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
+      <section style={{ ...sectionPanelStyle, gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
         <article style={cardStyle}>
           <h3 style={{ marginTop: 0 }}>Shipments</h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) minmax(180px, 200px) auto', gap: 10, marginBottom: 12 }}>
@@ -243,7 +245,7 @@ export function ShippingWorkspace({
               <option value="failed">Failed</option>
               <option value="returned">Returned</option>
             </select>
-            <button onClick={() => void refresh(1)} style={secondaryButtonStyle} disabled={loading}>Apply</button>
+            <button onClick={() => void refresh(1)} style={neutralButtonStyle} disabled={loading}>Apply</button>
           </div>
           {shipments.length ? (
             <div style={tableWrapStyle}>
@@ -263,7 +265,7 @@ export function ShippingWorkspace({
                   {shipments.map((shipment) => (
                     <tr key={shipment.id}>
                       <td style={tableCellStyle}>
-                        <button onClick={() => void loadShipment(shipment.id)} style={secondaryButtonStyle}>{shipment.shipment_no}</button>
+                        <button onClick={() => void loadShipment(shipment.id)} style={subtleButtonStyle}>{shipment.shipment_no}</button>
                       </td>
                       <td style={tableCellStyle}>
                         {shipment.customer_name}
@@ -298,8 +300,8 @@ export function ShippingWorkspace({
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginTop: 12 }}>
             <span style={tokenMutedStyle}>Page {page} of {totalPages} · {pagination.total} shipment(s)</span>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => void refresh(Math.max(1, page - 1))} style={secondaryButtonStyle} disabled={loading || page <= 1}>Previous</button>
-              <button onClick={() => void refresh(Math.min(totalPages, page + 1))} style={secondaryButtonStyle} disabled={loading || page >= totalPages}>Next</button>
+              <button onClick={() => void refresh(Math.max(1, page - 1))} style={neutralButtonStyle} disabled={loading || page <= 1}>Previous</button>
+              <button onClick={() => void refresh(Math.min(totalPages, page + 1))} style={neutralButtonStyle} disabled={loading || page >= totalPages}>Next</button>
             </div>
           </div>
         </article>
