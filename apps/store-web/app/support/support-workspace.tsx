@@ -3,10 +3,14 @@
 import { useEffect, useState } from 'react';
 
 import {
+  accentButtonStyle,
   emptyStateStyle,
   fieldStyle,
+  neutralButtonStyle,
   pageShellStyle,
+  sectionPanelStyle,
   secondaryButtonStyle,
+  subtleButtonStyle,
   surfaceCardStyle,
   tableCellStyle,
   tableHeaderCellStyle,
@@ -178,7 +182,7 @@ export function SupportWorkspace({
 
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
-      <section style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 1fr) minmax(360px, 1.1fr)', gap: 16 }}>
+      <section style={{ ...sectionPanelStyle, gridTemplateColumns: 'minmax(320px, 1fr) minmax(360px, 1.1fr)' }}>
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>{kind === 'dispute' ? 'Open dispute case' : 'Open support ticket'}</h3>
           <div style={{ display: 'grid', gap: 10 }}>
@@ -204,7 +208,7 @@ export function SupportWorkspace({
               style={{ ...fieldStyle, minHeight: 120 }}
               placeholder={kind === 'dispute' ? 'Describe the refund, returned items, and customer context.' : 'Describe the support issue clearly.'}
             />
-            <button onClick={createTicket} style={secondaryButtonStyle} disabled={loading}>
+            <button onClick={createTicket} style={accentButtonStyle} disabled={loading}>
               {kind === 'dispute' ? 'Create dispute case' : 'Create support ticket'}
             </button>
           </div>
@@ -245,7 +249,7 @@ export function SupportWorkspace({
                       <td style={tableCellStyle}>{ticket.status}</td>
                       <td style={tableCellStyle}>{new Date(ticket.created_at).toLocaleString()}</td>
                       <td style={tableCellStyle}>
-                        <button onClick={() => void loadTicket(ticket.id)} style={secondaryButtonStyle}>Open</button>
+                        <button onClick={() => void loadTicket(ticket.id)} style={subtleButtonStyle}>Open</button>
                       </td>
                     </tr>
                   ))}
@@ -260,8 +264,8 @@ export function SupportWorkspace({
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginTop: 12 }}>
             <span style={tokenMutedStyle}>Page {page} of {totalPages} · {pagination.total} ticket(s)</span>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => void refresh(Math.max(1, page - 1))} style={secondaryButtonStyle} disabled={loading || page <= 1}>Previous</button>
-              <button onClick={() => void refresh(Math.min(totalPages, page + 1))} style={secondaryButtonStyle} disabled={loading || page >= totalPages}>Next</button>
+              <button onClick={() => void refresh(Math.max(1, page - 1))} style={neutralButtonStyle} disabled={loading || page <= 1}>Previous</button>
+              <button onClick={() => void refresh(Math.min(totalPages, page + 1))} style={neutralButtonStyle} disabled={loading || page >= totalPages}>Next</button>
             </div>
           </div>
         </article>
@@ -309,7 +313,7 @@ export function SupportWorkspace({
               style={{ ...fieldStyle, minHeight: 100 }}
               placeholder="Reply to this ticket"
             />
-            <button onClick={sendReply} style={secondaryButtonStyle} disabled={loading}>
+            <button onClick={sendReply} style={accentButtonStyle} disabled={loading}>
               Send reply
             </button>
           </div>

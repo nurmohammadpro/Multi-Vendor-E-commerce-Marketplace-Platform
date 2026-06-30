@@ -12,6 +12,7 @@ import {
   motocoreColors,
   pageShellStyle,
   pillStyle,
+  sectionPanelStyle,
   sectionLabelStyle,
   surfaceCardStyle,
   tokenMutedStyle,
@@ -109,16 +110,16 @@ export default async function StoreDashboardPage() {
         </div>
       </div>
 
-      <div style={{ borderTop: `1px solid ${motocoreColors.border}` }} />
+      <div style={{ borderTop: `1px solid ${motocoreColors.borderStrong}` }} />
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+      <div style={{ ...sectionPanelStyle, gridTemplateColumns: 'repeat(4, 1fr)' }}>
         <MetricCard title="Total Sales" value={salesReport?.summary?.total_sales_amount ?? '—'} note="Completed sales pulled from the reporting API." />
         <MetricCard title="Orders" value={salesReport?.summary?.total_orders_count ?? '—'} note="Recent completed order volume." />
         <MetricCard title="Available Stock" value={inventoryReport?.summary?.total_available_qty ?? '—'} note="Available inventory across store locations." />
         <MetricCard title="Active Plan" value={access.planName} note="The current store subscription tier." />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
+      <div style={{ ...sectionPanelStyle, gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>
         {availableQuickActions.map((action) => {
           const Icon = action.icon;
           return (
@@ -152,7 +153,7 @@ export default async function StoreDashboardPage() {
         </article>
       ) : null}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
+      <div style={{ ...sectionPanelStyle, gridTemplateColumns: 'repeat(2, 1fr)' }}>
         <article style={surfaceCardStyle}>
           <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 12 }}>Subscription scope</div>
           <ul style={{ ...tokenMutedStyle, paddingLeft: 20, display: 'grid', gap: 6, fontSize: 13 }}>

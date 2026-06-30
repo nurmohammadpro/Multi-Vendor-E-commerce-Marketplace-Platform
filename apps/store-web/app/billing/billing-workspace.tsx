@@ -3,12 +3,16 @@
 import { useEffect, useState } from 'react';
 
 import {
+  accentButtonStyle,
   emptyStateStyle,
   fieldStyle,
   metricLabelStyle,
   metricValueStyle,
+  neutralButtonStyle,
   pageShellStyle,
+  sectionPanelStyle,
   secondaryButtonStyle,
+  subtleButtonStyle,
   surfaceCardStyle,
   tableCellStyle,
   tableHeaderCellStyle,
@@ -202,7 +206,7 @@ export function BillingWorkspace({ canManageBilling }: { canManageBilling: boole
 
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
-      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
+      <section style={{ ...sectionPanelStyle, gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Current Subscription</h3>
           {subscription ? (
@@ -239,13 +243,13 @@ export function BillingWorkspace({ canManageBilling }: { canManageBilling: boole
             <input type="checkbox" checked={changeForm.autoRenew} onChange={(e) => setChangeForm((v) => ({ ...v, autoRenew: e.target.checked }))} />
             Auto renew
           </label>
-          <button onClick={changeSubscription} style={secondaryButtonStyle} disabled={!canUpdateSubscription}>
+          <button onClick={changeSubscription} style={accentButtonStyle} disabled={!canUpdateSubscription}>
             Update Subscription
           </button>
         </article>
       </section>
 
-      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
+      <section style={{ ...sectionPanelStyle, gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Plans</h3>
           {plans.length ? (
@@ -317,7 +321,7 @@ export function BillingWorkspace({ canManageBilling }: { canManageBilling: boole
                       <td style={tableCellStyle}>{invoice.paid_amount}</td>
                       <td style={tableCellStyle}>{invoice.due_at ? new Date(invoice.due_at).toLocaleDateString() : '—'}</td>
                       <td style={tableCellStyle}>
-                        <button onClick={() => void loadInvoice(invoice.id)} style={secondaryButtonStyle}>Open</button>
+                        <button onClick={() => void loadInvoice(invoice.id)} style={subtleButtonStyle}>Open</button>
                       </td>
                     </tr>
                   ))}
@@ -330,8 +334,8 @@ export function BillingWorkspace({ canManageBilling }: { canManageBilling: boole
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginTop: 12 }}>
             <span style={tokenMutedStyle}>Page {invoicePage} of {totalInvoicePages} · {invoicePagination.total} invoice(s)</span>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => void refresh(Math.max(1, invoicePage - 1))} style={secondaryButtonStyle} disabled={loading || invoicePage <= 1}>Previous</button>
-              <button onClick={() => void refresh(Math.min(totalInvoicePages, invoicePage + 1))} style={secondaryButtonStyle} disabled={loading || invoicePage >= totalInvoicePages}>Next</button>
+              <button onClick={() => void refresh(Math.max(1, invoicePage - 1))} style={neutralButtonStyle} disabled={loading || invoicePage <= 1}>Previous</button>
+              <button onClick={() => void refresh(Math.min(totalInvoicePages, invoicePage + 1))} style={neutralButtonStyle} disabled={loading || invoicePage >= totalInvoicePages}>Next</button>
             </div>
           </div>
         </article>
@@ -362,7 +366,7 @@ export function BillingWorkspace({ canManageBilling }: { canManageBilling: boole
               <input value={paymentForm.amount} onChange={(e) => setPaymentForm((v) => ({ ...v, amount: e.target.value }))} style={fieldStyle} placeholder="Amount" />
               <input value={paymentForm.referenceNo} onChange={(e) => setPaymentForm((v) => ({ ...v, referenceNo: e.target.value }))} style={fieldStyle} placeholder="Reference no" />
             </div>
-            <button onClick={payInvoice} style={secondaryButtonStyle} disabled={!canPayInvoice}>Record Payment</button>
+            <button onClick={payInvoice} style={accentButtonStyle} disabled={!canPayInvoice}>Record Payment</button>
             {selectedInvoice.payments.length ? (
               <div style={tableWrapStyle}>
                 <table style={tableStyle}>

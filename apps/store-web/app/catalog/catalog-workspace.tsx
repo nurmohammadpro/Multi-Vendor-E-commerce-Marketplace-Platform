@@ -4,9 +4,12 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import {
+  accentButtonStyle,
+  dangerButtonStyle,
   emptyStateStyle,
   fieldStyle,
   secondaryButtonStyle,
+  subtleButtonStyle,
   surfaceCardStyle,
   tableCellStyle,
   tableHeaderCellStyle,
@@ -968,7 +971,7 @@ export function CatalogWorkspace({
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                       <div style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>5. Ready-to-sell variant rows</div>
-                      <button onClick={addProductVariantRow} style={{ ...buttonStyle, fontSize: 12, padding: '4px 10px' }} disabled={loading}>
+                      <button onClick={addProductVariantRow} style={accentButtonStyle} disabled={loading}>
                         + Add Row
                       </button>
                     </div>
@@ -1031,7 +1034,7 @@ export function CatalogWorkspace({
                                 <td style={tableCellStyle}>
                                   <button
                                     onClick={() => removeProductVariantRow(row.key)}
-                                    style={{ ...buttonStyle, color: '#dc2626', borderColor: '#dc2626', fontSize: 12, padding: '2px 8px' }}
+                                    style={dangerButtonStyle}
                                     disabled={loading}
                                   >
                                     X
@@ -1147,7 +1150,7 @@ export function CatalogWorkspace({
                                   parentId: category.parent_id ?? '',
                                 });
                               }}
-                              style={buttonStyle}
+                              style={subtleButtonStyle}
                             >
                               Edit
                             </button>
@@ -1157,13 +1160,13 @@ export function CatalogWorkspace({
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ status: category.status === 'inactive' ? 'active' : 'inactive' }),
                               }).then(() => refreshBase()).then(() => setMessage(`Category ${category.status === 'inactive' ? 'activated' : 'archived'}.`)).catch((error: Error) => setMessage(error.message))}
-                              style={buttonStyle}
+                              style={subtleButtonStyle}
                             >
                               {category.status === 'inactive' ? 'Activate' : 'Archive'}
                             </button>
                             <button
                               onClick={() => openDeleteConfirm('category', category.id, category.name)}
-                              style={{ ...buttonStyle, color: '#dc2626', borderColor: '#dc2626' }}
+                              style={dangerButtonStyle}
                             >
                               Delete
                             </button>
@@ -1216,7 +1219,7 @@ export function CatalogWorkspace({
                                 setEditingBrandId(brand.id);
                                 setBrandForm({ name: brand.name });
                               }}
-                              style={buttonStyle}
+                              style={subtleButtonStyle}
                             >
                               Edit
                             </button>
@@ -1226,13 +1229,13 @@ export function CatalogWorkspace({
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ status: brand.status === 'inactive' ? 'active' : 'inactive' }),
                               }).then(() => refreshBase()).then(() => setMessage(`Brand ${brand.status === 'inactive' ? 'activated' : 'archived'}.`)).catch((error: Error) => setMessage(error.message))}
-                              style={buttonStyle}
+                              style={subtleButtonStyle}
                             >
                               {brand.status === 'inactive' ? 'Activate' : 'Archive'}
                             </button>
                             <button
                               onClick={() => openDeleteConfirm('brand', brand.id, brand.name)}
-                              style={{ ...buttonStyle, color: '#dc2626', borderColor: '#dc2626' }}
+                              style={dangerButtonStyle}
                             >
                               Delete
                             </button>
@@ -1316,7 +1319,7 @@ export function CatalogWorkspace({
                                   variantMode: product.variant_mode,
                                 }));
                               }}
-                              style={buttonStyle}
+                              style={subtleButtonStyle}
                             >
                               Edit
                             </button>
@@ -1329,7 +1332,7 @@ export function CatalogWorkspace({
                                   body: JSON.stringify({ status: product.status === 'archived' ? 'active' : 'archived' }),
                                 }).then(() => refreshBase()).then(() => setMessage(`Product ${product.status === 'archived' ? 'activated' : 'archived'}.`)).catch((error: Error) => setMessage(error.message));
                               }}
-                              style={buttonStyle}
+                              style={subtleButtonStyle}
                             >
                               {product.status === 'archived' ? 'Activate' : 'Archive'}
                             </button>
@@ -1338,7 +1341,7 @@ export function CatalogWorkspace({
                                 event.stopPropagation();
                                 openDeleteConfirm('product', product.id, product.name);
                               }}
-                              style={{ ...buttonStyle, color: '#dc2626', borderColor: '#dc2626' }}
+                              style={dangerButtonStyle}
                             >
                               Delete
                             </button>
@@ -1434,7 +1437,7 @@ export function CatalogWorkspace({
                                 setEditingGroupId(group.id);
                                 setGroupForm({ code: group.code, name: group.name, inputType: group.input_type });
                               }}
-                              style={buttonStyle}
+                              style={subtleButtonStyle}
                             >
                               Edit
                             </button>
@@ -1444,7 +1447,7 @@ export function CatalogWorkspace({
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ status: group.status === 'inactive' ? 'active' : 'inactive' }),
                               }).then(() => refreshDetail(selectedProductId)).then(() => setMessage(`Variant group ${group.status === 'inactive' ? 'activated' : 'archived'}.`)).catch((error: Error) => setMessage(error.message))}
-                              style={buttonStyle}
+                              style={subtleButtonStyle}
                             >
                               {group.status === 'inactive' ? 'Activate' : 'Archive'}
                             </button>
@@ -1490,7 +1493,7 @@ export function CatalogWorkspace({
                                     colorHex: option.colorHex || '',
                                   });
                                 }}
-                                style={buttonStyle}
+                                style={subtleButtonStyle}
                               >
                                 Edit
                               </button>
@@ -1500,7 +1503,7 @@ export function CatalogWorkspace({
                                   headers: { 'Content-Type': 'application/json' },
                                   body: JSON.stringify({ status: option.status === 'inactive' ? 'active' : 'inactive' }),
                                 }).then(() => refreshDetail(selectedProductId)).then(() => setMessage(`Variant option ${option.status === 'inactive' ? 'activated' : 'archived'}.`)).catch((error: Error) => setMessage(error.message))}
-                                style={buttonStyle}
+                                style={subtleButtonStyle}
                               >
                                 {option.status === 'inactive' ? 'Activate' : 'Archive'}
                               </button>
@@ -1791,8 +1794,8 @@ export function CatalogWorkspace({
                               <td style={tableCellStyle}>
                                 {canApprovePriceChanges && request.status === 'pending' ? (
                                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                                    <button onClick={() => decidePriceRequest(request.id, 'approve')} style={buttonStyle} disabled={loading}>Approve</button>
-                                    <button onClick={() => decidePriceRequest(request.id, 'reject')} style={buttonStyle} disabled={loading}>Reject</button>
+                                    <button onClick={() => decidePriceRequest(request.id, 'approve')} style={accentButtonStyle} disabled={loading}>Approve</button>
+                                    <button onClick={() => decidePriceRequest(request.id, 'reject')} style={dangerButtonStyle} disabled={loading}>Reject</button>
                                   </div>
                                 ) : '—'}
                               </td>

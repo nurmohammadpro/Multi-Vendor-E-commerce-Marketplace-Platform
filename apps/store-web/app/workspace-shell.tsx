@@ -104,7 +104,7 @@ export function WorkspaceShell({ navItems, title, badge, children, access }: Wor
         <AppSidebar access={access} navItems={navItems} pathname={pathname} badge={badge} title={title} />
         <div className="flex flex-1 min-w-0 flex-col">
           <Header access={access} />
-          <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-auto">
+          <main className="flex-1 overflow-auto bg-slate-50/80 p-4 sm:p-6 lg:p-8">
             <div className="w-full">{children}</div>
           </main>
         </div>

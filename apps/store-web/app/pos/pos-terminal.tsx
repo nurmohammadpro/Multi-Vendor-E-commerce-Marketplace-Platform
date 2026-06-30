@@ -16,9 +16,14 @@ import {
 import { loadWorkstationProfile } from '../../lib/workstation-profile';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import {
+  accentButtonStyle,
+  compactSurfaceCardStyle,
   fieldStyle,
+  neutralButtonStyle,
+  sectionPanelStyle,
   primaryButtonStyle,
   secondaryButtonStyle,
+  subtleButtonStyle,
   surfaceCardStyle,
   tableCellStyle,
   tableHeaderCellStyle,
@@ -112,6 +117,7 @@ const SHOW_SHIFT_CONTROLS = false;
 const currency = (value: number) => value.toFixed(2);
 
 const cardStyle = surfaceCardStyle;
+const compactCardStyle = compactSurfaceCardStyle;
 const inputStyle = fieldStyle;
 const buttonStyle = secondaryButtonStyle;
 
@@ -637,24 +643,24 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
 
   return (
     <section style={{ display: 'grid', gap: 20 }}>
-      <section style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.3fr) minmax(360px, 0.7fr)', gap: 16 }}>
-        <section style={{ display: 'grid', gap: 16 }}>
-          <article style={cardStyle}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start', marginBottom: 12 }}>
+      <section style={{ ...sectionPanelStyle, gridTemplateColumns: 'minmax(0, 1.3fr) minmax(360px, 0.7fr)' }}>
+        <section style={{ display: 'grid', gridTemplateRows: 'auto minmax(360px, 1fr)', gap: 10 }}>
+          <article style={compactCardStyle}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', alignItems: 'flex-start', marginBottom: 8 }}>
               <div>
-                <h3 style={{ marginTop: 0, marginBottom: 6 }}>Product Search</h3>
-                <p style={{ margin: 0, color: '#475569' }}>
-                  Search, scan, select variant if needed, then keep checkout moving.
+                <h3 style={{ marginTop: 0, marginBottom: 4, fontSize: 14 }}>Product Search</h3>
+                <p style={{ margin: 0, color: '#475569', fontSize: 12, lineHeight: 1.35 }}>
+                  Search, scan, and select the exact sellable item fast.
                 </p>
               </div>
-              <div style={{ display: 'grid', gap: 4, fontSize: 12, color: '#64748b', textAlign: 'right' }}>
+              <div style={{ display: 'grid', gap: 2, fontSize: 11, color: '#64748b', textAlign: 'right' }}>
                 <div>Register: {selectedRegister?.name || 'Not selected'}</div>
                 <div>Location: {locations.find((location) => location.id === selectedLocationId)?.name || 'Not selected'}</div>
               </div>
             </div>
 
             <div style={{ position: 'relative' }}>
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <div style={{ position: 'relative', flex: 1 }}>
                   <input
                     value={search}
@@ -732,7 +738,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                               setShowSuggestions(false);
                               void openVariantPicker(group.productId);
                             }}
-                            style={{ ...buttonStyle, fontSize: 12, padding: '4px 10px' }}
+                            style={accentButtonStyle}
                           >
                             Choose Variant
                           </button>
@@ -744,7 +750,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                               clearSearchState();
                               setMessage(`${group.productName} added to cart.`);
                             }}
-                            style={{ ...buttonStyle, fontSize: 12, padding: '4px 10px' }}
+                            style={neutralButtonStyle}
                           >
                             Add
                           </button>
@@ -754,7 +760,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                           onClick={() => {
                             handlePrintLabel(group.skus[0]);
                           }}
-                          style={{ ...buttonStyle, fontSize: 12, padding: '4px 10px' }}
+                          style={subtleButtonStyle}
                         >
                           Label
                         </button>
@@ -766,8 +772,8 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
             </div>
           </article>
 
-          <article style={cardStyle}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
+          <article style={{ ...cardStyle, display: 'grid', gridTemplateRows: 'auto minmax(0, 1fr)', minHeight: 420 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
               <div>
                 <h3 style={{ marginTop: 0, marginBottom: 6 }}>Cart</h3>
                 <p style={{ margin: 0, color: '#475569' }}>
@@ -779,7 +785,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
               </div>
             </div>
             {cart.length ? (
-              <div style={tableWrapStyle}>
+              <div style={{ ...tableWrapStyle, height: '100%' }}>
                 <table style={tableStyle}>
                   <thead>
                     <tr>
@@ -818,7 +824,9 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                 </table>
               </div>
             ) : (
-              <p style={{ marginBottom: 0, color: '#64748b' }}>Cart is empty. Scan or search a product to start the sale.</p>
+              <div style={{ display: 'grid', placeItems: 'center', height: '100%', color: '#64748b', fontSize: 13 }}>
+                Cart is empty. Scan or search a product to start the sale.
+              </div>
             )}
           </article>
         </section>
@@ -984,11 +992,11 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                   }
                 }
               }}
-              style={{ ...primaryButtonStyle, fontSize: 14, padding: '8px 20px' }}
+              style={primaryButtonStyle}
             >
               Print Invoice
             </button>
-            <button onClick={() => setInvoiceModalOpen(false)} style={{ ...buttonStyle, fontSize: 14, padding: '8px 20px' }}>
+            <button onClick={() => setInvoiceModalOpen(false)} style={neutralButtonStyle}>
               Close
             </button>
           </div>
@@ -1001,7 +1009,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
         </SheetContent>
       </Sheet>
 
-      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
+      <section style={{ ...sectionPanelStyle, gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
         <article style={{ ...cardStyle, padding: 14 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
             <h4 style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Workstation</h4>
@@ -1019,7 +1027,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
               </div>
             ) : null}
           </div>
-          <button onClick={handleOpenDrawer} style={{ ...buttonStyle, marginTop: 8, fontSize: 12, padding: '6px 10px' }} disabled={Boolean(printError)}>
+          <button onClick={handleOpenDrawer} style={{ ...subtleButtonStyle, marginTop: 8 }} disabled={Boolean(printError)}>
             Test Cash Drawer
           </button>
         </article>
@@ -1040,7 +1048,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
           {SHOW_SHIFT_CONTROLS ? (
             <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
               <input value={openingCash} onChange={(event) => setOpeningCash(event.target.value)} style={{ ...inputStyle, fontSize: 12 }} placeholder="Opening cash" />
-              <button onClick={openShift} style={{ ...buttonStyle, fontSize: 12, padding: '6px 10px' }} disabled={loading || Boolean(openShiftId)}>Open</button>
+              <button onClick={openShift} style={accentButtonStyle} disabled={loading || Boolean(openShiftId)}>Open</button>
             </div>
           ) : null}
         </article>
