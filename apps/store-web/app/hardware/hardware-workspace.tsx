@@ -13,6 +13,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { fieldStyle } from '../motocore-theme';
+import { useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
 import { fetchPrintAgentHealth, openCashDrawer, printLabel, printReceipt, type PrintAgentHealth } from '../../lib/print-agent';
 import { loadWorkstationProfile, saveWorkstationProfile } from '../../lib/workstation-profile';
 
@@ -80,6 +81,7 @@ async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
 }
 
 export function HardwareWorkspace({ canManageSettings }: { canManageSettings: boolean }) {
+  const compact = useCompactLayout();
   const [printHealth, setPrintHealth] = useState<PrintAgentHealth | null>(null);
   const [printError, setPrintError] = useState<string | null>(null);
   const [receiptPrinterName, setReceiptPrinterName] = useState('');
@@ -90,6 +92,7 @@ export function HardwareWorkspace({ canManageSettings }: { canManageSettings: bo
   const [remoteProfile, setRemoteProfile] = useState<HardwareProfilePayload['profile']>({});
   const [catalog, setCatalog] = useState<HardwareProfilePayload['catalog']>({});
   const [autostart, setAutostart] = useState<HardwareProfilePayload['autostart']>({});
+  const [activeTab, setActiveTab] = useState<'profile' | 'status' | 'guides'>('profile');
 
   const effectiveAgentUrl = useMemo(() => agentUrl.trim() || 'http://127.0.0.1:17658', [agentUrl]);
 
@@ -230,6 +233,18 @@ export function HardwareWorkspace({ canManageSettings }: { canManageSettings: bo
 
   return (
     <div className="flex flex-col gap-6">
+      {compact ? (
+        <WorkspaceTabs
+          active={activeTab}
+          onChange={(key) => setActiveTab(key as 'profile' | 'status' | 'guides')}
+          tabs={[
+            { key: 'profile', label: 'Profiles' },
+            { key: 'status', label: 'Status' },
+            { key: 'guides', label: 'Guides' },
+          ]}
+        />
+      ) : null}
+      {(!compact || activeTab === 'profile') ? (
       <div className="grid grid-cols-1 xl:grid-cols-[1.1fr_0.9fr] gap-4">
         <Card>
           <CardHeader>
@@ -291,7 +306,9 @@ export function HardwareWorkspace({ canManageSettings }: { canManageSettings: bo
           </CardContent>
         </Card>
       </div>
+      ) : null}
 
+      {(!compact || activeTab === 'status') ? (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
           <CardHeader>
@@ -338,7 +355,9 @@ export function HardwareWorkspace({ canManageSettings }: { canManageSettings: bo
           </CardContent>
         </Card>
       </div>
+      ) : null}
 
+      {(!compact || activeTab === 'guides') ? (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
           <CardHeader>
@@ -375,6 +394,7 @@ export function HardwareWorkspace({ canManageSettings }: { canManageSettings: bo
           </CardContent>
         </Card>
       </div>
+      ) : null}
     </div>
   );
 }

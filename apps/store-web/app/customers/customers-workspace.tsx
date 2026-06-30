@@ -14,6 +14,7 @@ import {
   tableWrapStyle,
   tokenMutedStyle,
 } from '../motocore-theme';
+import { stackedFilterGridStyle, useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
 
 type Customer = {
   id: string;
@@ -68,6 +69,7 @@ async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
 }
 
 export function CustomersWorkspace() {
+  const compact = useCompactLayout();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerDetail | null>(null);
   const [aging, setAging] = useState<Aging | null>(null);
@@ -83,6 +85,7 @@ export function CustomersWorkspace() {
     referenceNo: '',
     note: '',
   });
+  const [activeTab, setActiveTab] = useState<'aging' | 'directory' | 'detail'>('directory');
 
   const refresh = async (search = query, nextPage = 1) => {
     const params = new URLSearchParams({
@@ -155,6 +158,18 @@ export function CustomersWorkspace() {
 
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
+      {compact ? (
+        <WorkspaceTabs
+          active={activeTab}
+          onChange={(key) => setActiveTab(key as 'aging' | 'directory' | 'detail')}
+          tabs={[
+            { key: 'directory', label: 'Customers' },
+            { key: 'detail', label: 'Due Collection' },
+            { key: 'aging', label: 'Aging' },
+          ]}
+        />
+      ) : null}
+      {(!compact || activeTab === 'aging') ? (
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
         <article style={surfaceCardStyle}>
           <div style={{ fontSize: 12, color: '#64748b' }}>Today</div>
@@ -182,11 +197,13 @@ export function CustomersWorkspace() {
           <div style={{ color: '#64748b' }}>{aging?.days_90_plus_count ?? 0} sale(s)</div>
         </article>
       </section>
+      ) : null}
 
-      <section style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 0.95fr) minmax(420px, 1.05fr)', gap: 16 }}>
+      <section style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'minmax(320px, 0.95fr) minmax(420px, 1.05fr)', gap: 16 }}>
+        {!compact || activeTab === 'directory' ? (
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Customer Directory</h3>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+          <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
             <input value={query} onChange={(event) => setQuery(event.target.value)} style={fieldStyle} placeholder="Search name, mobile, email, or shop" />
             <button onClick={() => void refresh(query, 1)} style={secondaryButtonStyle}>Search</button>
           </div>
@@ -230,7 +247,9 @@ export function CustomersWorkspace() {
             </div>
           </div>
         </article>
+        ) : null}
 
+        {!compact || activeTab === 'detail' ? (
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Customer Detail & Due Collection</h3>
           {selectedCustomer ? (
@@ -300,6 +319,7 @@ export function CustomersWorkspace() {
             <div style={emptyStateStyle}>Select a customer to inspect due sales and collect payments.</div>
           )}
         </article>
+        ) : null}
       </section>
 
       <article style={surfaceCardStyle}>

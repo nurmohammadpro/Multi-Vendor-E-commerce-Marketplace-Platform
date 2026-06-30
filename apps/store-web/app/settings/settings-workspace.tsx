@@ -11,6 +11,7 @@ import {
   surfaceCardStyle,
   tokenMutedStyle,
 } from '../motocore-theme';
+import { useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
 
 type StoreProfile = {
   id: string;
@@ -50,6 +51,7 @@ async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
 }
 
 export function SettingsWorkspace({ canManageSettings }: { canManageSettings: boolean }) {
+  const compact = useCompactLayout();
   const [profile, setProfile] = useState<StoreProfile | null>(null);
   const [settings, setSettings] = useState<StoreSettings | null>(null);
   const [message, setMessage] = useState('Store settings are ready.');
@@ -71,6 +73,7 @@ export function SettingsWorkspace({ canManageSettings }: { canManageSettings: bo
     allowNegativeStock: false,
     lowStockThresholdDefault: '',
   });
+  const [activeTab, setActiveTab] = useState<'identity' | 'operations'>('identity');
 
   const refresh = async () => {
     const [profilePayload, settingsPayload] = await Promise.all([
@@ -213,7 +216,18 @@ export function SettingsWorkspace({ canManageSettings }: { canManageSettings: bo
 
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
-      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
+      {compact ? (
+        <WorkspaceTabs
+          active={activeTab}
+          onChange={(key) => setActiveTab(key as 'identity' | 'operations')}
+          tabs={[
+            { key: 'identity', label: 'Identity' },
+            { key: 'operations', label: 'Operations' },
+          ]}
+        />
+      ) : null}
+      <section style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
+        {!compact || activeTab === 'identity' ? (
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Store identity</h3>
           <div style={{ display: 'grid', gap: 10 }}>
@@ -289,7 +303,9 @@ export function SettingsWorkspace({ canManageSettings }: { canManageSettings: bo
             </div>
           </div>
         </article>
+        ) : null}
 
+        {!compact || activeTab === 'operations' ? (
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Operational defaults</h3>
           <div style={{ display: 'grid', gap: 10 }}>
@@ -364,6 +380,7 @@ export function SettingsWorkspace({ canManageSettings }: { canManageSettings: bo
             </div>
           </div>
         </article>
+        ) : null}
       </section>
 
       <article style={surfaceCardStyle}>
