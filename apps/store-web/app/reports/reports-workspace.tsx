@@ -3,11 +3,12 @@
 import { useEffect, useState } from 'react';
 
 import {
+  accentButtonStyle,
   emptyStateStyle,
   metricLabelStyle,
   metricValueStyle,
   pageShellStyle,
-  secondaryButtonStyle,
+  sectionPanelStyle,
   surfaceCardStyle,
   tableCellStyle,
   tableHeaderCellStyle,
@@ -124,7 +125,7 @@ export function ReportsWorkspace({ canViewReports }: { canViewReports: boolean }
 
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
-      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
+      <section style={{ ...sectionPanelStyle, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
         <article style={surfaceCardStyle}>
           <div style={metricLabelStyle}>Total Sales</div>
           <div style={metricValueStyle}>{sales?.summary.total_sales_amount ?? '—'}</div>
@@ -150,7 +151,7 @@ export function ReportsWorkspace({ canViewReports }: { canViewReports: boolean }
         </article>
       </section>
 
-      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
+      <section style={{ ...sectionPanelStyle, gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Recent Sales</h3>
           {sales?.recentSales?.length ? (
@@ -253,10 +254,10 @@ export function ReportsWorkspace({ canViewReports }: { canViewReports: boolean }
       <article style={surfaceCardStyle}>
         <h3 style={{ marginTop: 0 }}>Exports</h3>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button onClick={() => createExport('sales')} style={secondaryButtonStyle} disabled={loading}>Export Sales</button>
-          <button onClick={() => createExport('inventory')} style={secondaryButtonStyle} disabled={loading}>Export Inventory</button>
-          <button onClick={() => createExport('billing')} style={secondaryButtonStyle} disabled={loading}>Export Billing</button>
-          <button onClick={() => createExport('support')} style={secondaryButtonStyle} disabled={loading}>Export Support</button>
+          <button onClick={() => createExport('sales')} style={accentButtonStyle} disabled={loading}>Export Sales</button>
+          <button onClick={() => createExport('inventory')} style={accentButtonStyle} disabled={loading}>Export Inventory</button>
+          <button onClick={() => createExport('billing')} style={accentButtonStyle} disabled={loading}>Export Billing</button>
+          <button onClick={() => createExport('support')} style={accentButtonStyle} disabled={loading}>Export Support</button>
         </div>
       </article>
 
