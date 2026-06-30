@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, Mail, Lock } from 'lucide-react';
 
-import { getWorkspaceUrl, hasOnlyAdminContext, hasOnlyStoreContext, login, storeToken } from '@/lib/auth';
+import { getWorkspaceUrl, hasOnlyAdminContext, hasOnlyStoreContext, login, storeStoreId, storeToken } from '@/lib/auth';
 import { IntroSplash } from './intro-splash';
 
 type FormErrors = {
@@ -69,13 +69,15 @@ export default function LoginPage() {
       storeToken(data.accessToken);
 
       if (loginRole === 'admin' && hasOnlyAdminContext(data.contexts)) {
-        window.location.href = `${getWorkspaceUrl('admin')}?token=${data.accessToken}`;
+        storeStoreId(null);
+        window.location.href = getWorkspaceUrl('admin');
         return;
       }
 
       if (loginRole === 'store' && hasOnlyStoreContext(data.contexts)) {
         const ctx = data.contexts[0];
-        window.location.href = `${getWorkspaceUrl('store')}?token=${data.accessToken}&storeId=${ctx.type === 'store' ? ctx.storeId : ""}`;
+        storeStoreId(ctx.type === 'store' ? ctx.storeId : null);
+        window.location.href = getWorkspaceUrl('store');
         return;
       }
 
