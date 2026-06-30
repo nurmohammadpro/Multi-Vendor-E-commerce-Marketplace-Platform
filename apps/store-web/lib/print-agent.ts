@@ -75,7 +75,20 @@ function escapeHtml(value: string) {
     .replaceAll("'", '&#39;');
 }
 
+function isLoopbackAgent(url: string) {
+  return url.includes('127.0.0.1') || url.includes('localhost');
+}
+
+function canReachAgentFromBrowser(baseUrl: string) {
+  if (typeof window === 'undefined') return true;
+  const hostedBrowser = !['localhost', '127.0.0.1'].includes(window.location.hostname);
+  return !(hostedBrowser && isLoopbackAgent(baseUrl));
+}
+
 export async function fetchPrintAgentHealth(baseUrl = DEFAULT_PRINT_AGENT_URL) {
+  if (!canReachAgentFromBrowser(baseUrl)) {
+    throw new Error('Local print agent is not reachable from this hosted browser.');
+  }
   const response = await fetch(`${baseUrl}/health`, { method: 'GET' });
   if (!response.ok) {
     throw new Error(`Print agent health failed with ${response.status}`);
@@ -441,6 +454,9 @@ export function openInvoicePrintWindow(receipt: ReceiptPayload) {
 }
 
 export async function printReceipt(receipt: ReceiptPayload, printerName?: string, baseUrl = DEFAULT_PRINT_AGENT_URL) {
+  if (!canReachAgentFromBrowser(baseUrl)) {
+    throw new Error('Local print agent is not reachable from this hosted browser.');
+  }
   const response = await fetch(`${baseUrl}/print/raw`, {
     method: 'POST',
     headers: {
@@ -477,6 +493,9 @@ export async function printLabel(payload: {
   text: string;
   printerName?: string;
 }, baseUrl = DEFAULT_PRINT_AGENT_URL) {
+  if (!canReachAgentFromBrowser(baseUrl)) {
+    throw new Error('Local print agent is not reachable from this hosted browser.');
+  }
   const response = await fetch(`${baseUrl}/print/label`, {
     method: 'POST',
     headers: {
@@ -497,6 +516,9 @@ export async function openCashDrawer(payload: {
   printerName?: string;
   pin?: 2 | 5;
 }, baseUrl = DEFAULT_PRINT_AGENT_URL) {
+  if (!canReachAgentFromBrowser(baseUrl)) {
+    throw new Error('Local print agent is not reachable from this hosted browser.');
+  }
   const response = await fetch(`${baseUrl}/hardware/drawer-open`, {
     method: 'POST',
     headers: {
