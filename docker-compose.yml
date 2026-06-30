@@ -132,7 +132,7 @@ services:
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.marketone.appbrainer.tech}
         NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-https://api.marketone.appbrainer.tech/v1}
-        API_BASE_URL: ${API_BASE_URL:-https://api.marketone.appbrainer.tech/v1}
+        API_BASE_URL: http://api:4000/v1
         NEXT_PUBLIC_ADMIN_APP_URL: ${NEXT_PUBLIC_ADMIN_APP_URL:-https://admin.marketone.appbrainer.tech}
         NEXT_PUBLIC_STORE_APP_URL: ${NEXT_PUBLIC_STORE_APP_URL:-https://app.marketone.appbrainer.tech}
     restart: unless-stopped
@@ -147,7 +147,7 @@ services:
       HOSTNAME: "0.0.0.0"
       NEXT_PUBLIC_API_URL: "${NEXT_PUBLIC_API_URL:-https://api.marketone.appbrainer.tech}"
       NEXT_PUBLIC_API_BASE_URL: "${NEXT_PUBLIC_API_BASE_URL:-https://api.marketone.appbrainer.tech/v1}"
-      API_BASE_URL: "${API_BASE_URL:-https://api.marketone.appbrainer.tech/v1}"
+      API_BASE_URL: "http://api:4000/v1"
       NEXT_PUBLIC_ADMIN_APP_URL: "${NEXT_PUBLIC_ADMIN_APP_URL:-https://admin.marketone.appbrainer.tech}"
       NEXT_PUBLIC_STORE_APP_URL: "${NEXT_PUBLIC_STORE_APP_URL:-https://app.marketone.appbrainer.tech}"
     labels:
@@ -170,7 +170,7 @@ services:
       args:
         NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-https://api.marketone.appbrainer.tech/v1}
         NEXT_PUBLIC_LOGIN_APP_URL: ${NEXT_PUBLIC_LOGIN_APP_URL:-https://marketone.appbrainer.tech}
-        API_BASE_URL: ${API_BASE_URL:-https://api.marketone.appbrainer.tech/v1}
+        API_BASE_URL: http://api:4000/v1
     restart: unless-stopped
     deploy:
       resources:
@@ -180,6 +180,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: "3001"
+      API_BASE_URL: "http://api:4000/v1"
       HOSTNAME: "0.0.0.0"
       NEXT_PUBLIC_LOGIN_APP_URL: "${NEXT_PUBLIC_LOGIN_APP_URL:-https://marketone.appbrainer.tech}"
     labels:
@@ -202,7 +203,7 @@ services:
       args:
         NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-https://api.marketone.appbrainer.tech/v1}
         NEXT_PUBLIC_LOGIN_APP_URL: ${NEXT_PUBLIC_LOGIN_APP_URL:-https://marketone.appbrainer.tech}
-        API_BASE_URL: ${API_BASE_URL:-https://api.marketone.appbrainer.tech/v1}
+        API_BASE_URL: http://api:4000/v1
         NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-Market One BD}
         NEXT_PUBLIC_PRINT_AGENT_URL: ${NEXT_PUBLIC_PRINT_AGENT_URL:-http://127.0.0.1:17658}
     restart: unless-stopped
@@ -215,6 +216,7 @@ services:
       NODE_ENV: production
       PORT: "3002"
       HOSTNAME: "0.0.0.0"
+      API_BASE_URL: "http://api:4000/v1"
       NEXT_PUBLIC_LOGIN_APP_URL: "${NEXT_PUBLIC_LOGIN_APP_URL:-https://marketone.appbrainer.tech}"
     labels:
       - "traefik.enable=true"
