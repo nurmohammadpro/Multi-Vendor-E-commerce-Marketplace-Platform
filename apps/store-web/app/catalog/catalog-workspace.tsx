@@ -18,6 +18,7 @@ import {
   tokenMutedStyle,
 } from '../motocore-theme';
 import { ListPager, type PaginationState, totalPagesFor } from '../list-pager';
+import { stackedFilterGridStyle, useCompactLayout } from '../workspace-responsive';
 
 type Category = { id: string; parent_id?: string | null; parent_name?: string | null; code: string; name: string; status: string };
 type Brand = { id: string; name: string; status: string };
@@ -178,6 +179,7 @@ export function CatalogWorkspace({
   canManageCatalog: boolean;
   canApprovePriceChanges: boolean;
 }) {
+  const compact = useCompactLayout();
   const [categories, setCategories] = useState<Category[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -846,7 +848,7 @@ export function CatalogWorkspace({
   return (
     <section style={{ display: 'grid', gap: 20 }}>
       {canManageCatalog ? (
-        <section style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.35fr) minmax(320px, 0.65fr)', gap: 16 }}>
+        <section style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'minmax(0, 1.35fr) minmax(320px, 0.65fr)', gap: 16 }}>
           <article style={cardStyle}>
             <div style={{ display: 'grid', gap: 16 }}>
               <div>
@@ -856,7 +858,7 @@ export function CatalogWorkspace({
                 </p>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
                 <div>
                   <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 6 }}>1. Product identity</div>
                   <input value={productForm.productCode} onChange={(e) => setProductForm((v) => ({ ...v, productCode: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Product code" />
@@ -961,7 +963,7 @@ export function CatalogWorkspace({
                 </div>
               ) : (
                 <div style={{ display: 'grid', gap: 12 }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 220px) 1fr', gap: 12, alignItems: 'end' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'minmax(0, 220px) 1fr', gap: 12, alignItems: 'end' }}>
                     <div>
                       <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 6 }}>4. Variant structure</div>
                       <select value={productForm.variantMode} onChange={(e) => setProductForm((v) => ({ ...v, variantMode: e.target.value }))} style={inputStyle}>
@@ -1110,7 +1112,7 @@ export function CatalogWorkspace({
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
         <article style={cardStyle}>
           <h3 style={{ marginTop: 0 }}>Categories</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, marginBottom: 12 }}>
+          <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
             <input value={categorySearch} onChange={(event) => setCategorySearch(event.target.value)} style={inputStyle} placeholder="Search categories" />
             <button onClick={() => void refreshBase(1, brandPage, productPage)} style={buttonStyle} disabled={loading}>Search</button>
           </div>
@@ -1198,7 +1200,7 @@ export function CatalogWorkspace({
 
         <article style={cardStyle}>
           <h3 style={{ marginTop: 0 }}>Brands</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, marginBottom: 12 }}>
+          <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
             <input value={brandSearch} onChange={(event) => setBrandSearch(event.target.value)} style={inputStyle} placeholder="Search brands" />
             <button onClick={() => void refreshBase(categoryPage, 1, productPage)} style={buttonStyle} disabled={loading}>Search</button>
           </div>
@@ -1268,7 +1270,7 @@ export function CatalogWorkspace({
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
         <article style={cardStyle}>
           <h3 style={{ marginTop: 0 }}>Products</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(140px, 180px) auto', gap: 8, marginBottom: 12 }}>
+          <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
             <input value={productSearch} onChange={(event) => setProductSearch(event.target.value)} style={inputStyle} placeholder="Search product, code, category, brand" />
             <select value={productStatus} onChange={(event) => setProductStatus(event.target.value)} style={inputStyle}>
               <option value="">All statuses</option>
@@ -1597,7 +1599,7 @@ export function CatalogWorkspace({
                     ))}
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginTop: 14 }}>
+                  <div style={{ ...stackedFilterGridStyle, marginTop: 14 }}>
                     <input
                       value={variantPricing.baseSalePrice}
                       onChange={(event) => setVariantPricing((current) => ({ ...current, baseSalePrice: event.target.value }))}
@@ -1750,7 +1752,7 @@ export function CatalogWorkspace({
 
               <article style={{ ...cardStyle, padding: 14 }}>
                 <h4 style={{ marginTop: 0 }}>Price Approval Queue</h4>
-                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(140px, 180px) auto', gap: 8, marginBottom: 12 }}>
+                <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
                   <input value={priceRequestSearch} onChange={(event) => setPriceRequestSearch(event.target.value)} style={inputStyle} placeholder="Search product, SKU, variant, reason" />
                   <select value={priceRequestStatus} onChange={(event) => setPriceRequestStatus(event.target.value)} style={inputStyle}>
                     <option value="">All statuses</option>

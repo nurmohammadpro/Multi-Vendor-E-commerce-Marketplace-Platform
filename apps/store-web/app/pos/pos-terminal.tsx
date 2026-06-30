@@ -31,6 +31,7 @@ import {
   tableWrapStyle,
   tokenMutedStyle,
 } from '../motocore-theme';
+import { stackedFilterGridStyle, useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
 
 type Register = {
   id: string;
@@ -150,6 +151,7 @@ async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
 }
 
 export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
+  const compact = useCompactLayout();
   const [registers, setRegisters] = useState<Register[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
   const [selectedRegisterId, setSelectedRegisterId] = useState('');
@@ -185,6 +187,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [searching, setSearching] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [activeTab, setActiveTab] = useState<'search' | 'cart' | 'checkout'>('search');
 
   useEffect(() => {
     void Promise.all([
@@ -693,8 +696,21 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
 
   return (
     <section style={{ display: 'grid', gap: 20 }}>
-      <section style={{ ...sectionPanelStyle, gridTemplateColumns: 'minmax(0, 1.3fr) minmax(360px, 0.7fr)' }}>
-        <section style={{ display: 'grid', gridTemplateRows: 'auto minmax(360px, 1fr)', gap: 10 }}>
+      {compact ? (
+        <WorkspaceTabs
+          active={activeTab}
+          onChange={(key) => setActiveTab(key as 'search' | 'cart' | 'checkout')}
+          tabs={[
+            { key: 'search', label: 'Search' },
+            { key: 'cart', label: `Cart (${cart.length})` },
+            { key: 'checkout', label: 'Checkout' },
+          ]}
+        />
+      ) : null}
+      <section style={{ ...sectionPanelStyle, gridTemplateColumns: compact ? '1fr' : 'minmax(0, 1.3fr) minmax(360px, 0.7fr)' }}>
+        {(!compact || activeTab === 'search' || activeTab === 'cart') ? (
+        <section style={{ display: 'grid', gridTemplateRows: compact ? 'auto minmax(420px, 1fr)' : 'auto minmax(360px, 1fr)', gap: 10 }}>
+          {!compact || activeTab === 'search' ? (
           <article style={compactCardStyle}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', alignItems: 'flex-start', marginBottom: 8 }}>
               <div>
@@ -824,8 +840,10 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
               ) : null}
             </div>
           </article>
+          ) : null}
 
-          <article style={{ ...cardStyle, display: 'grid', gridTemplateRows: 'auto minmax(0, 1fr)', minHeight: 420 }}>
+          {!compact || activeTab === 'cart' ? (
+          <article style={{ ...cardStyle, display: 'grid', gridTemplateRows: 'auto minmax(0, 1fr)', minHeight: compact ? 520 : 420 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
               <div>
                 <h3 style={{ marginTop: 0, marginBottom: 6 }}>Cart</h3>
@@ -882,8 +900,11 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
               </div>
             )}
           </article>
+          ) : null}
         </section>
+        ) : null}
 
+        {(!compact || activeTab === 'checkout') ? (
         <article style={cardStyle}>
           <h3 style={{ marginTop: 0, marginBottom: 6 }}>Checkout</h3>
           <p style={{ marginTop: 0, color: '#475569' }}>
@@ -901,7 +922,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
             ) : null}
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
+          <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
             <select aria-label="Sale mode" value={saleMode} onChange={(event) => setSaleMode(event.target.value as 'paid' | 'due')} style={inputStyle}>
               <option value="paid">Paid sale</option>
               <option value="due">Due sale</option>
@@ -958,6 +979,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
             ) : null}
           </div>
         </article>
+        ) : null}
       </section>
 
       <Sheet open={variantPickerOpen} onOpenChange={setVariantPickerOpen}>
@@ -1067,7 +1089,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
         </SheetContent>
       </Sheet>
 
-      <section style={{ ...sectionPanelStyle, gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+      <section style={{ ...sectionPanelStyle, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
         <article style={{ ...cardStyle, padding: 14 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
             <h4 style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Workstation</h4>

@@ -115,14 +115,12 @@ export function ActivityWorkspace() {
                 {logs.map((log) => (
                   <tr key={log.id}>
                     <td style={tableCellStyle}>{new Date(log.created_at).toLocaleString()}</td>
-                    <td style={tableCellStyle}>{log.action_code}</td>
-                    <td style={tableCellStyle}>{log.resource_type}</td>
+                    <td style={tableCellStyle}>{humanizeAuditCode(log.action_code)}</td>
+                    <td style={tableCellStyle}>{humanizeAuditCode(log.resource_type)}</td>
                     <td style={tableCellStyle}>{log.resource_id || '—'}</td>
                     <td style={tableCellStyle}>{log.actor_type}{log.actor_user_id ? ` · ${log.actor_user_id}` : ''}</td>
                     <td style={tableCellStyle}>
-                      <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontSize: 12, color: '#475569' }}>
-                        {JSON.stringify(log.after_json ?? {}, null, 2)}
-                      </pre>
+                      <AuditAfterCell value={log.after_json} />
                     </td>
                   </tr>
                 ))}
@@ -147,4 +145,87 @@ export function ActivityWorkspace() {
       </article>
     </section>
   );
+}
+
+function AuditAfterCell({ value }: { value?: Record<string, unknown> | null }) {
+  if (!value || !Object.keys(value).length) {
+    return <span style={{ color: '#94a3b8', fontSize: 12 }}>No recorded field changes</span>;
+  }
+
+  const entries = Object.entries(value)
+    .filter(([, entryValue]) => entryValue !== null && entryValue !== undefined && entryValue !== '')
+    .slice(0, 6);
+
+  if (!entries.length) {
+    return <span style={{ color: '#94a3b8', fontSize: 12 }}>No recorded field changes</span>;
+  }
+
+  return (
+    <div style={{ display: 'grid', gap: 6, minWidth: 260 }}>
+      {entries.map(([key, entryValue]) => (
+        <div
+          key={key}
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '110px minmax(0, 1fr)',
+            gap: 8,
+            alignItems: 'start',
+            fontSize: 12,
+          }}
+        >
+          <span
+            style={{
+              color: '#64748b',
+              textTransform: 'uppercase',
+              letterSpacing: '0.08em',
+              fontSize: 11,
+            }}
+          >
+            {humanizeAuditKey(key)}
+          </span>
+          <span style={{ color: '#0f172a', wordBreak: 'break-word' }}>
+            {formatAuditValue(entryValue)}
+          </span>
+        </div>
+      ))}
+      {Object.keys(value).length > entries.length ? (
+        <span style={{ color: '#94a3b8', fontSize: 11 }}>
+          +{Object.keys(value).length - entries.length} more field(s)
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function humanizeAuditKey(key: string) {
+  return key
+    .replaceAll(/_/g, ' ')
+    .replaceAll(/([a-z0-9])([A-Z])/g, '$1 $2');
+}
+
+function humanizeAuditCode(value: string) {
+  return humanizeAuditKey(value.replaceAll('.', ' '))
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function formatAuditValue(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (value === null || value === undefined) return '—';
+  if (Array.isArray(value)) {
+    if (!value.length) return '—';
+    return value
+      .slice(0, 3)
+      .map((item) => formatAuditValue(item))
+      .join(', ')
+      + (value.length > 3 ? ` +${value.length - 3} more` : '');
+  }
+  if (typeof value === 'object') {
+    const objectEntries = Object.entries(value as Record<string, unknown>).slice(0, 3);
+    if (!objectEntries.length) return '—';
+    return objectEntries
+      .map(([entryKey, entryValue]) => `${humanizeAuditKey(entryKey)}: ${formatAuditValue(entryValue)}`)
+      .join(' · ');
+  }
+  return String(value);
 }

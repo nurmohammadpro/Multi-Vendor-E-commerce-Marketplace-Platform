@@ -18,6 +18,7 @@ import {
   tableWrapStyle,
   tokenMutedStyle,
 } from '../motocore-theme';
+import { stackedFilterGridStyle, useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
 
 type TicketType = 'support' | 'dispute';
 
@@ -67,6 +68,7 @@ export function SupportWorkspace({
   canUseSupport: boolean;
   kind: TicketType;
 }) {
+  const compact = useCompactLayout();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [selectedTicket, setSelectedTicket] = useState<TicketDetail | null>(null);
   const [message, setMessage] = useState(kind === 'dispute' ? 'Dispute workspace is ready.' : 'Support workspace is ready.');
@@ -81,6 +83,7 @@ export function SupportWorkspace({
   const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 20, total: 0 });
+  const [activeTab, setActiveTab] = useState<'new' | 'tickets' | 'conversation'>('tickets');
 
   const refresh = async (nextPage = 1) => {
     const params = new URLSearchParams({
@@ -182,7 +185,19 @@ export function SupportWorkspace({
 
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
-      <section style={{ ...sectionPanelStyle, gridTemplateColumns: 'minmax(320px, 1fr) minmax(360px, 1.1fr)' }}>
+      {compact ? (
+        <WorkspaceTabs
+          active={activeTab}
+          onChange={(key) => setActiveTab(key as 'new' | 'tickets' | 'conversation')}
+          tabs={[
+            { key: 'tickets', label: kind === 'dispute' ? 'Cases' : 'Tickets' },
+            { key: 'new', label: kind === 'dispute' ? 'Open Case' : 'New Ticket' },
+            { key: 'conversation', label: 'Conversation' },
+          ]}
+        />
+      ) : null}
+      <section style={{ ...sectionPanelStyle, gridTemplateColumns: compact ? '1fr' : 'minmax(320px, 1fr) minmax(360px, 1.1fr)' }}>
+        {!compact || activeTab === 'new' ? (
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>{kind === 'dispute' ? 'Open dispute case' : 'Open support ticket'}</h3>
           <div style={{ display: 'grid', gap: 10 }}>
@@ -213,10 +228,12 @@ export function SupportWorkspace({
             </button>
           </div>
         </article>
+        ) : null}
 
+        {!compact || activeTab === 'tickets' ? (
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>{kind === 'dispute' ? 'Open cases' : 'Open tickets'}</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) minmax(160px, 180px) auto', gap: 10, marginBottom: 12 }}>
+          <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
             <input value={search} onChange={(event) => setSearch(event.target.value)} style={fieldStyle} placeholder="Search ticket no, subject, opener" />
             <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} style={fieldStyle}>
               <option value="">All statuses</option>
@@ -269,8 +286,10 @@ export function SupportWorkspace({
             </div>
           </div>
         </article>
+        ) : null}
       </section>
 
+      {(!compact || activeTab === 'conversation') ? (
       <article style={surfaceCardStyle}>
         <h3 style={{ marginTop: 0 }}>Conversation</h3>
         {selectedTicket ? (
@@ -321,6 +340,7 @@ export function SupportWorkspace({
           <div style={emptyStateStyle}>Select a ticket to read the conversation and reply.</div>
         )}
       </article>
+      ) : null}
 
       <article style={surfaceCardStyle}>
         <h3 style={{ marginTop: 0 }}>Operator Notes</h3>

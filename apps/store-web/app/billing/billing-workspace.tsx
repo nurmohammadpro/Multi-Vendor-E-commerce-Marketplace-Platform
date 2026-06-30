@@ -20,6 +20,7 @@ import {
   tableWrapStyle,
   tokenMutedStyle,
 } from '../motocore-theme';
+import { stackedFilterGridStyle, useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
 
 type Plan = {
   id: string;
@@ -89,6 +90,7 @@ async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
 }
 
 export function BillingWorkspace({ canManageBilling }: { canManageBilling: boolean }) {
+  const compact = useCompactLayout();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [subscription, setSubscription] = useState<Subscription>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -106,6 +108,7 @@ export function BillingWorkspace({ canManageBilling }: { canManageBilling: boole
   const [invoiceStatus, setInvoiceStatus] = useState('');
   const [invoicePage, setInvoicePage] = useState(1);
   const [invoicePagination, setInvoicePagination] = useState<Pagination>({ page: 1, limit: 20, total: 0 });
+  const [activeTab, setActiveTab] = useState<'overview' | 'plans' | 'invoices'>('overview');
 
   const remainingAmount = selectedInvoice
     ? Math.max(0, Number(selectedInvoice.invoice.total_amount) - Number(selectedInvoice.invoice.paid_amount))
@@ -206,6 +209,18 @@ export function BillingWorkspace({ canManageBilling }: { canManageBilling: boole
 
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
+      {compact ? (
+        <WorkspaceTabs
+          active={activeTab}
+          onChange={(key) => setActiveTab(key as 'overview' | 'plans' | 'invoices')}
+          tabs={[
+            { key: 'overview', label: 'Overview' },
+            { key: 'plans', label: 'Plans' },
+            { key: 'invoices', label: 'Invoices' },
+          ]}
+        />
+      ) : null}
+      {(!compact || activeTab === 'overview') ? (
       <section style={{ ...sectionPanelStyle, gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Current Subscription</h3>
@@ -248,8 +263,11 @@ export function BillingWorkspace({ canManageBilling }: { canManageBilling: boole
           </button>
         </article>
       </section>
+      ) : null}
 
-      <section style={{ ...sectionPanelStyle, gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
+      {(!compact || activeTab === 'plans' || activeTab === 'invoices') ? (
+      <section style={{ ...sectionPanelStyle, gridTemplateColumns: compact ? '1fr' : 'repeat(auto-fit, minmax(320px, 1fr))' }}>
+        {!compact || activeTab === 'plans' ? (
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Plans</h3>
           {plans.length ? (
@@ -283,10 +301,12 @@ export function BillingWorkspace({ canManageBilling }: { canManageBilling: boole
             <div style={emptyStateStyle}>No plan definitions are available yet.</div>
           )}
         </article>
+        ) : null}
 
+        {!compact || activeTab === 'invoices' ? (
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Invoices</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) minmax(160px, 180px) auto', gap: 10, marginBottom: 12 }}>
+          <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
             <input value={invoiceSearch} onChange={(event) => setInvoiceSearch(event.target.value)} style={fieldStyle} placeholder="Search invoice no or type" />
             <select value={invoiceStatus} onChange={(event) => setInvoiceStatus(event.target.value)} style={fieldStyle}>
               <option value="">All statuses</option>
@@ -339,8 +359,11 @@ export function BillingWorkspace({ canManageBilling }: { canManageBilling: boole
             </div>
           </div>
         </article>
+        ) : null}
       </section>
+      ) : null}
 
+      {(!compact || activeTab === 'invoices') ? (
       <article style={surfaceCardStyle}>
         <h3 style={{ marginTop: 0 }}>Invoice Detail</h3>
         {!selectedInvoice ? (
@@ -400,6 +423,7 @@ export function BillingWorkspace({ canManageBilling }: { canManageBilling: boole
           </section>
         )}
       </article>
+      ) : null}
 
       <article style={surfaceCardStyle}>
         <h3 style={{ marginTop: 0 }}>Operator Notes</h3>
