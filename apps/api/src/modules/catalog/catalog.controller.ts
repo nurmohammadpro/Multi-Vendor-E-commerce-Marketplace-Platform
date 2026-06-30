@@ -73,6 +73,7 @@ const createSkuSchema = z.object({
   productId: z.string().uuid(),
   skuCode: z.string().min(1).max(80),
   barcode: z.string().max(80).optional(),
+  variantLabel: z.string().max(160).optional(),
   variantJson: z.record(z.any()).optional(),
   variantOptionIds: z.array(z.string().uuid()).optional(),
   unitName: z.string().max(50).optional(),

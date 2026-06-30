@@ -388,9 +388,9 @@ export class PosService {
             $17,
             $18,
             $19,
-            case when $18 > 0 then 'delivery_pending' else 'completed' end,
-            'completed',
             $20,
+            case when coalesce($18::numeric, 0) > 0 then 'delivery_pending' else 'completed' end,
+            'completed',
             $21,
             now(),
             now()

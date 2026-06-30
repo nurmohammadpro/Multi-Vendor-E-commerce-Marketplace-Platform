@@ -174,6 +174,14 @@ export function InventoryWorkspace({
     void refreshInventory(1, 1, 1).catch((error: Error) => setMessage(error.message));
   }, []);
 
+  useEffect(() => {
+    if (!selectedLocationId && locations[0]?.id) {
+      const firstLocationId = locations[0].id;
+      setSelectedLocationId(firstLocationId);
+      void refreshInventory(1, adjustmentPage, ledgerPage, firstLocationId).catch((error: Error) => setMessage(error.message));
+    }
+  }, [locations, selectedLocationId, adjustmentPage, ledgerPage]);
+
   const searchSkus = async () => {
     if (!skuSearch.trim()) {
       setSkuResults([]);
@@ -299,9 +307,12 @@ export function InventoryWorkspace({
 
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
-      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+      <section style={{ display: 'grid', gridTemplateColumns: '1.1fr 0.9fr', gap: 16 }}>
         <article style={surfaceCardStyle}>
-          <h3 style={{ marginTop: 0 }}>Stock Actions</h3>
+          <h3 style={{ marginTop: 0 }}>Stock Control</h3>
+          <p style={{ ...tokenMutedStyle, marginBottom: 12 }}>
+            Search an existing SKU, then initialize opening quantity or send an approval request for changes.
+          </p>
           {!canAdjustInventory ? (
             <p style={tokenMutedStyle}>Your role can review inventory, but stock changes are restricted.</p>
           ) : !canDirectAdjustInventory ? (
@@ -416,59 +427,63 @@ export function InventoryWorkspace({
           )}
         </article>
 
-        <article style={surfaceCardStyle}>
-          <h3 style={{ marginTop: 0 }}>Ledger</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, marginBottom: 12 }}>
-            <input value={ledgerSearch} onChange={(event) => setLedgerSearch(event.target.value)} style={fieldStyle} placeholder="Search product, SKU, location, movement" />
-            <button onClick={() => void refreshInventory(balancePage, adjustmentPage, 1, selectedLocationId)} style={secondaryButtonStyle} disabled={loading}>Search</button>
-          </div>
-          {ledger.length ? (
-            <>
-              <div style={tableWrapStyle}>
-                <table style={tableStyle}>
-                  <thead>
-                    <tr>
-                      <th style={tableHeaderCellStyle}>Product</th>
-                      <th style={tableHeaderCellStyle}>Location</th>
-                      <th style={tableHeaderCellStyle}>Movement</th>
-                      <th style={tableHeaderCellStyle}>Qty</th>
-                      <th style={tableHeaderCellStyle}>Actor</th>
-                      <th style={tableHeaderCellStyle}>Note</th>
-                      <th style={tableHeaderCellStyle}>Time</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {ledger.map((entry) => (
-                      <tr key={entry.id}>
-                        <td style={tableCellStyle}>{entry.product_name} · {entry.sku_code}</td>
-                        <td style={tableCellStyle}>{entry.location_name}</td>
-                        <td style={tableCellStyle}>{entry.movement_type}</td>
-                        <td style={tableCellStyle}>{Number(entry.qty_delta) >= 0 ? '+' : ''}{Number(entry.qty_delta)}</td>
-                        <td style={tableCellStyle}>{entry.actor_name || 'System'}</td>
-                        <td style={tableCellStyle}>{entry.note || '—'}</td>
-                        <td style={tableCellStyle}>{new Date(entry.created_at).toLocaleString()}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <ListPager
-                loading={loading}
-                page={ledgerPage}
-                pagination={ledgerPagination}
-                label="ledger row(s)"
-                onPrevious={() => void refreshInventory(balancePage, adjustmentPage, Math.max(1, ledgerPage - 1), selectedLocationId)}
-                onNext={() => void refreshInventory(balancePage, adjustmentPage, Math.min(totalLedgerPages, ledgerPage + 1), selectedLocationId)}
-              />
-            </>
-          ) : (
-            <div style={emptyStateStyle}>No ledger entries yet.</div>
-          )}
-        </article>
       </section>
 
       <article style={surfaceCardStyle}>
+        <h3 style={{ marginTop: 0 }}>Ledger</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, marginBottom: 12 }}>
+          <input value={ledgerSearch} onChange={(event) => setLedgerSearch(event.target.value)} style={fieldStyle} placeholder="Search product, SKU, location, movement" />
+          <button onClick={() => void refreshInventory(balancePage, adjustmentPage, 1, selectedLocationId)} style={secondaryButtonStyle} disabled={loading}>Search</button>
+        </div>
+        {ledger.length ? (
+          <>
+            <div style={tableWrapStyle}>
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={tableHeaderCellStyle}>Product</th>
+                    <th style={tableHeaderCellStyle}>Location</th>
+                    <th style={tableHeaderCellStyle}>Movement</th>
+                    <th style={tableHeaderCellStyle}>Qty</th>
+                    <th style={tableHeaderCellStyle}>Actor</th>
+                    <th style={tableHeaderCellStyle}>Note</th>
+                    <th style={tableHeaderCellStyle}>Time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ledger.map((entry) => (
+                    <tr key={entry.id}>
+                      <td style={tableCellStyle}>{entry.product_name} · {entry.sku_code}</td>
+                      <td style={tableCellStyle}>{entry.location_name}</td>
+                      <td style={tableCellStyle}>{entry.movement_type}</td>
+                      <td style={tableCellStyle}>{Number(entry.qty_delta) >= 0 ? '+' : ''}{Number(entry.qty_delta)}</td>
+                      <td style={tableCellStyle}>{entry.actor_name || 'System'}</td>
+                      <td style={tableCellStyle}>{entry.note || '—'}</td>
+                      <td style={tableCellStyle}>{new Date(entry.created_at).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <ListPager
+              loading={loading}
+              page={ledgerPage}
+              pagination={ledgerPagination}
+              label="ledger row(s)"
+              onPrevious={() => void refreshInventory(balancePage, adjustmentPage, Math.max(1, ledgerPage - 1), selectedLocationId)}
+              onNext={() => void refreshInventory(balancePage, adjustmentPage, Math.min(totalLedgerPages, ledgerPage + 1), selectedLocationId)}
+            />
+          </>
+        ) : (
+          <div style={emptyStateStyle}>No ledger entries yet.</div>
+        )}
+      </article>
+
+      <article style={surfaceCardStyle}>
         <h3 style={{ marginTop: 0 }}>Live Balances</h3>
+        <p style={{ ...tokenMutedStyle, marginBottom: 12 }}>
+          Every sellable SKU should appear here automatically after creation, even before quantity is added.
+        </p>
         <select
           value={selectedLocationId}
           onChange={(event) => {
@@ -529,7 +544,7 @@ export function InventoryWorkspace({
             />
           </>
         ) : (
-          <div style={emptyStateStyle}>No balances found for the current filter.</div>
+          <div style={emptyStateStyle}>No balances found yet. Create a product with a SKU first, then the stock list will appear here automatically.</div>
         )}
       </article>
 

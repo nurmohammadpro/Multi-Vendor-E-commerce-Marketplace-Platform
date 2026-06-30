@@ -150,6 +150,9 @@ const buildVariantSkuCode = (baseCode: string, combo: Array<{ group: VariantGrou
 const buildVariantLabel = (combo: Array<{ group: VariantGroup; option: VariantOption }>) =>
   combo.map((entry) => `${entry.group.name}: ${entry.option.label}`).join(' / ');
 
+const buildManualVariantSkuCode = (baseCode: string, label: string) =>
+  sanitizeSkuToken([baseCode, label].filter(Boolean).join('-')).slice(0, 80);
+
 async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
   const response = await fetch(input, init);
   const payload = (await response.json().catch(() => null)) as T | { error?: string } | null;
@@ -184,6 +187,10 @@ export function CatalogWorkspace({
     description: '',
     categoryId: '',
     brandId: '',
+    defaultSkuCode: '',
+    defaultBarcode: '',
+    defaultSalePrice: '',
+    defaultCostPrice: '',
     hasVariants: false,
     variantMode: 'none',
   });
@@ -530,8 +537,29 @@ export function CatalogWorkspace({
 
       const newProductId = payload?.product?.id || payload?.id;
 
-      if (!editingProductId && newProductId && productVariantRows.length > 0) {
-        const liveRows = productVariantRows.filter((r) => r.skuCode.trim());
+      if (!editingProductId && newProductId) {
+        const liveRows = productVariantRows
+          .map((row) => ({
+            ...row,
+            skuCode: row.skuCode.trim() || buildManualVariantSkuCode(productForm.productCode, row.label),
+          }))
+          .filter((row) => row.skuCode.trim());
+
+        if (!productForm.hasVariants) {
+          await readJson('/api/catalog/skus', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              productId: newProductId,
+              skuCode: productForm.defaultSkuCode.trim() || sanitizeSkuToken(productForm.productCode),
+              barcode: productForm.defaultBarcode || undefined,
+              status: 'active',
+              salePrice: productForm.defaultSalePrice ? Number(productForm.defaultSalePrice) : undefined,
+              costPrice: productForm.defaultCostPrice ? Number(productForm.defaultCostPrice) : undefined,
+            }),
+          });
+        }
+
         for (const row of liveRows) {
           await readJson('/api/catalog/skus', {
             method: 'POST',
@@ -556,6 +584,10 @@ export function CatalogWorkspace({
         description: '',
         categoryId: '',
         brandId: '',
+        defaultSkuCode: '',
+        defaultBarcode: '',
+        defaultSalePrice: '',
+        defaultCostPrice: '',
         hasVariants: false,
         variantMode: 'none',
       });
@@ -842,6 +874,56 @@ export function CatalogWorkspace({
               <option value="">No brand</option>
               {brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
             </select>
+            {!productForm.hasVariants ? (
+              <div style={{ ...tableWrapStyle, marginBottom: 10 }}>
+                <table style={tableStyle}>
+                  <thead>
+                    <tr>
+                      <th style={tableHeaderCellStyle}>Default SKU</th>
+                      <th style={tableHeaderCellStyle}>Barcode</th>
+                      <th style={tableHeaderCellStyle}>Selling Price</th>
+                      <th style={tableHeaderCellStyle}>Cost Price</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td style={tableCellStyle}>
+                        <input
+                          value={productForm.defaultSkuCode}
+                          onChange={(e) => setProductForm((v) => ({ ...v, defaultSkuCode: e.target.value }))}
+                          style={{ ...inputStyle, width: '100%' }}
+                          placeholder={sanitizeSkuToken(productForm.productCode || 'SKU')}
+                        />
+                      </td>
+                      <td style={tableCellStyle}>
+                        <input
+                          value={productForm.defaultBarcode}
+                          onChange={(e) => setProductForm((v) => ({ ...v, defaultBarcode: e.target.value }))}
+                          style={{ ...inputStyle, width: '100%' }}
+                          placeholder="Optional barcode"
+                        />
+                      </td>
+                      <td style={tableCellStyle}>
+                        <input
+                          value={productForm.defaultSalePrice}
+                          onChange={(e) => setProductForm((v) => ({ ...v, defaultSalePrice: e.target.value }))}
+                          style={{ ...inputStyle, width: 110 }}
+                          placeholder="0.00"
+                        />
+                      </td>
+                      <td style={tableCellStyle}>
+                        <input
+                          value={productForm.defaultCostPrice}
+                          onChange={(e) => setProductForm((v) => ({ ...v, defaultCostPrice: e.target.value }))}
+                          style={{ ...inputStyle, width: 110 }}
+                          placeholder="0.00"
+                        />
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
             <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
               <input type="checkbox" checked={productForm.hasVariants} onChange={(e) => setProductForm((v) => ({ ...v, hasVariants: e.target.checked, variantMode: e.target.checked ? 'single' : 'none' }))} />
               Has manual variants
@@ -866,8 +948,8 @@ export function CatalogWorkspace({
                         <tr>
                           <th style={tableHeaderCellStyle}>Label</th>
                           <th style={tableHeaderCellStyle}>SKU Code</th>
-                          <th style={tableHeaderCellStyle}>Price</th>
-                          <th style={tableHeaderCellStyle}>Cost</th>
+                          <th style={tableHeaderCellStyle}>Selling Price</th>
+                          <th style={tableHeaderCellStyle}>Cost Price</th>
                           <th style={tableHeaderCellStyle}>Barcode</th>
                           <th style={tableHeaderCellStyle} />
                         </tr>
@@ -888,7 +970,7 @@ export function CatalogWorkspace({
                                 value={row.skuCode}
                                 onChange={(e) => updateProductVariantRow(row.key, 'skuCode', e.target.value)}
                                 style={{ ...inputStyle, width: '100%' }}
-                                placeholder="SKU code"
+                                placeholder={buildManualVariantSkuCode(productForm.productCode || 'SKU', row.label || 'VAR')}
                               />
                             </td>
                             <td style={tableCellStyle}>
@@ -930,7 +1012,7 @@ export function CatalogWorkspace({
                     </table>
                   </div>
                 ) : (
-                  <div style={{ color: '#94a3b8', fontSize: 13 }}>No variant rows added yet. Click "Add Row" to add variants with pricing inline.</div>
+                  <div style={{ color: '#94a3b8', fontSize: 13 }}>No variant rows added yet. Click "Add Row" to create ready-to-sell variants with barcode, selling price, and cost price in one step.</div>
                 )}
               </div>
             ) : null}
