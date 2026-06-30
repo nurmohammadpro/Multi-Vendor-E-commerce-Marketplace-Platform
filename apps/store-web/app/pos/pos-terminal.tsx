@@ -617,9 +617,10 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
             `${saleIsDue ? 'Due sale' : 'Sale'} ${salePayload.sale?.saleNo ?? ''} completed and receipt printed.${drawerWarning}`,
           );
         } catch {
+          openInvoicePrintWindow(reprintPayload.receipt);
           setInvoiceModalOpen(true);
           setMessage(
-            `${saleIsDue ? 'Due sale' : 'Sale'} ${salePayload.sale?.saleNo ?? ''} completed. Printer unavailable — review and print invoice below.`,
+            `${saleIsDue ? 'Due sale' : 'Sale'} ${salePayload.sale?.saleNo ?? ''} completed. Printer unavailable — browser print opened and the invoice is ready below.`,
           );
         }
       }
