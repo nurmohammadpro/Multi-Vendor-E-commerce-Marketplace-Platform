@@ -3,10 +3,13 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import {
+  accentButtonStyle,
+  dangerButtonStyle,
   emptyStateStyle,
   fieldStyle,
   pageShellStyle,
   secondaryButtonStyle,
+  sectionPanelStyle,
   surfaceCardStyle,
   tableCellStyle,
   tableHeaderCellStyle,
@@ -430,7 +433,7 @@ export function InventoryWorkspace({
         )}
       </article>
 
-      <section style={{ display: 'grid', gridTemplateColumns: '1.1fr 0.9fr', gap: 16 }}>
+      <section style={{ ...sectionPanelStyle, gridTemplateColumns: '1.1fr 0.9fr' }}>
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Stock Control</h3>
           <p style={{ ...tokenMutedStyle, marginBottom: 12 }}>
@@ -526,8 +529,8 @@ export function InventoryWorkspace({
                         <td style={tableCellStyle}>
                           {request.status === 'pending' && canApproveInventory ? (
                             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                              <button onClick={() => decideAdjustment(request.id, 'approve')} style={secondaryButtonStyle} disabled={loading}>Approve</button>
-                              <button onClick={() => decideAdjustment(request.id, 'reject')} style={secondaryButtonStyle} disabled={loading}>Reject</button>
+                              <button onClick={() => decideAdjustment(request.id, 'approve')} style={accentButtonStyle} disabled={loading}>Approve</button>
+                              <button onClick={() => decideAdjustment(request.id, 'reject')} style={dangerButtonStyle} disabled={loading}>Reject</button>
                             </div>
                           ) : '—'}
                         </td>
@@ -552,7 +555,7 @@ export function InventoryWorkspace({
 
       </section>
 
-      <article style={surfaceCardStyle}>
+      <article style={{ ...surfaceCardStyle, borderStyle: 'solid' }}>
         <h3 style={{ marginTop: 0 }}>Ledger</h3>
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, marginBottom: 12 }}>
           <input value={ledgerSearch} onChange={(event) => setLedgerSearch(event.target.value)} style={fieldStyle} placeholder="Search product, SKU, location, movement" />
