@@ -1232,6 +1232,7 @@ export class CatalogService {
       productId: string;
       skuCode: string;
       barcode?: string;
+      variantLabel?: string;
       variantJson?: Record<string, unknown>;
       variantOptionIds?: string[];
       unitName?: string;
@@ -1259,6 +1260,7 @@ export class CatalogService {
         storeId,
         payload.variantOptionIds ?? [],
         payload.variantJson,
+        payload.variantLabel,
       );
 
       const result = await client.query<{
@@ -1917,12 +1919,14 @@ export class CatalogService {
     storeId: string,
     variantOptionIds: string[],
     fallbackVariantJson?: Record<string, unknown> | null,
+    fallbackVariantLabel?: string | null,
   ) {
     if (!variantOptionIds.length) {
+      const normalizedVariantLabel = fallbackVariantLabel?.trim() || null;
       return {
-        variantJson: fallbackVariantJson ?? {},
-        variantLabel: null,
-        variantKey: null,
+        variantJson: fallbackVariantJson ?? (normalizedVariantLabel ? { label: normalizedVariantLabel } : {}),
+        variantLabel: normalizedVariantLabel,
+        variantKey: normalizedVariantLabel ? `manual:${normalizedVariantLabel}` : null,
         options: [],
       };
     }

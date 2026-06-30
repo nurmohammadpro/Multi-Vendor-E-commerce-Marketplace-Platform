@@ -115,6 +115,10 @@ const cardStyle = surfaceCardStyle;
 const inputStyle = fieldStyle;
 const buttonStyle = secondaryButtonStyle;
 
+function isLoopbackAgent(url: string) {
+  return url.includes('127.0.0.1') || url.includes('localhost');
+}
+
 async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
   const response = await fetch(input, init);
   const payload = (await response.json().catch(() => null)) as T | { error?: string } | null;
@@ -191,6 +195,24 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
   }, []);
 
   useEffect(() => {
+    const runningHostedStore =
+      typeof window !== 'undefined' &&
+      !['localhost', '127.0.0.1'].includes(window.location.hostname);
+    const workstationLooksConfigured = Boolean(receiptPrinterName || labelPrinterName);
+    const shouldAutoProbe = !(
+      runningHostedStore &&
+      isLoopbackAgent(agentUrl) &&
+      !workstationLooksConfigured
+    );
+
+    if (!shouldAutoProbe) {
+      setPrintHealth(null);
+      setPrintError(
+        'Local printing is idle on this browser. Configure the Hardware page on the actual POS workstation to enable receipt printing and cash drawer control.',
+      );
+      return;
+    }
+
     void fetchPrintAgentHealth(agentUrl)
       .then((health) => {
         setPrintHealth(health);
@@ -198,9 +220,13 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
       })
       .catch((error: Error) => {
         setPrintHealth(null);
-        setPrintError(error.message);
+        setPrintError(
+          isLoopbackAgent(agentUrl)
+            ? 'Local print agent is unreachable from this browser. Sales still save normally and the invoice preview will open if printing fails.'
+            : error.message,
+        );
       });
-  }, [agentUrl]);
+  }, [agentUrl, labelPrinterName, receiptPrinterName]);
 
   useEffect(() => {
     if (searchDebounceRef.current) {
@@ -695,7 +721,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                           }}
                           style={{ ...buttonStyle, fontSize: 12, padding: '4px 10px' }}
                         >
-                          Choose
+                          Choose Variant
                         </button>
                       ) : (
                         <button
@@ -741,11 +767,12 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
-            <select value={saleMode} onChange={(event) => setSaleMode(event.target.value as 'paid' | 'due')} style={inputStyle}>
+            <select aria-label="Sale mode" value={saleMode} onChange={(event) => setSaleMode(event.target.value as 'paid' | 'due')} style={inputStyle}>
               <option value="paid">Paid sale</option>
               <option value="due">Due sale</option>
             </select>
             <select
+              aria-label="Payment method"
               value={paymentMethod}
               onChange={(event) => setPaymentMethod(event.target.value as 'cash' | 'card' | 'mfs' | 'bank_transfer')}
               style={inputStyle}
@@ -950,6 +977,11 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
             <div>Receipt: {printHealth?.printerName || receiptPrinterName || 'Not set'}</div>
             <div>Label: {printHealth?.labelPrinterName || labelPrinterName || 'Not set'}</div>
             <div style={{ color: '#94a3b8', fontSize: 11 }}>{agentUrl}</div>
+            {printError ? (
+              <div style={{ color: '#b45309', fontSize: 11 }}>
+                Printing is optional here. If the local agent is unavailable, the sale still completes and falls back to invoice preview.
+              </div>
+            ) : null}
           </div>
           <button onClick={handleOpenDrawer} style={{ ...buttonStyle, marginTop: 8, fontSize: 12, padding: '6px 10px' }} disabled={Boolean(printError)}>
             Test Cash Drawer
@@ -958,12 +990,17 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
 
         <article style={{ ...cardStyle, padding: 14 }}>
           <h4 style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Register</h4>
-          <select value={selectedRegisterId} onChange={(event) => setSelectedRegisterId(event.target.value)} style={{ ...inputStyle, marginTop: 8, fontSize: 12 }}>
+          <select aria-label="Register" value={selectedRegisterId} onChange={(event) => setSelectedRegisterId(event.target.value)} style={{ ...inputStyle, marginTop: 8, fontSize: 12 }}>
             <option value="">Select register</option>
             {registers.map((register) => (
               <option key={register.id} value={register.id}>{register.code} — {register.name}</option>
             ))}
           </select>
+          {!SHOW_SHIFT_CONTROLS ? (
+            <p style={{ marginTop: 8, marginBottom: 0, fontSize: 11, color: '#94a3b8' }}>
+              Shift controls are hidden for now.
+            </p>
+          ) : null}
           {SHOW_SHIFT_CONTROLS ? (
             <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
               <input value={openingCash} onChange={(event) => setOpeningCash(event.target.value)} style={{ ...inputStyle, fontSize: 12 }} placeholder="Opening cash" />
@@ -974,7 +1011,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
 
         <article style={{ ...cardStyle, padding: 14 }}>
           <h4 style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Stock Source</h4>
-          <select value={selectedLocationId} onChange={(event) => setSelectedLocationId(event.target.value)} style={{ ...inputStyle, marginTop: 8, fontSize: 12 }}>
+          <select aria-label="Stock source" value={selectedLocationId} onChange={(event) => setSelectedLocationId(event.target.value)} style={{ ...inputStyle, marginTop: 8, fontSize: 12 }}>
             <option value="">Select location</option>
             {locations.map((location) => (
               <option key={location.id} value={location.id}>{location.code} — {location.name}</option>

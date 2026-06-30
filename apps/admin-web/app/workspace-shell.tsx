@@ -121,6 +121,12 @@ function AppSidebar({
             </div>
           </div>
         </div>
+        <div className="px-2 pb-2 group-data-[collapsible=icon]:hidden">
+          <div className="rounded-md border bg-muted/40 px-2.5 py-2 text-[11px] text-muted-foreground">
+            <div className="font-medium text-foreground">Platform workspace</div>
+            <div>{badge}</div>
+          </div>
+        </div>
       </SidebarHeader>
 
       <SidebarContent>

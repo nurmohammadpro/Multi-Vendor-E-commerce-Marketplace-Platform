@@ -10,7 +10,7 @@ const LABEL_PRINTER_NAME = process.env.MVP_LABEL_PRINTER_NAME || '';
 const ALLOWED_ORIGINS = new Set(
   (
     process.env.MVP_ALLOWED_ORIGINS
-    || 'http://localhost:3000,http://127.0.0.1:3000,http://localhost:3002,http://127.0.0.1:3002,https://marketone.appbrainer.tech'
+    || 'http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001,http://localhost:3002,http://127.0.0.1:3002,https://marketone.appbrainer.tech,https://admin.marketone.appbrainer.tech,https://app.marketone.appbrainer.tech,https://store.marketone.appbrainer.tech'
   )
     .split(',')
     .map((value) => value.trim())
@@ -236,7 +236,10 @@ const allowCors = (req, res) => {
     res.setHeader('Vary', 'Origin');
   }
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Access-Control-Request-Private-Network');
+  if (req.headers['access-control-request-private-network'] === 'true') {
+    res.setHeader('Access-Control-Allow-Private-Network', 'true');
+  }
 };
 
 const server = http.createServer(async (req, res) => {

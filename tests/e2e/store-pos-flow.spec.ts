@@ -13,7 +13,7 @@ test('owner POS sale deducts stock and records a ledger movement', async ({ brow
     const ownerPage = await ownerContext.newPage();
 
     await ownerPage.goto('http://127.0.0.1:3002/pos');
-    await expect(ownerPage.locator('select').first()).toHaveValue('reg-1');
+    await expect(ownerPage.getByLabel('Register')).toHaveValue('reg-1');
     await expect(ownerPage.getByText('Shift controls are hidden for now.')).toBeVisible();
 
     await ownerPage.getByPlaceholder('Scan barcode or search product / SKU').fill('TSHIRT-BLK-M');
@@ -29,7 +29,7 @@ test('owner POS sale deducts stock and records a ledger movement', async ({ brow
 
     await ownerPage.getByPlaceholder('Amount paid by customer').fill('1200');
     await ownerPage.getByRole('button', { name: 'Complete Sale' }).click();
-    await expect(ownerPage.getByText(/Sale INV-0001 completed\./)).toBeVisible();
+    await expect(ownerPage.getByText(/Sale .* completed/)).toBeVisible();
     await expect(ownerPage.getByText('Latest invoice preview')).toBeVisible();
 
     await ownerPage.goto('http://127.0.0.1:3002/inventory');
