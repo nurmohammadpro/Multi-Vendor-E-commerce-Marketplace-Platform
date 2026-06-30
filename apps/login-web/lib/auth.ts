@@ -22,20 +22,60 @@ export type ContextSelectResponse = {
 };
 
 const TOKEN_KEY = 'mvp_access_token';
+const STORE_ID_KEY = 'mvp_store_id';
 const ADMIN_APP_URL = process.env.NEXT_PUBLIC_ADMIN_APP_URL || 'http://localhost:3001';
 const STORE_APP_URL = process.env.NEXT_PUBLIC_STORE_APP_URL || 'http://localhost:3002';
+
+function resolveCookieDomain(hostname?: string) {
+  const explicit = process.env.NEXT_PUBLIC_COOKIE_DOMAIN?.trim();
+  if (explicit) {
+    return explicit.startsWith('.') ? explicit : `.${explicit}`;
+  }
+  const host = hostname ?? (typeof window !== 'undefined' ? window.location.hostname : '');
+  if (!host || host === 'localhost' || host === '127.0.0.1') return '';
+  if (host.endsWith('marketone.appbrainer.tech')) return '.marketone.appbrainer.tech';
+  return '';
+}
+
+function buildCookie(name: string, value: string, maxAge: number) {
+  const domain = resolveCookieDomain();
+  return `${name}=${value}; path=/; max-age=${maxAge}; SameSite=Lax${domain ? `; Domain=${domain}` : ''}`;
+}
+
+function clearCookie(name: string) {
+  const domain = resolveCookieDomain();
+  if (typeof document === 'undefined') return;
+  document.cookie = `${name}=; path=/; max-age=0; SameSite=Lax`;
+  if (domain) {
+    document.cookie = `${name}=; path=/; max-age=0; SameSite=Lax; Domain=${domain}`;
+  }
+}
 
 export function getStoredToken(): string | null {
   if (typeof window === 'undefined') return null;
   return localStorage.getItem(TOKEN_KEY);
 }
 
-export function storeToken(token: string): void { if (typeof document !== "undefined") document.cookie = `auth_token=${token}; path=/; max-age=86400; SameSite=Lax`;
+export function storeToken(token: string): void { if (typeof document !== "undefined") document.cookie = buildCookie('auth_token', token, 86400);
   localStorage.setItem(TOKEN_KEY, token);
+}
+
+export function storeStoreId(storeId: string | null | undefined): void {
+  if (typeof window === 'undefined') return;
+  if (!storeId) {
+    localStorage.removeItem(STORE_ID_KEY);
+    clearCookie('store_id');
+    return;
+  }
+  localStorage.setItem(STORE_ID_KEY, storeId);
+  document.cookie = buildCookie('store_id', storeId, 86400);
 }
 
 export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(STORE_ID_KEY);
+  clearCookie('auth_token');
+  clearCookie('store_id');
 }
 
 export function getWorkspaceUrl(contextType: AuthContext['type']) {

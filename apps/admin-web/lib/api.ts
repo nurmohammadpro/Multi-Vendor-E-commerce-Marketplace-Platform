@@ -13,6 +13,32 @@ const apiBaseUrl = normalizeApiBaseUrl(
   '',
 );
 
+function resolveCookieDomain(hostname?: string) {
+  const explicit = process.env.NEXT_PUBLIC_COOKIE_DOMAIN?.trim();
+  if (explicit) {
+    return explicit.startsWith('.') ? explicit : `.${explicit}`;
+  }
+  const host = hostname ?? (typeof window !== 'undefined' ? window.location.hostname : '');
+  if (!host || host === 'localhost' || host === '127.0.0.1') return '';
+  if (host.endsWith('marketone.appbrainer.tech')) return '.marketone.appbrainer.tech';
+  return '';
+}
+
+function setClientCookie(name: string, value: string, maxAge: number) {
+  const domain = resolveCookieDomain();
+  document.cookie = `${name}=${value}; path=/; max-age=${maxAge}; SameSite=Lax${domain ? `; Domain=${domain}` : ''}`;
+}
+
+function getClientCookie(name: string) {
+  if (typeof document === 'undefined') return '';
+  const prefix = `${name}=`;
+  const match = document.cookie
+    .split(';')
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(prefix));
+  return match ? decodeURIComponent(match.slice(prefix.length)) : '';
+}
+
 async function getTokenFromCookies(): Promise<string> {
   try {
     const store = await cookies();
@@ -28,11 +54,16 @@ function getAuthTokenClient(): string {
   const urlToken = params.get('token');
   if (urlToken) {
     localStorage.setItem('auth_token', urlToken);
-    document.cookie = `auth_token=${urlToken}; path=/; max-age=86400; SameSite=Lax`;
+    setClientCookie('auth_token', urlToken, 86400);
     const url = new URL(window.location.href);
     url.searchParams.delete('token');
     window.history.replaceState({}, '', url.toString());
     return urlToken;
+  }
+  const cookieToken = getClientCookie('auth_token');
+  if (cookieToken) {
+    localStorage.setItem('auth_token', cookieToken);
+    return cookieToken;
   }
   return localStorage.getItem('auth_token') || '';
 }
