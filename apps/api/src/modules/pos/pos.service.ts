@@ -12,8 +12,44 @@ export class PosService {
     private readonly auditService: AuditService,
   ) {}
 
+  private async ensureDefaultRegister(storeId: string) {
+    await this.pool.query(
+      `
+        insert into sales.registers (
+          id,
+          tenant_id,
+          store_id,
+          code,
+          name,
+          status,
+          created_at,
+          updated_at
+        )
+        select
+          gen_random_uuid(),
+          s.tenant_id,
+          s.id,
+          'COUNTER-1',
+          'Main Counter',
+          'active',
+          now(),
+          now()
+        from store.stores s
+        where s.id = $1
+          and not exists (
+            select 1
+            from sales.registers r
+            where r.store_id = s.id
+              and r.status = 'active'
+          )
+      `,
+      [storeId],
+    );
+  }
+
   async getRegisters(headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
+    await this.ensureDefaultRegister(storeId);
 
     const result = await this.pool.query(
       `

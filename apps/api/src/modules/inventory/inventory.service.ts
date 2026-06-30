@@ -13,8 +13,46 @@ export class InventoryService {
     private readonly auditService: AuditService,
   ) {}
 
+  private async ensureDefaultLocation(storeId: string) {
+    await this.pool.query(
+      `
+        insert into inventory.locations (
+          id,
+          tenant_id,
+          store_id,
+          code,
+          name,
+          location_type,
+          status,
+          created_at,
+          updated_at
+        )
+        select
+          gen_random_uuid(),
+          s.tenant_id,
+          s.id,
+          'MAIN',
+          'Main Store',
+          'storefront',
+          'active',
+          now(),
+          now()
+        from store.stores s
+        where s.id = $1
+          and not exists (
+            select 1
+            from inventory.locations l
+            where l.store_id = s.id
+              and l.status = 'active'
+          )
+      `,
+      [storeId],
+    );
+  }
+
   async listLocations(headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
+    await this.ensureDefaultLocation(storeId);
     const result = await this.pool.query(
       `
         select id, code, name, location_type, status, created_at
@@ -75,6 +113,7 @@ export class InventoryService {
     filters: { locationId?: string; search?: string; page?: number; limit?: number } = {},
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
+    await this.ensureDefaultLocation(storeId);
 
     // Auto-seed zero-balance rows for any active SKU that doesn't have one,
     // so every SKU appears in balances immediately without manual initialization.
