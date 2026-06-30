@@ -56,6 +56,7 @@ import type { StoreConsoleAccess } from '../lib/access';
 import { canAccessStoreFeature, type StoreConsoleFeature } from '../lib/store-plan';
 import { logoutStoreClient } from '../lib/logout';
 import { PwaClient } from './pwa-client';
+import { RuntimeStatus } from './runtime-status';
 
 type NavItem = {
   href: string;
@@ -104,6 +105,13 @@ export function WorkspaceShell({ navItems, title, badge, children, access }: Wor
         <AppSidebar access={access} navItems={navItems} pathname={pathname} badge={badge} title={title} />
         <div className="flex flex-1 min-w-0 flex-col">
           <Header access={access} />
+          {access.role === 'unknown' || (access.storeStatus && access.storeStatus !== 'active') ? (
+            <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900 sm:px-6 lg:px-8">
+              {access.role === 'unknown'
+                ? 'This session has limited store access. Some routes may stay hidden until the correct store role is assigned.'
+                : `This store is currently marked as ${access.storeStatus}. Review settings and subscription state before daily operations.`}
+            </div>
+          ) : null}
           <main className="flex-1 overflow-auto bg-slate-50/80 p-4 sm:p-6 lg:p-8">
             <div className="w-full">{children}</div>
           </main>
@@ -250,6 +258,7 @@ function Header({ access }: { access: StoreConsoleAccess }) {
       </div>
 
       <div className="flex items-center gap-1.5 sm:gap-2">
+        <RuntimeStatus />
         <PwaClient />
         <span className="hidden sm:inline-flex items-center rounded-md border bg-muted px-2 py-1 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
           {access.role === 'unknown' ? 'Limited access' : `${access.role} access`}
