@@ -204,6 +204,7 @@ export function CatalogWorkspace({
     defaultCostPrice: '',
     hasVariants: false,
     variantMode: 'none',
+    isTrackable: true,
   });
   const [editingProductId, setEditingProductId] = useState('');
   const [groupForm, setGroupForm] = useState({
@@ -539,7 +540,7 @@ export function CatalogWorkspace({
             categoryId: productForm.categoryId || undefined,
             brandId: productForm.brandId || undefined,
             status: 'active',
-            isTrackable: true,
+            isTrackable: productForm.isTrackable,
             hasVariants: productForm.hasVariants,
             variantMode: productForm.hasVariants ? productForm.variantMode : 'none',
           }),
@@ -601,6 +602,7 @@ export function CatalogWorkspace({
         defaultCostPrice: '',
         hasVariants: false,
         variantMode: 'none',
+        isTrackable: true,
       });
       setProductVariantRows([]);
       setEditingProductId('');
@@ -909,9 +911,27 @@ export function CatalogWorkspace({
                 </div>
               </div>
 
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 8 }}>4. Stock tracking</div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}>
+                  <input
+                    type="checkbox"
+                    checked={productForm.isTrackable}
+                    onChange={(e) => setProductForm((v) => ({ ...v, isTrackable: e.target.checked }))}
+                    style={{ accentColor: '#0f172a' }}
+                  />
+                  <span style={{ fontSize: 13, color: '#334155' }}>
+                    Track inventory for this product
+                  </span>
+                </label>
+                <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+                  Disable for prepared food, services, or digital items. Enable for physical goods you buy and sell.
+                </div>
+              </div>
+
               {!productForm.hasVariants ? (
                 <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 8 }}>4. Sellable SKU and pricing</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 8 }}>5. Sellable SKU and pricing</div>
                   <div style={{ ...tableWrapStyle, marginBottom: 0 }}>
                     <table style={tableStyle}>
                       <thead>
@@ -965,7 +985,7 @@ export function CatalogWorkspace({
                 <div style={{ display: 'grid', gap: 12 }}>
                   <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'minmax(0, 220px) 1fr', gap: 12, alignItems: 'end' }}>
                     <div>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 6 }}>4. Variant structure</div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 6 }}>5. Variant structure</div>
                       <select value={productForm.variantMode} onChange={(e) => setProductForm((v) => ({ ...v, variantMode: e.target.value }))} style={inputStyle}>
                         <option value="single">Single Variant Axis</option>
                         <option value="multi">Multi Variant Axes</option>
@@ -978,7 +998,7 @@ export function CatalogWorkspace({
 
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>5. Ready-to-sell variant rows</div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>6. Ready-to-sell variant rows</div>
                       <button onClick={addProductVariantRow} style={accentButtonStyle} disabled={loading}>
                         + Add Row
                       </button>
