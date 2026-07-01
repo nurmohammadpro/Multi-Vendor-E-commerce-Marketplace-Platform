@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { Package, ClipboardList, ShoppingCart, BarChart3, CreditCard, LifeBuoy, ShieldAlert, Users, ReceiptText, Landmark } from 'lucide-react';
+import { Package, ClipboardList, ShoppingCart, BarChart3, CreditCard, LifeBuoy, ShieldAlert, Users, ReceiptText, Landmark, Wallet } from 'lucide-react';
 
 import { fetchStoreApi, isStoreApiConfigured } from '../lib/api';
 import { getStoreConsoleAccess } from '../lib/access';
@@ -31,6 +31,8 @@ const quickActions = [
   { href: '/inventory', title: 'Stock', detail: 'Review balances, adjustments, and the stock ledger.', icon: ClipboardList, permission: 'inventory.view', feature: 'inventory' },
   { href: '/reports', title: 'Reports', detail: 'Open daily sales, stock snapshots, and exports.', icon: BarChart3, permission: 'sales.report.view', feature: 'reports' },
   { href: '/customers', title: 'Customers', detail: 'Track due customers, mobile, email, shop identity, and collections.', icon: Users, permission: 'sales.report.view', feature: 'customers' },
+  { href: '/receivables', title: 'Receivables', detail: 'Follow due sales aging and collect outstanding customer payments.', icon: Wallet, permission: 'sales.report.view', feature: 'receivables' },
+  { href: '/purchases', title: 'Purchases', detail: 'Receive supplier stock, track supplier history, and post payables.', icon: Package, feature: 'purchases' },
   { href: '/disputes', title: 'Disputes', detail: 'Track return, refund, and walk-in customer issue cases.', icon: ShieldAlert, permission: 'sales.report.view', feature: 'disputes' },
   { href: '/support', title: 'Support', detail: 'Open operational and technical support tickets.', icon: LifeBuoy, permission: 'sales.report.view', feature: 'support' },
   { href: '/staff', title: 'User Management', detail: 'Manage store owner, manager, and salesman access.', icon: Users, permission: 'store.staff.manage', feature: 'staff' },
@@ -88,6 +90,7 @@ export default async function StoreDashboardPage() {
   );
   const lockedModules = [
     { title: 'User Management', plan: 'Standard', visible: !canAccessStoreFeature(access, 'staff') },
+    { title: 'Purchases & Payables', plan: 'Standard', visible: !canAccessStoreFeature(access, 'purchases') },
     { title: 'Daily Expense', plan: 'Standard', visible: !canAccessStoreFeature(access, 'expenses') },
     { title: 'HR & Payroll', plan: 'Pro', visible: !canAccessStoreFeature(access, 'payroll') },
     { title: 'Banking Reconciliation', plan: 'Pro', visible: !canAccessStoreFeature(access, 'banking') },
@@ -163,8 +166,8 @@ export default async function StoreDashboardPage() {
         <article style={surfaceCardStyle}>
           <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 12 }}>Subscription scope</div>
           <ul style={{ ...tokenMutedStyle, paddingLeft: 20, display: 'grid', gap: 6, fontSize: 13 }}>
-            <li>Basic covers dashboard, stock, POS sales, reports, disputes, and support.</li>
-            <li>Standard adds role-based user management and daily expense.</li>
+            <li>Basic covers dashboard, stock, POS sales, receivables, reports, disputes, and support.</li>
+            <li>Standard adds purchases, supplier payables, role-based user management, and daily expense.</li>
             <li>Pro adds HR and payroll, advanced reporting, and banking reconciliation.</li>
           </ul>
         </article>

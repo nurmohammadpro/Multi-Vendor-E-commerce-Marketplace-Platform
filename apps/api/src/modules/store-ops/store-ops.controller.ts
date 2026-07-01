@@ -14,6 +14,55 @@ const collectDuePaymentSchema = z.object({
   note: z.string().max(500).optional(),
 });
 
+const supplierSchema = z.object({
+  supplierType: z.enum(['supplier', 'importer', 'company']).default('supplier'),
+  companyName: z.string().min(1).max(200),
+  contactName: z.string().max(200).optional(),
+  phone: z.string().max(30).optional(),
+  email: z.string().email().optional(),
+  address: z.string().max(2000).optional(),
+  note: z.string().max(1000).optional(),
+  openingPayableAmount: z.number().nonnegative().default(0),
+  status: z.enum(['active', 'inactive']).default('active'),
+});
+
+const supplierUpdateSchema = supplierSchema.partial().extend({
+  contactName: z.string().max(200).nullable().optional(),
+  phone: z.string().max(30).nullable().optional(),
+  email: z.string().email().nullable().optional(),
+  address: z.string().max(2000).nullable().optional(),
+  note: z.string().max(1000).nullable().optional(),
+});
+
+const purchaseItemSchema = z.object({
+  skuId: z.string().uuid(),
+  qty: z.number().positive(),
+  unitCost: z.number().nonnegative(),
+});
+
+const createPurchaseSchema = z.object({
+  supplierId: z.string().uuid(),
+  locationId: z.string().uuid().optional(),
+  purchaseDate: z.string().date(),
+  invoiceNo: z.string().max(100).optional(),
+  discountAmount: z.number().nonnegative().default(0),
+  taxAmount: z.number().nonnegative().default(0),
+  shippingAmount: z.number().nonnegative().default(0),
+  note: z.string().max(1000).optional(),
+  paymentMethod: z.enum(['cash', 'card', 'mfs', 'bank_transfer']).optional(),
+  paidAmount: z.number().nonnegative().default(0),
+  paymentReferenceNo: z.string().max(100).optional(),
+  paymentNote: z.string().max(500).optional(),
+  items: z.array(purchaseItemSchema).min(1),
+});
+
+const purchasePaymentSchema = z.object({
+  amount: z.number().positive(),
+  paymentMethod: z.enum(['cash', 'card', 'mfs', 'bank_transfer']),
+  referenceNo: z.string().max(100).optional(),
+  note: z.string().max(500).optional(),
+});
+
 const expenseSchema = z.object({
   expenseDate: z.string().date(),
   categoryName: z.string().min(1).max(120),
@@ -228,6 +277,137 @@ export class StoreOpsController {
       session,
       collectDuePaymentSchema.parse(payload),
     );
+  }
+
+  @Get('suppliers')
+  @RequireContext('store')
+  @RequirePermissions('sales.report.view')
+  listSuppliers(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @Query('search') search?: string,
+    @Query('status') status?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.storeOpsService.listSuppliers(headerStoreId, authContext, {
+      search,
+      status,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
+  @Post('suppliers')
+  @RequireContext('store')
+  @RequirePermissions('procurement.manage')
+  createSupplier(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @CurrentAuthSession() session: AuthSession | null,
+    @Body() payload: unknown,
+  ) {
+    return this.storeOpsService.createSupplier(headerStoreId, authContext, session, supplierSchema.parse(payload));
+  }
+
+  @Patch('suppliers/:supplierId')
+  @RequireContext('store')
+  @RequirePermissions('procurement.manage')
+  updateSupplier(
+    @Param('supplierId') supplierId: string,
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @Body() payload: unknown,
+  ) {
+    return this.storeOpsService.updateSupplier(supplierId, headerStoreId, authContext, supplierUpdateSchema.parse(payload));
+  }
+
+  @Get('purchases')
+  @RequireContext('store')
+  @RequirePermissions('sales.report.view')
+  listPurchases(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @Query('search') search?: string,
+    @Query('status') status?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.storeOpsService.listPurchases(headerStoreId, authContext, {
+      search,
+      status,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
+  @Get('purchases/:purchaseId')
+  @RequireContext('store')
+  @RequirePermissions('sales.report.view')
+  getPurchase(
+    @Param('purchaseId') purchaseId: string,
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+  ) {
+    return this.storeOpsService.getPurchase(purchaseId, headerStoreId, authContext);
+  }
+
+  @Post('purchases')
+  @RequireContext('store')
+  @RequirePermissions('procurement.manage')
+  createPurchase(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @CurrentAuthSession() session: AuthSession | null,
+    @Body() payload: unknown,
+  ) {
+    return this.storeOpsService.createPurchase(headerStoreId, authContext, session, createPurchaseSchema.parse(payload));
+  }
+
+  @Post('purchases/:purchaseId/payments')
+  @RequireContext('store')
+  @RequirePermissions('finance.payables.manage')
+  createPurchasePayment(
+    @Param('purchaseId') purchaseId: string,
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @CurrentAuthSession() session: AuthSession | null,
+    @Body() payload: unknown,
+  ) {
+    return this.storeOpsService.createPurchasePayment(
+      purchaseId,
+      headerStoreId,
+      authContext,
+      session,
+      purchasePaymentSchema.parse(payload),
+    );
+  }
+
+  @Get('payables')
+  @RequireContext('store')
+  @RequirePermissions('sales.report.view')
+  listPayables(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.storeOpsService.listPayables(headerStoreId, authContext, {
+      search,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
+  @Get('payables/aging')
+  @RequireContext('store')
+  @RequirePermissions('sales.report.view')
+  getPayablesAging(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+  ) {
+    return this.storeOpsService.getPayablesAging(headerStoreId, authContext);
   }
 
   @Get('expenses')
