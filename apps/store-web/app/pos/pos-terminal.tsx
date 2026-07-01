@@ -898,8 +898,12 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                   Keep the cart tight: selling price, quantity, line total, and nothing distracting.
                 </p>
               </div>
-              <div style={{ fontSize: 12, color: '#64748b' }}>
-                {cart.length} item(s) · Total {currency(grandTotal)}
+              <div style={{ fontSize: 12, color: '#64748b', textAlign: 'right' }}>
+                <div>{cart.length} item(s) · Subtotal {currency(total)}</div>
+                {totalDiscount > 0 ? (
+                  <div style={{ color: '#b45309' }}>Discount -{currency(totalDiscount)}</div>
+                ) : null}
+                <div style={{ fontWeight: 700, fontSize: 14 }}>Total {currency(grandTotal)}</div>
               </div>
             </div>
             {cart.length ? (
