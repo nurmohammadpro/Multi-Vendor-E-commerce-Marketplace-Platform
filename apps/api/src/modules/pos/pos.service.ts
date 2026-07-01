@@ -120,6 +120,7 @@ export class PosService {
           p.name as product_name,
           p.has_variants,
           p.variant_mode,
+          p.is_trackable,
           lp.sale_price,
           lp.compare_at_price,
           st.on_hand_qty,
