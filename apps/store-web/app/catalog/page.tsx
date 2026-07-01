@@ -1,4 +1,4 @@
-import { pageIntroCardStyle, pageLeadStyle, pageShellStyle, pageTitleStyle, sectionIntroStyle, sectionLabelStyle } from '../motocore-theme';
+import { pageIntroCardStyle, pageLeadStyle, pageShellStyle, pageTitleStyle, sectionIntroStyle, sectionLabelStyle } from '../marketone-theme';
 import { getStoreConsoleAccess } from '../../lib/access';
 
 import { CatalogWorkspace } from './catalog-workspace';

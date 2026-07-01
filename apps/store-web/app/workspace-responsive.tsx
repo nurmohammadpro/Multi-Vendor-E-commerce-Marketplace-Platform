@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type CSSProperties } from 'react';
 
-import { motocoreColors, subtleButtonStyle } from './motocore-theme';
+import { marketoneColors, subtleButtonStyle } from './marketone-theme';
 
 export function useCompactLayout(maxWidth = 1024) {
   const [compact, setCompact] = useState(false);
@@ -37,8 +37,8 @@ export function WorkspaceTabs({
         gap: 8,
         padding: 8,
         borderRadius: 8,
-        border: `1px solid ${motocoreColors.border}`,
-        background: motocoreColors.backgroundAlt,
+        border: `1px solid ${marketoneColors.border}`,
+        background: marketoneColors.backgroundAlt,
       }}
     >
       {tabs.map((tab) => {
@@ -52,9 +52,9 @@ export function WorkspaceTabs({
               ...subtleButtonStyle,
               minHeight: 32,
               background: selected ? '#ffffff' : 'transparent',
-              border: selected ? `1px solid ${motocoreColors.borderStrong}` : '1px solid transparent',
-              color: selected ? motocoreColors.ink : motocoreColors.muted,
-              boxShadow: selected ? `0 1px 2px ${motocoreColors.shadow}` : 'none',
+              border: selected ? `1px solid ${marketoneColors.borderStrong}` : '1px solid transparent',
+              color: selected ? marketoneColors.ink : marketoneColors.muted,
+              boxShadow: selected ? `0 1px 2px ${marketoneColors.shadow}` : 'none',
             }}
           >
             {tab.label}

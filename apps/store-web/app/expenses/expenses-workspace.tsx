@@ -4,11 +4,12 @@ import { useEffect, useState } from 'react';
 
 import {
   accentButtonStyle,
+  dangerButtonStyle,
   emptyStateStyle,
   fieldStyle,
   sectionPanelStyle,
   pageShellStyle,
-  secondaryButtonStyle,
+  neutralButtonStyle,
   subtleButtonStyle,
   surfaceCardStyle,
   tableCellStyle,
@@ -16,9 +17,9 @@ import {
   tableStyle,
   tableWrapStyle,
   tokenMutedStyle,
-} from '../motocore-theme';
+} from '../marketone-theme';
 import { ListPager, type PaginationState, totalPagesFor } from '../list-pager';
-import { stackedFilterGridStyle, useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
+import { useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
 
 type Expense = {
   id: string;
@@ -31,6 +32,13 @@ type Expense = {
   note?: string | null;
 };
 
+type ExpenseCategory = {
+  id: string;
+  name: string;
+  status: string;
+  created_at: string;
+};
+
 async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
   const response = await fetch(input, init);
   const payload = (await response.json().catch(() => null)) as T | { error?: string } | null;
@@ -41,6 +49,8 @@ async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
 export function ExpensesWorkspace() {
   const compact = useCompactLayout();
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [categories, setCategories] = useState<ExpenseCategory[]>([]);
+  const [newCategoryName, setNewCategoryName] = useState('');
   const [selectedExpenseId, setSelectedExpenseId] = useState('');
   const [message, setMessage] = useState('Daily expense workflow is ready.');
   const [loading, setLoading] = useState(false);
@@ -49,7 +59,7 @@ export function ExpensesWorkspace() {
   const [pagination, setPagination] = useState<PaginationState>({ page: 1, limit: 12, total: 0 });
   const [form, setForm] = useState({
     expenseDate: new Date().toISOString().slice(0, 10),
-    categoryName: 'Utility',
+    categoryName: '',
     title: '',
     amount: '',
     paymentMethod: 'cash',
@@ -57,6 +67,15 @@ export function ExpensesWorkspace() {
     note: '',
   });
   const [activeTab, setActiveTab] = useState<'record' | 'list'>('list');
+
+  const loadCategories = async () => {
+    try {
+      const payload = await readJson<{ categories: ExpenseCategory[] }>('/api/store-ops/expense-categories');
+      setCategories(payload.categories ?? []);
+    } catch {
+      // categories are optional
+    }
+  };
 
   const refresh = async (nextPage = 1) => {
     const params = new URLSearchParams({ page: String(nextPage), limit: String(pagination.limit) });
@@ -68,8 +87,42 @@ export function ExpensesWorkspace() {
   };
 
   useEffect(() => {
-    void refresh().catch((error: Error) => setMessage(error.message));
+    void Promise.all([refresh(), loadCategories()]).catch((error: Error) => setMessage(error.message));
   }, []);
+
+  const activeCategories = categories.filter((c) => c.status === 'active');
+  const hasCategories = activeCategories.length > 0;
+
+  const addCategory = async () => {
+    const name = newCategoryName.trim();
+    if (!name) return;
+    try {
+      await readJson('/api/store-ops/expense-categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      setNewCategoryName('');
+      await loadCategories();
+      setMessage(`Category "${name}" created.`);
+    } catch (error) {
+      setMessage((error as Error).message);
+    }
+  };
+
+  const toggleCategoryStatus = async (category: ExpenseCategory) => {
+    const nextStatus = category.status === 'active' ? 'archived' : 'active';
+    try {
+      await readJson(`/api/store-ops/expense-categories/${category.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: nextStatus }),
+      });
+      await loadCategories();
+    } catch (error) {
+      setMessage((error as Error).message);
+    }
+  };
 
   const saveExpense = async () => {
     if (!form.title.trim() || !form.amount) {
@@ -94,7 +147,7 @@ export function ExpensesWorkspace() {
       });
       await refresh(1);
       setSelectedExpenseId('');
-      setForm({ expenseDate: new Date().toISOString().slice(0, 10), categoryName: 'Utility', title: '', amount: '', paymentMethod: 'cash', status: 'draft', note: '' });
+      setForm({ expenseDate: new Date().toISOString().slice(0, 10), categoryName: '', title: '', amount: '', paymentMethod: 'cash', status: 'draft', note: '' });
       setMessage('Expense saved.');
     } catch (error) {
       setMessage((error as Error).message);
@@ -120,10 +173,19 @@ export function ExpensesWorkspace() {
       <section style={{ ...sectionPanelStyle, gridTemplateColumns: compact ? '1fr' : 'minmax(320px, 0.9fr) minmax(420px, 1.1fr)' }}>
         {!compact || activeTab === 'record' ? (
         <article style={surfaceCardStyle}>
-          <h3 style={{ marginTop: 0 }}>Record Expense</h3>
+          <h3 style={{ marginTop: 0, fontSize: 14 }}>Record Expense</h3>
           <div style={{ display: 'grid', gap: 10 }}>
             <input type="date" value={form.expenseDate} onChange={(event) => setForm((current) => ({ ...current, expenseDate: event.target.value }))} style={fieldStyle} />
-            <input value={form.categoryName} onChange={(event) => setForm((current) => ({ ...current, categoryName: event.target.value }))} style={fieldStyle} placeholder="Category" />
+            {hasCategories ? (
+              <select value={form.categoryName} onChange={(event) => setForm((current) => ({ ...current, categoryName: event.target.value }))} style={fieldStyle}>
+                <option value="">Select category...</option>
+                {activeCategories.map((cat) => (
+                  <option key={cat.id} value={cat.name}>{cat.name}</option>
+                ))}
+              </select>
+            ) : (
+              <input value={form.categoryName} onChange={(event) => setForm((current) => ({ ...current, categoryName: event.target.value }))} style={fieldStyle} placeholder="Category" />
+            )}
             <input value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} style={fieldStyle} placeholder="Expense title" />
             <input value={form.amount} onChange={(event) => setForm((current) => ({ ...current, amount: event.target.value }))} style={fieldStyle} placeholder="Amount" />
             <select value={form.paymentMethod} onChange={(event) => setForm((current) => ({ ...current, paymentMethod: event.target.value }))} style={fieldStyle}>
@@ -144,76 +206,134 @@ export function ExpensesWorkspace() {
         ) : null}
 
         {!compact || activeTab === 'list' ? (
-        <article style={surfaceCardStyle}>
-          <h3 style={{ marginTop: 0 }}>Expenses</h3>
-          <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
-            <input value={search} onChange={(event) => setSearch(event.target.value)} style={fieldStyle} placeholder="Search title, category, method, or status" />
-            <button onClick={() => void refresh(1)} style={secondaryButtonStyle} disabled={loading}>Search</button>
-          </div>
-          {expenses.length ? (
-            <>
-              <div style={tableWrapStyle}>
-                <table style={tableStyle}>
-                  <thead>
-                    <tr>
-                      <th style={tableHeaderCellStyle}>Date</th>
-                      <th style={tableHeaderCellStyle}>Title</th>
-                      <th style={tableHeaderCellStyle}>Category</th>
-                      <th style={tableHeaderCellStyle}>Method</th>
-                      <th style={tableHeaderCellStyle}>Status</th>
-                      <th style={tableHeaderCellStyle}>Amount</th>
-                      <th style={tableHeaderCellStyle}>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {expenses.map((expense) => (
-                      <tr key={expense.id}>
-                        <td style={tableCellStyle}>{expense.expense_date}</td>
-                        <td style={tableCellStyle}>{expense.title}</td>
-                        <td style={tableCellStyle}>{expense.category_name}</td>
-                        <td style={tableCellStyle}>{expense.payment_method}</td>
-                        <td style={tableCellStyle}>{expense.status}</td>
-                        <td style={tableCellStyle}>{expense.amount}</td>
-                        <td style={tableCellStyle}>
-                          <button
-                            onClick={() => {
-                              setSelectedExpenseId(expense.id);
-                              setForm({
-                                expenseDate: expense.expense_date?.slice(0, 10) || new Date().toISOString().slice(0, 10),
-                                categoryName: expense.category_name,
-                                title: expense.title,
-                                amount: String(expense.amount),
-                                paymentMethod: expense.payment_method,
-                                status: expense.status,
-                                note: expense.note || '',
-                              });
-                            }}
-                            style={subtleButtonStyle}
-                          >
-                            Edit
-                          </button>
-                        </td>
+        <div style={{ display: 'grid', gap: 12 }}>
+          <article style={surfaceCardStyle}>
+            <h3 style={{ marginTop: 0, fontSize: 14 }}>Expenses</h3>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              <input value={search} onChange={(event) => setSearch(event.target.value)} style={{ ...fieldStyle, flex: 1 }} placeholder="Search title, category, method, or status" />
+              <button onClick={() => void refresh(1)} style={accentButtonStyle} disabled={loading}>Search</button>
+            </div>
+            {expenses.length ? (
+              <>
+                <div style={tableWrapStyle}>
+                  <table style={tableStyle}>
+                    <thead>
+                      <tr>
+                        <th style={tableHeaderCellStyle}>Date</th>
+                        <th style={tableHeaderCellStyle}>Title</th>
+                        <th style={tableHeaderCellStyle}>Category</th>
+                        <th style={tableHeaderCellStyle}>Method</th>
+                        <th style={tableHeaderCellStyle}>Status</th>
+                        <th style={tableHeaderCellStyle}>Amount</th>
+                        <th style={tableHeaderCellStyle}>Action</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <ListPager
-                loading={loading}
-                page={page}
-                pagination={pagination}
-                label="expense(s)"
-                onPrevious={() => void refresh(Math.max(1, page - 1))}
-                onNext={() => void refresh(Math.min(totalPages, page + 1))}
+                    </thead>
+                    <tbody>
+                      {expenses.map((expense) => (
+                        <tr key={expense.id}>
+                          <td style={tableCellStyle}>{expense.expense_date}</td>
+                          <td style={tableCellStyle}>{expense.title}</td>
+                          <td style={tableCellStyle}>{expense.category_name}</td>
+                          <td style={tableCellStyle}>{expense.payment_method}</td>
+                          <td style={tableCellStyle}>{expense.status}</td>
+                          <td style={{ ...tableCellStyle, fontWeight: 600 }}>{expense.amount}</td>
+                          <td style={tableCellStyle}>
+                            <button
+                              onClick={() => {
+                                setSelectedExpenseId(expense.id);
+                                setForm({
+                                  expenseDate: expense.expense_date?.slice(0, 10) || new Date().toISOString().slice(0, 10),
+                                  categoryName: expense.category_name,
+                                  title: expense.title,
+                                  amount: String(expense.amount),
+                                  paymentMethod: expense.payment_method,
+                                  status: expense.status,
+                                  note: expense.note || '',
+                                });
+                              }}
+                              style={subtleButtonStyle}
+                            >
+                              Edit
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <ListPager
+                  loading={loading}
+                  page={page}
+                  pagination={pagination}
+                  label="expense(s)"
+                  onPrevious={() => void refresh(Math.max(1, page - 1))}
+                  onNext={() => void refresh(Math.min(totalPages, page + 1))}
+                />
+              </>
+            ) : <div style={emptyStateStyle}>No expenses recorded yet.</div>}
+          </article>
+
+          <article style={surfaceCardStyle}>
+            <h3 style={{ marginTop: 0, fontSize: 14 }}>Expense Categories</h3>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+              <input
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') void addCategory(); }}
+                style={{ ...fieldStyle, flex: 1 }}
+                placeholder="New category name"
               />
-            </>
-          ) : <div style={emptyStateStyle}>No expenses recorded yet.</div>}
-        </article>
+              <button onClick={() => void addCategory()} style={accentButtonStyle}>Add</button>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {categories.length === 0 && (
+                <span style={tokenMutedStyle}>No categories yet. Create one above.</span>
+              )}
+              {categories.map((cat) => (
+                <span
+                  key={cat.id}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '4px 8px',
+                    borderRadius: 6,
+                    border: `1px solid ${cat.status === 'active' ? 'rgba(37, 99, 235, 0.2)' : 'rgba(148, 163, 184, 0.22)'}`,
+                    background: cat.status === 'active' ? 'rgba(37, 99, 235, 0.06)' : '#ffffff',
+                    fontSize: 12,
+                    fontWeight: 500,
+                    color: cat.status === 'active' ? '#1d4ed8' : '#475569',
+                    opacity: cat.status === 'archived' ? 0.6 : 1,
+                  }}
+                >
+                  {cat.name}
+                  {cat.status === 'active' ? (
+                    <button
+                      onClick={() => void toggleCategoryStatus(cat)}
+                      style={{ ...subtleButtonStyle, minHeight: 18, padding: '0 4px', fontSize: 11, lineHeight: '18px', color: '#94a3b8' }}
+                      title="Archive"
+                    >
+                      ✕
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => void toggleCategoryStatus(cat)}
+                      style={{ ...subtleButtonStyle, minHeight: 18, padding: '0 4px', fontSize: 11, lineHeight: '18px' }}
+                      title="Restore"
+                    >
+                      restore
+                    </button>
+                  )}
+                </span>
+              ))}
+            </div>
+          </article>
+        </div>
         ) : null}
       </section>
 
       <article style={surfaceCardStyle}>
-        <h3 style={{ marginTop: 0 }}>Operator Notes</h3>
+        <h3 style={{ marginTop: 0, fontSize: 14 }}>Operator Notes</h3>
         <p style={tokenMutedStyle}>{message}</p>
       </article>
     </section>

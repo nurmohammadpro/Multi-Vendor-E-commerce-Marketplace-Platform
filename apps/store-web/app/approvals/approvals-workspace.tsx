@@ -13,7 +13,7 @@ import {
   tableStyle,
   tableWrapStyle,
   tokenMutedStyle,
-} from '../motocore-theme';
+} from '../marketone-theme';
 
 type StockAdjustmentRequest = {
   id: string;

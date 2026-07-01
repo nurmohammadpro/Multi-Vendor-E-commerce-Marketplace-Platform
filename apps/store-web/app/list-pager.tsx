@@ -1,6 +1,6 @@
 'use client';
 
-import { secondaryButtonStyle, tokenMutedStyle } from './motocore-theme';
+import { secondaryButtonStyle, tokenMutedStyle } from './marketone-theme';
 
 export type PaginationState = {
   page: number;

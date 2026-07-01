@@ -9,14 +9,14 @@ import {
   metricLabelStyle,
   metricNoteStyle,
   metricValueStyle,
-  motocoreColors,
+  marketoneColors,
   pageShellStyle,
   pillStyle,
   sectionPanelStyle,
   sectionLabelStyle,
   surfaceCardStyle,
   tokenMutedStyle,
-} from './motocore-theme';
+} from './marketone-theme';
 
 function formatQty(value: number | string | null | undefined) {
   const numeric = Number(value ?? 0);
@@ -119,7 +119,7 @@ export default async function StoreDashboardPage() {
         </div>
       </div>
 
-      <div style={{ borderTop: `1px solid ${motocoreColors.borderStrong}` }} />
+      <div style={{ borderTop: `1px solid ${marketoneColors.borderStrong}` }} />
 
       <div style={{ ...sectionPanelStyle, gridTemplateColumns: 'repeat(4, 1fr)' }}>
         <MetricCard title="Total Sales" value={salesReport?.summary?.total_sales_amount ?? '—'} note="Completed sales pulled from the reporting API." />
@@ -136,7 +136,7 @@ export default async function StoreDashboardPage() {
               <article style={{ ...surfaceCardStyle, cursor: 'pointer', transition: 'box-shadow 0.15s' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
                   <div style={{ fontSize: 14, fontWeight: 500 }}>{action.title}</div>
-                  <Icon size={16} color={motocoreColors.muted} />
+                  <Icon size={16} color={marketoneColors.muted} />
                 </div>
                 <p style={{ ...tokenMutedStyle, marginTop: 4 }}>{action.detail}</p>
               </article>
@@ -153,9 +153,9 @@ export default async function StoreDashboardPage() {
           </p>
           <div style={{ display: 'grid', gap: 8 }}>
             {lockedModules.map((module) => (
-              <div key={module.title} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderRadius: 6, border: `1px solid ${motocoreColors.border}`, fontSize: 13 }}>
+              <div key={module.title} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderRadius: 6, border: `1px solid ${marketoneColors.border}`, fontSize: 13 }}>
                 <span>{module.title}</span>
-                <span style={{ color: motocoreColors.muted }}>{module.plan}</span>
+                <span style={{ color: marketoneColors.muted }}>{module.plan}</span>
               </div>
             ))}
           </div>

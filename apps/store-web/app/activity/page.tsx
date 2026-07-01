@@ -1,5 +1,5 @@
 import { getStoreConsoleAccess } from '../../lib/access';
-import { emptyStateStyle, pageLeadStyle, pageTitleStyle, sectionIntroStyle, sectionLabelStyle } from '../motocore-theme';
+import { emptyStateStyle, pageLeadStyle, pageTitleStyle, sectionIntroStyle, sectionLabelStyle } from '../marketone-theme';
 import { ActivityWorkspace } from './activity-workspace';
 
 export default async function StoreActivityPage() {

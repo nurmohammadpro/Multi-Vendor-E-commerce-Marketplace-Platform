@@ -15,7 +15,7 @@ import {
   tableStyle,
   tableWrapStyle,
   tokenMutedStyle,
-} from '../motocore-theme';
+} from '../marketone-theme';
 import { useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
 
 type SalesReport = {

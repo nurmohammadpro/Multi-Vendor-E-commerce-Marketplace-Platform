@@ -10,7 +10,7 @@ import {
   secondaryButtonStyle,
   surfaceCardStyle,
   tokenMutedStyle,
-} from '../motocore-theme';
+} from '../marketone-theme';
 import { useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
 
 type StoreProfile = {

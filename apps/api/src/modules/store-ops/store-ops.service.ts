@@ -1268,6 +1268,67 @@ export class StoreOpsService {
     return { expense: result.rows[0] };
   }
 
+  async listExpenseCategories(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const result = await this.pool.query(
+      `
+        select id, name, status, created_at
+        from finance.expense_categories
+        where store_id = $1
+        order by name asc
+      `,
+      [storeId],
+    );
+    return { categories: result.rows };
+  }
+
+  async createExpenseCategory(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    payload: { name: string },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    this.assertAllowedRoles(authContext, ['store_owner', 'store_manager']);
+    const result = await this.pool.query(
+      `
+        insert into finance.expense_categories (id, tenant_id, store_id, name, created_at, updated_at)
+        select gen_random_uuid(), s.tenant_id, s.id, $2, now(), now()
+        from store.stores s
+        where s.id = $1
+        returning id, name, status, created_at
+      `,
+      [storeId, payload.name],
+    );
+    return { category: result.rows[0] };
+  }
+
+  async updateExpenseCategory(
+    categoryId: string,
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    payload: { name?: string; status?: string },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    this.assertAllowedRoles(authContext, ['store_owner', 'store_manager']);
+    const result = await this.pool.query(
+      `
+        update finance.expense_categories
+        set name = coalesce($3, name),
+            status = coalesce($4, status),
+            updated_at = now()
+        where id = $1
+          and store_id = $2
+        returning id, name, status, created_at
+      `,
+      [categoryId, storeId, payload.name ?? null, payload.status ?? null],
+    );
+    if (!result.rows[0]) throw new NotFoundException('Expense category not found');
+    return { category: result.rows[0] };
+  }
+
   async listEmployees(
     headerStoreId: string | undefined,
     authContext: StoreAuthContext | null,

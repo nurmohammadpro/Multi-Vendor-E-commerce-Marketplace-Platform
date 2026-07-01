@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
 
-export const motocoreColors = {
+export const marketoneColors = {
   background: '#f8fafc',
   backgroundAlt: '#f1f5f9',
   backgroundRaised: '#eef2f7',
@@ -21,7 +21,7 @@ export const motocoreColors = {
 export const pageShellStyle: CSSProperties = {
   minHeight: 'auto',
   padding: 0,
-  color: motocoreColors.ink,
+  color: marketoneColors.ink,
   background: 'transparent',
   fontFamily:
     'var(--font-geist-sans), Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
@@ -45,9 +45,9 @@ export const pageIntroCardStyle: CSSProperties = {
   gap: 6,
   padding: 12,
   borderRadius: 8,
-  border: `1px solid ${motocoreColors.border}`,
-  background: motocoreColors.surfaceSoft,
-  boxShadow: `inset 0 1px 0 rgba(255,255,255,0.7), 0 1px 2px ${motocoreColors.shadow}`,
+  border: `1px solid ${marketoneColors.border}`,
+  background: marketoneColors.surfaceSoft,
+  boxShadow: `inset 0 1px 0 rgba(255,255,255,0.7), 0 1px 2px ${marketoneColors.shadow}`,
 };
 
 export const sectionPanelStyle: CSSProperties = {
@@ -55,8 +55,8 @@ export const sectionPanelStyle: CSSProperties = {
   gap: 12,
   padding: 12,
   borderRadius: 8,
-  border: `1px solid ${motocoreColors.border}`,
-  background: motocoreColors.backgroundAlt,
+  border: `1px solid ${marketoneColors.border}`,
+  background: marketoneColors.backgroundAlt,
   boxShadow: `inset 0 1px 0 rgba(255,255,255,0.45)`,
 };
 
@@ -73,7 +73,7 @@ export const sectionLabelStyle: CSSProperties = {
   letterSpacing: '0.16em',
   textTransform: 'uppercase',
   fontWeight: 600,
-  color: motocoreColors.muted,
+  color: marketoneColors.muted,
 };
 
 export const pageTitleStyle: CSSProperties = {
@@ -89,29 +89,29 @@ export const pageLeadStyle: CSSProperties = {
   maxWidth: 65 * 8,
   fontSize: 13,
   lineHeight: 1.45,
-  color: motocoreColors.muted,
+  color: marketoneColors.muted,
 };
 
 export const surfaceCardStyle: CSSProperties = {
   padding: 12,
   borderRadius: 6,
-  background: motocoreColors.surface,
-  border: `1px solid ${motocoreColors.borderStrong}`,
-  boxShadow: `0 1px 2px ${motocoreColors.shadow}, 0 0 0 1px rgba(255,255,255,0.6) inset`,
+  background: marketoneColors.surface,
+  border: `1px solid ${marketoneColors.borderStrong}`,
+  boxShadow: `0 1px 2px ${marketoneColors.shadow}, 0 0 0 1px rgba(255,255,255,0.6) inset`,
 };
 
 export const surfaceCardStrongStyle: CSSProperties = {
   ...surfaceCardStyle,
-  background: motocoreColors.surfaceSoft,
-  border: `1px solid ${motocoreColors.border}`,
+  background: marketoneColors.surfaceSoft,
+  border: `1px solid ${marketoneColors.border}`,
 };
 
 export const compactSurfaceCardStyle: CSSProperties = {
   padding: 10,
   borderRadius: 6,
-  background: motocoreColors.surfaceAlt,
-  border: `1px solid ${motocoreColors.borderStrong}`,
-  boxShadow: `0 1px 2px ${motocoreColors.shadow}`,
+  background: marketoneColors.surfaceAlt,
+  border: `1px solid ${marketoneColors.borderStrong}`,
+  boxShadow: `0 1px 2px ${marketoneColors.shadow}`,
 };
 
 export const metricLabelStyle: CSSProperties = {
@@ -121,7 +121,7 @@ export const metricLabelStyle: CSSProperties = {
   fontWeight: 600,
   letterSpacing: '0.08em',
   textTransform: 'uppercase',
-  color: motocoreColors.muted,
+  color: marketoneColors.muted,
 };
 
 export const metricValueStyle: CSSProperties = {
@@ -129,30 +129,30 @@ export const metricValueStyle: CSSProperties = {
   lineHeight: 1.05,
   fontWeight: 500,
   letterSpacing: '-0.02em',
-  color: motocoreColors.ink,
+  color: marketoneColors.ink,
 };
 
 export const metricNoteStyle: CSSProperties = {
   marginBottom: 0,
   opacity: 1,
   lineHeight: 1.5,
-  color: motocoreColors.muted,
+  color: marketoneColors.muted,
 };
 
 export const tokenMutedStyle: CSSProperties = {
   marginBottom: 0,
   lineHeight: 1.4,
   fontSize: 13,
-  color: motocoreColors.muted,
+  color: marketoneColors.muted,
 };
 
 export const fieldStyle: CSSProperties = {
   width: '100%',
   padding: '6px 10px',
   borderRadius: 6,
-  border: `1px solid ${motocoreColors.border}`,
+  border: `1px solid ${marketoneColors.border}`,
   background: '#ffffff',
-  color: motocoreColors.ink,
+  color: marketoneColors.ink,
   font: 'inherit',
   fontSize: 13,
   outline: 'none',
@@ -172,44 +172,44 @@ const buttonBaseStyle: CSSProperties = {
 
 export const solidButtonStyle: CSSProperties = {
   ...buttonBaseStyle,
-  border: `1px solid ${motocoreColors.ink}`,
-  background: motocoreColors.ink,
+  border: `1px solid ${marketoneColors.ink}`,
+  background: marketoneColors.ink,
   color: '#f8fafc',
 };
 
 export const neutralButtonStyle: CSSProperties = {
   ...buttonBaseStyle,
-  border: `1px solid ${motocoreColors.border}`,
-  background: '#ffffff',
-  color: motocoreColors.ink,
+  border: `1px solid ${marketoneColors.borderStrong}`,
+  background: marketoneColors.background,
+  color: marketoneColors.ink,
 };
 
 export const accentButtonStyle: CSSProperties = {
   ...buttonBaseStyle,
-  border: `1px solid rgba(37, 99, 235, 0.24)`,
-  background: 'rgba(37, 99, 235, 0.08)',
-  color: motocoreColors.accentDeep,
+  border: `1px solid #1e293b`,
+  background: '#1e293b',
+  color: '#ffffff',
 };
 
 export const dangerButtonStyle: CSSProperties = {
   ...buttonBaseStyle,
-  border: '1px solid rgba(220, 38, 38, 0.22)',
-  background: 'rgba(220, 38, 38, 0.06)',
+  border: '1px solid rgba(220, 38, 38, 0.35)',
+  background: 'rgba(220, 38, 38, 0.08)',
   color: '#b91c1c',
 };
 
 export const subtleButtonStyle: CSSProperties = {
   ...buttonBaseStyle,
   border: `1px solid transparent`,
-  background: motocoreColors.backgroundAlt,
-  color: motocoreColors.muted,
+  background: marketoneColors.backgroundRaised,
+  color: marketoneColors.muted,
 };
 
 export const ghostButtonStyle: CSSProperties = {
   ...buttonBaseStyle,
-  border: `1px solid ${motocoreColors.accentSoft}`,
+  border: `1px solid ${marketoneColors.accentSoft}`,
   background: 'transparent',
-  color: motocoreColors.accentDeep,
+  color: marketoneColors.accentDeep,
 };
 
 export const primaryButtonStyle = solidButtonStyle;
@@ -221,18 +221,18 @@ export const pillStyle: CSSProperties = {
   gap: 6,
   padding: '3px 7px',
   borderRadius: 6,
-  border: `1px solid ${motocoreColors.border}`,
+  border: `1px solid ${marketoneColors.border}`,
   background: '#ffffff',
   fontSize: 11,
   fontWeight: 500,
-  color: motocoreColors.ink,
+  color: marketoneColors.ink,
 };
 
 export const emptyStateStyle: CSSProperties = {
   padding: 10,
   borderRadius: 6,
-  border: `1px dashed ${motocoreColors.border}`,
-  color: motocoreColors.muted,
+  border: `1px dashed ${marketoneColors.border}`,
+  color: marketoneColors.muted,
   background: '#ffffff',
   lineHeight: 1.4,
   fontSize: 13,
@@ -240,7 +240,7 @@ export const emptyStateStyle: CSSProperties = {
 
 export const tableWrapStyle: CSSProperties = {
   overflowX: 'auto',
-  border: `1px solid ${motocoreColors.borderStrong}`,
+  border: `1px solid ${marketoneColors.borderStrong}`,
   borderRadius: 8,
   background: '#ffffff',
   boxShadow: `inset 0 1px 0 rgba(255,255,255,0.75)`,
@@ -258,15 +258,15 @@ export const tableHeaderCellStyle: CSSProperties = {
   fontSize: 10,
   letterSpacing: '0.08em',
   textTransform: 'uppercase',
-  color: motocoreColors.muted,
-  borderBottom: `1px solid ${motocoreColors.border}`,
-  background: motocoreColors.backgroundAlt,
+  color: marketoneColors.muted,
+  borderBottom: `1px solid ${marketoneColors.border}`,
+  background: marketoneColors.backgroundAlt,
   whiteSpace: 'nowrap',
 };
 
 export const tableCellStyle: CSSProperties = {
   padding: '8px 10px',
-  borderBottom: `1px solid ${motocoreColors.border}`,
-  color: motocoreColors.ink,
+  borderBottom: `1px solid ${marketoneColors.border}`,
+  color: marketoneColors.ink,
   verticalAlign: 'top',
 };
