@@ -394,6 +394,7 @@ export class CatalogService {
           p.name_bn as product_name_bn,
           p.has_variants,
           p.variant_mode,
+          p.is_trackable,
           b.name as brand_name,
           c.name as category_name,
           lp.cost_price,
@@ -829,7 +830,7 @@ export class CatalogService {
 
     const productResult = await this.pool.query(
       `
-        select id, product_code, name, has_variants, variant_mode, status
+        select id, product_code, name, has_variants, variant_mode, is_trackable, status
         from catalog.products
         where id = $1
           and store_id = $2
