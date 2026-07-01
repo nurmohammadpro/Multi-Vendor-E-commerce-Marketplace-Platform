@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 
 import {
+  accentButtonStyle,
   emptyStateStyle,
   fieldStyle,
   pageShellStyle,
@@ -205,7 +206,7 @@ export function CustomersWorkspace() {
           <h3 style={{ marginTop: 0 }}>Customer Directory</h3>
           <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
             <input value={query} onChange={(event) => setQuery(event.target.value)} style={fieldStyle} placeholder="Search name, mobile, email, or shop" />
-            <button onClick={() => void refresh(query, 1)} style={secondaryButtonStyle}>Search</button>
+            <button onClick={() => void refresh(query, 1)} style={accentButtonStyle}>Search</button>
           </div>
           {customers.length ? (
             <div style={tableWrapStyle}>
@@ -312,7 +313,7 @@ export function CustomersWorkspace() {
                 </select>
                 <input value={collectionForm.referenceNo} onChange={(event) => setCollectionForm((current) => ({ ...current, referenceNo: event.target.value }))} style={fieldStyle} placeholder="Reference no (optional)" />
                 <textarea value={collectionForm.note} onChange={(event) => setCollectionForm((current) => ({ ...current, note: event.target.value }))} style={{ ...fieldStyle, minHeight: 88 }} placeholder="Collection note (optional)" />
-                <button onClick={collectPayment} style={secondaryButtonStyle} disabled={loading}>Collect Due</button>
+                <button onClick={collectPayment} style={accentButtonStyle} disabled={loading}>Collect Due</button>
               </div>
             </div>
           ) : (

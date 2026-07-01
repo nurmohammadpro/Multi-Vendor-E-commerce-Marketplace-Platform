@@ -412,7 +412,7 @@ export function PurchasesWorkspace() {
           <article style={surfaceCardStyle}>
             <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
               <input value={payableSearch} onChange={(event) => setPayableSearch(event.target.value)} style={fieldStyle} placeholder="Search purchase no, invoice, supplier, or phone" />
-              <button onClick={() => void refresh(supplierPage, purchasePage, 1)} style={secondaryButtonStyle} disabled={loading}>Search</button>
+              <button onClick={() => void refresh(supplierPage, purchasePage, 1)} style={accentButtonStyle} disabled={loading}>Search</button>
             </div>
             {payables.length ? (
               <>
@@ -453,7 +453,7 @@ export function PurchasesWorkspace() {
                                 style={{ ...fieldStyle, minWidth: 100 }}
                                 placeholder="0.00"
                               />
-                              <button onClick={() => void addPayment(row.id)} style={secondaryButtonStyle} disabled={loading}>Pay</button>
+                              <button onClick={() => void addPayment(row.id)} style={accentButtonStyle} disabled={loading}>Pay</button>
                             </div>
                           </td>
                         </tr>
@@ -487,7 +487,7 @@ export function PurchasesWorkspace() {
               <option value="draft">Draft</option>
               <option value="cancelled">Cancelled</option>
             </select>
-            <button onClick={() => void refresh(supplierPage, 1, payablePage)} style={secondaryButtonStyle} disabled={loading}>Search</button>
+            <button onClick={() => void refresh(supplierPage, 1, payablePage)} style={accentButtonStyle} disabled={loading}>Search</button>
           </div>
           {purchases.length ? (
             <>
@@ -542,7 +542,7 @@ export function PurchasesWorkspace() {
           <article style={surfaceCardStyle}>
             <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
               <input value={supplierSearch} onChange={(event) => setSupplierSearch(event.target.value)} style={fieldStyle} placeholder="Search supplier name, contact, phone, or email" />
-              <button onClick={() => void refresh(1, purchasePage, payablePage)} style={secondaryButtonStyle} disabled={loading}>Search</button>
+              <button onClick={() => void refresh(1, purchasePage, payablePage)} style={accentButtonStyle} disabled={loading}>Search</button>
             </div>
             {suppliers.length ? (
               <>

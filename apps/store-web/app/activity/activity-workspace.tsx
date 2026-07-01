@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 
 import {
+  accentButtonStyle,
   emptyStateStyle,
   fieldStyle,
   pageShellStyle,
@@ -92,7 +93,7 @@ export function ActivityWorkspace() {
           <input value={search} onChange={(event) => setSearch(event.target.value)} style={fieldStyle} placeholder="Search action, resource, or record id" />
           <input value={actionCode} onChange={(event) => setActionCode(event.target.value)} style={fieldStyle} placeholder="Action code" />
           <input value={resourceType} onChange={(event) => setResourceType(event.target.value)} style={fieldStyle} placeholder="Resource type" />
-          <button onClick={() => void refresh(1)} style={secondaryButtonStyle} disabled={loading}>Apply</button>
+          <button onClick={() => void refresh(1)} style={accentButtonStyle} disabled={loading}>Apply</button>
         </div>
       </article>
 

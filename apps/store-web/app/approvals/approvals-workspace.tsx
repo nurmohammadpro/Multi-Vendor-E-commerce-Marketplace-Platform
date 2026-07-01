@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 import {
+  accentButtonStyle,
   emptyStateStyle,
   fieldStyle,
   pageShellStyle,
@@ -285,7 +286,7 @@ export function ApprovalsWorkspace({ canApproveInventory }: { canApproveInventor
             </label>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <button onClick={() => void saveCashCount()} style={secondaryButtonStyle} disabled={loading}>
+            <button onClick={() => void saveCashCount()} style={accentButtonStyle} disabled={loading}>
               Save cash count
             </button>
             <span style={tokenMutedStyle}>
@@ -362,7 +363,7 @@ export function ApprovalsWorkspace({ canApproveInventory }: { canApproveInventor
                       <td style={tableCellStyle}>{request.reason}</td>
                       <td style={tableCellStyle}>
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                          <button onClick={() => void decideStock(request.id, 'approve')} style={secondaryButtonStyle} disabled={loading}>Approve</button>
+                          <button onClick={() => void decideStock(request.id, 'approve')} style={accentButtonStyle} disabled={loading}>Approve</button>
                           <button onClick={() => void decideStock(request.id, 'reject')} style={secondaryButtonStyle} disabled={loading}>Reject</button>
                         </div>
                       </td>
@@ -406,7 +407,7 @@ export function ApprovalsWorkspace({ canApproveInventory }: { canApproveInventor
                       <td style={tableCellStyle}>{request.reason}</td>
                       <td style={tableCellStyle}>
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                          <button onClick={() => void decidePrice(request.id, 'approve')} style={secondaryButtonStyle} disabled={loading}>Approve</button>
+                          <button onClick={() => void decidePrice(request.id, 'approve')} style={accentButtonStyle} disabled={loading}>Approve</button>
                           <button onClick={() => void decidePrice(request.id, 'reject')} style={secondaryButtonStyle} disabled={loading}>Reject</button>
                         </div>
                       </td>
