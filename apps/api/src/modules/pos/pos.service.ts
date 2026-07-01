@@ -362,8 +362,25 @@ export class PosService {
               ? 'partial'
               : 'unpaid';
 
+      const skuIds = payload.items.map((item) => item.skuId);
+      const skuProductResult = await client.query<{ sku_id: string; is_trackable: boolean }>(
+        `
+          select s.id as sku_id, p.is_trackable
+          from catalog.skus s
+          join catalog.products p on p.id = s.product_id
+          where s.id = any($1::uuid[])
+            and s.store_id = $2
+        `,
+        [skuIds, storeId],
+      );
+      const trackableMap = new Map(
+        skuProductResult.rows.map((row) => [row.sku_id, row.is_trackable]),
+      );
+
       for (const item of payload.items) {
-        await this.reserveAndDeductInventory(client, storeId, payload.locationId, item.skuId, item.qty, userId, saleNo);
+        if (trackableMap.get(item.skuId) !== false) {
+          await this.reserveAndDeductInventory(client, storeId, payload.locationId, item.skuId, item.qty, userId, saleNo);
+        }
       }
 
       const saleResult = await client.query<{
