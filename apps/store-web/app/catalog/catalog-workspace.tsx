@@ -205,6 +205,8 @@ export function CatalogWorkspace({
     hasVariants: false,
     variantMode: 'none',
     isTrackable: true,
+    defaultDiscountType: '',
+    defaultDiscountValue: '',
   });
   const [editingProductId, setEditingProductId] = useState('');
   const [groupForm, setGroupForm] = useState({
@@ -557,6 +559,12 @@ export function CatalogWorkspace({
           }))
           .filter((row) => row.skuCode.trim());
 
+        const discountPayload: Record<string, unknown> = {};
+        if (productForm.defaultDiscountType) {
+          discountPayload.discountType = productForm.defaultDiscountType;
+          discountPayload.discountValue = productForm.defaultDiscountValue ? Number(productForm.defaultDiscountValue) : null;
+        }
+
         if (!productForm.hasVariants) {
           await readJson('/api/catalog/skus', {
             method: 'POST',
@@ -568,6 +576,7 @@ export function CatalogWorkspace({
               status: 'active',
               salePrice: productForm.defaultSalePrice ? Number(productForm.defaultSalePrice) : undefined,
               costPrice: productForm.defaultCostPrice ? Number(productForm.defaultCostPrice) : undefined,
+              ...discountPayload,
             }),
           });
         }
@@ -584,6 +593,7 @@ export function CatalogWorkspace({
               status: 'active',
               salePrice: row.price ? Number(row.price) : undefined,
               costPrice: row.cost ? Number(row.cost) : undefined,
+              ...discountPayload,
             }),
           });
         }
@@ -603,6 +613,8 @@ export function CatalogWorkspace({
         hasVariants: false,
         variantMode: 'none',
         isTrackable: true,
+        defaultDiscountType: '',
+        defaultDiscountValue: '',
       });
       setProductVariantRows([]);
       setEditingProductId('');
@@ -929,9 +941,41 @@ export function CatalogWorkspace({
                 </div>
               </div>
 
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 8 }}>5. Default discount</div>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <select
+                    value={productForm.defaultDiscountType}
+                    onChange={(e) => setProductForm((v) => ({ ...v, defaultDiscountType: e.target.value }))}
+                    style={{ ...inputStyle, width: 140 }}
+                  >
+                    <option value="">No discount</option>
+                    <option value="fixed">Fixed amount</option>
+                    <option value="percentage">Percentage</option>
+                  </select>
+                  <input
+                    value={productForm.defaultDiscountValue}
+                    onChange={(e) => setProductForm((v) => ({ ...v, defaultDiscountValue: e.target.value }))}
+                    style={{ ...inputStyle, width: 120 }}
+                    placeholder="Value"
+                    disabled={!productForm.defaultDiscountType}
+                  />
+                  <span style={{ fontSize: 12, color: '#64748b' }}>
+                    {productForm.defaultDiscountType === 'fixed'
+                      ? 'Flat discount per item'
+                      : productForm.defaultDiscountType === 'percentage'
+                        ? 'Percent off sale price'
+                        : ''}
+                  </span>
+                </div>
+                <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+                  Set for regulated pricing like medicine or spare parts. The discount auto-applies at POS and can be overridden per sale.
+                </div>
+              </div>
+
               {!productForm.hasVariants ? (
                 <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 8 }}>5. Sellable SKU and pricing</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 8 }}>6. Sellable SKU and pricing</div>
                   <div style={{ ...tableWrapStyle, marginBottom: 0 }}>
                     <table style={tableStyle}>
                       <thead>
@@ -985,7 +1029,7 @@ export function CatalogWorkspace({
                 <div style={{ display: 'grid', gap: 12 }}>
                   <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'minmax(0, 220px) 1fr', gap: 12, alignItems: 'end' }}>
                     <div>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 6 }}>5. Variant structure</div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 6 }}>6. Variant structure</div>
                       <select value={productForm.variantMode} onChange={(e) => setProductForm((v) => ({ ...v, variantMode: e.target.value }))} style={inputStyle}>
                         <option value="single">Single Variant Axis</option>
                         <option value="multi">Multi Variant Axes</option>
@@ -998,7 +1042,7 @@ export function CatalogWorkspace({
 
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>6. Ready-to-sell variant rows</div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>7. Ready-to-sell variant rows</div>
                       <button onClick={addProductVariantRow} style={accentButtonStyle} disabled={loading}>
                         + Add Row
                       </button>

@@ -62,6 +62,8 @@ type SkuSearchResult = {
   is_trackable?: boolean;
   sale_price?: string | number | null;
   available_qty?: string | number | null;
+  discount_type?: string | null;
+  discount_value?: string | number | null;
 };
 
 type ProductVariantDetail = {
@@ -93,6 +95,8 @@ type CartItem = {
   qty: number;
   availableQty: number;
   barcode?: string | null;
+  discountAmount: number;
+  discountType: string;
 };
 
 type ShiftResponse = {
@@ -286,11 +290,21 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
     [cart],
   );
 
+  const totalDiscount = useMemo(
+    () => cart.reduce((sum, item) => sum + item.discountAmount, 0),
+    [cart],
+  );
+
+  const grandTotal = useMemo(
+    () => Math.max(total - totalDiscount, 0),
+    [total, totalDiscount],
+  );
+
   const changeAmount = useMemo(() => {
     if (saleMode !== 'paid' || paymentMethod !== 'cash') return 0;
     const paid = Number(cashReceived || 0);
-    return Math.max(paid - total, 0);
-  }, [cashReceived, paymentMethod, saleMode, total]);
+    return Math.max(paid - grandTotal, 0);
+  }, [cashReceived, paymentMethod, saleMode, grandTotal]);
 
   const groupedResults = useMemo(() => {
     const groups = new Map<string, {
@@ -371,7 +385,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
     setVariantPickerOpen(true);
   };
 
-  const addSkuToCart = (sku: Pick<SkuSearchResult, 'id' | 'sku_code' | 'product_name' | 'variant_label' | 'sale_price' | 'available_qty' | 'barcode' | 'is_trackable'>) => {
+  const addSkuToCart = (sku: Pick<SkuSearchResult, 'id' | 'sku_code' | 'product_name' | 'variant_label' | 'sale_price' | 'available_qty' | 'barcode' | 'is_trackable' | 'discount_type' | 'discount_value'>, discountOverride?: { discountAmount: number; discountType: string }) => {
     const isTrackable = sku.is_trackable !== false;
     const availableQty = isTrackable ? getSkuAvailableQty(sku) : 999999;
     if (isTrackable && availableQty <= 0) {
@@ -390,6 +404,18 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
         return next;
       }
 
+      const unitPrice = Number(sku.sale_price ?? 0);
+      let discountAmount = 0;
+      let discountType = '';
+      if (discountOverride) {
+        discountAmount = discountOverride.discountAmount;
+        discountType = discountOverride.discountType;
+      } else if (sku.discount_type) {
+        discountType = sku.discount_type;
+        discountAmount = sku.discount_type === 'fixed'
+          ? Number(sku.discount_value ?? 0)
+          : unitPrice * Number(sku.discount_value ?? 0) / 100;
+      }
       return [
         ...current,
         {
@@ -397,10 +423,12 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
           skuCode: sku.sku_code,
           productName: sku.product_name,
           variantLabel: sku.variant_label,
-          unitPrice: Number(sku.sale_price ?? 0),
+          unitPrice,
           qty: 1,
           availableQty,
           barcode: sku.barcode,
+          discountAmount,
+          discountType,
         },
       ];
     });
@@ -458,6 +486,16 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
       current.map((item) =>
         item.skuId === skuId
           ? { ...item, qty: Math.max(1, Math.min(nextQty, Math.max(1, item.availableQty))) }
+          : item,
+      ),
+    );
+  };
+
+  const updateCartDiscount = (skuId: string, discountAmount: number, discountType: string) => {
+    setCart((current) =>
+      current.map((item) =>
+        item.skuId === skuId
+          ? { ...item, discountAmount: Math.max(0, Math.min(discountAmount, item.qty * item.unitPrice)), discountType }
           : item,
       ),
     );
@@ -544,11 +582,11 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
       setMessage('Due sales need a customer name or phone number.');
       return;
     }
-    if (saleMode === 'paid' && paymentMethod === 'cash' && Number(cashReceived || 0) < total) {
+    if (saleMode === 'paid' && paymentMethod === 'cash' && Number(cashReceived || 0) < grandTotal) {
       setMessage('Cash received is lower than the sale total.');
       return;
     }
-    const invalidItem = cart.find((item) => item.availableQty <= 0 || item.qty > item.availableQty);
+    const invalidItem = cart.find((item) => item.availableQty < 999999 && (item.availableQty <= 0 || item.qty > item.availableQty));
     if (invalidItem) {
       setMessage(`${invalidItem.productName} does not have enough stock in the selected location.`);
       return;
@@ -584,13 +622,13 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
             skuId: item.skuId,
             qty: item.qty,
             unitPrice: item.unitPrice,
-            discountAmount: 0,
+            discountAmount: item.discountAmount,
             taxAmount: 0,
           })),
           payments: [
             {
               paymentMethod,
-              amount: total,
+              amount: grandTotal,
               referenceNo: paymentReference || undefined,
               status: saleIsDue ? 'pending' : 'paid',
             },
@@ -861,7 +899,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                 </p>
               </div>
               <div style={{ fontSize: 12, color: '#64748b' }}>
-                {cart.length} item(s) · Total {currency(total)}
+                {cart.length} item(s) · Total {currency(grandTotal)}
               </div>
             </div>
             {cart.length ? (
@@ -872,6 +910,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                       <th style={tableHeaderCellStyle}>Item</th>
                       <th style={tableHeaderCellStyle}>Price</th>
                       <th style={tableHeaderCellStyle}>Qty</th>
+                      <th style={tableHeaderCellStyle}>Disc</th>
                       <th style={tableHeaderCellStyle}>Total</th>
                       <th style={tableHeaderCellStyle}>Action</th>
                     </tr>
@@ -894,7 +933,54 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                             <button onClick={() => updateCartQty(item.skuId, item.qty + 1)} style={buttonStyle}>+</button>
                           </div>
                         </td>
-                        <td style={tableCellStyle}>{currency(item.qty * item.unitPrice)}</td>
+                        <td style={tableCellStyle}>
+                          <select
+                            value={item.discountType}
+                            onChange={(e) => {
+                              const newType = e.target.value;
+                              if (newType === 'none') {
+                                updateCartDiscount(item.skuId, 0, 'none');
+                              } else if (newType === 'fixed') {
+                                updateCartDiscount(item.skuId, 0, 'fixed');
+                              } else if (newType === 'percentage') {
+                                updateCartDiscount(item.skuId, 0, 'percentage');
+                              }
+                            }}
+                            style={{ ...inputStyle, width: 70, fontSize: 11, padding: '2px 4px' }}
+                          >
+                            <option value="none">—</option>
+                            <option value="fixed" selected={item.discountType === 'fixed'}>TK</option>
+                            <option value="percentage" selected={item.discountType === 'percentage'}>%</option>
+                          </select>
+                          {item.discountType !== 'none' && item.discountType ? (
+                            <input
+                              type="number"
+                              min={0}
+                              value={item.discountType === 'percentage' && item.discountAmount > 0 && item.unitPrice > 0
+                                ? String(Math.round(item.discountAmount / item.unitPrice * 100))
+                                : item.discountAmount > 0 && item.discountType === 'fixed'
+                                  ? String(item.discountAmount)
+                                  : ''}
+                              onChange={(e) => {
+                                const val = Number(e.target.value) || 0;
+                                if (item.discountType === 'fixed') {
+                                  updateCartDiscount(item.skuId, val, 'fixed');
+                                } else if (item.discountType === 'percentage') {
+                                  const pctAmt = item.unitPrice * val / 100;
+                                  updateCartDiscount(item.skuId, pctAmt, 'percentage');
+                                }
+                              }}
+                              style={{ ...inputStyle, width: 60, fontSize: 11, padding: '2px 4px', marginTop: 2 }}
+                              placeholder="0"
+                            />
+                          ) : null}
+                        </td>
+                        <td style={tableCellStyle}>
+                          <div>{currency(item.qty * item.unitPrice - item.discountAmount)}</div>
+                          {item.discountAmount > 0 ? (
+                            <div style={{ fontSize: 10, color: '#b45309' }}>-{currency(item.discountAmount)}</div>
+                          ) : null}
+                        </td>
                         <td style={tableCellStyle}>
                           <button onClick={() => removeFromCart(item.skuId)} style={buttonStyle}>Remove</button>
                         </td>
@@ -960,8 +1046,18 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
 
           <div style={{ display: 'grid', gap: 8 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>Total</span>
+              <span>Subtotal</span>
               <strong>{currency(total)}</strong>
+            </div>
+            {totalDiscount > 0 ? (
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#b45309' }}>
+                <span>Discount</span>
+                <strong>-{currency(totalDiscount)}</strong>
+              </div>
+            ) : null}
+            <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #e5e7eb', paddingTop: 4 }}>
+              <span>Total</span>
+              <strong>{currency(grandTotal)}</strong>
             </div>
             {saleMode === 'paid' && paymentMethod === 'cash' ? (
               <>
@@ -975,7 +1071,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
             {saleMode === 'due' ? (
               <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
                 <span>Due amount</span>
-                <strong>{currency(total)}</strong>
+                <strong>{currency(grandTotal)}</strong>
               </div>
             ) : null}
             <button onClick={checkout} style={primaryButtonStyle} disabled={loading || cart.length === 0 || !selectedLocationId}>
@@ -1064,6 +1160,8 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                                   sale_price: sku.sale_price,
                                   available_qty: sku.available_qty,
                                   is_trackable: skuIsTrackable,
+                                  discount_type: (sku as any).discount_type,
+                                  discount_value: (sku as any).discount_value,
                                 });
                                 setVariantPickerOpen(false);
                                 clearSearchState();
