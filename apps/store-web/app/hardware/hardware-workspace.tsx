@@ -12,7 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { fieldStyle } from '../motocore-theme';
+import { fieldStyle } from '../marketone-theme';
 import { useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
 import { fetchPrintAgentHealth, openCashDrawer, printLabel, printReceipt, type PrintAgentHealth } from '../../lib/print-agent';
 import { loadWorkstationProfile, saveWorkstationProfile } from '../../lib/workstation-profile';

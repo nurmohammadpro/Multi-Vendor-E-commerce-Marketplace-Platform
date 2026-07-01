@@ -8,7 +8,7 @@ import {
   secondaryButtonStyle,
   surfaceCardStyle,
   tokenMutedStyle,
-} from '../motocore-theme';
+} from '../marketone-theme';
 
 export default function OfflinePage() {
   return (

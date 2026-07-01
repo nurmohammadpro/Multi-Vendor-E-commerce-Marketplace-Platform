@@ -9,7 +9,7 @@ import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
 
 import { fetchStoreApi, isStoreApiConfigured } from '../../lib/api';
-import { pageShellStyle, sectionLabelStyle, tokenMutedStyle } from '../motocore-theme';
+import { pageShellStyle, sectionLabelStyle, tokenMutedStyle } from '../marketone-theme';
 import { LogoutButton } from './logout-button';
 
 type SessionProfile = {

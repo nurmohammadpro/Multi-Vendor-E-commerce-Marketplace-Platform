@@ -17,7 +17,7 @@ import {
   tableStyle,
   tableWrapStyle,
   tokenMutedStyle,
-} from '../motocore-theme';
+} from '../marketone-theme';
 import { stackedFilterGridStyle, useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
 
 type TicketType = 'support' | 'dispute';

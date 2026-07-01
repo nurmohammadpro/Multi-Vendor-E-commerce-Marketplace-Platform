@@ -555,6 +555,39 @@ export class StoreOpsController {
     return this.storeOpsService.updateHardwareProfile(headerStoreId, authContext, session, hardwareProfileSchema.parse(payload));
   }
 
+  @Get('expense-categories')
+  @RequireContext('store')
+  @RequirePermissions('inventory.view')
+  listExpenseCategories(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+  ) {
+    return this.storeOpsService.listExpenseCategories(headerStoreId, authContext);
+  }
+
+  @Post('expense-categories')
+  @RequireContext('store')
+  @RequirePermissions('store.settings.manage')
+  createExpenseCategory(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @Body('name') name: string,
+  ) {
+    return this.storeOpsService.createExpenseCategory(headerStoreId, authContext, { name });
+  }
+
+  @Patch('expense-categories/:categoryId')
+  @RequireContext('store')
+  @RequirePermissions('store.settings.manage')
+  updateExpenseCategory(
+    @Param('categoryId') categoryId: string,
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @Body() payload: { name?: string; status?: string },
+  ) {
+    return this.storeOpsService.updateExpenseCategory(categoryId, headerStoreId, authContext, payload);
+  }
+
   @Get('banking/accounts')
   @RequireContext('store')
   @RequirePermissions('sales.report.view')

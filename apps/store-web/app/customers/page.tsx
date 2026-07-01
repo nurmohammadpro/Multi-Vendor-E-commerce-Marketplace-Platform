@@ -1,4 +1,4 @@
-import { pageShellStyle, sectionLabelStyle, tokenMutedStyle } from '../motocore-theme';
+import { pageShellStyle, sectionLabelStyle, tokenMutedStyle } from '../marketone-theme';
 import { CustomersWorkspace } from './customers-workspace';
 
 export default function StoreCustomersPage() {

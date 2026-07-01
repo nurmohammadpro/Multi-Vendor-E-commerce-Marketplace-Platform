@@ -8,7 +8,7 @@ import {
   sectionIntroStyle,
   sectionLabelStyle,
   surfaceCardStyle,
-} from '../motocore-theme';
+} from '../marketone-theme';
 
 import { ReceivablesWorkspace } from './receivables-workspace';
 

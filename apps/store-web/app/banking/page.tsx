@@ -1,5 +1,5 @@
 import { getStoreConsoleAccess } from '../../lib/access';
-import { emptyStateStyle, pageIntroCardStyle, pageLeadStyle, pageShellStyle, pageTitleStyle, sectionIntroStyle, sectionLabelStyle, surfaceCardStyle } from '../motocore-theme';
+import { emptyStateStyle, pageIntroCardStyle, pageLeadStyle, pageShellStyle, pageTitleStyle, sectionIntroStyle, sectionLabelStyle, surfaceCardStyle } from '../marketone-theme';
 import { BankingWorkspace } from './banking-workspace';
 
 export default async function StoreBankingPage() {

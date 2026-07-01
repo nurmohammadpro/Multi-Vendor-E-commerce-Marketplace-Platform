@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 import { getStoreConsoleAccess } from '../../lib/access';
-import { pageShellStyle, sectionLabelStyle, tokenMutedStyle } from '../motocore-theme';
+import { pageShellStyle, sectionLabelStyle, tokenMutedStyle } from '../marketone-theme';
 import { PayrollWorkspace } from './payroll-workspace';
 
 export default async function StorePayrollPage() {

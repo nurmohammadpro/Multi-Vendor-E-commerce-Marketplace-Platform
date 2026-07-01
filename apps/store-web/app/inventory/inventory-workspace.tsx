@@ -16,7 +16,7 @@ import {
   tableStyle,
   tableWrapStyle,
   tokenMutedStyle,
-} from '../motocore-theme';
+} from '../marketone-theme';
 import { ListPager, type PaginationState, totalPagesFor } from '../list-pager';
 import { stackedFilterGridStyle, useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
 
