@@ -4,12 +4,10 @@ import { useEffect, useState } from 'react';
 
 import {
   accentButtonStyle,
-  dangerButtonStyle,
   emptyStateStyle,
   fieldStyle,
   sectionPanelStyle,
   pageShellStyle,
-  neutralButtonStyle,
   subtleButtonStyle,
   surfaceCardStyle,
   tableCellStyle,
@@ -19,7 +17,7 @@ import {
   tokenMutedStyle,
 } from '../marketone-theme';
 import { ListPager, type PaginationState, totalPagesFor } from '../list-pager';
-import { useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
+import { useCompactLayout } from '../workspace-responsive';
 
 type Expense = {
   id: string;
@@ -66,8 +64,6 @@ export function ExpensesWorkspace() {
     status: 'draft',
     note: '',
   });
-  const [activeTab, setActiveTab] = useState<'record' | 'list'>('list');
-
   const loadCategories = async () => {
     try {
       const payload = await readJson<{ categories: ExpenseCategory[] }>('/api/store-ops/expense-categories');
@@ -160,18 +156,7 @@ export function ExpensesWorkspace() {
 
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
-      {compact ? (
-        <WorkspaceTabs
-          active={activeTab}
-          onChange={(key) => setActiveTab(key as 'record' | 'list')}
-          tabs={[
-            { key: 'list', label: 'Expenses' },
-            { key: 'record', label: 'Record' },
-          ]}
-        />
-      ) : null}
-      <section style={{ ...sectionPanelStyle, gridTemplateColumns: compact ? '1fr' : 'minmax(320px, 0.9fr) minmax(420px, 1.1fr)' }}>
-        {!compact || activeTab === 'record' ? (
+      <section style={{ ...sectionPanelStyle, gridTemplateColumns: compact ? '1fr' : 'minmax(320px, 0.9fr) minmax(320px, 0.9fr)' }}>
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0, fontSize: 14 }}>Record Expense</h3>
           <div style={{ display: 'grid', gap: 10 }}>
@@ -203,133 +188,130 @@ export function ExpensesWorkspace() {
             <button onClick={saveExpense} style={accentButtonStyle} disabled={loading}>{selectedExpenseId ? 'Update Expense' : 'Save Expense'}</button>
           </div>
         </article>
-        ) : null}
 
-        {!compact || activeTab === 'list' ? (
-        <div style={{ display: 'grid', gap: 12 }}>
-          <article style={surfaceCardStyle}>
-            <h3 style={{ marginTop: 0, fontSize: 14 }}>Expenses</h3>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-              <input value={search} onChange={(event) => setSearch(event.target.value)} style={{ ...fieldStyle, flex: 1 }} placeholder="Search title, category, method, or status" />
-              <button onClick={() => void refresh(1)} style={accentButtonStyle} disabled={loading}>Search</button>
-            </div>
-            {expenses.length ? (
-              <>
-                <div style={tableWrapStyle}>
-                  <table style={tableStyle}>
-                    <thead>
-                      <tr>
-                        <th style={tableHeaderCellStyle}>Date</th>
-                        <th style={tableHeaderCellStyle}>Title</th>
-                        <th style={tableHeaderCellStyle}>Category</th>
-                        <th style={tableHeaderCellStyle}>Method</th>
-                        <th style={tableHeaderCellStyle}>Status</th>
-                        <th style={tableHeaderCellStyle}>Amount</th>
-                        <th style={tableHeaderCellStyle}>Action</th>
+        <article style={surfaceCardStyle}>
+          <h3 style={{ marginTop: 0, fontSize: 14 }}>Expense Categories</h3>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+            <input
+              value={newCategoryName}
+              onChange={(e) => setNewCategoryName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') void addCategory(); }}
+              style={{ ...fieldStyle, flex: 1 }}
+              placeholder="New category name"
+            />
+            <button onClick={() => void addCategory()} style={accentButtonStyle}>Add</button>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {categories.length === 0 && (
+              <span style={tokenMutedStyle}>No categories yet. Create one above.</span>
+            )}
+            {categories.map((cat) => (
+              <span
+                key={cat.id}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '4px 8px',
+                  borderRadius: 6,
+                  border: `1px solid ${cat.status === 'active' ? 'rgba(37, 99, 235, 0.2)' : 'rgba(148, 163, 184, 0.22)'}`,
+                  background: cat.status === 'active' ? 'rgba(37, 99, 235, 0.06)' : '#ffffff',
+                  fontSize: 12,
+                  fontWeight: 500,
+                  color: cat.status === 'active' ? '#1d4ed8' : '#475569',
+                  opacity: cat.status === 'archived' ? 0.6 : 1,
+                }}
+              >
+                {cat.name}
+                {cat.status === 'active' ? (
+                  <button
+                    onClick={() => void toggleCategoryStatus(cat)}
+                    style={{ ...subtleButtonStyle, minHeight: 18, padding: '0 4px', fontSize: 11, lineHeight: '18px', color: '#94a3b8' }}
+                    title="Archive"
+                  >
+                    ✕
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => void toggleCategoryStatus(cat)}
+                    style={{ ...subtleButtonStyle, minHeight: 18, padding: '0 4px', fontSize: 11, lineHeight: '18px' }}
+                    title="Restore"
+                  >
+                    restore
+                  </button>
+                )}
+              </span>
+            ))}
+          </div>
+        </article>
+      </section>
+
+      <section style={sectionPanelStyle}>
+        <article style={surfaceCardStyle}>
+          <h3 style={{ marginTop: 0, fontSize: 14 }}>Expenses</h3>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+            <input value={search} onChange={(event) => setSearch(event.target.value)} style={{ ...fieldStyle, flex: 1 }} placeholder="Search title, category, method, or status" />
+            <button onClick={() => void refresh(1)} style={accentButtonStyle} disabled={loading}>Search</button>
+          </div>
+          {expenses.length ? (
+            <>
+              <div style={tableWrapStyle}>
+                <table style={tableStyle}>
+                  <thead>
+                    <tr>
+                      <th style={tableHeaderCellStyle}>Date</th>
+                      <th style={tableHeaderCellStyle}>Title</th>
+                      <th style={tableHeaderCellStyle}>Category</th>
+                      <th style={tableHeaderCellStyle}>Method</th>
+                      <th style={tableHeaderCellStyle}>Status</th>
+                      <th style={tableHeaderCellStyle}>Amount</th>
+                      <th style={tableHeaderCellStyle}>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {expenses.map((expense) => (
+                      <tr key={expense.id}>
+                        <td style={tableCellStyle}>{expense.expense_date}</td>
+                        <td style={tableCellStyle}>{expense.title}</td>
+                        <td style={tableCellStyle}>{expense.category_name}</td>
+                        <td style={tableCellStyle}>{expense.payment_method}</td>
+                        <td style={tableCellStyle}>{expense.status}</td>
+                        <td style={{ ...tableCellStyle, fontWeight: 600 }}>{expense.amount}</td>
+                        <td style={tableCellStyle}>
+                          <button
+                            onClick={() => {
+                              setSelectedExpenseId(expense.id);
+                              setForm({
+                                expenseDate: expense.expense_date?.slice(0, 10) || new Date().toISOString().slice(0, 10),
+                                categoryName: expense.category_name,
+                                title: expense.title,
+                                amount: String(expense.amount),
+                                paymentMethod: expense.payment_method,
+                                status: expense.status,
+                                note: expense.note || '',
+                              });
+                            }}
+                            style={subtleButtonStyle}
+                          >
+                            Edit
+                          </button>
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {expenses.map((expense) => (
-                        <tr key={expense.id}>
-                          <td style={tableCellStyle}>{expense.expense_date}</td>
-                          <td style={tableCellStyle}>{expense.title}</td>
-                          <td style={tableCellStyle}>{expense.category_name}</td>
-                          <td style={tableCellStyle}>{expense.payment_method}</td>
-                          <td style={tableCellStyle}>{expense.status}</td>
-                          <td style={{ ...tableCellStyle, fontWeight: 600 }}>{expense.amount}</td>
-                          <td style={tableCellStyle}>
-                            <button
-                              onClick={() => {
-                                setSelectedExpenseId(expense.id);
-                                setForm({
-                                  expenseDate: expense.expense_date?.slice(0, 10) || new Date().toISOString().slice(0, 10),
-                                  categoryName: expense.category_name,
-                                  title: expense.title,
-                                  amount: String(expense.amount),
-                                  paymentMethod: expense.payment_method,
-                                  status: expense.status,
-                                  note: expense.note || '',
-                                });
-                              }}
-                              style={subtleButtonStyle}
-                            >
-                              Edit
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <ListPager
-                  loading={loading}
-                  page={page}
-                  pagination={pagination}
-                  label="expense(s)"
-                  onPrevious={() => void refresh(Math.max(1, page - 1))}
-                  onNext={() => void refresh(Math.min(totalPages, page + 1))}
-                />
-              </>
-            ) : <div style={emptyStateStyle}>No expenses recorded yet.</div>}
-          </article>
-
-          <article style={surfaceCardStyle}>
-            <h3 style={{ marginTop: 0, fontSize: 14 }}>Expense Categories</h3>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-              <input
-                value={newCategoryName}
-                onChange={(e) => setNewCategoryName(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') void addCategory(); }}
-                style={{ ...fieldStyle, flex: 1 }}
-                placeholder="New category name"
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <ListPager
+                loading={loading}
+                page={page}
+                pagination={pagination}
+                label="expense(s)"
+                onPrevious={() => void refresh(Math.max(1, page - 1))}
+                onNext={() => void refresh(Math.min(totalPages, page + 1))}
               />
-              <button onClick={() => void addCategory()} style={accentButtonStyle}>Add</button>
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {categories.length === 0 && (
-                <span style={tokenMutedStyle}>No categories yet. Create one above.</span>
-              )}
-              {categories.map((cat) => (
-                <span
-                  key={cat.id}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    padding: '4px 8px',
-                    borderRadius: 6,
-                    border: `1px solid ${cat.status === 'active' ? 'rgba(37, 99, 235, 0.2)' : 'rgba(148, 163, 184, 0.22)'}`,
-                    background: cat.status === 'active' ? 'rgba(37, 99, 235, 0.06)' : '#ffffff',
-                    fontSize: 12,
-                    fontWeight: 500,
-                    color: cat.status === 'active' ? '#1d4ed8' : '#475569',
-                    opacity: cat.status === 'archived' ? 0.6 : 1,
-                  }}
-                >
-                  {cat.name}
-                  {cat.status === 'active' ? (
-                    <button
-                      onClick={() => void toggleCategoryStatus(cat)}
-                      style={{ ...subtleButtonStyle, minHeight: 18, padding: '0 4px', fontSize: 11, lineHeight: '18px', color: '#94a3b8' }}
-                      title="Archive"
-                    >
-                      ✕
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => void toggleCategoryStatus(cat)}
-                      style={{ ...subtleButtonStyle, minHeight: 18, padding: '0 4px', fontSize: 11, lineHeight: '18px' }}
-                      title="Restore"
-                    >
-                      restore
-                    </button>
-                  )}
-                </span>
-              ))}
-            </div>
-          </article>
-        </div>
-        ) : null}
+            </>
+          ) : <div style={emptyStateStyle}>No expenses recorded yet.</div>}
+        </article>
       </section>
 
       <article style={surfaceCardStyle}>

@@ -107,7 +107,7 @@ type VariantMatrixRow = {
 
 const cardStyle = surfaceCardStyle;
 const inputStyle = fieldStyle;
-const buttonStyle = secondaryButtonStyle;
+const buttonStyle = accentButtonStyle;
 
 const sanitizeSkuToken = (value: string) =>
   value

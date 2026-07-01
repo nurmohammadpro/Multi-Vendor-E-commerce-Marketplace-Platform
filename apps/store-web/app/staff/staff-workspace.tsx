@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 
 import {
+  accentButtonStyle,
   emptyStateStyle,
   fieldStyle,
   pageShellStyle,
@@ -15,7 +16,7 @@ import {
   tokenMutedStyle,
 } from '../marketone-theme';
 import { ListPager, type PaginationState, totalPagesFor } from '../list-pager';
-import { stackedFilterGridStyle, useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
+import { useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
 
 type StaffMember = {
   id: string;
@@ -84,6 +85,9 @@ export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) 
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState<PaginationState>({ page: 1, limit: 12, total: 0 });
   const [activeTab, setActiveTab] = useState<'create' | 'users'>('users');
+  const [subscriptionPlan, setSubscriptionPlan] = useState<string | null>(null);
+
+  const isPro = subscriptionPlan === 'pro';
 
   const refresh = async (nextPage = 1) => {
     const params = new URLSearchParams({ page: String(nextPage), limit: String(pagination.limit) });
@@ -96,7 +100,10 @@ export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) 
   };
 
   useEffect(() => {
-    void refresh().catch((error: Error) => setMessage(error.message));
+    void Promise.all([
+      refresh(),
+      readJson<{ subscription?: { plan_code: string } }>('/api/billing/subscription').then((data) => setSubscriptionPlan(data.subscription?.plan_code ?? null)).catch(() => {}),
+    ]).catch((error: Error) => setMessage(error.message));
   }, []);
 
   const canCreateRole =
@@ -196,10 +203,10 @@ export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) 
             <option value="store_salesman">Salesman</option>
           </select>
           <input type="date" value={form.joinDate} onChange={(e) => setForm((v) => ({ ...v, joinDate: e.target.value }))} style={fieldStyle} />
-          <input value={form.monthlySalary} onChange={(e) => setForm((v) => ({ ...v, monthlySalary: e.target.value }))} style={fieldStyle} placeholder="Monthly salary" />
-          <input value={form.designation} onChange={(e) => setForm((v) => ({ ...v, designation: e.target.value }))} style={fieldStyle} placeholder="Designation" />
-          <input value={form.department} onChange={(e) => setForm((v) => ({ ...v, department: e.target.value }))} style={fieldStyle} placeholder="Department" />
-          <input value={form.emergencyContactName} onChange={(e) => setForm((v) => ({ ...v, emergencyContactName: e.target.value }))} style={fieldStyle} placeholder="Emergency contact name" />
+          {isPro ? <input value={form.monthlySalary} onChange={(e) => setForm((v) => ({ ...v, monthlySalary: e.target.value }))} style={fieldStyle} placeholder="Monthly salary" /> : null}
+          {isPro ? <input value={form.designation} onChange={(e) => setForm((v) => ({ ...v, designation: e.target.value }))} style={fieldStyle} placeholder="Designation" /> : null}
+          {isPro ? <input value={form.department} onChange={(e) => setForm((v) => ({ ...v, department: e.target.value }))} style={fieldStyle} placeholder="Department" /> : null}
+          {isPro ? <input value={form.emergencyContactName} onChange={(e) => setForm((v) => ({ ...v, emergencyContactName: e.target.value }))} style={fieldStyle} placeholder="Emergency contact name" /> : null}
           <input value={form.emergencyContactPhone} onChange={(e) => setForm((v) => ({ ...v, emergencyContactPhone: e.target.value }))} style={fieldStyle} placeholder="Emergency contact phone" />
         </div>
         <div style={{ display: 'grid', gap: 10, marginTop: 10 }}>
@@ -209,7 +216,7 @@ export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) 
           <textarea value={form.note} onChange={(e) => setForm((v) => ({ ...v, note: e.target.value }))} style={{ ...fieldStyle, minHeight: 74 }} placeholder="Internal note" />
         </div>
         <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-          <button onClick={createUser} style={secondaryButtonStyle} disabled={loading || !canCreateRole}>Create user</button>
+          <button onClick={createUser} style={accentButtonStyle} disabled={loading || !canCreateRole}>Create user</button>
           <span style={tokenMutedStyle}>
             {capabilities?.canInviteManager ? 'Owners can create managers and salesmen.' : 'Managers can create salesmen only.'}
           </span>
@@ -220,9 +227,9 @@ export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) 
       {(!compact || activeTab === 'users') ? (
       <article style={surfaceCardStyle}>
         <h3 style={{ marginTop: 0 }}>Store Users</h3>
-        <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
-          <input value={search} onChange={(event) => setSearch(event.target.value)} style={fieldStyle} placeholder="Search name, phone, email, employee id, role" />
-          <button onClick={() => void refresh(1)} style={secondaryButtonStyle} disabled={loading}>Search</button>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+          <input value={search} onChange={(event) => setSearch(event.target.value)} style={{ ...fieldStyle, flex: 1 }} placeholder="Search name, phone, email, employee id, role" />
+          <button onClick={() => void refresh(1)} style={accentButtonStyle} disabled={loading}>Search</button>
         </div>
         {staff.length ? (
           <>
@@ -235,9 +242,9 @@ export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) 
                     <th style={tableHeaderCellStyle}>Status</th>
                     <th style={tableHeaderCellStyle}>Employee ID</th>
                     <th style={tableHeaderCellStyle}>Contact</th>
-                    <th style={tableHeaderCellStyle}>Designation</th>
-                    <th style={tableHeaderCellStyle}>Department</th>
-                    <th style={tableHeaderCellStyle}>Salary</th>
+                    {isPro ? <th style={tableHeaderCellStyle}>Designation</th> : null}
+                    {isPro ? <th style={tableHeaderCellStyle}>Department</th> : null}
+                    {isPro ? <th style={tableHeaderCellStyle}>Salary</th> : null}
                     <th style={tableHeaderCellStyle}>Actions</th>
                   </tr>
                 </thead>
@@ -255,9 +262,9 @@ export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) 
                         {member.email || '—'}
                         <div style={{ color: '#64748b', marginTop: 4 }}>{member.phone || '—'}</div>
                       </td>
-                      <td style={tableCellStyle}>{member.designation || '—'}</td>
-                      <td style={tableCellStyle}>{member.department || '—'}</td>
-                      <td style={tableCellStyle}>{member.monthly_salary || 0}</td>
+                      {isPro ? <td style={tableCellStyle}>{member.designation || '—'}</td> : null}
+                      {isPro ? <td style={tableCellStyle}>{member.department || '—'}</td> : null}
+                      {isPro ? <td style={tableCellStyle}>{member.monthly_salary || 0}</td> : null}
                       <td style={tableCellStyle}>
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                           {capabilities?.canUpdateManager && member.role_code === 'store_salesman' ? (

@@ -242,7 +242,7 @@ export function SupportWorkspace({
               <option value="resolved">Resolved</option>
               <option value="closed">Closed</option>
             </select>
-            <button onClick={() => void refresh(1)} style={secondaryButtonStyle} disabled={loading}>Apply</button>
+            <button onClick={() => void refresh(1)} style={accentButtonStyle} disabled={loading}>Apply</button>
           </div>
           {tickets.length ? (
             <div style={tableWrapStyle}>

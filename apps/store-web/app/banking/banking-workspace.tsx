@@ -198,7 +198,7 @@ export function BankingWorkspace() {
           </div>
           <div style={{ ...stackedFilterGridStyle, marginTop: 12 }}>
             <input value={accountSearch} onChange={(event) => setAccountSearch(event.target.value)} style={fieldStyle} placeholder="Search account, bank, or number" />
-            <button onClick={() => void refresh(1, entryPage)} style={secondaryButtonStyle} disabled={loading}>Search</button>
+            <button onClick={() => void refresh(1, entryPage)} style={accentButtonStyle} disabled={loading}>Search</button>
           </div>
           {accounts.length ? (
             <>
@@ -273,7 +273,7 @@ export function BankingWorkspace() {
           </div>
           <div style={{ ...stackedFilterGridStyle, marginTop: 12 }}>
             <input value={entrySearch} onChange={(event) => setEntrySearch(event.target.value)} style={fieldStyle} placeholder="Search account, reference, or source" />
-            <button onClick={() => void refresh(accountPage, 1)} style={secondaryButtonStyle} disabled={loading}>Search</button>
+            <button onClick={() => void refresh(accountPage, 1)} style={accentButtonStyle} disabled={loading}>Search</button>
           </div>
           {entries.length ? (
             <>

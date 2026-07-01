@@ -262,7 +262,7 @@ export function ShippingWorkspace({
               <option value="failed">Failed</option>
               <option value="returned">Returned</option>
             </select>
-            <button onClick={() => void refresh(1)} style={neutralButtonStyle} disabled={loading}>Apply</button>
+            <button onClick={() => void refresh(1)} style={accentButtonStyle} disabled={loading}>Apply</button>
           </div>
           {shipments.length ? (
             <div style={tableWrapStyle}>

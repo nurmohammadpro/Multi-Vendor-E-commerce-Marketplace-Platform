@@ -89,6 +89,8 @@ export function PayrollWorkspace() {
   const [runs, setRuns] = useState<PayrollRun[]>([]);
   const [message, setMessage] = useState('Payroll workflow is ready.');
   const [loading, setLoading] = useState(false);
+  const [subscriptionPlan, setSubscriptionPlan] = useState<string | null>(null);
+  const isPro = subscriptionPlan === 'pro';
   const [employeeSearch, setEmployeeSearch] = useState('');
   const [runSearch, setRunSearch] = useState('');
   const [employeePage, setEmployeePage] = useState(1);
@@ -130,7 +132,10 @@ export function PayrollWorkspace() {
   };
 
   useEffect(() => {
-    void refresh(1, 1).catch((error: Error) => setMessage(error.message));
+    void Promise.all([
+      refresh(1, 1),
+      readJson<{ subscription?: { plan_code: string } }>('/api/billing/subscription').then((data) => setSubscriptionPlan(data.subscription?.plan_code ?? null)).catch(() => {}),
+    ]).catch((error: Error) => setMessage(error.message));
   }, []);
 
   const saveEmployee = async () => {
@@ -261,10 +266,10 @@ export function PayrollWorkspace() {
             </select>
             <input type="date" value={employeeForm.joinDate} onChange={(event) => setEmployeeForm((current) => ({ ...current, joinDate: event.target.value }))} style={fieldStyle} />
             <input value={employeeForm.employmentType} onChange={(event) => setEmployeeForm((current) => ({ ...current, employmentType: event.target.value }))} style={fieldStyle} placeholder="Employment type" />
-            <input value={employeeForm.designation} onChange={(event) => setEmployeeForm((current) => ({ ...current, designation: event.target.value }))} style={fieldStyle} placeholder="Designation" />
-            <input value={employeeForm.department} onChange={(event) => setEmployeeForm((current) => ({ ...current, department: event.target.value }))} style={fieldStyle} placeholder="Department" />
-            <input value={employeeForm.monthlySalary} onChange={(event) => setEmployeeForm((current) => ({ ...current, monthlySalary: event.target.value }))} style={fieldStyle} placeholder="Monthly salary" />
-            <input value={employeeForm.emergencyContactName} onChange={(event) => setEmployeeForm((current) => ({ ...current, emergencyContactName: event.target.value }))} style={fieldStyle} placeholder="Emergency contact name" />
+            {isPro ? <input value={employeeForm.designation} onChange={(event) => setEmployeeForm((current) => ({ ...current, designation: event.target.value }))} style={fieldStyle} placeholder="Designation" /> : null}
+            {isPro ? <input value={employeeForm.department} onChange={(event) => setEmployeeForm((current) => ({ ...current, department: event.target.value }))} style={fieldStyle} placeholder="Department" /> : null}
+            {isPro ? <input value={employeeForm.monthlySalary} onChange={(event) => setEmployeeForm((current) => ({ ...current, monthlySalary: event.target.value }))} style={fieldStyle} placeholder="Monthly salary" /> : null}
+            {isPro ? <input value={employeeForm.emergencyContactName} onChange={(event) => setEmployeeForm((current) => ({ ...current, emergencyContactName: event.target.value }))} style={fieldStyle} placeholder="Emergency contact name" /> : null}
             <input value={employeeForm.emergencyContactPhone} onChange={(event) => setEmployeeForm((current) => ({ ...current, emergencyContactPhone: event.target.value }))} style={fieldStyle} placeholder="Emergency contact phone" />
           </div>
           <div style={{ display: 'grid', gap: 10, marginTop: 10 }}>
@@ -280,7 +285,7 @@ export function PayrollWorkspace() {
           <h3 style={{ marginTop: 0 }}>Employees</h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, marginBottom: 12 }}>
             <input value={employeeSearch} onChange={(event) => setEmployeeSearch(event.target.value)} style={fieldStyle} placeholder="Search employee, mobile, email, role" />
-            <button onClick={() => void refresh(1, runPage)} style={secondaryButtonStyle} disabled={loading}>Search</button>
+            <button onClick={() => void refresh(1, runPage)} style={accentButtonStyle} disabled={loading}>Search</button>
           </div>
           {employees.length ? (
             <>
@@ -290,9 +295,9 @@ export function PayrollWorkspace() {
                     <tr>
                       <th style={tableHeaderCellStyle}>Employee</th>
                       <th style={tableHeaderCellStyle}>Role</th>
-                      <th style={tableHeaderCellStyle}>Designation</th>
+                      {isPro ? <th style={tableHeaderCellStyle}>Designation</th> : null}
                       <th style={tableHeaderCellStyle}>Contact</th>
-                      <th style={tableHeaderCellStyle}>Salary</th>
+                      {isPro ? <th style={tableHeaderCellStyle}>Salary</th> : null}
                       <th style={tableHeaderCellStyle}>Status</th>
                     </tr>
                   </thead>
@@ -304,9 +309,9 @@ export function PayrollWorkspace() {
                           <div style={{ color: '#64748b', marginTop: 4 }}>{employee.employee_number || 'Pending ID'}</div>
                         </td>
                         <td style={tableCellStyle}>{employee.role_code}</td>
-                        <td style={tableCellStyle}>{employee.designation || '—'}</td>
+                        {isPro ? <td style={tableCellStyle}>{employee.designation || '—'}</td> : null}
                         <td style={tableCellStyle}>{employee.mobile_no || employee.email || '—'}</td>
-                        <td style={tableCellStyle}>{employee.monthly_salary}</td>
+                        {isPro ? <td style={tableCellStyle}>{employee.monthly_salary}</td> : null}
                         <td style={tableCellStyle}>{employee.employment_status}</td>
                       </tr>
                     ))}
@@ -388,7 +393,7 @@ export function PayrollWorkspace() {
         <h3 style={{ marginTop: 0 }}>Payroll Runs</h3>
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, marginBottom: 12 }}>
           <input value={runSearch} onChange={(event) => setRunSearch(event.target.value)} style={fieldStyle} placeholder="Search payroll no or status" />
-          <button onClick={() => void refresh(employeePage, 1)} style={secondaryButtonStyle} disabled={loading}>Search</button>
+          <button onClick={() => void refresh(employeePage, 1)} style={accentButtonStyle} disabled={loading}>Search</button>
         </div>
         {runs.length ? (
           <>
