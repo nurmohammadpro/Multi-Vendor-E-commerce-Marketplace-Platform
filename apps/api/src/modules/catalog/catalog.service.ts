@@ -57,9 +57,7 @@ export class CatalogService {
             count(*) over()::int as total_count
           from catalog.categories c
           left join catalog.categories parent on parent.id = c.parent_id
-          where c.tenant_id = (
-            select tenant_id from store.stores where id = $1
-          )
+          where c.store_id = $1
             and (
               $2::text is null
               or c.code ilike '%' || $2::text || '%'
@@ -88,7 +86,7 @@ export class CatalogService {
       `
         delete from catalog.categories
         where id = $1
-          and tenant_id = (select tenant_id from store.stores where id = $2)
+          and store_id = $2
         returning id
       `,
       [categoryId, storeId],
@@ -120,6 +118,7 @@ export class CatalogService {
         insert into catalog.categories (
           id,
           tenant_id,
+          store_id,
           parent_id,
           code,
           name,
@@ -132,6 +131,7 @@ export class CatalogService {
         select
           gen_random_uuid(),
           s.tenant_id,
+          s.id,
           $2,
           $3,
           $4,
@@ -142,7 +142,7 @@ export class CatalogService {
           now()
         from store.stores s
         where s.id = $1
-        returning id, parent_id, code, name, name_bn, status, sort_order
+        returning id, store_id, parent_id, code, name, name_bn, status, sort_order
       `,
       [storeId, payload.parentId ?? null, payload.code, payload.name, payload.nameBn ?? null, payload.status, payload.sortOrder],
     );
@@ -176,7 +176,7 @@ export class CatalogService {
           sort_order = coalesce($8, sort_order),
           updated_at = now()
         where id = $1
-          and tenant_id = (select tenant_id from store.stores where id = $2)
+          and store_id = $2
         returning id, parent_id, code, name, name_bn, status, sort_order
       `,
       [
@@ -220,9 +220,7 @@ export class CatalogService {
             updated_at,
             count(*) over()::int as total_count
           from catalog.brands
-          where tenant_id = (
-            select tenant_id from store.stores where id = $1
-          )
+          where store_id = $1
             and (
               $2::text is null
               or name ilike '%' || $2::text || '%'
@@ -250,7 +248,7 @@ export class CatalogService {
       `
         delete from catalog.brands
         where id = $1
-          and tenant_id = (select tenant_id from store.stores where id = $2)
+          and store_id = $2
         returning id
       `,
       [brandId, storeId],
@@ -279,6 +277,7 @@ export class CatalogService {
         insert into catalog.brands (
           id,
           tenant_id,
+          store_id,
           name,
           name_bn,
           status,
@@ -288,6 +287,7 @@ export class CatalogService {
         select
           gen_random_uuid(),
           s.tenant_id,
+          s.id,
           $2,
           $3,
           $4,
@@ -295,7 +295,7 @@ export class CatalogService {
           now()
         from store.stores s
         where s.id = $1
-        returning id, name, name_bn, status
+        returning id, store_id, name, name_bn, status
       `,
       [storeId, payload.name, payload.nameBn ?? null, payload.status],
     );
@@ -323,7 +323,7 @@ export class CatalogService {
           status = coalesce($5, status),
           updated_at = now()
         where id = $1
-          and tenant_id = (select tenant_id from store.stores where id = $2)
+          and store_id = $2
         returning id, name, name_bn, status
       `,
       [
