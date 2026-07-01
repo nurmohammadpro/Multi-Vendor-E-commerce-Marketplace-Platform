@@ -41,6 +41,7 @@ export type ReceiptPayload = {
     skuCode?: string | null;
     qty?: number;
     unitPrice?: number;
+    discountAmount?: number;
     lineTotal?: number;
   }>;
   totals?: {
@@ -329,15 +330,18 @@ export function renderInvoiceHtml(receipt: ReceiptPayload) {
   ].filter(Boolean) as string[];
 
   const itemRows = (receipt.items ?? [])
-    .map((item) => `
+    .map((item) => {
+      const discount = Number(item.discountAmount ?? 0);
+      return `
       <tr>
         <td>${escapeHtml(item.name || 'Item')}</td>
         <td>${escapeHtml(item.skuCode || '—')}</td>
         <td>${Number(item.qty ?? 0)}</td>
         <td>${money(item.unitPrice)}</td>
+        ${discount > 0 ? `<td style="color:#b45309;font-size:12px;">-${money(discount)}</td>` : ''}
         <td>${money(item.lineTotal)}</td>
-      </tr>
-    `)
+      </tr>`;
+    })
     .join('');
 
   const payments = (receipt.payments ?? [])
@@ -414,6 +418,7 @@ export function renderInvoiceHtml(receipt: ReceiptPayload) {
               <th>SKU</th>
               <th>Qty</th>
               <th>Unit</th>
+              ${receipt.items?.some((item) => Number(item.discountAmount ?? 0) > 0) ? '<th>Disc</th>' : ''}
               <th>Total</th>
             </tr>
           </thead>

@@ -362,6 +362,8 @@ export class CatalogService {
             pr.cost_price,
             pr.sale_price,
             pr.compare_at_price,
+            pr.discount_type,
+            pr.discount_value,
             pr.effective_from,
             pr.effective_to
           from catalog.prices pr
@@ -580,6 +582,8 @@ export class CatalogService {
             pr.cost_price,
             pr.sale_price,
             pr.compare_at_price,
+            pr.discount_type,
+            pr.discount_value,
             pr.effective_from,
             pr.effective_to
           from catalog.prices pr
@@ -1242,6 +1246,8 @@ export class CatalogService {
       costPrice?: number | null;
       salePrice?: number;
       compareAtPrice?: number | null;
+      discountType?: string | null;
+      discountValue?: number | null;
       effectiveFrom?: string;
       effectiveTo?: string | null;
       status: string;
@@ -1341,6 +1347,8 @@ export class CatalogService {
               cost_price,
               sale_price,
               compare_at_price,
+              discount_type,
+              discount_value,
               effective_from,
               effective_to,
               created_at,
@@ -1356,8 +1364,10 @@ export class CatalogService {
               $5,
               $6,
               $7,
+              $8,
+              $9,
               now(),
-              $8
+              $10
             from store.stores s
             where s.id = $1
             returning id, sku_id, sale_price, effective_from, effective_to
@@ -1368,6 +1378,8 @@ export class CatalogService {
             payload.costPrice ?? null,
             payload.salePrice,
             payload.compareAtPrice ?? null,
+            payload.discountType ?? null,
+            payload.discountValue ?? null,
             payload.effectiveFrom ?? new Date().toISOString(),
             payload.effectiveTo ?? null,
             userId,
@@ -1520,6 +1532,8 @@ export class CatalogService {
       costPrice?: number | null;
       salePrice: number;
       compareAtPrice?: number | null;
+      discountType?: string | null;
+      discountValue?: number | null;
       effectiveFrom?: string;
       effectiveTo?: string | null;
     },
@@ -1552,6 +1566,8 @@ export class CatalogService {
           cost_price,
           sale_price,
           compare_at_price,
+          discount_type,
+          discount_value,
           effective_from,
           effective_to,
           created_at,
@@ -1567,8 +1583,10 @@ export class CatalogService {
           $5,
           $6,
           $7,
+          $8,
+          $9,
           now(),
-          $8
+          $10
         from store.stores s
         where s.id = $1
         returning id, sku_id, sale_price, effective_from, effective_to
@@ -1579,6 +1597,8 @@ export class CatalogService {
         payload.costPrice ?? null,
         payload.salePrice,
         payload.compareAtPrice ?? null,
+        payload.discountType ?? null,
+        payload.discountValue ?? null,
         payload.effectiveFrom ?? new Date().toISOString(),
         payload.effectiveTo ?? null,
         userId,
@@ -1838,6 +1858,8 @@ export class CatalogService {
               cost_price,
               sale_price,
               compare_at_price,
+              discount_type,
+              discount_value,
               effective_from,
               effective_to,
               created_at,
@@ -1853,8 +1875,10 @@ export class CatalogService {
               $5,
               $6,
               $7,
+              $8,
+              $9,
               now(),
-              $8
+              $10
             from store.stores s
             where s.id = $1
             returning id
@@ -1865,6 +1889,8 @@ export class CatalogService {
             request.requested_cost_price === null ? null : Number(request.requested_cost_price),
             Number(request.requested_sale_price),
             request.requested_compare_at_price === null ? null : Number(request.requested_compare_at_price),
+            null, // discount_type — not yet captured in price_change_requests
+            null, // discount_value
             request.requested_effective_from,
             request.requested_effective_to,
             userId,

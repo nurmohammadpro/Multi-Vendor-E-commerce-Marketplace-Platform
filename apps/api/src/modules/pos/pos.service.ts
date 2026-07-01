@@ -91,7 +91,9 @@ export class PosService {
           select distinct on (pr.sku_id)
             pr.sku_id,
             pr.sale_price,
-            pr.compare_at_price
+            pr.compare_at_price,
+            pr.discount_type,
+            pr.discount_value
           from catalog.prices pr
           join catalog.skus sku on sku.id = pr.sku_id
           where sku.store_id = $1
@@ -123,6 +125,8 @@ export class PosService {
           p.is_trackable,
           lp.sale_price,
           lp.compare_at_price,
+          lp.discount_type,
+          lp.discount_value,
           st.on_hand_qty,
           st.available_qty
         from catalog.skus sku
