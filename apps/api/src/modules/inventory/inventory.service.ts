@@ -153,6 +153,7 @@ export class InventoryService {
             b.sku_id,
             s.sku_code,
             p.name as product_name,
+            p.is_trackable,
             b.on_hand_qty,
             b.reserved_qty,
             b.available_qty,
