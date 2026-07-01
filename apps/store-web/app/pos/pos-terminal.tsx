@@ -59,6 +59,7 @@ type SkuSearchResult = {
   product_name: string;
   has_variants?: boolean;
   variant_mode?: string | null;
+  is_trackable?: boolean;
   sale_price?: string | number | null;
   available_qty?: string | number | null;
 };
@@ -70,6 +71,7 @@ type ProductVariantDetail = {
     name: string;
     has_variants: boolean;
     variant_mode: string;
+    is_trackable: boolean;
   };
   skus: Array<{
     id: string;
@@ -353,6 +355,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
         name: group.productName,
         has_variants: group.hasVariants,
         variant_mode: group.variantMode ?? 'multi',
+        is_trackable: group.skus[0]?.is_trackable ?? true,
       },
       skus: group.skus.map((sku) => ({
         id: sku.id,
@@ -368,9 +371,10 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
     setVariantPickerOpen(true);
   };
 
-  const addSkuToCart = (sku: Pick<SkuSearchResult, 'id' | 'sku_code' | 'product_name' | 'variant_label' | 'sale_price' | 'available_qty' | 'barcode'>) => {
-    const availableQty = getSkuAvailableQty(sku);
-    if (availableQty <= 0) {
+  const addSkuToCart = (sku: Pick<SkuSearchResult, 'id' | 'sku_code' | 'product_name' | 'variant_label' | 'sale_price' | 'available_qty' | 'barcode' | 'is_trackable'>) => {
+    const isTrackable = sku.is_trackable !== false;
+    const availableQty = isTrackable ? getSkuAvailableQty(sku) : 999999;
+    if (isTrackable && availableQty <= 0) {
       setMessage(`${sku.product_name} is out of stock in the selected location.`);
       return;
     }
@@ -808,22 +812,27 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                           >
                             Choose Variant
                           </button>
-                        ) : (
+                        ) : (() => {
+                          const singleSku = group.skus[0];
+                          const singleTrackable = singleSku.is_trackable !== false;
+                          const singleAvailable = !singleTrackable || getSkuAvailableQty(singleSku) > 0;
+                          return (
                           <button
                             onMouseDown={(e) => e.preventDefault()}
                             onClick={() => {
-                              addSkuToCart(group.skus[0]);
+                              addSkuToCart(singleSku);
                               clearSearchState();
-                              if (getSkuAvailableQty(group.skus[0]) > 0) {
+                              if (singleAvailable) {
                                 setMessage(`${group.productName} added to cart.`);
                               }
                             }}
                             style={neutralButtonStyle}
-                            disabled={getSkuAvailableQty(group.skus[0]) <= 0}
+                            disabled={!singleAvailable}
                           >
-                            {getSkuAvailableQty(group.skus[0]) <= 0 ? 'Out of Stock' : 'Add'}
+                            {!singleAvailable ? 'Out of Stock' : 'Add'}
                           </button>
-                        )}
+                          );
+                        })()}
                         <button
                           onMouseDown={(e) => e.preventDefault()}
                           onClick={() => {
@@ -982,73 +991,103 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
         ) : null}
       </section>
 
-      <Sheet open={variantPickerOpen} onOpenChange={setVariantPickerOpen}>
-        <SheetContent side="right" className="sm:max-w-2xl">
-          <SheetHeader>
-            <SheetTitle>{variantProduct?.product.name || 'Choose variant'}</SheetTitle>
-            <SheetDescription>
-              {variantPickerHint || 'Select the exact variant before adding it to the cart.'}
-            </SheetDescription>
-          </SheetHeader>
-          <div style={{ marginTop: 16 }}>
-            {variantProduct?.skus?.length ? (
-              <div style={tableWrapStyle}>
-                <table style={tableStyle}>
-                  <thead>
-                    <tr>
-                      <th style={tableHeaderCellStyle}>SKU</th>
-                      <th style={tableHeaderCellStyle}>Variant</th>
-                      <th style={tableHeaderCellStyle}>Barcode</th>
-                      <th style={tableHeaderCellStyle}>Available</th>
-                      <th style={tableHeaderCellStyle}>Price</th>
-                      <th style={tableHeaderCellStyle}>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {variantProduct.skus.map((sku) => (
-                      <tr key={sku.id}>
-                        <td style={tableCellStyle}>{sku.sku_code}</td>
-                        <td style={tableCellStyle}>{sku.variant_label || 'Default'}</td>
-                        <td style={tableCellStyle}>{sku.barcode || '—'}</td>
-                        <td style={tableCellStyle}>{formatQty(sku.available_qty)}</td>
-                        <td style={tableCellStyle}>{currency(Number(sku.sale_price ?? 0))}</td>
-                        <td style={tableCellStyle}>
-                          <button
-                            onClick={() => {
-                              if (getSkuAvailableQty(sku) <= 0) {
-                                setMessage(`${variantProduct.product.name} is out of stock in the selected location.`);
-                                return;
-                              }
-                              addSkuToCart({
-                                id: sku.id,
-                                sku_code: sku.sku_code,
-                                barcode: sku.barcode,
-                                variant_label: sku.variant_label,
-                                product_name: variantProduct.product.name,
-                                sale_price: sku.sale_price,
-                                available_qty: sku.available_qty,
-                              });
-                              setVariantPickerOpen(false);
-                              clearSearchState();
-                              setMessage(`${variantProduct.product.name} variant added to cart.`);
-                            }}
-                            style={secondaryButtonStyle}
-                            disabled={getSkuAvailableQty(sku) <= 0}
-                          >
-                            {getSkuAvailableQty(sku) <= 0 ? 'Out of Stock' : 'Add Variant'}
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+      {variantPickerOpen && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 50,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            backgroundColor: 'rgba(0,0,0,0.5)',
+          }}
+          onClick={() => setVariantPickerOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: '#fff', borderRadius: 12,
+              width: '90%', maxWidth: 896, height: '75vh', maxHeight: 672,
+              display: 'flex', flexDirection: 'column',
+              boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '20px 24px 0', flexShrink: 0 }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>{variantProduct?.product.name || 'Choose variant'}</h2>
+                <p style={{ margin: '4px 0 0', fontSize: 14, color: '#64748b' }}>
+                  {variantPickerHint || 'Select the exact variant before adding it to the cart.'}
+                </p>
               </div>
-            ) : (
-              <div style={tokenMutedStyle}>No variants loaded for this product yet.</div>
-            )}
+              <button
+                onClick={() => setVariantPickerOpen(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px', fontSize: 18, color: '#64748b', lineHeight: 1 }}
+              >
+                &times;
+              </button>
+            </div>
+            <div style={{ padding: '16px 24px 24px', overflow: 'auto', flex: 1 }}>
+              {variantProduct?.skus?.length ? (
+                <div style={tableWrapStyle}>
+                  <table style={tableStyle}>
+                    <thead>
+                      <tr>
+                        <th style={tableHeaderCellStyle}>SKU</th>
+                        <th style={tableHeaderCellStyle}>Variant</th>
+                        <th style={tableHeaderCellStyle}>Barcode</th>
+                        <th style={tableHeaderCellStyle}>Available</th>
+                        <th style={tableHeaderCellStyle}>Price</th>
+                        <th style={tableHeaderCellStyle}>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {variantProduct.skus.map((sku) => {
+                        const skuIsTrackable = variantProduct.product.is_trackable;
+                        const skuAvailable = !skuIsTrackable || getSkuAvailableQty(sku) > 0;
+                        return (
+                        <tr key={sku.id}>
+                          <td style={tableCellStyle}>{sku.sku_code}</td>
+                          <td style={tableCellStyle}>{sku.variant_label || 'Default'}</td>
+                          <td style={tableCellStyle}>{sku.barcode || '—'}</td>
+                          <td style={tableCellStyle}>{skuIsTrackable ? formatQty(sku.available_qty) : '—'}</td>
+                          <td style={tableCellStyle}>{currency(Number(sku.sale_price ?? 0))}</td>
+                          <td style={tableCellStyle}>
+                            <button
+                              onClick={() => {
+                                if (!skuAvailable) {
+                                  setMessage(`${variantProduct.product.name} is out of stock in the selected location.`);
+                                  return;
+                                }
+                                addSkuToCart({
+                                  id: sku.id,
+                                  sku_code: sku.sku_code,
+                                  barcode: sku.barcode,
+                                  variant_label: sku.variant_label,
+                                  product_name: variantProduct.product.name,
+                                  sale_price: sku.sale_price,
+                                  available_qty: sku.available_qty,
+                                  is_trackable: skuIsTrackable,
+                                });
+                                setVariantPickerOpen(false);
+                                clearSearchState();
+                                setMessage(`${variantProduct.product.name} variant added to cart.`);
+                              }}
+                              style={secondaryButtonStyle}
+                              disabled={!skuAvailable}
+                            >
+                              {!skuAvailable ? 'Out of Stock' : 'Add Variant'}
+                            </button>
+                          </td>
+                        </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div style={tokenMutedStyle}>No variants loaded for this product yet.</div>
+              )}
+            </div>
           </div>
-        </SheetContent>
-      </Sheet>
+        </div>
+      )}
 
       <Sheet open={invoiceModalOpen} onOpenChange={setInvoiceModalOpen}>
         <SheetContent side="bottom" className="sm:max-w-full sm:max-h-[90vh] overflow-auto">
