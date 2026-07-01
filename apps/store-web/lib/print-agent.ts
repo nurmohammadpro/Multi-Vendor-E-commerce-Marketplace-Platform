@@ -426,9 +426,10 @@ export function renderInvoiceHtml(receipt: ReceiptPayload) {
         <div class="totals-row"><span>Discount</span><span>${money(receipt.totals?.discount)}</span></div>
         <div class="totals-row"><span>Tax</span><span>${money(receipt.totals?.tax)}</span></div>
         <div class="totals-row"><span>Shipping</span><span>${money(receipt.totals?.shipping)}</span></div>
-        <div class="totals-row"><span>Paid</span><span>${money(receipt.totals?.paid)}</span></div>
-        <div class="totals-row"><span>Due</span><span>${money(receipt.totals?.due)}</span></div>
         <div class="totals-row total"><span>Total</span><span>${money(receipt.totals?.total)}</span></div>
+        <div class="totals-row"><span>Paid</span><span>${money(receipt.totals?.paid)}</span></div>
+        ${(receipt.totals?.change ?? 0) > 0 ? `<div class="totals-row"><span>Change</span><span>${money(receipt.totals?.change)}</span></div>` : ''}
+        ${(receipt.totals?.due ?? 0) > 0 ? `<div class="totals-row"><span>Due</span><span>${money(receipt.totals?.due)}</span></div>` : ''}
       </div>
 
       ${payments ? `<div class="section"><h2>Payments</h2><ul class="payments">${payments}</ul></div>` : ''}
