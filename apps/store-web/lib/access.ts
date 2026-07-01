@@ -30,6 +30,8 @@ export type StoreConsoleAccess = {
   canRequestAdjustInventory: boolean;
   canApproveInventory: boolean;
   canUsePos: boolean;
+  canUsePurchases: boolean;
+  canUseReceivables: boolean;
   canViewReports: boolean;
   canManageShipping: boolean;
   canManageBilling: boolean;
@@ -119,6 +121,10 @@ export function deriveStoreConsoleAccess(
     canRequestAdjustInventory,
     canApproveInventory: permissionSet.has('inventory.adjust.approve') && canAccessStoreFeature({ planCode }, 'inventory'),
     canUsePos: permissionSet.has('sales.pos.create') && canAccessStoreFeature({ planCode }, 'pos'),
+    canUsePurchases:
+      (permissionSet.has('procurement.manage') || isOwnerOrManager)
+      && canAccessStoreFeature({ planCode }, 'purchases'),
+    canUseReceivables: permissionSet.has('sales.report.view') && canAccessStoreFeature({ planCode }, 'receivables'),
     canViewReports: permissionSet.has('sales.report.view') && canAccessStoreFeature({ planCode }, 'reports'),
     canManageShipping: permissionSet.has('sales.pos.create'),
     canManageBilling: permissionSet.has('billing.subscription.manage') && canAccessStoreFeature({ planCode }, 'billing'),

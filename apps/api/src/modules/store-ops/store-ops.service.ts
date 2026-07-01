@@ -552,6 +552,604 @@ export class StoreOpsService {
     };
   }
 
+  async listSuppliers(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    filters: { search?: string; status?: string; page?: number; limit?: number } = {},
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    this.assertAllowedRoles(authContext, ['store_owner', 'store_manager']);
+    const { page, limit, offset } = normalizePageQuery(filters);
+    const search = filters.search?.trim() || null;
+    const status = filters.status?.trim() || null;
+
+    const result = await this.pool.query(
+      `
+        select *
+        from (
+          select
+            s.*,
+            coalesce(p.purchase_count, 0)::int as purchase_count,
+            coalesce(p.total_payable_amount, 0) as total_payable_amount,
+            count(*) over()::int as total_count
+          from procurement.suppliers s
+          left join lateral (
+            select
+              count(*) as purchase_count,
+              coalesce(sum(greatest(total_amount - paid_amount, 0)), 0) as total_payable_amount
+            from procurement.purchases p
+            where p.supplier_id = s.id
+              and p.status <> 'cancelled'
+          ) p on true
+          where s.store_id = $1
+            and ($2::text is null or s.status = $2::text)
+            and (
+              $3::text is null
+              or s.company_name ilike '%' || $3::text || '%'
+              or coalesce(s.contact_name, '') ilike '%' || $3::text || '%'
+              or coalesce(s.phone, '') ilike '%' || $3::text || '%'
+              or coalesce(s.email::text, '') ilike '%' || $3::text || '%'
+            )
+          order by s.updated_at desc, s.created_at desc
+          limit $4
+          offset $5
+        ) suppliers
+      `,
+      [storeId, status, search, limit, offset],
+    );
+
+    const { items, total } = stripPaginationTotal(result.rows);
+    return { suppliers: items, pagination: { page, limit, total } };
+  }
+
+  async createSupplier(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    session: AuthSession | null,
+    payload: {
+      supplierType: 'supplier' | 'importer' | 'company';
+      companyName: string;
+      contactName?: string;
+      phone?: string;
+      email?: string;
+      address?: string;
+      note?: string;
+      openingPayableAmount: number;
+      status: 'active' | 'inactive';
+    },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    this.assertAllowedRoles(authContext, ['store_owner', 'store_manager']);
+    const tenantId = session?.user.tenantId ?? '';
+
+    const result = await this.pool.query(
+      `
+        insert into procurement.suppliers (
+          id, tenant_id, store_id, supplier_type, company_name, contact_name, phone, email, address, note, opening_payable_amount, status, created_at, updated_at
+        )
+        values (
+          gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7::citext, $8, $9, $10, $11, now(), now()
+        )
+        returning *
+      `,
+      [
+        tenantId,
+        storeId,
+        payload.supplierType,
+        payload.companyName,
+        payload.contactName ?? null,
+        payload.phone ?? null,
+        payload.email ?? null,
+        payload.address ?? null,
+        payload.note ?? null,
+        payload.openingPayableAmount,
+        payload.status,
+      ],
+    );
+
+    return { supplier: result.rows[0] };
+  }
+
+  async updateSupplier(
+    supplierId: string,
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    payload: Partial<{
+      supplierType: 'supplier' | 'importer' | 'company';
+      companyName: string;
+      contactName: string | null;
+      phone: string | null;
+      email: string | null;
+      address: string | null;
+      note: string | null;
+      openingPayableAmount: number;
+      status: 'active' | 'inactive';
+    }>,
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    this.assertAllowedRoles(authContext, ['store_owner', 'store_manager']);
+
+    const result = await this.pool.query(
+      `
+        update procurement.suppliers
+        set
+          supplier_type = coalesce($3, supplier_type),
+          company_name = coalesce($4, company_name),
+          contact_name = case when $5::varchar is null then contact_name else $5::varchar end,
+          phone = case when $6::varchar is null then phone else $6::varchar end,
+          email = case when $7::citext is null then email else $7::citext end,
+          address = case when $8::text is null then address else $8::text end,
+          note = case when $9::text is null then note else $9::text end,
+          opening_payable_amount = coalesce($10, opening_payable_amount),
+          status = coalesce($11, status),
+          updated_at = now()
+        where id = $1
+          and store_id = $2
+        returning *
+      `,
+      [
+        supplierId,
+        storeId,
+        payload.supplierType ?? null,
+        payload.companyName ?? null,
+        payload.contactName === undefined ? null : payload.contactName,
+        payload.phone === undefined ? null : payload.phone,
+        payload.email === undefined ? null : payload.email,
+        payload.address === undefined ? null : payload.address,
+        payload.note === undefined ? null : payload.note,
+        payload.openingPayableAmount ?? null,
+        payload.status ?? null,
+      ],
+    );
+
+    if (!result.rows[0]) throw new NotFoundException('Supplier not found');
+    return { supplier: result.rows[0] };
+  }
+
+  async listPurchases(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    filters: { search?: string; status?: string; page?: number; limit?: number } = {},
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    this.assertAllowedRoles(authContext, ['store_owner', 'store_manager']);
+    const { page, limit, offset } = normalizePageQuery(filters);
+    const search = filters.search?.trim() || null;
+    const status = filters.status?.trim() || null;
+
+    const result = await this.pool.query(
+      `
+        select *
+        from (
+          select
+            p.id,
+            p.purchase_no,
+            p.purchase_date,
+            p.invoice_no,
+            p.total_amount,
+            p.paid_amount,
+            p.payment_status,
+            p.status,
+            p.note,
+            p.created_at,
+            s.company_name as supplier_name,
+            l.name as location_name,
+            count(pi.id)::int as item_count,
+            count(*) over()::int as total_count
+          from procurement.purchases p
+          join procurement.suppliers s on s.id = p.supplier_id
+          join inventory.locations l on l.id = p.location_id
+          left join procurement.purchase_items pi on pi.purchase_id = p.id
+          where p.store_id = $1
+            and ($2::text is null or p.status = $2::text)
+            and (
+              $3::text is null
+              or p.purchase_no ilike '%' || $3::text || '%'
+              or coalesce(p.invoice_no, '') ilike '%' || $3::text || '%'
+              or s.company_name ilike '%' || $3::text || '%'
+            )
+          group by p.id, s.company_name, l.name
+          order by p.purchase_date desc, p.created_at desc
+          limit $4
+          offset $5
+        ) purchases
+      `,
+      [storeId, status, search, limit, offset],
+    );
+
+    const { items, total } = stripPaginationTotal(result.rows);
+    return { purchases: items, pagination: { page, limit, total } };
+  }
+
+  async getPurchase(purchaseId: string, headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    this.assertAllowedRoles(authContext, ['store_owner', 'store_manager']);
+
+    const purchaseResult = await this.pool.query(
+      `
+        select
+          p.*,
+          s.company_name as supplier_name,
+          s.contact_name as supplier_contact_name,
+          s.phone as supplier_phone,
+          l.name as location_name
+        from procurement.purchases p
+        join procurement.suppliers s on s.id = p.supplier_id
+        join inventory.locations l on l.id = p.location_id
+        where p.id = $1
+          and p.store_id = $2
+        limit 1
+      `,
+      [purchaseId, storeId],
+    );
+
+    const purchase = purchaseResult.rows[0];
+    if (!purchase) throw new NotFoundException('Purchase not found');
+
+    const [itemsResult, paymentsResult] = await Promise.all([
+      this.pool.query(
+        `
+          select id, sku_id, product_name_snapshot, sku_code_snapshot, variant_label_snapshot, qty, unit_cost, line_total
+          from procurement.purchase_items
+          where purchase_id = $1
+          order by created_at asc
+        `,
+        [purchaseId],
+      ),
+      this.pool.query(
+        `
+          select id, payment_method, amount, reference_no, status, note, paid_at, created_at
+          from procurement.purchase_payments
+          where purchase_id = $1
+          order by created_at desc
+        `,
+        [purchaseId],
+      ),
+    ]);
+
+    return { purchase, items: itemsResult.rows, payments: paymentsResult.rows };
+  }
+
+  async createPurchase(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    session: AuthSession | null,
+    payload: {
+      supplierId: string;
+      locationId?: string;
+      purchaseDate: string;
+      invoiceNo?: string;
+      discountAmount: number;
+      taxAmount: number;
+      shippingAmount: number;
+      note?: string;
+      paymentMethod?: 'cash' | 'card' | 'mfs' | 'bank_transfer';
+      paidAmount: number;
+      paymentReferenceNo?: string;
+      paymentNote?: string;
+      items: Array<{ skuId: string; qty: number; unitCost: number }>;
+    },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    this.assertAllowedRoles(authContext, ['store_owner', 'store_manager']);
+    const userId = this.requireUserId(session);
+    const tenantId = session?.user.tenantId ?? '';
+    const locationId = payload.locationId ?? await this.getDefaultInventoryLocationId(storeId);
+    const purchaseNo = await this.generatePurchaseNumber(storeId, payload.purchaseDate);
+
+    const supplierExists = await this.pool.query<{ id: string }>(
+      `select id from procurement.suppliers where id = $1 and store_id = $2 limit 1`,
+      [payload.supplierId, storeId],
+    );
+    if (!supplierExists.rows[0]) throw new NotFoundException('Supplier not found');
+
+    const skuResult = await this.pool.query<{
+      id: string;
+      sku_code: string;
+      product_name: string;
+      variant_label: string | null;
+    }>(
+      `
+        select
+          s.id,
+          s.sku_code,
+          p.name as product_name,
+          s.variant_label
+        from catalog.skus s
+        join catalog.products p on p.id = s.product_id
+        where p.store_id = $1
+          and s.id = any($2::uuid[])
+      `,
+      [storeId, payload.items.map((item) => item.skuId)],
+    );
+
+    if (skuResult.rows.length !== payload.items.length) {
+      throw new NotFoundException('One or more SKUs were not found for this store');
+    }
+
+    const skuMap = new Map(skuResult.rows.map((row) => [row.id, row]));
+    const subtotalAmount = payload.items.reduce((sum, item) => sum + item.qty * item.unitCost, 0);
+    const totalAmount = subtotalAmount - payload.discountAmount + payload.taxAmount + payload.shippingAmount;
+    const paidAmount = Math.min(payload.paidAmount, totalAmount);
+    const paymentStatus = paidAmount <= 0 ? 'pending' : paidAmount >= totalAmount ? 'paid' : 'partial';
+
+    const client = await this.pool.connect();
+    try {
+      await client.query('begin');
+
+      const purchaseResult = await client.query<{ id: string }>(
+        `
+          insert into procurement.purchases (
+            id, tenant_id, store_id, supplier_id, location_id, purchase_no, purchase_date, invoice_no,
+            subtotal_amount, discount_amount, tax_amount, shipping_amount, total_amount, paid_amount,
+            payment_status, status, note, created_by, received_at, created_at, updated_at
+          )
+          values (
+            gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7,
+            $8, $9, $10, $11, $12, $13,
+            $14, 'received', $15, $16, now(), now(), now()
+          )
+          returning id
+        `,
+        [
+          tenantId,
+          storeId,
+          payload.supplierId,
+          locationId,
+          purchaseNo,
+          payload.purchaseDate,
+          payload.invoiceNo ?? null,
+          subtotalAmount,
+          payload.discountAmount,
+          payload.taxAmount,
+          payload.shippingAmount,
+          totalAmount,
+          paidAmount,
+          paymentStatus,
+          payload.note ?? null,
+          userId,
+        ],
+      );
+
+      const purchaseId = purchaseResult.rows[0].id;
+
+      for (const item of payload.items) {
+        const sku = skuMap.get(item.skuId);
+        if (!sku) continue;
+        const lineTotal = item.qty * item.unitCost;
+
+        await client.query(
+          `
+            insert into procurement.purchase_items (
+              id, purchase_id, sku_id, product_name_snapshot, sku_code_snapshot, variant_label_snapshot, qty, unit_cost, line_total, created_at
+            )
+            values (
+              gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, now()
+            )
+          `,
+          [purchaseId, item.skuId, sku.product_name, sku.sku_code, sku.variant_label, item.qty, item.unitCost, lineTotal],
+        );
+
+        await client.query(
+          `
+            insert into inventory.balances (
+              id, tenant_id, store_id, location_id, sku_id, on_hand_qty, reserved_qty, damaged_qty, returned_qty, updated_at
+            )
+            values (
+              gen_random_uuid(), $1, $2, $3, $4, $5, 0, 0, 0, now()
+            )
+            on conflict (location_id, sku_id)
+            do update set
+              on_hand_qty = inventory.balances.on_hand_qty + excluded.on_hand_qty,
+              updated_at = now()
+          `,
+          [tenantId, storeId, locationId, item.skuId, item.qty],
+        );
+
+        await client.query(
+          `
+            insert into inventory.ledger (
+              id, tenant_id, store_id, location_id, sku_id, movement_type, qty_delta, reference_type, reference_id, note, actor_id, created_at
+            )
+            values (
+              gen_random_uuid(), $1, $2, $3, $4, 'manual_adjustment', $5, 'purchase', $6, $7, $8, now()
+            )
+          `,
+          [tenantId, storeId, locationId, item.skuId, item.qty, purchaseId, `Purchase receive ${purchaseNo}`, userId],
+        );
+      }
+
+      if (paidAmount > 0) {
+        await client.query(
+          `
+            insert into procurement.purchase_payments (
+              id, purchase_id, payment_method, amount, reference_no, status, note, paid_at, created_by, created_at
+            )
+            values (
+              gen_random_uuid(), $1, $2, $3, $4, 'paid', $5, now(), $6, now()
+            )
+          `,
+          [purchaseId, payload.paymentMethod ?? 'cash', paidAmount, payload.paymentReferenceNo ?? null, payload.paymentNote ?? null, userId],
+        );
+      }
+
+      await client.query('commit');
+      return { purchaseId, purchaseNo, totalAmount, paidAmount, paymentStatus };
+    } catch (error) {
+      await client.query('rollback').catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async createPurchasePayment(
+    purchaseId: string,
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    session: AuthSession | null,
+    payload: {
+      amount: number;
+      paymentMethod: 'cash' | 'card' | 'mfs' | 'bank_transfer';
+      referenceNo?: string;
+      note?: string;
+    },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    this.assertAllowedRoles(authContext, ['store_owner', 'store_manager']);
+    const userId = this.requireUserId(session);
+
+    const purchaseResult = await this.pool.query<{ id: string; purchase_no: string; total_amount: string; paid_amount: string; status: string }>(
+      `
+        select id, purchase_no, total_amount, paid_amount, status
+        from procurement.purchases
+        where id = $1
+          and store_id = $2
+        limit 1
+      `,
+      [purchaseId, storeId],
+    );
+
+    const purchase = purchaseResult.rows[0];
+    if (!purchase) throw new NotFoundException('Purchase not found');
+    if (purchase.status === 'cancelled') throw new ForbiddenException('Cancelled purchases cannot receive payments');
+
+    const outstanding = Math.max(Number(purchase.total_amount) - Number(purchase.paid_amount), 0);
+    if (outstanding <= 0) {
+      throw new ForbiddenException('This purchase is already fully paid');
+    }
+
+    const appliedAmount = Math.min(payload.amount, outstanding);
+    const nextPaidAmount = Number(purchase.paid_amount) + appliedAmount;
+    const nextStatus = nextPaidAmount >= Number(purchase.total_amount) ? 'paid' : 'partial';
+
+    const client = await this.pool.connect();
+    try {
+      await client.query('begin');
+      await client.query(
+        `
+          insert into procurement.purchase_payments (
+            id, purchase_id, payment_method, amount, reference_no, status, note, paid_at, created_by, created_at
+          )
+          values (
+            gen_random_uuid(), $1, $2, $3, $4, 'paid', $5, now(), $6, now()
+          )
+        `,
+        [purchaseId, payload.paymentMethod, appliedAmount, payload.referenceNo ?? null, payload.note ?? null, userId],
+      );
+      await client.query(
+        `
+          update procurement.purchases
+          set
+            paid_amount = $2,
+            payment_status = $3,
+            updated_at = now()
+          where id = $1
+        `,
+        [purchaseId, nextPaidAmount, nextStatus],
+      );
+      await client.query('commit');
+    } catch (error) {
+      await client.query('rollback').catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+
+    return {
+      purchaseId,
+      purchaseNo: purchase.purchase_no,
+      paidAmount: appliedAmount,
+      outstandingAmount: Math.max(Number(purchase.total_amount) - nextPaidAmount, 0),
+      paymentStatus: nextStatus,
+    };
+  }
+
+  async listPayables(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    filters: { search?: string; page?: number; limit?: number } = {},
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    this.assertAllowedRoles(authContext, ['store_owner', 'store_manager']);
+    const { page, limit, offset } = normalizePageQuery(filters);
+    const search = filters.search?.trim() || null;
+
+    const result = await this.pool.query(
+      `
+        select *
+        from (
+          select
+            p.id,
+            p.purchase_no,
+            p.purchase_date,
+            p.invoice_no,
+            p.total_amount,
+            p.paid_amount,
+            greatest(p.total_amount - p.paid_amount, 0) as outstanding_amount,
+            p.payment_status,
+            s.company_name as supplier_name,
+            s.phone as supplier_phone,
+            greatest((current_date - p.purchase_date), 0) as aging_days,
+            count(*) over()::int as total_count
+          from procurement.purchases p
+          join procurement.suppliers s on s.id = p.supplier_id
+          where p.store_id = $1
+            and p.status <> 'cancelled'
+            and greatest(p.total_amount - p.paid_amount, 0) > 0
+            and (
+              $2::text is null
+              or p.purchase_no ilike '%' || $2::text || '%'
+              or coalesce(p.invoice_no, '') ilike '%' || $2::text || '%'
+              or s.company_name ilike '%' || $2::text || '%'
+              or coalesce(s.phone, '') ilike '%' || $2::text || '%'
+            )
+          order by p.purchase_date asc, p.created_at desc
+          limit $3
+          offset $4
+        ) payables
+      `,
+      [storeId, search, limit, offset],
+    );
+
+    const { items, total } = stripPaginationTotal(result.rows);
+    return { payables: items, pagination: { page, limit, total } };
+  }
+
+  async getPayablesAging(headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    this.assertAllowedRoles(authContext, ['store_owner', 'store_manager']);
+
+    const result = await this.pool.query(
+      `
+        with payables as (
+          select
+            greatest(total_amount - paid_amount, 0) as outstanding_amount,
+            greatest((current_date - purchase_date), 0) as aging_days
+          from procurement.purchases
+          where store_id = $1
+            and status <> 'cancelled'
+            and greatest(total_amount - paid_amount, 0) > 0
+        )
+        select
+          coalesce(sum(outstanding_amount) filter (where aging_days = 0), 0) as today_amount,
+          count(*) filter (where aging_days = 0)::int as today_count,
+          coalesce(sum(outstanding_amount) filter (where aging_days between 1 and 7), 0) as days_7_amount,
+          count(*) filter (where aging_days between 1 and 7)::int as days_7_count,
+          coalesce(sum(outstanding_amount) filter (where aging_days between 8 and 30), 0) as days_30_amount,
+          count(*) filter (where aging_days between 8 and 30)::int as days_30_count,
+          coalesce(sum(outstanding_amount) filter (where aging_days between 31 and 90), 0) as days_90_amount,
+          count(*) filter (where aging_days between 31 and 90)::int as days_90_count,
+          coalesce(sum(outstanding_amount) filter (where aging_days > 90), 0) as days_90_plus_amount,
+          count(*) filter (where aging_days > 90)::int as days_90_plus_count
+        from payables
+      `,
+      [storeId],
+    );
+
+    return { aging: result.rows[0] ?? null };
+  }
+
   async listExpenses(
     headerStoreId: string | undefined,
     authContext: StoreAuthContext | null,
@@ -1462,6 +2060,74 @@ export class StoreOpsService {
     }
 
     return `PAY-${prefix}-${Date.now().toString().slice(-6)}`;
+  }
+
+  private async getDefaultInventoryLocationId(storeId: string) {
+    const locationResult = await this.pool.query<{ id: string }>(
+      `
+        select id
+        from inventory.locations
+        where store_id = $1
+          and status = 'active'
+        order by
+          case when location_type = 'storefront' then 0 when location_type = 'warehouse' then 1 else 2 end,
+          created_at asc
+        limit 1
+      `,
+      [storeId],
+    );
+
+    const locationId = locationResult.rows[0]?.id;
+    if (!locationId) {
+      throw new NotFoundException('Create an active inventory location before receiving purchases');
+    }
+
+    return locationId;
+  }
+
+  private async generatePurchaseNumber(storeId: string, purchaseDate: string) {
+    const storeResult = await this.pool.query<{ store_code: string }>(
+      `
+        select store_code
+        from store.stores
+        where id = $1
+        limit 1
+      `,
+      [storeId],
+    );
+
+    const prefix = (storeResult.rows[0]?.store_code ?? 'STORE')
+      .replace(/[^A-Za-z0-9]/g, '')
+      .toUpperCase()
+      .slice(0, 6) || 'STORE';
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const countResult = await this.pool.query<{ total: string }>(
+        `
+          select count(*)::text as total
+          from procurement.purchases
+          where store_id = $1
+            and to_char(purchase_date, 'YYYYMM') = to_char($2::date, 'YYYYMM')
+        `,
+        [storeId, purchaseDate],
+      );
+      const candidate = `PUR-${prefix}-${purchaseDate.slice(0, 7).replace('-', '')}-${String(Number(countResult.rows[0]?.total ?? '0') + 1 + attempt).padStart(3, '0')}`;
+      const existing = await this.pool.query<{ id: string }>(
+        `
+          select id
+          from procurement.purchases
+          where store_id = $1
+            and purchase_no = $2
+          limit 1
+        `,
+        [storeId, candidate],
+      );
+      if (!existing.rows[0]) {
+        return candidate;
+      }
+    }
+
+    return `PUR-${prefix}-${Date.now().toString().slice(-6)}`;
   }
 
   private assertStoreContext(headerStoreId: string | undefined, authContext: StoreAuthContext | null) {

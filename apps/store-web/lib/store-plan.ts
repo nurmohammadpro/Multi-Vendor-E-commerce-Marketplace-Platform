@@ -5,6 +5,8 @@ export type StoreConsoleFeature =
   | 'catalog'
   | 'inventory'
   | 'pos'
+  | 'purchases'
+  | 'receivables'
   | 'customers'
   | 'reports'
   | 'disputes'
@@ -29,6 +31,8 @@ const featurePlanRequirements: Record<StoreConsoleFeature, StoreSubscriptionPlan
   catalog: 'basic',
   inventory: 'basic',
   pos: 'basic',
+  purchases: 'standard',
+  receivables: 'basic',
   customers: 'basic',
   reports: 'basic',
   disputes: 'basic',
