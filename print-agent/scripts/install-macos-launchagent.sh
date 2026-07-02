@@ -4,7 +4,7 @@ set -euo pipefail
 AGENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PLIST_PATH="$HOME/Library/LaunchAgents/com.multivendor.print-agent.plist"
 NODE_PATH="$(command -v node || true)"
-PORT="${MVP_PRINT_AGENT_PORT:-17658}"
+PORT="${MVP_PRINT_AGENT_PORT:-17668}"
 PRINTER_NAME="${MVP_PRINTER_NAME:-}"
 LABEL_PRINTER_NAME="${MVP_LABEL_PRINTER_NAME:-}"
 ALLOWED_ORIGINS="${MVP_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000,http://localhost:3002,http://127.0.0.1:3002,https://marketone.appbrainer.tech}"

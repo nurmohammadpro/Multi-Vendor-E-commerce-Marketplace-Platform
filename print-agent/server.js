@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 
-const PORT = Number(process.env.MVP_PRINT_AGENT_PORT || 17658);
+const PORT = Number(process.env.MVP_PRINT_AGENT_PORT || 17668);
 const PRINTER_NAME = process.env.MVP_PRINTER_NAME || '';
 const LABEL_PRINTER_NAME = process.env.MVP_LABEL_PRINTER_NAME || '';
 const ALLOWED_ORIGINS = new Set(

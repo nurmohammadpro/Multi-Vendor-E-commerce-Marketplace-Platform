@@ -87,7 +87,7 @@ export function HardwareWorkspace({ canManageSettings }: { canManageSettings: bo
   const [printError, setPrintError] = useState<string | null>(null);
   const [receiptPrinterName, setReceiptPrinterName] = useState('');
   const [labelPrinterName, setLabelPrinterName] = useState('');
-  const [agentUrl, setAgentUrl] = useState('http://127.0.0.1:17658');
+  const [agentUrl, setAgentUrl] = useState('http://127.0.0.1:17668');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('Save workstation names and store hardware presets together.');
   const [remoteProfile, setRemoteProfile] = useState<HardwareProfilePayload['profile']>({});
@@ -95,7 +95,7 @@ export function HardwareWorkspace({ canManageSettings }: { canManageSettings: bo
   const [autostart, setAutostart] = useState<HardwareProfilePayload['autostart']>({});
   const [activeTab, setActiveTab] = useState<'profile' | 'status' | 'guides'>('profile');
 
-  const effectiveAgentUrl = useMemo(() => agentUrl.trim() || 'http://127.0.0.1:17658', [agentUrl]);
+  const effectiveAgentUrl = useMemo(() => agentUrl.trim() || 'http://127.0.0.1:17668', [agentUrl]);
 
   const refreshRemoteProfile = async () => {
     const payload = await readJson<HardwareProfilePayload>('/api/store-ops/hardware/profile');
@@ -298,7 +298,7 @@ export function HardwareWorkspace({ canManageSettings }: { canManageSettings: bo
           <CardContent className="grid gap-4">
             <div className="grid gap-2">
               <label className="text-sm font-medium">Print agent URL</label>
-              <input value={agentUrl} onChange={(event) => setAgentUrl(event.target.value)} style={fieldStyle} placeholder="http://127.0.0.1:17658" />
+              <input value={agentUrl} onChange={(event) => setAgentUrl(event.target.value)} style={fieldStyle} placeholder="http://127.0.0.1:17668" />
             </div>
             <div className="grid gap-2">
               <label className="text-sm font-medium">Receipt printer name</label>
