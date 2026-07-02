@@ -18,6 +18,22 @@ export type PrintAgentHealth = {
   };
 };
 
+export type PrintAgentPrinter = {
+  name: string;
+  isDefault?: boolean;
+  driverName?: string | null;
+  portName?: string | null;
+};
+
+export type PrintAgentPrinterList = {
+  ok: boolean;
+  printers: PrintAgentPrinter[];
+  defaults?: {
+    receiptPrinterName?: string | null;
+    labelPrinterName?: string | null;
+  };
+};
+
 export type ReceiptPayload = {
   saleId?: string | null;
   saleNo?: string | null;
@@ -76,25 +92,20 @@ function escapeHtml(value: string) {
     .replaceAll("'", '&#39;');
 }
 
-function isLoopbackAgent(url: string) {
-  return url.includes('127.0.0.1') || url.includes('localhost');
-}
-
-function canReachAgentFromBrowser(baseUrl: string) {
-  if (typeof window === 'undefined') return true;
-  const hostedBrowser = !['localhost', '127.0.0.1'].includes(window.location.hostname);
-  return !(hostedBrowser && isLoopbackAgent(baseUrl));
-}
-
 export async function fetchPrintAgentHealth(baseUrl = DEFAULT_PRINT_AGENT_URL) {
-  if (!canReachAgentFromBrowser(baseUrl)) {
-    throw new Error('Local print agent is not reachable from this hosted browser.');
-  }
   const response = await fetch(`${baseUrl}/health`, { method: 'GET' });
   if (!response.ok) {
     throw new Error(`Print agent health failed with ${response.status}`);
   }
   return (await response.json()) as PrintAgentHealth;
+}
+
+export async function fetchPrintAgentPrinters(baseUrl = DEFAULT_PRINT_AGENT_URL) {
+  const response = await fetch(`${baseUrl}/printers`, { method: 'GET' });
+  if (!response.ok) {
+    throw new Error(`Print agent printers failed with ${response.status}`);
+  }
+  return (await response.json()) as PrintAgentPrinterList;
 }
 
 export function formatReceiptText(receipt: ReceiptPayload) {
@@ -460,9 +471,6 @@ export function openInvoicePrintWindow(receipt: ReceiptPayload) {
 }
 
 export async function printReceipt(receipt: ReceiptPayload, printerName?: string, baseUrl = DEFAULT_PRINT_AGENT_URL) {
-  if (!canReachAgentFromBrowser(baseUrl)) {
-    throw new Error('Local print agent is not reachable from this hosted browser.');
-  }
   const response = await fetch(`${baseUrl}/print/raw`, {
     method: 'POST',
     headers: {
@@ -499,9 +507,6 @@ export async function printLabel(payload: {
   text: string;
   printerName?: string;
 }, baseUrl = DEFAULT_PRINT_AGENT_URL) {
-  if (!canReachAgentFromBrowser(baseUrl)) {
-    throw new Error('Local print agent is not reachable from this hosted browser.');
-  }
   const response = await fetch(`${baseUrl}/print/label`, {
     method: 'POST',
     headers: {
@@ -522,9 +527,6 @@ export async function openCashDrawer(payload: {
   printerName?: string;
   pin?: 2 | 5;
 }, baseUrl = DEFAULT_PRINT_AGENT_URL) {
-  if (!canReachAgentFromBrowser(baseUrl)) {
-    throw new Error('Local print agent is not reachable from this hosted browser.');
-  }
   const response = await fetch(`${baseUrl}/hardware/drawer-open`, {
     method: 'POST',
     headers: {
