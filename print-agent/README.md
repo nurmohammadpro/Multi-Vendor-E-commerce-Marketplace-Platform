@@ -18,7 +18,7 @@ Browsers and PWAs cannot reliably print silently on their own.
 The correct production model is:
 
 ```text
-Store Web POS -> http://127.0.0.1:17658 -> local print agent -> local printer
+Store Web POS -> http://127.0.0.1:17668 -> local print agent -> local printer
 ```
 
 ## Supported Operating Systems
@@ -44,7 +44,7 @@ node server.js
 Health check:
 
 ```text
-http://127.0.0.1:17658/health
+http://127.0.0.1:17668/health
 ```
 
 ## API Endpoints
