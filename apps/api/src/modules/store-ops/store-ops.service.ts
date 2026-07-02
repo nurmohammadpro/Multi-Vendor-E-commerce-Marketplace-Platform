@@ -789,7 +789,7 @@ export class StoreOpsService {
     const [itemsResult, paymentsResult] = await Promise.all([
       this.pool.query(
         `
-          select id, sku_id, product_name_snapshot, sku_code_snapshot, variant_label_snapshot, qty, unit_cost, line_total
+          select id, sku_id, product_name_snapshot, sku_code_snapshot, variant_label_snapshot, qty, unit_cost, line_total, batch_no, expiry_date
           from procurement.purchase_items
           where purchase_id = $1
           order by created_at asc
@@ -827,7 +827,7 @@ export class StoreOpsService {
       paidAmount: number;
       paymentReferenceNo?: string;
       paymentNote?: string;
-      items: Array<{ skuId: string; qty: number; unitCost: number }>;
+      items: Array<{ skuId: string; qty: number; unitCost: number; batchNo?: string; expiryDate?: string }>;
     },
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
@@ -921,13 +921,24 @@ export class StoreOpsService {
         await client.query(
           `
             insert into procurement.purchase_items (
-              id, purchase_id, sku_id, product_name_snapshot, sku_code_snapshot, variant_label_snapshot, qty, unit_cost, line_total, created_at
+              id, purchase_id, sku_id, product_name_snapshot, sku_code_snapshot, variant_label_snapshot, qty, unit_cost, line_total, batch_no, expiry_date, created_at
             )
             values (
-              gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, now()
+              gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now()
             )
           `,
-          [purchaseId, item.skuId, sku.product_name, sku.sku_code, sku.variant_label, item.qty, item.unitCost, lineTotal],
+          [
+            purchaseId,
+            item.skuId,
+            sku.product_name,
+            sku.sku_code,
+            sku.variant_label,
+            item.qty,
+            item.unitCost,
+            lineTotal,
+            item.batchNo?.trim() || null,
+            item.expiryDate ?? null,
+          ],
         );
 
         await client.query(

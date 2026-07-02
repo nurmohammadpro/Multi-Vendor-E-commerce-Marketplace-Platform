@@ -8,6 +8,7 @@ import {
   emptyStateStyle,
   fieldStyle,
   pageShellStyle,
+  searchButtonStyle,
   secondaryButtonStyle,
   sectionPanelStyle,
   surfaceCardStyle,
@@ -83,9 +84,22 @@ type Location = {
 
 type SkuResult = {
   id: string;
+  product_id: string;
+  product_code?: string | null;
   sku_code: string;
   product_name: string;
+  has_variants?: boolean;
+  variant_mode?: string | null;
   variant_label?: string | null;
+};
+
+type PurchaseLineDraft = {
+  skuId: string;
+  label: string;
+  qty: string;
+  unitCost: string;
+  batchNo: string;
+  expiryDate: string;
 };
 
 async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
@@ -154,8 +168,10 @@ export function PurchasesWorkspace() {
   });
 
   const [skuSearch, setSkuSearch] = useState('');
-  const [items, setItems] = useState<Array<{ skuId: string; label: string; qty: string; unitCost: string }>>([]);
+  const [items, setItems] = useState<PurchaseLineDraft[]>([]);
+  const [lineDefaults, setLineDefaults] = useState({ qty: '1', unitCost: '' });
   const [paymentAmounts, setPaymentAmounts] = useState<Record<string, string>>({});
+  const [selectedProductId, setSelectedProductId] = useState('');
 
   const refresh = async (
     nextSupplierPage = supplierPage,
@@ -207,6 +223,31 @@ export function PurchasesWorkspace() {
     [suppliers],
   );
 
+  const productGroups = useMemo(() => {
+    const grouped = new Map<string, { productId: string; productName: string; productCode?: string | null; hasVariants: boolean; variantMode?: string | null; skus: SkuResult[] }>();
+    for (const sku of skuResults) {
+      const existing = grouped.get(sku.product_id);
+      if (existing) {
+        existing.skus.push(sku);
+      } else {
+        grouped.set(sku.product_id, {
+          productId: sku.product_id,
+          productName: sku.product_name,
+          productCode: sku.product_code ?? null,
+          hasVariants: Boolean(sku.has_variants),
+          variantMode: sku.variant_mode ?? null,
+          skus: [sku],
+        });
+      }
+    }
+    return Array.from(grouped.values());
+  }, [skuResults]);
+
+  const selectedProductGroup = useMemo(
+    () => productGroups.find((group) => group.productId === selectedProductId) ?? null,
+    [productGroups, selectedProductId],
+  );
+
   const totals = useMemo(() => {
     const subtotal = items.reduce((sum, item) => sum + Number(item.qty || 0) * Number(item.unitCost || 0), 0);
     const discountAmount = Number(purchaseForm.discountAmount || 0);
@@ -216,8 +257,9 @@ export function PurchasesWorkspace() {
     return {
       subtotal,
       total: Math.max(total, 0),
+      outstanding: Math.max(Math.max(total, 0) - Number(purchaseForm.paidAmount || 0), 0),
     };
-  }, [items, purchaseForm.discountAmount, purchaseForm.taxAmount, purchaseForm.shippingAmount]);
+  }, [items, purchaseForm.discountAmount, purchaseForm.taxAmount, purchaseForm.shippingAmount, purchaseForm.paidAmount]);
 
   const searchSkus = async () => {
     if (!skuSearch.trim()) {
@@ -244,13 +286,16 @@ export function PurchasesWorkspace() {
         {
           skuId: sku.id,
           label: `${sku.product_name} · ${sku.sku_code}${sku.variant_label ? ` · ${sku.variant_label}` : ''}`,
-          qty: '1',
-          unitCost: '0',
+          qty: lineDefaults.qty || '1',
+          unitCost: lineDefaults.unitCost || '0',
+          batchNo: '',
+          expiryDate: '',
         },
       ];
     });
     setSkuSearch('');
     setSkuResults([]);
+    setSelectedProductId('');
   };
 
   const createSupplier = async () => {
@@ -308,6 +353,8 @@ export function PurchasesWorkspace() {
         skuId: item.skuId,
         qty: Number(item.qty || 0),
         unitCost: Number(item.unitCost || 0),
+        batchNo: item.batchNo.trim() || undefined,
+        expiryDate: item.expiryDate || undefined,
       }))
       .filter((item) => item.qty > 0);
     if (!normalizedItems.length || normalizedItems.some((item) => item.unitCost < 0)) {
@@ -412,7 +459,7 @@ export function PurchasesWorkspace() {
           <article style={surfaceCardStyle}>
             <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
               <input value={payableSearch} onChange={(event) => setPayableSearch(event.target.value)} style={fieldStyle} placeholder="Search purchase no, invoice, supplier, or phone" />
-              <button onClick={() => void refresh(supplierPage, purchasePage, 1)} style={accentButtonStyle} disabled={loading}>Search</button>
+              <button onClick={() => void refresh(supplierPage, purchasePage, 1)} style={searchButtonStyle} disabled={loading}>Search</button>
             </div>
             {payables.length ? (
               <>
@@ -487,7 +534,7 @@ export function PurchasesWorkspace() {
               <option value="draft">Draft</option>
               <option value="cancelled">Cancelled</option>
             </select>
-            <button onClick={() => void refresh(supplierPage, 1, payablePage)} style={accentButtonStyle} disabled={loading}>Search</button>
+            <button onClick={() => void refresh(supplierPage, 1, payablePage)} style={searchButtonStyle} disabled={loading}>Search</button>
           </div>
           {purchases.length ? (
             <>
@@ -542,7 +589,7 @@ export function PurchasesWorkspace() {
           <article style={surfaceCardStyle}>
             <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
               <input value={supplierSearch} onChange={(event) => setSupplierSearch(event.target.value)} style={fieldStyle} placeholder="Search supplier name, contact, phone, or email" />
-              <button onClick={() => void refresh(1, purchasePage, payablePage)} style={accentButtonStyle} disabled={loading}>Search</button>
+              <button onClick={() => void refresh(1, purchasePage, payablePage)} style={searchButtonStyle} disabled={loading}>Search</button>
             </div>
             {suppliers.length ? (
               <>
@@ -635,30 +682,70 @@ export function PurchasesWorkspace() {
               <input value={purchaseForm.invoiceNo} onChange={(event) => setPurchaseForm((current) => ({ ...current, invoiceNo: event.target.value }))} style={fieldStyle} placeholder="Invoice no" />
             </div>
 
-            <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
-              <input value={skuSearch} onChange={(event) => setSkuSearch(event.target.value)} style={fieldStyle} placeholder="Search product or SKU to add purchase line" />
-              <button onClick={() => void searchSkus()} style={secondaryButtonStyle} disabled={loading}>Search SKU</button>
+            <div style={{ ...surfaceCardStyle, padding: 12, marginBottom: 12 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 8 }}>Quick line defaults</div>
+              <div style={{ ...stackedFilterGridStyle, alignItems: 'end' }}>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={lineDefaults.qty}
+                  onChange={(event) => setLineDefaults((current) => ({ ...current, qty: event.target.value }))}
+                  style={fieldStyle}
+                  placeholder="Default qty"
+                />
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={lineDefaults.unitCost}
+                  onChange={(event) => setLineDefaults((current) => ({ ...current, unitCost: event.target.value }))}
+                  style={fieldStyle}
+                  placeholder="Default unit cost"
+                />
+                <div style={tokenMutedStyle}>New lines use these values automatically.</div>
+              </div>
             </div>
 
-            {skuResults.length ? (
+            <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
+              <input value={skuSearch} onChange={(event) => setSkuSearch(event.target.value)} style={fieldStyle} placeholder="Search product or SKU to add line" />
+              <button onClick={() => void searchSkus()} style={searchButtonStyle} disabled={loading}>Search SKU</button>
+            </div>
+
+            <div style={{ fontSize: 11, color: '#64748b', marginBottom: 12 }}>
+              Simple workflow: choose supplier, search product, add line, adjust quantity and cost, then receive purchase.
+            </div>
+
+            {productGroups.length ? (
               <div style={{ ...tableWrapStyle, marginBottom: 12 }}>
                 <table style={tableStyle}>
                   <thead>
                     <tr>
                       <th style={tableHeaderCellStyle}>Product</th>
-                      <th style={tableHeaderCellStyle}>SKU</th>
-                      <th style={tableHeaderCellStyle}>Variant</th>
+                      <th style={tableHeaderCellStyle}>Code</th>
+                      <th style={tableHeaderCellStyle}>Variants</th>
                       <th style={tableHeaderCellStyle}>Action</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {skuResults.map((sku) => (
-                      <tr key={sku.id}>
-                        <td style={tableCellStyle}>{sku.product_name}</td>
-                        <td style={tableCellStyle}>{sku.sku_code}</td>
-                        <td style={tableCellStyle}>{sku.variant_label || '—'}</td>
+                    {productGroups.map((group) => (
+                      <tr key={group.productId}>
+                        <td style={tableCellStyle}>{group.productName}</td>
+                        <td style={tableCellStyle}>{group.productCode || '—'}</td>
+                        <td style={tableCellStyle}>{group.skus.length}</td>
                         <td style={tableCellStyle}>
-                          <button onClick={() => addSkuItem(sku)} style={secondaryButtonStyle}>Add line</button>
+                          <button
+                            onClick={() => {
+                              if (group.skus.length === 1) {
+                                addSkuItem(group.skus[0]);
+                                return;
+                              }
+                              setSelectedProductId(group.productId);
+                            }}
+                            style={secondaryButtonStyle}
+                          >
+                            {group.skus.length === 1 ? 'Add line' : 'Select variant'}
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -667,14 +754,46 @@ export function PurchasesWorkspace() {
               </div>
             ) : null}
 
+            {selectedProductGroup ? (
+              <div style={{ ...surfaceCardStyle, padding: 12, marginBottom: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 8 }}>
+                  Variant picker · {selectedProductGroup.productName}
+                </div>
+                <div style={tableWrapStyle}>
+                  <table style={tableStyle}>
+                    <thead>
+                      <tr>
+                        <th style={tableHeaderCellStyle}>SKU</th>
+                        <th style={tableHeaderCellStyle}>Variant</th>
+                        <th style={tableHeaderCellStyle}>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedProductGroup.skus.map((sku) => (
+                        <tr key={sku.id}>
+                          <td style={tableCellStyle}>{sku.sku_code}</td>
+                          <td style={tableCellStyle}>{sku.variant_label || 'Default'}</td>
+                          <td style={tableCellStyle}>
+                            <button onClick={() => addSkuItem(sku)} style={secondaryButtonStyle}>Add this variant</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : null}
+
             {items.length ? (
               <div style={tableWrapStyle}>
                 <table style={tableStyle}>
                   <thead>
                     <tr>
-                      <th style={tableHeaderCellStyle}>SKU line</th>
+                      <th style={tableHeaderCellStyle}>Item</th>
                       <th style={tableHeaderCellStyle}>Qty</th>
                       <th style={tableHeaderCellStyle}>Unit cost</th>
+                      <th style={tableHeaderCellStyle}>Batch / lot</th>
+                      <th style={tableHeaderCellStyle}>Expiry</th>
                       <th style={tableHeaderCellStyle}>Line total</th>
                       <th style={tableHeaderCellStyle}>Action</th>
                     </tr>
@@ -703,6 +822,22 @@ export function PurchasesWorkspace() {
                             style={fieldStyle}
                           />
                         </td>
+                        <td style={tableCellStyle}>
+                          <input
+                            value={item.batchNo}
+                            onChange={(event) => setItems((current) => current.map((entry) => entry.skuId === item.skuId ? { ...entry, batchNo: event.target.value } : entry))}
+                            style={fieldStyle}
+                            placeholder="Optional"
+                          />
+                        </td>
+                        <td style={tableCellStyle}>
+                          <input
+                            type="date"
+                            value={item.expiryDate}
+                            onChange={(event) => setItems((current) => current.map((entry) => entry.skuId === item.skuId ? { ...entry, expiryDate: event.target.value } : entry))}
+                            style={fieldStyle}
+                          />
+                        </td>
                         <td style={tableCellStyle}>{formatMoney(Number(item.qty || 0) * Number(item.unitCost || 0))}</td>
                         <td style={tableCellStyle}>
                           <button onClick={() => setItems((current) => current.filter((entry) => entry.skuId !== item.skuId))} style={secondaryButtonStyle}>Remove</button>
@@ -716,25 +851,28 @@ export function PurchasesWorkspace() {
               <div style={emptyStateStyle}>Search and add at least one SKU line to receive purchase stock.</div>
             )}
 
-            <div style={{ ...stackedFilterGridStyle, marginTop: 12 }}>
-              <input type="number" min="0" step="0.01" value={purchaseForm.discountAmount} onChange={(event) => setPurchaseForm((current) => ({ ...current, discountAmount: event.target.value }))} style={fieldStyle} placeholder="Discount" />
-              <input type="number" min="0" step="0.01" value={purchaseForm.taxAmount} onChange={(event) => setPurchaseForm((current) => ({ ...current, taxAmount: event.target.value }))} style={fieldStyle} placeholder="Tax" />
-              <input type="number" min="0" step="0.01" value={purchaseForm.shippingAmount} onChange={(event) => setPurchaseForm((current) => ({ ...current, shippingAmount: event.target.value }))} style={fieldStyle} placeholder="Shipping" />
-              <input type="number" min="0" step="0.01" value={purchaseForm.paidAmount} onChange={(event) => setPurchaseForm((current) => ({ ...current, paidAmount: event.target.value }))} style={fieldStyle} placeholder="Paid now" />
-              <select value={purchaseForm.paymentMethod} onChange={(event) => setPurchaseForm((current) => ({ ...current, paymentMethod: event.target.value }))} style={fieldStyle}>
-                <option value="cash">Cash</option>
-                <option value="card">Card</option>
-                <option value="mfs">MFS</option>
-                <option value="bank_transfer">Bank transfer</option>
-              </select>
-              <input value={purchaseForm.paymentReferenceNo} onChange={(event) => setPurchaseForm((current) => ({ ...current, paymentReferenceNo: event.target.value }))} style={fieldStyle} placeholder="Payment reference" />
-              <input value={purchaseForm.note} onChange={(event) => setPurchaseForm((current) => ({ ...current, note: event.target.value }))} style={fieldStyle} placeholder="Purchase note" />
-              <input value={purchaseForm.paymentNote} onChange={(event) => setPurchaseForm((current) => ({ ...current, paymentNote: event.target.value }))} style={fieldStyle} placeholder="Payment note" />
-            </div>
+            <details style={{ marginTop: 12 }}>
+              <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#475569' }}>Extra totals and payment details</summary>
+              <div style={{ ...stackedFilterGridStyle, marginTop: 12 }}>
+                <input type="number" min="0" step="0.01" value={purchaseForm.discountAmount} onChange={(event) => setPurchaseForm((current) => ({ ...current, discountAmount: event.target.value }))} style={fieldStyle} placeholder="Discount" />
+                <input type="number" min="0" step="0.01" value={purchaseForm.taxAmount} onChange={(event) => setPurchaseForm((current) => ({ ...current, taxAmount: event.target.value }))} style={fieldStyle} placeholder="Tax" />
+                <input type="number" min="0" step="0.01" value={purchaseForm.shippingAmount} onChange={(event) => setPurchaseForm((current) => ({ ...current, shippingAmount: event.target.value }))} style={fieldStyle} placeholder="Shipping" />
+                <input type="number" min="0" step="0.01" value={purchaseForm.paidAmount} onChange={(event) => setPurchaseForm((current) => ({ ...current, paidAmount: event.target.value }))} style={fieldStyle} placeholder="Paid now" />
+                <select value={purchaseForm.paymentMethod} onChange={(event) => setPurchaseForm((current) => ({ ...current, paymentMethod: event.target.value }))} style={fieldStyle}>
+                  <option value="cash">Cash</option>
+                  <option value="card">Card</option>
+                  <option value="mfs">MFS</option>
+                  <option value="bank_transfer">Bank transfer</option>
+                </select>
+                <input value={purchaseForm.paymentReferenceNo} onChange={(event) => setPurchaseForm((current) => ({ ...current, paymentReferenceNo: event.target.value }))} style={fieldStyle} placeholder="Payment reference" />
+                <input value={purchaseForm.note} onChange={(event) => setPurchaseForm((current) => ({ ...current, note: event.target.value }))} style={fieldStyle} placeholder="Purchase note" />
+                <input value={purchaseForm.paymentNote} onChange={(event) => setPurchaseForm((current) => ({ ...current, paymentNote: event.target.value }))} style={fieldStyle} placeholder="Payment note" />
+              </div>
+            </details>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginTop: 12 }}>
               <div style={tokenMutedStyle}>
-                Subtotal {formatMoney(totals.subtotal)} · Total {formatMoney(totals.total)}
+                {items.length} line(s) · Subtotal {formatMoney(totals.subtotal)} · Total {formatMoney(totals.total)} · Due {formatMoney(totals.outstanding)}
               </div>
               <button onClick={() => void createPurchase()} style={accentButtonStyle} disabled={loading}>Receive purchase</button>
             </div>

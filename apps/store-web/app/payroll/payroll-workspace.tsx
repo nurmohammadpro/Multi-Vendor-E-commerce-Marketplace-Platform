@@ -8,6 +8,7 @@ import {
   fieldStyle,
   neutralButtonStyle,
   pageShellStyle,
+  searchButtonStyle,
   sectionPanelStyle,
   secondaryButtonStyle,
   subtleButtonStyle,
@@ -285,7 +286,7 @@ export function PayrollWorkspace() {
           <h3 style={{ marginTop: 0 }}>Employees</h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, marginBottom: 12 }}>
             <input value={employeeSearch} onChange={(event) => setEmployeeSearch(event.target.value)} style={fieldStyle} placeholder="Search employee, mobile, email, role" />
-            <button onClick={() => void refresh(1, runPage)} style={accentButtonStyle} disabled={loading}>Search</button>
+            <button onClick={() => void refresh(1, runPage)} style={searchButtonStyle} disabled={loading}>Search</button>
           </div>
           {employees.length ? (
             <>
@@ -393,7 +394,7 @@ export function PayrollWorkspace() {
         <h3 style={{ marginTop: 0 }}>Payroll Runs</h3>
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, marginBottom: 12 }}>
           <input value={runSearch} onChange={(event) => setRunSearch(event.target.value)} style={fieldStyle} placeholder="Search payroll no or status" />
-          <button onClick={() => void refresh(employeePage, 1)} style={accentButtonStyle} disabled={loading}>Search</button>
+          <button onClick={() => void refresh(employeePage, 1)} style={searchButtonStyle} disabled={loading}>Search</button>
         </div>
         {runs.length ? (
           <>

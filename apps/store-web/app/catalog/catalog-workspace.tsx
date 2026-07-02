@@ -8,6 +8,7 @@ import {
   dangerButtonStyle,
   emptyStateStyle,
   fieldStyle,
+  searchButtonStyle,
   secondaryButtonStyle,
   subtleButtonStyle,
   surfaceCardStyle,
@@ -107,7 +108,7 @@ type VariantMatrixRow = {
 
 const cardStyle = surfaceCardStyle;
 const inputStyle = fieldStyle;
-const buttonStyle = accentButtonStyle;
+const buttonStyle = searchButtonStyle;
 
 const sanitizeSkuToken = (value: string) =>
   value
@@ -282,6 +283,9 @@ export function CatalogWorkspace({
   const [confirmTitle, setConfirmTitle] = useState('');
   const [confirmDescription, setConfirmDescription] = useState('');
   const [confirmAction, setConfirmAction] = useState<() => void>(() => {});
+  const [quickVariantLabels, setQuickVariantLabels] = useState('');
+  const [quickVariantSalePrice, setQuickVariantSalePrice] = useState('');
+  const [quickVariantCostPrice, setQuickVariantCostPrice] = useState('');
 
   const parentMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -524,8 +528,82 @@ export function CatalogWorkspace({
     );
   };
 
+  const resetProductBuilder = () => {
+    setProductForm({
+      productCode: '',
+      name: '',
+      description: '',
+      categoryId: '',
+      brandId: '',
+      defaultSkuCode: '',
+      defaultBarcode: '',
+      defaultSalePrice: '',
+      defaultCostPrice: '',
+      hasVariants: false,
+      variantMode: 'none',
+      isTrackable: true,
+      defaultDiscountType: '',
+      defaultDiscountValue: '',
+    });
+    setProductVariantRows([]);
+    setQuickVariantLabels('');
+    setQuickVariantSalePrice('');
+    setQuickVariantCostPrice('');
+    setEditingProductId('');
+  };
+
+  const buildSuggestedProductCode = (name: string) => sanitizeSkuToken(name).slice(0, 32);
+
+  const ensureProductCode = () => {
+    if (productForm.productCode.trim() || !productForm.name.trim()) return;
+    const suggested = buildSuggestedProductCode(productForm.name);
+    setProductForm((current) => ({
+      ...current,
+      productCode: suggested,
+      defaultSkuCode: current.hasVariants ? current.defaultSkuCode : current.defaultSkuCode || suggested,
+    }));
+  };
+
+  const addQuickVariantRows = () => {
+    const labels = Array.from(
+      new Set(
+        quickVariantLabels
+          .split(/\n|,/)
+          .map((entry) => entry.trim())
+          .filter(Boolean),
+      ),
+    );
+
+    if (!labels.length) {
+      setMessage('Add one or more variant labels first.');
+      return;
+    }
+
+    setProductVariantRows((current) => {
+      const existingLabels = new Set(current.map((row) => row.label.trim().toLowerCase()));
+      return [
+        ...current,
+        ...labels
+          .filter((label) => !existingLabels.has(label.toLowerCase()))
+          .map((label) => ({
+            key: `${Date.now()}-${label}`,
+            label,
+            skuCode: buildManualVariantSkuCode(productForm.productCode || productForm.name || 'SKU', label),
+            price: quickVariantSalePrice,
+            cost: quickVariantCostPrice,
+            barcode: generateBarcode(),
+          })),
+      ];
+    });
+
+    setQuickVariantLabels('');
+    setMessage(`Added ${labels.length} quick variant row(s).`);
+  };
+
   const createProduct = async () => {
-    if (!productForm.productCode || !productForm.name) return;
+    if (!productForm.name) return;
+    const normalizedProductCode = productForm.productCode.trim() || buildSuggestedProductCode(productForm.name);
+    if (!normalizedProductCode) return;
     setLoading(true);
     try {
       const payload = await readJson<{ product?: { id: string }; id?: string }>(
@@ -536,7 +614,7 @@ export function CatalogWorkspace({
           method: editingProductId ? 'PATCH' : 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            productCode: productForm.productCode,
+            productCode: normalizedProductCode,
             name: productForm.name,
             description: productForm.description || undefined,
             categoryId: productForm.categoryId || undefined,
@@ -555,7 +633,7 @@ export function CatalogWorkspace({
         const liveRows = productVariantRows
           .map((row) => ({
             ...row,
-            skuCode: row.skuCode.trim() || buildManualVariantSkuCode(productForm.productCode, row.label),
+            skuCode: row.skuCode.trim() || buildManualVariantSkuCode(normalizedProductCode, row.label),
           }))
           .filter((row) => row.skuCode.trim());
 
@@ -571,7 +649,7 @@ export function CatalogWorkspace({
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               productId: newProductId,
-              skuCode: productForm.defaultSkuCode.trim() || sanitizeSkuToken(productForm.productCode),
+              skuCode: productForm.defaultSkuCode.trim() || sanitizeSkuToken(normalizedProductCode),
               barcode: productForm.defaultBarcode || undefined,
               status: 'active',
               salePrice: productForm.defaultSalePrice ? Number(productForm.defaultSalePrice) : undefined,
@@ -600,24 +678,7 @@ export function CatalogWorkspace({
       }
 
       await refreshBase();
-      setProductForm({
-        productCode: '',
-        name: '',
-        description: '',
-        categoryId: '',
-        brandId: '',
-        defaultSkuCode: '',
-        defaultBarcode: '',
-        defaultSalePrice: '',
-        defaultCostPrice: '',
-        hasVariants: false,
-        variantMode: 'none',
-        isTrackable: true,
-        defaultDiscountType: '',
-        defaultDiscountValue: '',
-      });
-      setProductVariantRows([]);
-      setEditingProductId('');
+      resetProductBuilder();
       const variantCount = productVariantRows.filter((r) => r.skuCode.trim()).length;
       setMessage(
         editingProductId
@@ -868,16 +929,30 @@ export function CatalogWorkspace({
               <div>
                 <h3 style={{ marginTop: 0, marginBottom: 6 }}>Product Builder</h3>
                 <p style={{ margin: 0, color: '#475569' }}>
-                  Keep product entry in one guided flow: basic info, selling setup, then optional variants.
+                  Keep product entry simple: identity, price, and optional variant rows first. Advanced SKU tools stay below only when needed.
                 </p>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
                 <div>
                   <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 6 }}>1. Product identity</div>
-                  <input value={productForm.productCode} onChange={(e) => setProductForm((v) => ({ ...v, productCode: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Product code" />
-                  <input value={productForm.name} onChange={(e) => setProductForm((v) => ({ ...v, name: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Product name" />
+                  <input
+                    value={productForm.name}
+                    onChange={(e) => setProductForm((v) => ({ ...v, name: e.target.value }))}
+                    onBlur={ensureProductCode}
+                    style={{ ...inputStyle, marginBottom: 10 }}
+                    placeholder="Product name"
+                  />
+                  <input
+                    value={productForm.productCode}
+                    onChange={(e) => setProductForm((v) => ({ ...v, productCode: e.target.value.toUpperCase() }))}
+                    style={{ ...inputStyle, marginBottom: 10 }}
+                    placeholder={buildSuggestedProductCode(productForm.name || 'PRODUCT')}
+                  />
                   <textarea value={productForm.description} onChange={(e) => setProductForm((v) => ({ ...v, description: e.target.value }))} style={{ ...inputStyle, minHeight: 82, marginBottom: 0 }} placeholder="Description (optional)" />
+                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 6 }}>
+                    Leave product code blank and it auto-generates from the product name.
+                  </div>
                 </div>
                 <div>
                   <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 6 }}>2. Classification</div>
@@ -941,9 +1016,9 @@ export function CatalogWorkspace({
                 </div>
               </div>
 
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 8 }}>5. Default discount</div>
-                <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+              <details>
+                <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#475569' }}>5. Optional discount defaults</summary>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 10 }}>
                   <select
                     value={productForm.defaultDiscountType}
                     onChange={(e) => setProductForm((v) => ({ ...v, defaultDiscountType: e.target.value }))}
@@ -968,10 +1043,7 @@ export function CatalogWorkspace({
                         : ''}
                   </span>
                 </div>
-                <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
-                  Set for regulated pricing like medicine or spare parts. The discount auto-applies at POS and can be overridden per sale.
-                </div>
-              </div>
+              </details>
 
               {!productForm.hasVariants ? (
                 <div>
@@ -1037,6 +1109,38 @@ export function CatalogWorkspace({
                     </div>
                     <div style={{ fontSize: 12, color: '#64748b' }}>
                       Use quick manual rows for fast setup now. The deeper builder below remains available for advanced group and matrix management after product creation.
+                    </div>
+                  </div>
+
+                  <div style={{ ...surfaceCardStyle, padding: 12 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 8 }}>Quick variant generator</div>
+                    <div style={{ display: 'grid', gap: 10 }}>
+                      <textarea
+                        value={quickVariantLabels}
+                        onChange={(event) => setQuickVariantLabels(event.target.value)}
+                        style={{ ...inputStyle, minHeight: 84 }}
+                        placeholder={'One variant label per line\n90/90-12\n100/80-17\nRed'}
+                      />
+                      <div style={{ ...stackedFilterGridStyle, alignItems: 'end' }}>
+                        <input
+                          value={quickVariantSalePrice}
+                          onChange={(event) => setQuickVariantSalePrice(event.target.value)}
+                          style={inputStyle}
+                          placeholder="Selling price for all"
+                        />
+                        <input
+                          value={quickVariantCostPrice}
+                          onChange={(event) => setQuickVariantCostPrice(event.target.value)}
+                          style={inputStyle}
+                          placeholder="Cost price for all"
+                        />
+                        <button onClick={addQuickVariantRows} style={accentButtonStyle} disabled={loading}>
+                          Generate Rows
+                        </button>
+                      </div>
+                      <div style={{ fontSize: 11, color: '#64748b' }}>
+                        Fastest workflow: paste labels, generate rows, then adjust only the exceptions.
+                      </div>
                     </div>
                   </div>
 
@@ -1129,7 +1233,7 @@ export function CatalogWorkspace({
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                 <div style={{ fontSize: 12, color: '#64748b' }}>
                   {productForm.hasVariants
-                    ? 'Create the product first, then continue into the advanced variant builder below if needed.'
+                    ? 'Create the product with ready-to-sell rows now. Only use the advanced builder below for special variant structures.'
                     : 'A simple product creates one sellable SKU directly in this step.'}
                 </div>
                 <button onClick={createProduct} style={buttonStyle} disabled={loading}>
@@ -1439,9 +1543,9 @@ export function CatalogWorkspace({
         </article>
 
         <article style={cardStyle}>
-          <h3 style={{ marginTop: 0 }}>Product Builder</h3>
+          <h3 style={{ marginTop: 0 }}>Advanced Variant Builder</h3>
           {!productDetail ? (
-            <p style={{ marginBottom: 0, color: '#475569' }}>Select a product to manage its manual variants, options, SKUs, and prices.</p>
+            <p style={{ marginBottom: 0, color: '#475569' }}>Select a product only if you need deeper group, option, matrix, or manual SKU control.</p>
           ) : (
             <section style={{ display: 'grid', gap: 16 }}>
               <div>

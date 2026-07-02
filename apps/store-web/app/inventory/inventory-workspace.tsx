@@ -8,6 +8,7 @@ import {
   emptyStateStyle,
   fieldStyle,
   pageShellStyle,
+  searchButtonStyle,
   secondaryButtonStyle,
   sectionPanelStyle,
   surfaceCardStyle,
@@ -388,7 +389,7 @@ export function InventoryWorkspace({
         </select>
         <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
           <input value={balanceSearch} onChange={(event) => setBalanceSearch(event.target.value)} style={fieldStyle} placeholder="Search product, SKU, or location" />
-          <button onClick={() => void refreshInventory(1, adjustmentPage, ledgerPage, selectedLocationId)} style={accentButtonStyle} disabled={loading}>Search</button>
+          <button onClick={() => void refreshInventory(1, adjustmentPage, ledgerPage, selectedLocationId)} style={searchButtonStyle} disabled={loading}>Search</button>
         </div>
         {balances.length ? (
           <>
@@ -483,7 +484,7 @@ export function InventoryWorkspace({
               style={fieldStyle}
               placeholder="Search SKU or product"
             />
-            <button onClick={searchSkus} style={secondaryButtonStyle} disabled={loading}>
+            <button onClick={searchSkus} style={searchButtonStyle} disabled={loading}>
               Search
             </button>
           </div>
@@ -525,7 +526,7 @@ export function InventoryWorkspace({
               <option value="approved">Approved</option>
               <option value="rejected">Rejected</option>
             </select>
-            <button onClick={() => void refreshInventory(balancePage, 1, ledgerPage, selectedLocationId)} style={accentButtonStyle} disabled={loading}>Search</button>
+            <button onClick={() => void refreshInventory(balancePage, 1, ledgerPage, selectedLocationId)} style={searchButtonStyle} disabled={loading}>Search</button>
           </div>
           <textarea value={decisionNote} onChange={(event) => setDecisionNote(event.target.value)} style={{ ...fieldStyle, minHeight: 72, marginBottom: 12 }} placeholder="Decision note for approve/reject" />
           {adjustments.length ? (
@@ -590,7 +591,7 @@ export function InventoryWorkspace({
         <h3 style={{ marginTop: 0 }}>Ledger</h3>
         <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
           <input value={ledgerSearch} onChange={(event) => setLedgerSearch(event.target.value)} style={fieldStyle} placeholder="Search product, SKU, location, movement" />
-          <button onClick={() => void refreshInventory(balancePage, adjustmentPage, 1, selectedLocationId)} style={accentButtonStyle} disabled={loading}>Search</button>
+          <button onClick={() => void refreshInventory(balancePage, adjustmentPage, 1, selectedLocationId)} style={searchButtonStyle} disabled={loading}>Search</button>
         </div>
         {ledger.length ? (
           <>

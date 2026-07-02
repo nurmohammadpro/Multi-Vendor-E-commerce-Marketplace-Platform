@@ -10,6 +10,7 @@ import {
   metricValueStyle,
   neutralButtonStyle,
   pageShellStyle,
+  searchButtonStyle,
   sectionPanelStyle,
   secondaryButtonStyle,
   subtleButtonStyle,
@@ -315,7 +316,7 @@ export function BillingWorkspace({ canManageBilling }: { canManageBilling: boole
               <option value="paid">Paid</option>
               <option value="void">Void</option>
             </select>
-            <button onClick={() => void refresh(1)} style={accentButtonStyle} disabled={loading}>Apply</button>
+            <button onClick={() => void refresh(1)} style={searchButtonStyle} disabled={loading}>Apply</button>
           </div>
           {invoices.length ? (
             <div style={tableWrapStyle}>
