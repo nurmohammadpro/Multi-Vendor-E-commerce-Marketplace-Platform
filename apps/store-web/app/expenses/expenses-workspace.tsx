@@ -8,6 +8,7 @@ import {
   fieldStyle,
   sectionPanelStyle,
   pageShellStyle,
+  searchButtonStyle,
   subtleButtonStyle,
   surfaceCardStyle,
   tableCellStyle,
@@ -251,7 +252,7 @@ export function ExpensesWorkspace() {
           <h3 style={{ marginTop: 0, fontSize: 14 }}>Expenses</h3>
           <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
             <input value={search} onChange={(event) => setSearch(event.target.value)} style={{ ...fieldStyle, flex: 1 }} placeholder="Search title, category, method, or status" />
-            <button onClick={() => void refresh(1)} style={accentButtonStyle} disabled={loading}>Search</button>
+            <button onClick={() => void refresh(1)} style={searchButtonStyle} disabled={loading}>Search</button>
           </div>
           {expenses.length ? (
             <>

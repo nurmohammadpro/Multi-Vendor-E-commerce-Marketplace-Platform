@@ -38,6 +38,8 @@ const purchaseItemSchema = z.object({
   skuId: z.string().uuid(),
   qty: z.number().positive(),
   unitCost: z.number().nonnegative(),
+  batchNo: z.string().max(120).optional(),
+  expiryDate: z.string().date().optional(),
 });
 
 const createPurchaseSchema = z.object({

@@ -8,6 +8,7 @@ import {
   emptyStateStyle,
   fieldStyle,
   pageShellStyle,
+  searchButtonStyle,
   secondaryButtonStyle,
   surfaceCardStyle,
   tableCellStyle,
@@ -161,7 +162,7 @@ export function ReceivablesWorkspace() {
           <article style={surfaceCardStyle}>
             <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
               <input value={query} onChange={(event) => setQuery(event.target.value)} style={fieldStyle} placeholder="Search sale no, customer, phone, or shop" />
-              <button onClick={() => void refresh(query, 1)} style={accentButtonStyle} disabled={loading}>Search</button>
+              <button onClick={() => void refresh(query, 1)} style={searchButtonStyle} disabled={loading}>Search</button>
             </div>
             {dueSales.length ? (
               <>

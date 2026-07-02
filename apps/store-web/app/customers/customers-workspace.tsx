@@ -7,6 +7,7 @@ import {
   emptyStateStyle,
   fieldStyle,
   pageShellStyle,
+  searchButtonStyle,
   secondaryButtonStyle,
   surfaceCardStyle,
   tableCellStyle,
@@ -206,7 +207,7 @@ export function CustomersWorkspace() {
           <h3 style={{ marginTop: 0 }}>Customer Directory</h3>
           <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
             <input value={query} onChange={(event) => setQuery(event.target.value)} style={fieldStyle} placeholder="Search name, mobile, email, or shop" />
-            <button onClick={() => void refresh(query, 1)} style={accentButtonStyle}>Search</button>
+            <button onClick={() => void refresh(query, 1)} style={searchButtonStyle}>Search</button>
           </div>
           {customers.length ? (
             <div style={tableWrapStyle}>

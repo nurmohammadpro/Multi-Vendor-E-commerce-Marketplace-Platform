@@ -212,6 +212,14 @@ export const ghostButtonStyle: CSSProperties = {
   color: marketoneColors.accentDeep,
 };
 
+export const searchButtonStyle: CSSProperties = {
+  ...neutralButtonStyle,
+  minWidth: 78,
+  padding: '0 12px',
+  whiteSpace: 'nowrap',
+  justifyContent: 'center',
+};
+
 export const primaryButtonStyle = solidButtonStyle;
 export const secondaryButtonStyle = neutralButtonStyle;
 
