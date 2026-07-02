@@ -41,6 +41,22 @@ const run = (command, args, input = null) =>
     else child.stdin.end();
   });
 
+const runCapture = (command, args, input = null) =>
+  new Promise((resolve, reject) => {
+    const child = spawn(command, args, { stdio: ['pipe', 'pipe', 'pipe'] });
+    const stdout = [];
+    const stderr = [];
+    child.stdout.on('data', (chunk) => stdout.push(chunk));
+    child.stderr.on('data', (chunk) => stderr.push(chunk));
+    child.on('error', reject);
+    child.on('close', (code) => {
+      if (code === 0) resolve(Buffer.concat(stdout).toString('utf8'));
+      else reject(new Error(`${command} exited ${code}: ${Buffer.concat(stderr).toString('utf8')}`));
+    });
+    if (input) child.stdin.end(input);
+    else child.stdin.end();
+  });
+
 const printWithCups = async (buffer, printerName) => {
   const target = printerName || PRINTER_NAME;
   const file = path.join(os.tmpdir(), `mvp-print-${Date.now()}-${Math.random().toString(16).slice(2)}.bin`);
@@ -213,6 +229,50 @@ const printLabel = async (payload) => {
   await printWithCups(Buffer.from(text, 'utf8'), payload.printerName || LABEL_PRINTER_NAME);
 };
 
+const listPrinters = async () => {
+  if (process.platform === 'win32') {
+    const output = await runCapture(
+      'powershell.exe',
+      [
+        '-NoProfile',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-Command',
+        "Get-CimInstance Win32_Printer | Select-Object Name,Default,DriverName,PortName | ConvertTo-Json -Compress",
+      ],
+      null,
+    );
+    const parsed = JSON.parse(output || '[]');
+    const rows = Array.isArray(parsed) ? parsed : [parsed];
+    return rows
+      .filter((row) => row?.Name)
+      .map((row) => ({
+        name: String(row.Name),
+        isDefault: Boolean(row.Default),
+        driverName: row.DriverName ? String(row.DriverName) : null,
+        portName: row.PortName ? String(row.PortName) : null,
+      }));
+  }
+
+  const output = await runCapture('/usr/bin/lpstat', ['-p'], null);
+  return output
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith('printer '))
+    .map((line) => {
+      const match = line.match(/^printer\s+(\S+)/);
+      return match?.[1]
+        ? {
+            name: match[1],
+            isDefault: false,
+            driverName: null,
+            portName: null,
+          }
+        : null;
+    })
+    .filter(Boolean);
+};
+
 const parseBody = async (req) => {
   const chunks = [];
   let total = 0;
@@ -268,6 +328,23 @@ const server = http.createServer(async (req, res) => {
         logoPrinting: true,
       },
     });
+    return;
+  }
+
+  if (req.method === 'GET' && req.url === '/printers') {
+    try {
+      const printers = await listPrinters();
+      json(res, 200, {
+        ok: true,
+        printers,
+        defaults: {
+          receiptPrinterName: PRINTER_NAME || null,
+          labelPrinterName: LABEL_PRINTER_NAME || null,
+        },
+      });
+    } catch (error) {
+      json(res, error.statusCode || 500, { ok: false, error: String(error.message || error) });
+    }
     return;
   }
 

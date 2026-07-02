@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/card';
 import { fieldStyle } from '../marketone-theme';
 import { useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
-import { fetchPrintAgentHealth, openCashDrawer, printLabel, printReceipt, type PrintAgentHealth } from '../../lib/print-agent';
+import { fetchPrintAgentHealth, fetchPrintAgentPrinters, openCashDrawer, printLabel, printReceipt, type PrintAgentHealth, type PrintAgentPrinter } from '../../lib/print-agent';
 import { loadWorkstationProfile, saveWorkstationProfile } from '../../lib/workstation-profile';
 
 type CatalogItem = {
@@ -83,6 +83,7 @@ async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
 export function HardwareWorkspace({ canManageSettings }: { canManageSettings: boolean }) {
   const compact = useCompactLayout();
   const [printHealth, setPrintHealth] = useState<PrintAgentHealth | null>(null);
+  const [availablePrinters, setAvailablePrinters] = useState<PrintAgentPrinter[]>([]);
   const [printError, setPrintError] = useState<string | null>(null);
   const [receiptPrinterName, setReceiptPrinterName] = useState('');
   const [labelPrinterName, setLabelPrinterName] = useState('');
@@ -124,8 +125,20 @@ export function HardwareWorkspace({ canManageSettings }: { canManageSettings: bo
     }
   };
 
+  const refreshPrinters = async (baseUrl = effectiveAgentUrl) => {
+    try {
+      const payload = await fetchPrintAgentPrinters(baseUrl);
+      setAvailablePrinters(payload.printers ?? []);
+      return payload;
+    } catch (error) {
+      setAvailablePrinters([]);
+      throw error;
+    }
+  };
+
   useEffect(() => {
     void refreshHealth();
+    void refreshPrinters().catch(() => {});
     const timer = window.setInterval(() => {
       void refreshHealth();
     }, 15000);
@@ -151,7 +164,7 @@ export function HardwareWorkspace({ canManageSettings }: { canManageSettings: bo
         body: JSON.stringify(remoteProfile),
       });
       setMessage('Workstation names and store hardware profile saved.');
-      await Promise.all([refreshHealth(effectiveAgentUrl), refreshRemoteProfile()]);
+      await Promise.all([refreshHealth(effectiveAgentUrl), refreshPrinters(effectiveAgentUrl).catch(() => null), refreshRemoteProfile()]);
     } catch (error) {
       setMessage((error as Error).message);
     } finally {
@@ -290,10 +303,30 @@ export function HardwareWorkspace({ canManageSettings }: { canManageSettings: bo
             <div className="grid gap-2">
               <label className="text-sm font-medium">Receipt printer name</label>
               <input value={receiptPrinterName} onChange={(event) => setReceiptPrinterName(event.target.value)} style={fieldStyle} placeholder="XP-Q80A" />
+              {availablePrinters.length ? (
+                <select value={receiptPrinterName} onChange={(event) => setReceiptPrinterName(event.target.value)} style={fieldStyle}>
+                  <option value="">Select installed receipt printer</option>
+                  {availablePrinters.map((printer) => (
+                    <option key={`receipt-${printer.name}`} value={printer.name}>
+                      {printer.name}{printer.isDefault ? ' · Default' : ''}{printer.driverName ? ` · ${printer.driverName}` : ''}
+                    </option>
+                  ))}
+                </select>
+              ) : null}
             </div>
             <div className="grid gap-2">
               <label className="text-sm font-medium">Label printer name</label>
               <input value={labelPrinterName} onChange={(event) => setLabelPrinterName(event.target.value)} style={fieldStyle} placeholder="XP-420B" />
+              {availablePrinters.length ? (
+                <select value={labelPrinterName} onChange={(event) => setLabelPrinterName(event.target.value)} style={fieldStyle}>
+                  <option value="">Select installed label printer</option>
+                  {availablePrinters.map((printer) => (
+                    <option key={`label-${printer.name}`} value={printer.name}>
+                      {printer.name}{printer.isDefault ? ' · Default' : ''}{printer.driverName ? ` · ${printer.driverName}` : ''}
+                    </option>
+                  ))}
+                </select>
+              ) : null}
             </div>
             <div className="flex flex-wrap gap-2">
               <Button onClick={() => void saveProfiles()} disabled={saving || !canManageSettings}>
@@ -301,6 +334,9 @@ export function HardwareWorkspace({ canManageSettings }: { canManageSettings: bo
               </Button>
               <Button variant="outline" onClick={() => void refreshHealth()} disabled={!effectiveAgentUrl}>
                 Refresh health
+              </Button>
+              <Button variant="outline" onClick={() => void refreshPrinters()} disabled={!effectiveAgentUrl}>
+                Refresh printers
               </Button>
             </div>
           </CardContent>
@@ -330,6 +366,16 @@ export function HardwareWorkspace({ canManageSettings }: { canManageSettings: bo
                 <div>Label printing: {printHealth.features.labelPrinting ? 'Yes' : 'No'}</div>
                 <div>Cash drawer: {printHealth.features.cashDrawer ? 'Yes' : 'No'}</div>
                 <div>Barcode printing: {printHealth.features.barcodePrinting ? 'Yes' : 'No'}</div>
+              </div>
+            ) : null}
+            {availablePrinters.length ? (
+              <div className="grid gap-2 text-xs text-muted-foreground">
+                <div className="font-medium text-foreground">Installed printer queues</div>
+                {availablePrinters.map((printer) => (
+                  <div key={printer.name}>
+                    {printer.name}{printer.isDefault ? ' · Default' : ''}{printer.driverName ? ` · ${printer.driverName}` : ''}{printer.portName ? ` · ${printer.portName}` : ''}
+                  </div>
+                ))}
               </div>
             ) : null}
             <div className="flex flex-wrap gap-2">
