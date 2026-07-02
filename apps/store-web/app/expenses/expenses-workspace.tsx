@@ -227,7 +227,7 @@ export function ExpensesWorkspace() {
                 {cat.status === 'active' ? (
                   <button
                     onClick={() => void toggleCategoryStatus(cat)}
-                    style={{ ...subtleButtonStyle, minHeight: 18, padding: '0 4px', fontSize: 11, lineHeight: '18px', color: '#94a3b8' }}
+                    style={{ ...subtleButtonStyle, minHeight: 18, padding: '0 4px', fontSize: 11, lineHeight: '18px', color: '#475569' }}
                     title="Archive"
                   >
                     ✕

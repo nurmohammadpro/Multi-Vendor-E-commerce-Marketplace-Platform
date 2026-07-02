@@ -19,7 +19,7 @@ import {
   tokenMutedStyle,
 } from '../marketone-theme';
 import { ListPager, type PaginationState, totalPagesFor } from '../list-pager';
-import { stackedFilterGridStyle, useCompactLayout } from '../workspace-responsive';
+import { stackedFilterGridStyle, useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
 
 type Category = { id: string; parent_id?: string | null; parent_name?: string | null; code: string; name: string; status: string };
 type Brand = { id: string; name: string; status: string };
@@ -108,7 +108,9 @@ type VariantMatrixRow = {
 
 const cardStyle = surfaceCardStyle;
 const inputStyle = fieldStyle;
-const buttonStyle = searchButtonStyle;
+const searchActionStyle = searchButtonStyle;
+const formActionStyle = accentButtonStyle;
+const neutralActionStyle = secondaryButtonStyle;
 
 const sanitizeSkuToken = (value: string) =>
   value
@@ -181,6 +183,7 @@ export function CatalogWorkspace({
   canApprovePriceChanges: boolean;
 }) {
   const compact = useCompactLayout();
+  const [catalogTab, setCatalogTab] = useState<'quick' | 'products' | 'taxonomy' | 'advanced'>('quick');
   const [categories, setCategories] = useState<Category[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -427,6 +430,13 @@ export function CatalogWorkspace({
       priceStep: current.priceStep,
     }));
   }, [productDetail]);
+
+  useEffect(() => {
+    if (!productForm.hasVariants || productVariantRows.length > 0 || editingProductId) return;
+    setProductVariantRows([
+      { key: String(Date.now()), label: '', skuCode: '', price: '', cost: '', barcode: generateBarcode() },
+    ]);
+  }, [editingProductId, productForm.hasVariants, productVariantRows.length]);
 
   const openDeleteConfirm = (kind: 'category' | 'brand' | 'product', id: string, name: string) => {
     setConfirmTitle(`Delete ${kind}`);
@@ -923,6 +933,19 @@ export function CatalogWorkspace({
   return (
     <section style={{ display: 'grid', gap: 20 }}>
       {canManageCatalog ? (
+        <WorkspaceTabs
+          active={catalogTab}
+          onChange={(key) => setCatalogTab(key as 'quick' | 'products' | 'taxonomy' | 'advanced')}
+          tabs={[
+            { key: 'quick', label: 'Quick Entry' },
+            { key: 'products', label: 'Products' },
+            { key: 'taxonomy', label: 'Categories & Brands' },
+            { key: 'advanced', label: 'Advanced Variants' },
+          ]}
+        />
+      ) : null}
+
+      {canManageCatalog && catalogTab === 'quick' ? (
         <section style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'minmax(0, 1.35fr) minmax(320px, 0.65fr)', gap: 16 }}>
           <article style={cardStyle}>
             <div style={{ display: 'grid', gap: 16 }}>
@@ -976,7 +999,7 @@ export function CatalogWorkspace({
                   <button
                     onClick={() => setProductForm((v) => ({ ...v, hasVariants: false, variantMode: 'none' }))}
                     style={{
-                      ...buttonStyle,
+                      ...neutralActionStyle,
                       background: !productForm.hasVariants ? 'rgba(15, 23, 42, 0.06)' : '#fff',
                       borderColor: !productForm.hasVariants ? '#0f172a' : undefined,
                     }}
@@ -987,7 +1010,7 @@ export function CatalogWorkspace({
                   <button
                     onClick={() => setProductForm((v) => ({ ...v, hasVariants: true, variantMode: v.variantMode === 'none' ? 'single' : v.variantMode }))}
                     style={{
-                      ...buttonStyle,
+                      ...neutralActionStyle,
                       background: productForm.hasVariants ? 'rgba(15, 23, 42, 0.06)' : '#fff',
                       borderColor: productForm.hasVariants ? '#0f172a' : undefined,
                     }}
@@ -1236,7 +1259,7 @@ export function CatalogWorkspace({
                     ? 'Create the product with ready-to-sell rows now. Only use the advanced builder below for special variant structures.'
                     : 'A simple product creates one sellable SKU directly in this step.'}
                 </div>
-                <button onClick={createProduct} style={buttonStyle} disabled={loading}>
+                <button onClick={createProduct} style={formActionStyle} disabled={loading}>
                   {editingProductId ? 'Save Product' : 'Create Product'}
                 </button>
               </div>
@@ -1258,13 +1281,13 @@ export function CatalogWorkspace({
               </select>
               <input value={categoryForm.code} onChange={(e) => setCategoryForm((v) => ({ ...v, code: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Code" />
               <input value={categoryForm.name} onChange={(e) => setCategoryForm((v) => ({ ...v, name: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Name" />
-              <button onClick={createCategory} style={buttonStyle} disabled={loading}>{editingCategoryId ? 'Save Category' : 'Create Category'}</button>
+              <button onClick={createCategory} style={formActionStyle} disabled={loading}>{editingCategoryId ? 'Save Category' : 'Create Category'}</button>
             </article>
 
             <article style={cardStyle}>
               <h3 style={{ marginTop: 0 }}>Brand</h3>
               <input value={brandForm.name} onChange={(e) => setBrandForm({ name: e.target.value })} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Brand name" />
-              <button onClick={createBrand} style={buttonStyle} disabled={loading}>{editingBrandId ? 'Save Brand' : 'Create Brand'}</button>
+              <button onClick={createBrand} style={formActionStyle} disabled={loading}>{editingBrandId ? 'Save Brand' : 'Create Brand'}</button>
             </article>
           </section>
         </section>
@@ -1277,12 +1300,13 @@ export function CatalogWorkspace({
         </article>
       )}
 
+      {(!canManageCatalog || catalogTab === 'taxonomy') ? (
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
         <article style={cardStyle}>
           <h3 style={{ marginTop: 0 }}>Categories</h3>
           <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
             <input value={categorySearch} onChange={(event) => setCategorySearch(event.target.value)} style={inputStyle} placeholder="Search categories" />
-            <button onClick={() => void refreshBase(1, brandPage, productPage)} style={buttonStyle} disabled={loading}>Search</button>
+            <button onClick={() => void refreshBase(1, brandPage, productPage)} style={searchActionStyle} disabled={loading}>Search</button>
           </div>
           {categories.length ? (
             <>
@@ -1370,7 +1394,7 @@ export function CatalogWorkspace({
           <h3 style={{ marginTop: 0 }}>Brands</h3>
           <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
             <input value={brandSearch} onChange={(event) => setBrandSearch(event.target.value)} style={inputStyle} placeholder="Search brands" />
-            <button onClick={() => void refreshBase(categoryPage, 1, productPage)} style={buttonStyle} disabled={loading}>Search</button>
+            <button onClick={() => void refreshBase(categoryPage, 1, productPage)} style={searchActionStyle} disabled={loading}>Search</button>
           </div>
           {brands.length ? (
             <>
@@ -1434,8 +1458,11 @@ export function CatalogWorkspace({
           ) : <div style={emptyStateStyle}>No brands yet.</div>}
         </article>
       </section>
+      ) : null}
 
+      {(!canManageCatalog || catalogTab === 'products' || catalogTab === 'advanced') ? (
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
+        {catalogTab !== 'advanced' || !canManageCatalog ? (
         <article style={cardStyle}>
           <h3 style={{ marginTop: 0 }}>Products</h3>
           <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
@@ -1447,7 +1474,7 @@ export function CatalogWorkspace({
               <option value="archived">Archived</option>
               <option value="out_of_stock">Out of stock</option>
             </select>
-            <button onClick={() => void refreshBase(categoryPage, brandPage, 1)} style={buttonStyle} disabled={loading}>Search</button>
+            <button onClick={() => void refreshBase(categoryPage, brandPage, 1)} style={searchActionStyle} disabled={loading}>Search</button>
           </div>
           {products.length ? (
             <>
@@ -1469,7 +1496,10 @@ export function CatalogWorkspace({
                     {products.map((product) => (
                       <tr
                         key={product.id}
-                        onClick={() => setSelectedProductId(product.id)}
+                        onClick={() => {
+                          setSelectedProductId(product.id);
+                          if (canManageCatalog) setCatalogTab('advanced');
+                        }}
                         style={{ cursor: 'pointer', background: selectedProductId === product.id ? 'rgba(241,245,249,0.9)' : '#fff' }}
                       >
                         <td style={tableCellStyle}><strong>{product.name}</strong></td>
@@ -1484,6 +1514,7 @@ export function CatalogWorkspace({
                             <button
                               onClick={(event) => {
                                 event.stopPropagation();
+                                setCatalogTab('quick');
                                 setEditingProductId(product.id);
                                 setProductForm((current) => ({
                                   ...current,
@@ -1541,7 +1572,9 @@ export function CatalogWorkspace({
             <div style={emptyStateStyle}>No products yet.</div>
           )}
         </article>
+        ) : null}
 
+        {catalogTab !== 'products' || !canManageCatalog ? (
         <article style={cardStyle}>
           <h3 style={{ marginTop: 0 }}>Advanced Variant Builder</h3>
           {!productDetail ? (
@@ -1566,7 +1599,7 @@ export function CatalogWorkspace({
                       <option value="color">Color</option>
                       <option value="number">Number</option>
                     </select>
-                    <button onClick={createVariantGroup} style={buttonStyle} disabled={loading}>{editingGroupId ? 'Save Group' : 'Add Group'}</button>
+                    <button onClick={createVariantGroup} style={formActionStyle} disabled={loading}>{editingGroupId ? 'Save Group' : 'Add Group'}</button>
                   </article>
                 ) : null}
 
@@ -1581,7 +1614,7 @@ export function CatalogWorkspace({
                     <input value={optionForm.label} onChange={(e) => setOptionForm((v) => ({ ...v, label: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Label" />
                     <input value={optionForm.valueText} onChange={(e) => setOptionForm((v) => ({ ...v, valueText: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Value text (optional)" />
                     <input value={optionForm.colorHex} onChange={(e) => setOptionForm((v) => ({ ...v, colorHex: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="#000000 for color" />
-                    <button onClick={createVariantOption} style={buttonStyle} disabled={loading}>{editingOptionId ? 'Save Option' : 'Add Option'}</button>
+                    <button onClick={createVariantOption} style={formActionStyle} disabled={loading}>{editingOptionId ? 'Save Option' : 'Add Option'}</button>
                   </article>
                 ) : null}
               </div>
@@ -1712,7 +1745,7 @@ export function CatalogWorkspace({
                                   [group.id]: group.options.map((option) => option.id),
                                 }))
                               }
-                              style={buttonStyle}
+                              style={neutralActionStyle}
                             >
                               Select all
                             </button>
@@ -1723,7 +1756,7 @@ export function CatalogWorkspace({
                                   [group.id]: [],
                                 }))
                               }
-                              style={buttonStyle}
+                              style={neutralActionStyle}
                             >
                               Clear
                             </button>
@@ -1780,10 +1813,10 @@ export function CatalogWorkspace({
                       style={inputStyle}
                       placeholder="Price step per combo"
                     />
-                    <button onClick={buildVariantMatrix} style={buttonStyle} disabled={loading}>
+                    <button onClick={buildVariantMatrix} style={neutralActionStyle} disabled={loading}>
                       Build Matrix
                     </button>
-                    <button onClick={createVariantRows} style={buttonStyle} disabled={loading || variantRows.length === 0}>
+                    <button onClick={createVariantRows} style={formActionStyle} disabled={loading || variantRows.length === 0}>
                       Create All SKUs
                     </button>
                   </div>
@@ -1852,7 +1885,7 @@ export function CatalogWorkspace({
                         </label>
                       ))}
                     </div>
-                    <button onClick={createSku} style={buttonStyle} disabled={loading}>Create SKU</button>
+                    <button onClick={createSku} style={formActionStyle} disabled={loading}>Create SKU</button>
                   </article>
                 ) : null}
 
@@ -1882,7 +1915,7 @@ export function CatalogWorkspace({
                     ) : null}
                     <button
                       onClick={createPrice}
-                      style={buttonStyle}
+                      style={formActionStyle}
                       disabled={loading || (shouldRequestPriceApproval && priceForm.reason.trim().length < 3)}
                     >
                       {shouldRequestPriceApproval ? 'Request Price Approval' : 'Save Price'}
@@ -1928,7 +1961,7 @@ export function CatalogWorkspace({
                     <option value="approved">Approved</option>
                     <option value="rejected">Rejected</option>
                   </select>
-                  <button onClick={() => void refreshPriceRequests(1)} style={buttonStyle} disabled={loading}>Search</button>
+                  <button onClick={() => void refreshPriceRequests(1)} style={searchActionStyle} disabled={loading}>Search</button>
                 </div>
                 {canApprovePriceChanges ? (
                   <textarea
@@ -1996,7 +2029,9 @@ export function CatalogWorkspace({
             </section>
           )}
         </article>
+        ) : null}
       </section>
+      ) : null}
 
       <article style={cardStyle}>
         <h3 style={{ marginTop: 0 }}>Operator Notes</h3>

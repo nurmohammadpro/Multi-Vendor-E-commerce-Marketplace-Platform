@@ -148,24 +148,29 @@ export const tokenMutedStyle: CSSProperties = {
 
 export const fieldStyle: CSSProperties = {
   width: '100%',
-  padding: '6px 10px',
+  padding: '5px 9px',
   borderRadius: 6,
   border: `1px solid ${marketoneColors.border}`,
   background: '#ffffff',
   color: marketoneColors.ink,
   font: 'inherit',
-  fontSize: 13,
+  fontSize: 12,
   outline: 'none',
-  minHeight: 30,
+  minHeight: 28,
 };
 
 const buttonBaseStyle: CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
   minHeight: 30,
   padding: '0 10px',
   borderRadius: 6,
   font: 'inherit',
   fontSize: 12,
   fontWeight: 500,
+  lineHeight: 1,
+  whiteSpace: 'nowrap',
   cursor: 'pointer',
   boxShadow: 'none',
 };
@@ -180,44 +185,51 @@ export const solidButtonStyle: CSSProperties = {
 export const neutralButtonStyle: CSSProperties = {
   ...buttonBaseStyle,
   border: `1px solid ${marketoneColors.borderStrong}`,
-  background: marketoneColors.background,
+  background: '#ffffff',
   color: marketoneColors.ink,
 };
 
 export const accentButtonStyle: CSSProperties = {
   ...buttonBaseStyle,
-  border: `1px solid #1e293b`,
-  background: '#1e293b',
+  border: `1px solid #0f172a`,
+  background: '#0f172a',
   color: '#ffffff',
 };
 
 export const dangerButtonStyle: CSSProperties = {
   ...buttonBaseStyle,
-  border: '1px solid rgba(220, 38, 38, 0.35)',
-  background: 'rgba(220, 38, 38, 0.08)',
-  color: '#b91c1c',
+  border: '1px solid #b91c1c',
+  background: '#b91c1c',
+  color: '#ffffff',
 };
 
 export const subtleButtonStyle: CSSProperties = {
   ...buttonBaseStyle,
-  border: `1px solid transparent`,
-  background: marketoneColors.backgroundRaised,
-  color: marketoneColors.muted,
+  border: `1px solid ${marketoneColors.border}`,
+  background: marketoneColors.backgroundAlt,
+  color: marketoneColors.ink,
 };
 
 export const ghostButtonStyle: CSSProperties = {
   ...buttonBaseStyle,
-  border: `1px solid ${marketoneColors.accentSoft}`,
+  border: `1px solid ${marketoneColors.border}`,
   background: 'transparent',
-  color: marketoneColors.accentDeep,
+  color: marketoneColors.ink,
+};
+
+export const tableActionButtonStyle: CSSProperties = {
+  ...buttonBaseStyle,
+  minHeight: 24,
+  padding: '0 8px',
+  border: `1px solid ${marketoneColors.border}`,
+  background: 'transparent',
+  color: marketoneColors.ink,
 };
 
 export const searchButtonStyle: CSSProperties = {
-  ...neutralButtonStyle,
+  ...subtleButtonStyle,
   minWidth: 78,
   padding: '0 12px',
-  whiteSpace: 'nowrap',
-  justifyContent: 'center',
 };
 
 export const primaryButtonStyle = solidButtonStyle;
@@ -237,13 +249,15 @@ export const pillStyle: CSSProperties = {
 };
 
 export const emptyStateStyle: CSSProperties = {
+  display: 'grid',
+  gap: 4,
   padding: 10,
   borderRadius: 6,
   border: `1px dashed ${marketoneColors.border}`,
   color: marketoneColors.muted,
-  background: '#ffffff',
-  lineHeight: 1.4,
-  fontSize: 13,
+  background: marketoneColors.surfaceSoft,
+  lineHeight: 1.45,
+  fontSize: 12,
 };
 
 export const tableWrapStyle: CSSProperties = {
@@ -261,10 +275,10 @@ export const tableStyle: CSSProperties = {
 };
 
 export const tableHeaderCellStyle: CSSProperties = {
-  padding: '8px 10px',
+  padding: '7px 10px',
   textAlign: 'left',
   fontSize: 10,
-  letterSpacing: '0.08em',
+  letterSpacing: '0.1em',
   textTransform: 'uppercase',
   color: marketoneColors.muted,
   borderBottom: `1px solid ${marketoneColors.border}`,
@@ -273,7 +287,7 @@ export const tableHeaderCellStyle: CSSProperties = {
 };
 
 export const tableCellStyle: CSSProperties = {
-  padding: '8px 10px',
+  padding: '7px 10px',
   borderBottom: `1px solid ${marketoneColors.border}`,
   color: marketoneColors.ink,
   verticalAlign: 'top',

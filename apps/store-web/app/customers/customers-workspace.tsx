@@ -10,6 +10,7 @@ import {
   searchButtonStyle,
   secondaryButtonStyle,
   surfaceCardStyle,
+  tableActionButtonStyle,
   tableCellStyle,
   tableHeaderCellStyle,
   tableStyle,
@@ -231,7 +232,7 @@ export function CustomersWorkspace() {
                       <td style={tableCellStyle}>{customer.outstanding_due_amount ?? 0}</td>
                       <td style={tableCellStyle}>{customer.total_sales_count ?? 0}</td>
                       <td style={tableCellStyle}>
-                        <button onClick={() => void loadCustomer(customer.id)} style={secondaryButtonStyle}>Open</button>
+                        <button onClick={() => void loadCustomer(customer.id)} style={tableActionButtonStyle}>Open</button>
                       </td>
                     </tr>
                   ))}

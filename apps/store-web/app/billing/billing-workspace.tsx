@@ -13,8 +13,8 @@ import {
   searchButtonStyle,
   sectionPanelStyle,
   secondaryButtonStyle,
-  subtleButtonStyle,
   surfaceCardStyle,
+  tableActionButtonStyle,
   tableCellStyle,
   tableHeaderCellStyle,
   tableStyle,
@@ -236,7 +236,7 @@ export function BillingWorkspace({ canManageBilling }: { canManageBilling: boole
               </div>
             </>
           ) : (
-            <p style={tokenMutedStyle}>No active subscription found.</p>
+            <div style={emptyStateStyle}>No active subscription is assigned to this store yet.</div>
           )}
         </article>
 
@@ -342,7 +342,7 @@ export function BillingWorkspace({ canManageBilling }: { canManageBilling: boole
                       <td style={tableCellStyle}>{invoice.paid_amount}</td>
                       <td style={tableCellStyle}>{invoice.due_at ? new Date(invoice.due_at).toLocaleDateString() : '—'}</td>
                       <td style={tableCellStyle}>
-                        <button onClick={() => void loadInvoice(invoice.id)} style={subtleButtonStyle}>Open</button>
+                        <button onClick={() => void loadInvoice(invoice.id)} style={tableActionButtonStyle}>Open</button>
                       </td>
                     </tr>
                   ))}

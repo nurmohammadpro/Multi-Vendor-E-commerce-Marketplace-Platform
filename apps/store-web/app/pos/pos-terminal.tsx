@@ -22,6 +22,7 @@ import {
   neutralButtonStyle,
   sectionPanelStyle,
   primaryButtonStyle,
+  searchButtonStyle,
   secondaryButtonStyle,
   subtleButtonStyle,
   surfaceCardStyle,
@@ -793,7 +794,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                     </span>
                   ) : null}
                 </div>
-                <button onClick={() => void searchCatalog(search.trim())} style={buttonStyle} disabled={loading}>
+                <button onClick={() => void searchCatalog(search.trim())} style={searchButtonStyle} disabled={loading}>
                   Search
                 </button>
               </div>
