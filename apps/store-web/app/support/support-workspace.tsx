@@ -11,8 +11,8 @@ import {
   searchButtonStyle,
   sectionPanelStyle,
   secondaryButtonStyle,
-  subtleButtonStyle,
   surfaceCardStyle,
+  tableActionButtonStyle,
   tableCellStyle,
   tableHeaderCellStyle,
   tableStyle,
@@ -267,7 +267,7 @@ export function SupportWorkspace({
                       <td style={tableCellStyle}>{ticket.status}</td>
                       <td style={tableCellStyle}>{new Date(ticket.created_at).toLocaleString()}</td>
                       <td style={tableCellStyle}>
-                        <button onClick={() => void loadTicket(ticket.id)} style={subtleButtonStyle}>Open</button>
+                        <button onClick={() => void loadTicket(ticket.id)} style={tableActionButtonStyle}>Open</button>
                       </td>
                     </tr>
                   ))}

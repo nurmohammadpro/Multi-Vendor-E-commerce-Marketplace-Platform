@@ -10,8 +10,8 @@ import {
   pageShellStyle,
   searchButtonStyle,
   sectionPanelStyle,
-  subtleButtonStyle,
   surfaceCardStyle,
+  tableActionButtonStyle,
   tableCellStyle,
   tableHeaderCellStyle,
   tableStyle,
@@ -283,7 +283,7 @@ export function ShippingWorkspace({
                   {shipments.map((shipment) => (
                     <tr key={shipment.id}>
                       <td style={tableCellStyle}>
-                        <button onClick={() => void loadShipment(shipment.id)} style={subtleButtonStyle}>{shipment.shipment_no}</button>
+                        <button onClick={() => void loadShipment(shipment.id)} style={tableActionButtonStyle}>{shipment.shipment_no}</button>
                       </td>
                       <td style={tableCellStyle}>
                         {shipment.customer_name}

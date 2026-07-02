@@ -467,9 +467,9 @@ export function InventoryWorkspace({
             Search an existing SKU, then initialize opening quantity or send an approval request for changes.
           </p>
           {!canAdjustInventory ? (
-            <p style={tokenMutedStyle}>Your role can review inventory, but stock changes are restricted.</p>
+            <div style={{ ...emptyStateStyle, marginBottom: 12 }}>Your role can review inventory, but stock changes are restricted.</div>
           ) : !canDirectAdjustInventory ? (
-            <p style={tokenMutedStyle}>You can request quantity changes, but only owner-level roles can post stock directly.</p>
+            <div style={{ ...emptyStateStyle, marginBottom: 12 }}>You can request quantity changes, but only owner-level roles can post stock directly.</div>
           ) : null}
           <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
             <input

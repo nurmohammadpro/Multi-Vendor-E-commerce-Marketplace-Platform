@@ -91,6 +91,9 @@ type SkuResult = {
   has_variants?: boolean;
   variant_mode?: string | null;
   variant_label?: string | null;
+  cost_price?: string | number | null;
+  sale_price?: string | number | null;
+  available_qty?: string | number | null;
 };
 
 type PurchaseLineDraft = {
@@ -171,7 +174,6 @@ export function PurchasesWorkspace() {
   const [items, setItems] = useState<PurchaseLineDraft[]>([]);
   const [lineDefaults, setLineDefaults] = useState({ qty: '1', unitCost: '' });
   const [paymentAmounts, setPaymentAmounts] = useState<Record<string, string>>({});
-  const [selectedProductId, setSelectedProductId] = useState('');
 
   const refresh = async (
     nextSupplierPage = supplierPage,
@@ -218,34 +220,23 @@ export function PurchasesWorkspace() {
     void refresh().catch((error: Error) => setMessage(error.message));
   }, []);
 
+  useEffect(() => {
+    const query = skuSearch.trim();
+    if (query.length < 2) {
+      setSkuResults([]);
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void searchSkus();
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [skuSearch]);
+
   const supplierOptions = useMemo(
     () => suppliers.filter((supplier) => supplier.status === 'active'),
     [suppliers],
-  );
-
-  const productGroups = useMemo(() => {
-    const grouped = new Map<string, { productId: string; productName: string; productCode?: string | null; hasVariants: boolean; variantMode?: string | null; skus: SkuResult[] }>();
-    for (const sku of skuResults) {
-      const existing = grouped.get(sku.product_id);
-      if (existing) {
-        existing.skus.push(sku);
-      } else {
-        grouped.set(sku.product_id, {
-          productId: sku.product_id,
-          productName: sku.product_name,
-          productCode: sku.product_code ?? null,
-          hasVariants: Boolean(sku.has_variants),
-          variantMode: sku.variant_mode ?? null,
-          skus: [sku],
-        });
-      }
-    }
-    return Array.from(grouped.values());
-  }, [skuResults]);
-
-  const selectedProductGroup = useMemo(
-    () => productGroups.find((group) => group.productId === selectedProductId) ?? null,
-    [productGroups, selectedProductId],
   );
 
   const totals = useMemo(() => {
@@ -279,15 +270,22 @@ export function PurchasesWorkspace() {
   };
 
   const addSkuItem = (sku: SkuResult) => {
+    const defaultUnitCost = lineDefaults.unitCost || String(sku.cost_price ?? 0);
     setItems((current) => {
-      if (current.some((item) => item.skuId === sku.id)) return current;
+      if (current.some((item) => item.skuId === sku.id)) {
+        return current.map((item) =>
+          item.skuId === sku.id
+            ? { ...item, qty: String(Number(item.qty || 0) + Number(lineDefaults.qty || 1)) }
+            : item,
+        );
+      }
       return [
         ...current,
         {
           skuId: sku.id,
           label: `${sku.product_name} · ${sku.sku_code}${sku.variant_label ? ` · ${sku.variant_label}` : ''}`,
           qty: lineDefaults.qty || '1',
-          unitCost: lineDefaults.unitCost || '0',
+          unitCost: defaultUnitCost,
           batchNo: '',
           expiryDate: '',
         },
@@ -295,7 +293,6 @@ export function PurchasesWorkspace() {
     });
     setSkuSearch('');
     setSkuResults([]);
-    setSelectedProductId('');
   };
 
   const createSupplier = async () => {
@@ -709,78 +706,46 @@ export function PurchasesWorkspace() {
 
             <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
               <input value={skuSearch} onChange={(event) => setSkuSearch(event.target.value)} style={fieldStyle} placeholder="Search product or SKU to add line" />
-              <button onClick={() => void searchSkus()} style={searchButtonStyle} disabled={loading}>Search SKU</button>
+              <button onClick={() => void searchSkus()} style={searchButtonStyle} disabled={loading}>Find SKU</button>
             </div>
 
             <div style={{ fontSize: 11, color: '#64748b', marginBottom: 12 }}>
-              Simple workflow: choose supplier, search product, add line, adjust quantity and cost, then receive purchase.
+              Search returns the exact sellable SKU rows. If a product has variants, each variant shows separately so the operator can add the right line in one click.
             </div>
 
-            {productGroups.length ? (
+            {skuResults.length ? (
               <div style={{ ...tableWrapStyle, marginBottom: 12 }}>
                 <table style={tableStyle}>
                   <thead>
                     <tr>
                       <th style={tableHeaderCellStyle}>Product</th>
-                      <th style={tableHeaderCellStyle}>Code</th>
-                      <th style={tableHeaderCellStyle}>Variants</th>
+                      <th style={tableHeaderCellStyle}>Variant</th>
+                      <th style={tableHeaderCellStyle}>SKU</th>
+                      <th style={tableHeaderCellStyle}>Available</th>
+                      <th style={tableHeaderCellStyle}>Last Cost</th>
+                      <th style={tableHeaderCellStyle}>Sale</th>
                       <th style={tableHeaderCellStyle}>Action</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {productGroups.map((group) => (
-                      <tr key={group.productId}>
-                        <td style={tableCellStyle}>{group.productName}</td>
-                        <td style={tableCellStyle}>{group.productCode || '—'}</td>
-                        <td style={tableCellStyle}>{group.skus.length}</td>
+                    {skuResults.map((sku) => (
+                      <tr key={sku.id}>
                         <td style={tableCellStyle}>
-                          <button
-                            onClick={() => {
-                              if (group.skus.length === 1) {
-                                addSkuItem(group.skus[0]);
-                                return;
-                              }
-                              setSelectedProductId(group.productId);
-                            }}
-                            style={secondaryButtonStyle}
-                          >
-                            {group.skus.length === 1 ? 'Add line' : 'Select variant'}
-                          </button>
+                          <div>{sku.product_name}</div>
+                          <div style={tokenMutedStyle}>{sku.product_code || '—'}</div>
+                        </td>
+                        <td style={tableCellStyle}>{sku.variant_label || 'Default'}</td>
+                        <td style={tableCellStyle}>{sku.sku_code}</td>
+                        <td style={tableCellStyle}>{Number(sku.available_qty ?? 0).toLocaleString()}</td>
+                        <td style={tableCellStyle}>{formatMoney(sku.cost_price)}</td>
+                        <td style={tableCellStyle}>{formatMoney(sku.sale_price)}</td>
+                        <td style={tableCellStyle}>
+                          <button onClick={() => addSkuItem(sku)} style={secondaryButtonStyle}>Add line</button>
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-              </div>
-            ) : null}
-
-            {selectedProductGroup ? (
-              <div style={{ ...surfaceCardStyle, padding: 12, marginBottom: 12 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 8 }}>
-                  Variant picker · {selectedProductGroup.productName}
-                </div>
-                <div style={tableWrapStyle}>
-                  <table style={tableStyle}>
-                    <thead>
-                      <tr>
-                        <th style={tableHeaderCellStyle}>SKU</th>
-                        <th style={tableHeaderCellStyle}>Variant</th>
-                        <th style={tableHeaderCellStyle}>Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {selectedProductGroup.skus.map((sku) => (
-                        <tr key={sku.id}>
-                          <td style={tableCellStyle}>{sku.sku_code}</td>
-                          <td style={tableCellStyle}>{sku.variant_label || 'Default'}</td>
-                          <td style={tableCellStyle}>
-                            <button onClick={() => addSkuItem(sku)} style={secondaryButtonStyle}>Add this variant</button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
               </div>
             ) : null}
 

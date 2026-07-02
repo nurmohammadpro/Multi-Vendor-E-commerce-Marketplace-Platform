@@ -228,7 +228,7 @@ export function ReportsWorkspace({ canViewReports }: { canViewReports: boolean }
                 </tbody>
               </table>
             </div>
-          ) : <p style={tokenMutedStyle}>No sales data yet.</p>}
+          ) : <div style={emptyStateStyle}>No sales data is available for the selected report window yet.</div>}
         </article>
         ) : null}
 
@@ -262,7 +262,7 @@ export function ReportsWorkspace({ canViewReports }: { canViewReports: boolean }
                 </tbody>
               </table>
             </div>
-          ) : <p style={tokenMutedStyle}>No inventory data yet.</p>}
+          ) : <div style={emptyStateStyle}>No inventory snapshot is available for the selected filters yet.</div>}
         </article>
         ) : null}
       </section>
