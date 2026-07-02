@@ -226,10 +226,17 @@ export const tableActionButtonStyle: CSSProperties = {
   color: marketoneColors.ink,
 };
 
+export const gray800ButtonStyle: CSSProperties = {
+  ...buttonBaseStyle,
+  border: '1px solid #1e293b',
+  background: '#1e293b',
+  color: '#ffffff',
+};
+
 export const searchButtonStyle: CSSProperties = {
-  ...subtleButtonStyle,
-  minWidth: 78,
-  padding: '0 12px',
+  ...gray800ButtonStyle,
+  minWidth: 80,
+  padding: '0 14px',
 };
 
 export const primaryButtonStyle = solidButtonStyle;
