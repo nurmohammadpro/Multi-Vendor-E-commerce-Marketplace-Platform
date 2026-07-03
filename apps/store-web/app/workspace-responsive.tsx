@@ -71,3 +71,10 @@ export const stackedFilterGridStyle: CSSProperties = {
   gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
   gap: 8,
 };
+
+/** Flex row for search input + button pairs — input stretches, button stays fixed. */
+export const searchRowStyle: CSSProperties = {
+  display: 'flex',
+  gap: 8,
+  alignItems: 'stretch',
+};

@@ -19,7 +19,7 @@ import {
   tableWrapStyle,
   tokenMutedStyle,
 } from '../marketone-theme';
-import { stackedFilterGridStyle, useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
+import { searchRowStyle, stackedFilterGridStyle, useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
 
 type TicketType = 'support' | 'dispute';
 
@@ -234,8 +234,8 @@ export function SupportWorkspace({
         {!compact || activeTab === 'tickets' ? (
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>{kind === 'dispute' ? 'Open cases' : 'Open tickets'}</h3>
-          <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
-            <input value={search} onChange={(event) => setSearch(event.target.value)} style={fieldStyle} placeholder="Search ticket no, subject, opener" />
+          <div style={{ ...searchRowStyle, marginBottom: 12 }}>
+            <input value={search} onChange={(event) => setSearch(event.target.value)} style={{ ...fieldStyle, flex: 1, width: 'auto' }} placeholder="Search ticket no, subject, opener" />
             <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} style={fieldStyle}>
               <option value="">All statuses</option>
               <option value="open">Open</option>

@@ -17,7 +17,7 @@ import {
   tableWrapStyle,
   tokenMutedStyle,
 } from '../marketone-theme';
-import { stackedFilterGridStyle, useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
+import { searchRowStyle, stackedFilterGridStyle, useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
 
 type DueSale = {
   id: string;
@@ -160,8 +160,8 @@ export function ReceivablesWorkspace() {
       <section style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'minmax(0, 1.25fr) minmax(340px, 0.75fr)', gap: 16 }}>
         {(!compact || activeTab === 'dues') ? (
           <article style={surfaceCardStyle}>
-            <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
-              <input value={query} onChange={(event) => setQuery(event.target.value)} style={fieldStyle} placeholder="Search sale no, customer, phone, or shop" />
+            <div style={{ ...searchRowStyle, marginBottom: 12 }}>
+              <input value={query} onChange={(event) => setQuery(event.target.value)} style={{ ...fieldStyle, flex: 1, width: 'auto' }} placeholder="Search sale no, customer, phone, or shop" />
               <button onClick={() => void refresh(query, 1)} style={searchButtonStyle} disabled={loading}>Search</button>
             </div>
             {dueSales.length ? (

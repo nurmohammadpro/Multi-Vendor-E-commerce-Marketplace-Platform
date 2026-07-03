@@ -19,7 +19,7 @@ import {
   tokenMutedStyle,
 } from '../marketone-theme';
 import { ListPager, type PaginationState, totalPagesFor } from '../list-pager';
-import { stackedFilterGridStyle, useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
+import { searchRowStyle, stackedFilterGridStyle, useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
 
 type Location = {
   id: string;
@@ -387,8 +387,8 @@ export function InventoryWorkspace({
             </option>
           ))}
         </select>
-        <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
-          <input value={balanceSearch} onChange={(event) => setBalanceSearch(event.target.value)} style={fieldStyle} placeholder="Search product, SKU, or location" />
+        <div style={{ ...searchRowStyle, marginBottom: 12 }}>
+          <input value={balanceSearch} onChange={(event) => setBalanceSearch(event.target.value)} style={{ ...fieldStyle, flex: 1, width: 'auto' }} placeholder="Search product, SKU, or location" />
           <button onClick={() => void refreshInventory(1, adjustmentPage, ledgerPage, selectedLocationId)} style={searchButtonStyle} disabled={loading}>Search</button>
         </div>
         {balances.length ? (
@@ -471,7 +471,7 @@ export function InventoryWorkspace({
           ) : !canDirectAdjustInventory ? (
             <div style={{ ...emptyStateStyle, marginBottom: 12 }}>You can request quantity changes, but only owner-level roles can post stock directly.</div>
           ) : null}
-          <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
+          <div style={{ ...searchRowStyle, marginBottom: 12 }}>
             <input
               value={skuSearch}
               onChange={(event) => setSkuSearch(event.target.value)}
@@ -481,7 +481,7 @@ export function InventoryWorkspace({
                   void searchSkus();
                 }
               }}
-              style={fieldStyle}
+              style={{ ...fieldStyle, flex: 1, width: 'auto' }}
               placeholder="Search SKU or product"
             />
             <button onClick={searchSkus} style={searchButtonStyle} disabled={loading}>
@@ -518,9 +518,9 @@ export function InventoryWorkspace({
         {!compact || activeTab === 'requests' ? (
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Adjustment Queue</h3>
-          <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
-            <input value={adjustmentSearch} onChange={(event) => setAdjustmentSearch(event.target.value)} style={fieldStyle} placeholder="Search product, SKU, location, reason" />
-            <select value={adjustmentStatus} onChange={(event) => setAdjustmentStatus(event.target.value)} style={fieldStyle}>
+          <div style={{ ...searchRowStyle, marginBottom: 12 }}>
+            <input value={adjustmentSearch} onChange={(event) => setAdjustmentSearch(event.target.value)} style={{ ...fieldStyle, flex: 1, width: 'auto' }} placeholder="Search product, SKU, location, reason" />
+            <select value={adjustmentStatus} onChange={(event) => setAdjustmentStatus(event.target.value)} style={{ ...fieldStyle, width: 160 }}>
               <option value="">All statuses</option>
               <option value="pending">Pending</option>
               <option value="approved">Approved</option>
@@ -589,8 +589,8 @@ export function InventoryWorkspace({
       {(!compact || activeTab === 'ledger') ? (
       <article style={{ ...surfaceCardStyle, borderStyle: 'solid' }}>
         <h3 style={{ marginTop: 0 }}>Ledger</h3>
-        <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
-          <input value={ledgerSearch} onChange={(event) => setLedgerSearch(event.target.value)} style={fieldStyle} placeholder="Search product, SKU, location, movement" />
+        <div style={{ ...searchRowStyle, marginBottom: 12 }}>
+          <input value={ledgerSearch} onChange={(event) => setLedgerSearch(event.target.value)} style={{ ...fieldStyle, flex: 1, width: 'auto' }} placeholder="Search product, SKU, location, movement" />
           <button onClick={() => void refreshInventory(balancePage, adjustmentPage, 1, selectedLocationId)} style={searchButtonStyle} disabled={loading}>Search</button>
         </div>
         {ledger.length ? (

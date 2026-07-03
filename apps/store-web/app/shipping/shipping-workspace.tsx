@@ -18,7 +18,7 @@ import {
   tableWrapStyle,
   tokenMutedStyle,
 } from '../marketone-theme';
-import { stackedFilterGridStyle, useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
+import { searchRowStyle, stackedFilterGridStyle, useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
 
 type Courier = {
   id: string;
@@ -251,8 +251,8 @@ export function ShippingWorkspace({
         {!compact || activeTab === 'shipments' ? (
         <article style={cardStyle}>
           <h3 style={{ marginTop: 0 }}>Shipments</h3>
-          <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
-            <input value={search} onChange={(event) => setSearch(event.target.value)} style={inputStyle} placeholder="Search shipment, customer, phone" />
+          <div style={{ ...searchRowStyle, marginBottom: 12 }}>
+            <input value={search} onChange={(event) => setSearch(event.target.value)} style={{ ...inputStyle, flex: 1, width: 'auto' }} placeholder="Search shipment, customer, phone" />
             <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} style={inputStyle}>
               <option value="">All statuses</option>
               <option value="pending">Pending</option>
