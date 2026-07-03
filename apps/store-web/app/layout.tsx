@@ -67,7 +67,14 @@ export default async function StoreLayout({ children }: { children: ReactNode })
   const access = await getStoreConsoleAccess();
 
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){var t=localStorage.getItem('theme');if(t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme:dark)').matches)){document.documentElement.classList.add('dark')}})()`,
+          }}
+        />
+      </head>
       <body>
         <WorkspaceShell
           access={access}
