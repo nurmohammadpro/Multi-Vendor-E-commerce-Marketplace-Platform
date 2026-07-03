@@ -236,6 +236,7 @@ export const gray800ButtonStyle: CSSProperties = {
 export const searchButtonStyle: CSSProperties = {
   ...gray800ButtonStyle,
   minWidth: 80,
+  minHeight: 28,
   padding: '0 14px',
 };
 

@@ -55,7 +55,6 @@ import { Separator } from '@/components/ui/separator';
 import type { StoreConsoleAccess } from '../lib/access';
 import { canAccessStoreFeature, type StoreConsoleFeature } from '../lib/store-plan';
 import { logoutStoreClient } from '../lib/logout';
-import { ThemeToggle } from '@/components/theme-toggle';
 import { PwaClient } from './pwa-client';
 import { RuntimeStatus } from './runtime-status';
 
@@ -261,7 +260,6 @@ function Header({ access }: { access: StoreConsoleAccess }) {
       </div>
 
       <div className="flex items-center gap-1.5 sm:gap-2">
-        <ThemeToggle />
         <RuntimeStatus />
         <PwaClient />
         <span className="hidden sm:inline-flex items-center rounded-md border bg-muted px-2 py-1 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
