@@ -4,6 +4,8 @@ dist
 .next
 .env
 .env.local
+.env.prod
+.env.production
 coverage
 *.log
 *.tsbuildinfo
