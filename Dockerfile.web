@@ -51,6 +51,10 @@ COPY --from=builder /app/${APP_DIR}/.next/standalone ./
 COPY --from=builder /app/${APP_DIR}/.next/static ./${APP_DIR}/.next/static
 COPY --from=builder /app/${APP_DIR}/public ./${APP_DIR}/public
 
+RUN chown -R node:node /app
+
+USER node
+
 EXPOSE ${PORT}
 
 CMD ["sh", "-c", "node ${APP_DIR}/server.js"]
