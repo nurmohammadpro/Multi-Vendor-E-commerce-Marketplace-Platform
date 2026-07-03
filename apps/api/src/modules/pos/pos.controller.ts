@@ -184,6 +184,30 @@ export class PosController {
     return this.posService.reprintSaleReceipt(saleId, headerStoreId, authContext);
   }
 
+  // ── Print-job polling for local print agent ──
+
+  @Get('print-jobs/pending')
+  @RequireContext('store') @RequirePermissions('sales.pos.create')
+  listPending(@Headers('x-store-id') h: string | undefined, @CurrentAuthContext() a: StoreAuthContext | null, @Query('limit') limit?: string) {
+    const storeId = h || a?.storeId;
+    return this.posService.listPendingPrintJobs(storeId || '', Number(limit) || 5);
+  }
+
+  @Get('print-jobs/:jobId/receipt')
+  @RequireContext('store') @RequirePermissions('sales.pos.create')
+  getJobReceipt(@Param('jobId') id: string, @Headers('x-store-id') h: string | undefined, @CurrentAuthContext() a: StoreAuthContext | null) {
+    const storeId = h || a?.storeId;
+    return this.posService.getPrintJobReceipt(id, storeId || '');
+  }
+
+  @Post('print-jobs/:jobId/complete')
+  @RequireContext('store') @RequirePermissions('sales.pos.create')
+  completeJob(@Param('jobId') id: string, @Headers('x-store-id') h: string | undefined, @CurrentAuthContext() a: StoreAuthContext | null, @Body() p: any) {
+    const storeId = h || a?.storeId;
+    return this.posService.markPrintJobComplete(id, storeId || '', p?.status || 'printed', p?.errorMessage);
+  }
+
+
   @Post('sales/:saleId/returns')
   @RequireContext('store')
   @RequirePermissions('sales.pos.create')
