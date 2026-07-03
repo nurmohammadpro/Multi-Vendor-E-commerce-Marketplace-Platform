@@ -1,7 +1,6 @@
 import 'reflect-metadata';
 
 import cors from '@fastify/cors';
-import helmet from '@fastify/helmet';
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
@@ -15,23 +14,7 @@ async function bootstrap() {
     new FastifyAdapter({ logger: false }),
   );
 
-  // @fastify/helmet v8 for Fastify v4 compatibility
-  await (app as any).register(helmet, {
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
-        imgSrc: ["'self'", 'data:', 'https:'],
-        connectSrc: ["'self'"],
-        fontSrc: ["'self'"],
-        objectSrc: ["'none'"],
-        frameSrc: ["'none'"],
-      },
-    },
-    crossOriginEmbedderPolicy: false,
-    crossOriginResourcePolicy: { policy: 'cross-origin' },
-  });
+  // CSP and security headers are set at the Traefik reverse-proxy layer
 
   await app.register(cors, {
     origin: true,
