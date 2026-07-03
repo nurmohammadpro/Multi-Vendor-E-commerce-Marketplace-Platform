@@ -3,6 +3,26 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import fsSync from 'node:fs';
+
+// Load .env file from agent directory (created by setup.bat / setup.sh)
+try {
+  const envPath = new URL('.env', import.meta.url).pathname;
+  if (fsSync.existsSync(envPath)) {
+    const content = fsSync.readFileSync(envPath, 'utf8');
+    for (const line of content.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const eqIdx = trimmed.indexOf('=');
+      if (eqIdx === -1) continue;
+      const key = trimmed.slice(0, eqIdx).trim();
+      const val = trimmed.slice(eqIdx + 1).trim();
+      if (key && !process.env[key]) process.env[key] = val;
+    }
+  }
+} catch {}
+
+
 
 const PORT = Number(process.env.MVP_PRINT_AGENT_PORT || 17668);
 const PRINTER_NAME = process.env.MVP_PRINTER_NAME || '';
@@ -16,7 +36,6 @@ const ALLOWED_ORIGINS = new Set(
     || 'http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001,http://localhost:3002,http://127.0.0.1:3002,https://marketone.appbrainer.tech,https://admin.marketone.appbrainer.tech,https://app.marketone.appbrainer.tech,https://store.marketone.appbrainer.tech')
     .split(',').map((v) => v.trim()).filter(Boolean),
 );
-const MAX_BODY_BYTES = 512 * 1024;
 
 const log = (msg) => console.log(`[${new Date().toISOString()}] ${msg}`);
 const err = (msg) => console.error(`[${new Date().toISOString()}] ${msg}`);
