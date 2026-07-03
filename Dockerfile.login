@@ -34,6 +34,10 @@ COPY --from=builder /app/apps/login-web/.next/standalone ./
 COPY --from=builder /app/apps/login-web/.next/static ./apps/login-web/.next/static
 COPY --from=builder /app/apps/login-web/public ./apps/login-web/public
 
+RUN chown -R node:node /app
+
+USER node
+
 EXPOSE 3000
 
 CMD ["node", "apps/login-web/server.js"]
