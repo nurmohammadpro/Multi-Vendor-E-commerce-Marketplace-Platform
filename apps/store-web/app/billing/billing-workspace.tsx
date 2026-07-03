@@ -21,7 +21,7 @@ import {
   tableWrapStyle,
   tokenMutedStyle,
 } from '../marketone-theme';
-import { stackedFilterGridStyle, useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
+import { searchRowStyle, stackedFilterGridStyle, useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
 
 type Plan = {
   id: string;
@@ -307,8 +307,8 @@ export function BillingWorkspace({ canManageBilling }: { canManageBilling: boole
         {!compact || activeTab === 'invoices' ? (
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Invoices</h3>
-          <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
-            <input value={invoiceSearch} onChange={(event) => setInvoiceSearch(event.target.value)} style={fieldStyle} placeholder="Search invoice no or type" />
+          <div style={{ ...searchRowStyle, marginBottom: 12 }}>
+            <input value={invoiceSearch} onChange={(event) => setInvoiceSearch(event.target.value)} style={{ ...fieldStyle, flex: 1, width: 'auto' }} placeholder="Search invoice no or type" />
             <select value={invoiceStatus} onChange={(event) => setInvoiceStatus(event.target.value)} style={fieldStyle}>
               <option value="">All statuses</option>
               <option value="draft">Draft</option>

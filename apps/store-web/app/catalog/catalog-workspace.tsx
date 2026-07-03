@@ -19,7 +19,7 @@ import {
   tokenMutedStyle,
 } from '../marketone-theme';
 import { ListPager, type PaginationState, totalPagesFor } from '../list-pager';
-import { stackedFilterGridStyle, useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
+import { searchRowStyle, stackedFilterGridStyle, useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
 
 type Category = { id: string; parent_id?: string | null; parent_name?: string | null; code: string; name: string; status: string };
 type Brand = { id: string; name: string; status: string };
@@ -1304,9 +1304,9 @@ export function CatalogWorkspace({
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
         <article style={cardStyle}>
           <h3 style={{ marginTop: 0 }}>Categories</h3>
-          <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
-            <input value={categorySearch} onChange={(event) => setCategorySearch(event.target.value)} style={inputStyle} placeholder="Search categories" />
-            <button onClick={() => void refreshBase(1, brandPage, productPage)} style={searchActionStyle} disabled={loading}>Search</button>
+          <div style={{ ...searchRowStyle, marginBottom: 12 }}>
+            <input value={categorySearch} onChange={(event) => setCategorySearch(event.target.value)} style={{ ...inputStyle, flex: 1, width: 'auto' }} placeholder="Search categories" />
+            <button onClick={() => void refreshBase(1, brandPage, productPage)} style={searchButtonStyle} disabled={loading}>Search</button>
           </div>
           {categories.length ? (
             <>
@@ -1392,9 +1392,9 @@ export function CatalogWorkspace({
 
         <article style={cardStyle}>
           <h3 style={{ marginTop: 0 }}>Brands</h3>
-          <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
-            <input value={brandSearch} onChange={(event) => setBrandSearch(event.target.value)} style={inputStyle} placeholder="Search brands" />
-            <button onClick={() => void refreshBase(categoryPage, 1, productPage)} style={searchActionStyle} disabled={loading}>Search</button>
+          <div style={{ ...searchRowStyle, marginBottom: 12 }}>
+            <input value={brandSearch} onChange={(event) => setBrandSearch(event.target.value)} style={{ ...inputStyle, flex: 1, width: 'auto' }} placeholder="Search brands" />
+            <button onClick={() => void refreshBase(categoryPage, 1, productPage)} style={searchButtonStyle} disabled={loading}>Search</button>
           </div>
           {brands.length ? (
             <>
@@ -1465,16 +1465,16 @@ export function CatalogWorkspace({
         {catalogTab !== 'advanced' || !canManageCatalog ? (
         <article style={cardStyle}>
           <h3 style={{ marginTop: 0 }}>Products</h3>
-          <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
-            <input value={productSearch} onChange={(event) => setProductSearch(event.target.value)} style={inputStyle} placeholder="Search product, code, category, brand" />
-            <select value={productStatus} onChange={(event) => setProductStatus(event.target.value)} style={inputStyle}>
+          <div style={{ ...searchRowStyle, marginBottom: 12 }}>
+            <input value={productSearch} onChange={(event) => setProductSearch(event.target.value)} style={{ ...inputStyle, flex: 1, width: 'auto' }} placeholder="Search product, code, category, brand" />
+            <select value={productStatus} onChange={(event) => setProductStatus(event.target.value)} style={{ ...inputStyle, width: 160 }}>
               <option value="">All statuses</option>
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
               <option value="archived">Archived</option>
               <option value="out_of_stock">Out of stock</option>
             </select>
-            <button onClick={() => void refreshBase(categoryPage, brandPage, 1)} style={searchActionStyle} disabled={loading}>Search</button>
+            <button onClick={() => void refreshBase(categoryPage, brandPage, 1)} style={searchButtonStyle} disabled={loading}>Search</button>
           </div>
           {products.length ? (
             <>
@@ -1953,9 +1953,9 @@ export function CatalogWorkspace({
 
               <article style={{ ...cardStyle, padding: 14 }}>
                 <h4 style={{ marginTop: 0 }}>Price Approval Queue</h4>
-                <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
-                  <input value={priceRequestSearch} onChange={(event) => setPriceRequestSearch(event.target.value)} style={inputStyle} placeholder="Search product, SKU, variant, reason" />
-                  <select value={priceRequestStatus} onChange={(event) => setPriceRequestStatus(event.target.value)} style={inputStyle}>
+                <div style={{ ...searchRowStyle, marginBottom: 12 }}>
+                  <input value={priceRequestSearch} onChange={(event) => setPriceRequestSearch(event.target.value)} style={{ ...inputStyle, flex: 1, width: 'auto' }} placeholder="Search product, SKU, variant, reason" />
+                  <select value={priceRequestStatus} onChange={(event) => setPriceRequestStatus(event.target.value)} style={{ ...inputStyle, width: 160 }}>
                     <option value="">All statuses</option>
                     <option value="pending">Pending</option>
                     <option value="approved">Approved</option>

@@ -18,7 +18,7 @@ import {
   tableWrapStyle,
   tokenMutedStyle,
 } from '../marketone-theme';
-import { stackedFilterGridStyle, useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
+import { searchRowStyle, stackedFilterGridStyle, useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
 
 type Supplier = {
   id: string;
@@ -454,8 +454,8 @@ export function PurchasesWorkspace() {
           </section>
 
           <article style={surfaceCardStyle}>
-            <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
-              <input value={payableSearch} onChange={(event) => setPayableSearch(event.target.value)} style={fieldStyle} placeholder="Search purchase no, invoice, supplier, or phone" />
+            <div style={{ ...searchRowStyle, marginBottom: 12 }}>
+              <input value={payableSearch} onChange={(event) => setPayableSearch(event.target.value)} style={{ ...fieldStyle, flex: 1, width: 'auto' }} placeholder="Search purchase no, invoice, supplier, or phone" />
               <button onClick={() => void refresh(supplierPage, purchasePage, 1)} style={searchButtonStyle} disabled={loading}>Search</button>
             </div>
             {payables.length ? (
@@ -523,9 +523,9 @@ export function PurchasesWorkspace() {
 
       {(!compact || activeTab === 'purchases') ? (
         <article style={surfaceCardStyle}>
-          <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
-            <input value={purchaseSearch} onChange={(event) => setPurchaseSearch(event.target.value)} style={fieldStyle} placeholder="Search purchase no, invoice, or supplier" />
-            <select value={purchaseStatus} onChange={(event) => setPurchaseStatus(event.target.value)} style={fieldStyle}>
+          <div style={{ ...searchRowStyle, marginBottom: 12 }}>
+            <input value={purchaseSearch} onChange={(event) => setPurchaseSearch(event.target.value)} style={{ ...fieldStyle, flex: 1, width: 'auto' }} placeholder="Search purchase no, invoice, or supplier" />
+            <select value={purchaseStatus} onChange={(event) => setPurchaseStatus(event.target.value)} style={{ ...fieldStyle, width: 160 }}>
               <option value="">All statuses</option>
               <option value="received">Received</option>
               <option value="draft">Draft</option>
@@ -584,8 +584,8 @@ export function PurchasesWorkspace() {
       {(!compact || activeTab === 'suppliers') ? (
         <section style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'minmax(0, 1.25fr) minmax(320px, 0.75fr)', gap: 16 }}>
           <article style={surfaceCardStyle}>
-            <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
-              <input value={supplierSearch} onChange={(event) => setSupplierSearch(event.target.value)} style={fieldStyle} placeholder="Search supplier name, contact, phone, or email" />
+            <div style={{ ...searchRowStyle, marginBottom: 12 }}>
+              <input value={supplierSearch} onChange={(event) => setSupplierSearch(event.target.value)} style={{ ...fieldStyle, flex: 1, width: 'auto' }} placeholder="Search supplier name, contact, phone, or email" />
               <button onClick={() => void refresh(1, purchasePage, payablePage)} style={searchButtonStyle} disabled={loading}>Search</button>
             </div>
             {suppliers.length ? (
@@ -704,8 +704,8 @@ export function PurchasesWorkspace() {
               </div>
             </div>
 
-            <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
-              <input value={skuSearch} onChange={(event) => setSkuSearch(event.target.value)} style={fieldStyle} placeholder="Search product or SKU to add line" />
+            <div style={{ ...searchRowStyle, marginBottom: 12 }}>
+              <input value={skuSearch} onChange={(event) => setSkuSearch(event.target.value)} style={{ ...fieldStyle, flex: 1, width: 'auto' }} placeholder="Search product or SKU to add line" />
               <button onClick={() => void searchSkus()} style={searchButtonStyle} disabled={loading}>Find SKU</button>
             </div>
 

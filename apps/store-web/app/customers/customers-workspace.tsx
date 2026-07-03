@@ -17,7 +17,7 @@ import {
   tableWrapStyle,
   tokenMutedStyle,
 } from '../marketone-theme';
-import { stackedFilterGridStyle, useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
+import { searchRowStyle, stackedFilterGridStyle, useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
 
 type Customer = {
   id: string;
@@ -206,8 +206,8 @@ export function CustomersWorkspace() {
         {!compact || activeTab === 'directory' ? (
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Customer Directory</h3>
-          <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
-            <input value={query} onChange={(event) => setQuery(event.target.value)} style={fieldStyle} placeholder="Search name, mobile, email, or shop" />
+          <div style={{ ...searchRowStyle, marginBottom: 12 }}>
+            <input value={query} onChange={(event) => setQuery(event.target.value)} style={{ ...fieldStyle, flex: 1, width: 'auto' }} placeholder="Search name, mobile, email, or shop" />
             <button onClick={() => void refresh(query, 1)} style={searchButtonStyle}>Search</button>
           </div>
           {customers.length ? (
