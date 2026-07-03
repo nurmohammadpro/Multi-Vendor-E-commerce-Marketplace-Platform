@@ -34,6 +34,10 @@ COPY --from=builder /app/apps/store-web/.next/standalone ./
 COPY --from=builder /app/apps/store-web/.next/static ./apps/store-web/.next/static
 COPY --from=builder /app/apps/store-web/public ./apps/store-web/public
 
+RUN chown -R node:node /app
+
+USER node
+
 EXPOSE 3002
 
 CMD ["node", "apps/store-web/server.js"]
