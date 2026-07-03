@@ -649,24 +649,29 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
       if (reprintPayload.receipt) {
         setLastReceiptText(JSON.stringify(reprintPayload.receipt, null, 2));
         setLastInvoice(reprintPayload.receipt);
-        let printOk = false;
-        try {
-          await printReceipt(reprintPayload.receipt, receiptPrinterName || undefined, agentUrl);
-          printOk = true;
-          let drawerWarning = '';
-          if (!saleIsDue && paymentMethod === 'cash' && Number(total) > 0) {
-            await openCashDrawer({ printerName: receiptPrinterName || undefined }, agentUrl).catch(() => {
-              drawerWarning = ' The cash drawer did not open.';
-            });
-          }
-          setMessage(
-            `${saleIsDue ? 'Due sale' : 'Sale'} ${salePayload.sale?.saleNo ?? ''} completed and receipt printed.${drawerWarning}`,
-          );
-        } catch {
-          openInvoicePrintWindow(reprintPayload.receipt);
+
+        // The local print agent polls the backend for pending jobs and prints silently.
+        // Browser-to-localhost fetch is blocked by mixed-content on hosted HTTPS origins.
+        const isLocalDev = typeof window !== 'undefined' &&
+          ['localhost', '127.0.0.1'].includes(window.location.hostname);
+        let printed = false;
+
+        if (isLocalDev) {
+          try {
+            await printReceipt(reprintPayload.receipt, receiptPrinterName || undefined, agentUrl);
+            printed = true;
+            if (!saleIsDue && paymentMethod === 'cash') {
+              await openCashDrawer({ printerName: receiptPrinterName || undefined }, agentUrl).catch(() => {});
+            }
+          } catch { /* fall through */ }
+        }
+
+        if (printed) {
+          setMessage(`${saleIsDue ? 'Due sale' : 'Sale'} ${salePayload.sale?.saleNo ?? ''} completed and receipt printed.`);
+        } else {
           setInvoiceModalOpen(true);
           setMessage(
-            `${saleIsDue ? 'Due sale' : 'Sale'} ${salePayload.sale?.saleNo ?? ''} completed. Printer unavailable — browser print opened and the invoice is ready below.`,
+            `Sale ${salePayload.sale?.saleNo ?? ''} completed. Receipt queued for local print agent. If the receipt does not print within a few seconds, use the Print Invoice button below.`,
           );
         }
       }

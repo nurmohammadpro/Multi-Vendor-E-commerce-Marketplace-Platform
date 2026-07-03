@@ -605,6 +605,13 @@ export class PosService {
         ],
       );
 
+      // Queue print job for local print agent to pick up
+      await client.query(
+        `insert into sales.sale_print_jobs (id, sale_id, store_id, status, created_at)
+         values (gen_random_uuid(), $1, $2, 'pending', now())`,
+        [sale.id, storeId],
+      );
+
       await client.query('commit');
       await this.auditService.recordStoreAction({
         storeId,
@@ -1257,6 +1264,45 @@ export class PosService {
 
     return result.rows[0]?.id ?? null;
   }
+
+
+  // ── Print job polling (for local print agent) ──
+
+  async listPendingPrintJobs(storeId: string, limit = 5) {
+    const result = await this.pool.query<any>(
+      `select spj.id, spj.sale_id, s.sale_no, s.total_amount, s.created_at as sale_created_at
+       from sales.sale_print_jobs spj
+       join sales.sales s on s.id = spj.sale_id
+       where spj.store_id = $1 and spj.status = 'pending'
+       order by spj.created_at asc limit $2`,
+      [storeId, limit],
+    );
+    return { jobs: result.rows };
+  }
+
+  async getPrintJobReceipt(jobId: string, storeId: string) {
+    const jobResult = await this.pool.query<any>(
+      `select id, sale_id, status from sales.sale_print_jobs where id = $1 and store_id = $2 limit 1`,
+      [jobId, storeId],
+    );
+    const job = jobResult.rows[0];
+    if (!job) throw new NotFoundException('Print job not found');
+
+    const { sale, items, payments } = await this.getSaleAggregate(job.sale_id, storeId);
+    const receipt = await this.buildReceiptPayload(sale, items.rows, payments.rows, storeId);
+    return { receipt };
+  }
+
+  async markPrintJobComplete(jobId: string, storeId: string, status: 'printed' | 'failed', errorMessage?: string) {
+    const result = await this.pool.query(
+      `update sales.sale_print_jobs set status = $3, printed_at = case when $3 = 'printed' then now() else null end, error_message = $4 where id = $1 and store_id = $2 returning id, status`,
+      [jobId, storeId, status, errorMessage || null],
+    );
+    const job = result.rows[0];
+    if (!job) throw new NotFoundException('Print job not found');
+    return { job };
+  }
+
 
   private assertStoreContext(headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
     if (!authContext || authContext.type !== 'store') {
