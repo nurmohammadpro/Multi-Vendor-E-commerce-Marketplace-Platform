@@ -15,7 +15,8 @@ async function bootstrap() {
     new FastifyAdapter({ logger: false }),
   );
 
-  await app.register(helmet, {
+  // @fastify/helmet v8 for Fastify v4 compatibility
+  await (app as any).register(helmet, {
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
