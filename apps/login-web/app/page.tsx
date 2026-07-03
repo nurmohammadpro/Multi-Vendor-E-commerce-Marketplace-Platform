@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { Loader2, Mail, Lock } from 'lucide-react';
 
 import { getWorkspaceUrl, hasOnlyAdminContext, hasOnlyStoreContext, login, storeStoreId, storeToken } from '@/lib/auth';
-import { ThemeToggle } from '@/components/theme-toggle';
 import { IntroSplash } from './intro-splash';
 
 type FormErrors = {
@@ -98,7 +97,6 @@ export default function LoginPage() {
       <div className={`login-shell flex min-h-screen items-center justify-center bg-background px-4 ${splashComplete ? 'login-shell--ready' : ''}`}>
         {/* Theme toggle — top-right corner */}
         <div className="fixed top-4 right-4 z-50">
-          <ThemeToggle />
         </div>
 
         <div

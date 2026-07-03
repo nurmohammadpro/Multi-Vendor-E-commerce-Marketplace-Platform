@@ -44,7 +44,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
-import { ThemeToggle } from '@/components/theme-toggle';
 import { logoutAdminClient } from '../lib/logout';
 
 type NavItem = {
@@ -213,7 +212,6 @@ function Header() {
       </div>
 
       <div className="flex items-center gap-1.5 sm:gap-2">
-        <ThemeToggle />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="rounded-md size-8 sm:size-9">
