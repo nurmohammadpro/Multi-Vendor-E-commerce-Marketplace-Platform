@@ -1,122 +1,64 @@
-# Multi Vendor Print Agent
+# Multi Vendor Print Agent — Silent Receipt Printing
 
-Local silent print bridge for the store POS.
+Local silent print bridge for the store POS. Runs on **cashier/manager workstations**, not the VPS.
 
-This agent is meant to run on the **cashier or manager workstation**, not on the VPS.
+## Quick Setup (XP-Q80A / any ESC/POS thermal printer)
 
-It is used for:
+### Step 1 — Install printer driver
+- Download XP-Q80A driver from `https://ihp.com.bd` or the Xprinter CD
+- Windows: Install driver, name the printer `XP-Q80A`
+- macOS: Add via System Settings → Printers, name it `XP-Q80A`
 
-- silent receipt printing
-- local label printing
-- cash drawer open commands
-- startup-time local print availability after user login
-
-## Why This Exists
-
-Browsers and PWAs cannot reliably print silently on their own.
-
-The correct production model is:
-
-```text
-Store Web POS -> http://127.0.0.1:17668 -> local print agent -> local printer
-```
-
-## Supported Operating Systems
-
-- Windows
-- macOS
-
-## Requirements
-
-- Node.js `18+`
-- printer installed in the operating system
-- receipt printer should be `ESC/POS-compatible`
-- label printer should accept raw label output
-- barcode scanners should be `USB HID` keyboard-mode devices
-
-## Start Manually
-
+### Step 2 — Start the print agent
 ```bash
 cd print-agent
 node server.js
 ```
 
-Health check:
+### Step 3 — Verify
+Open `https://127.0.0.1:17669/health` in your browser:
+- Accept the self-signed certificate warning (click "Advanced" → "Proceed")
+- You should see `{ "ok": true, "printerName": "XP-Q80A", ... }`
 
-```text
-http://127.0.0.1:17668/health
+### Step 4 — Configure in Market One
+1. Open Market One POS
+2. Go to Hardware settings
+3. Set receipt printer name to `XP-Q80A`
+4. Save — the POS will auto-detect your printer
+
+## How Silent Printing Works
+
 ```
+POS sale completed
+  → buildEscPosReceipt() formats ESC/POS binary in browser
+  → POST https://127.0.0.1:17669/print/raw (base64)
+  → Print agent writes raw bytes to Windows/macOS printer driver
+  → XP-Q80A prints silently — no browser print dialog
+```
+
+The HTTPS port (17669) uses a self-signed certificate auto-generated on first launch. The HTTP port (17668) is still available for localhost dev use.
 
 ## API Endpoints
 
-- `GET /health`
-- `POST /print/receipt`
-- `POST /print/raw`
-- `POST /print/label`
-- `POST /hardware/drawer-open`
+| Endpoint | Method | Description |
+|---|---|---|
+| `/health` | GET | Printer health + status |
+| `/printers` | GET | List installed printers |
+| `/print/receipt` | POST | Print plain-text receipt |
+| `/print/raw` | POST | Print raw ESC/POS binary (recommended) |
+| `/print/label` | POST | Print label |
+| `/hardware/drawer-open` | POST | Kick cash drawer |
 
-Example payload:
+## Auto-Start
 
-```json
-{
-  "text": "Test print\nThank you"
-}
-```
-
-## Auto-Start on Windows
-
-Open PowerShell in the `print-agent` directory and run:
-
+### Windows
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\install-windows-task.ps1
+cd print-agent
+powershell -ExecutionPolicy Bypass -File .\scripts\install-windows-task.ps1 -PrinterName "XP-Q80A"
 ```
 
-With named printers:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\install-windows-task.ps1 -PrinterName "XP-Q80A" -LabelPrinterName "XP-420B"
-```
-
-Uninstall:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\uninstall-windows-task.ps1
-```
-
-## Auto-Start on macOS
-
-From the `print-agent` directory:
-
+### macOS
 ```bash
-./scripts/install-macos-launchagent.sh
+cd print-agent
+MVP_PRINTER_NAME="XP-Q80A" ./scripts/install-macos-launchagent.sh
 ```
-
-With printer names:
-
-```bash
-MVP_PRINTER_NAME="XP-Q80A" MVP_LABEL_PRINTER_NAME="XP-420B" ./scripts/install-macos-launchagent.sh
-```
-
-With custom allowed origins:
-
-```bash
-MVP_ALLOWED_ORIGINS="http://localhost:3000,http://127.0.0.1:3000,http://localhost:3002,http://127.0.0.1:3002,https://marketone.appbrainer.tech" ./scripts/install-macos-launchagent.sh
-```
-
-Uninstall:
-
-```bash
-./scripts/uninstall-macos-launchagent.sh
-```
-
-## Important Production Note
-
-The VPS does not replace this agent.
-
-Your final POS model is:
-
-- platform hosted on `Hostinger VPS`
-- local silent print agent on each cashier/manager computer
-- local receipt and label printers installed on that computer
-
-That is how you get professional silent printing.
