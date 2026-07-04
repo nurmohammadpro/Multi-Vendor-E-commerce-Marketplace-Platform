@@ -84,10 +84,16 @@ async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
   const payload = (await response.json().catch(() => null)) as T | { error?: string } | null;
 
   if (!response.ok) {
-    const message =
-      payload && typeof payload === 'object' && 'error' in payload && payload.error
-        ? payload.error
-        : `Request failed with ${response.status}`;
+    let message = `Request failed with ${response.status}`;
+    if (payload && typeof payload === 'object') {
+      if (typeof payload.message === 'string') {
+        message = payload.message;
+      } else if (Array.isArray(payload.message) && payload.message.length > 0) {
+        message = payload.message[0];
+      } else if (typeof payload.error === 'string') {
+        message = payload.error;
+      }
+    }
     throw new Error(message);
   }
 
