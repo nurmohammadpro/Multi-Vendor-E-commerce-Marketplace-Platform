@@ -101,7 +101,7 @@ export function deriveStoreConsoleAccess(
   const isOwnerOrManager = role === 'owner' || role === 'manager';
   const canDirectAdjustInventory = permissionSet.has('inventory.adjust.direct') && canAccessStoreFeature({ planCode }, 'inventory');
   const canRequestAdjustInventory =
-    (permissionSet.has('inventory.adjust.request') || canDirectAdjustInventory)
+    permissionSet.has('inventory.adjust.request')
     && canAccessStoreFeature({ planCode }, 'inventory');
 
   return {

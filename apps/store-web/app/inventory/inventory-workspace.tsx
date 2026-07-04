@@ -503,9 +503,11 @@ export function InventoryWorkspace({
             <button onClick={initializeStock} style={accentButtonStyle} disabled={!canInitializeStock || !canDirectAdjustInventory}>
               Initialize Stock
             </button>
-            <button onClick={requestAdjustment} style={accentButtonStyle} disabled={!canRequestAdjustment || !canRequestAdjustInventory}>
-              Request Change
-            </button>
+            {!canDirectAdjustInventory ? (
+              <button onClick={requestAdjustment} style={accentButtonStyle} disabled={!canRequestAdjustment || !canRequestAdjustInventory}>
+                Request Change
+              </button>
+            ) : null}
           </div>
           {selectedSku ? (
             <p style={{ marginTop: 12, marginBottom: 0, color: '#475569' }}>
