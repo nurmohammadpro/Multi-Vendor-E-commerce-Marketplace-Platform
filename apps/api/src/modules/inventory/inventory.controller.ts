@@ -78,7 +78,7 @@ export class InventoryController {
 
   @Post('initialize')
   @RequireContext('store')
-  @RequirePermissions('inventory.adjust.request')
+  @RequirePermissions('inventory.adjust.direct')
   initializeStock(
     @Headers('x-store-id') headerStoreId: string | undefined,
     @CurrentAuthContext() authContext: StoreAuthContext | null,
