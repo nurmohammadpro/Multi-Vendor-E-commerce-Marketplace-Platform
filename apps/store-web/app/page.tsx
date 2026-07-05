@@ -27,8 +27,7 @@ const quickActions = [
   { href: '/pos', group: 'Daily Operations', title: 'New Sale', detail: 'Run a POS sale — barcode scan, add items, checkout, print receipt.', icon: ShoppingCart, permission: 'sales.pos.create', feature: 'pos' },
   { href: '/customers', group: 'Daily Operations', title: 'Customers', detail: 'Track due customers, contacts, shop identity, and payment collections.', icon: Users, permission: 'sales.report.view', feature: 'customers' },
   // Product & Stock
-  { href: '/catalog', group: 'Product & Stock', title: 'Manage Products', detail: 'Manage categories, brands, products, variants, SKUs, and pricing.', icon: Package, permission: 'catalog.manage', feature: 'catalog' },
-  { href: '/purchases', group: 'Product & Stock', title: 'Receive Stock', detail: 'Record supplier purchases — stock quantity updates automatically.', icon: Truck, feature: 'purchases' },
+  { href: '/purchases', group: 'Product & Stock', title: 'Products & Stock', detail: 'Quick add new products, receive supplier stock, manage categories and suppliers.', icon: Package, feature: 'purchases' },
   { href: '/reports', group: 'Product & Stock', title: 'Reports', detail: 'Daily sales, stock snapshots, and exportable business reports.', icon: BarChart3, permission: 'sales.report.view', feature: 'reports' },
   // Management
   { href: '/staff', group: 'Management', title: 'Staff Management', detail: 'Manage store owner, manager, and salesman access and roles.', icon: Users, permission: 'store.staff.manage', feature: 'staff' },

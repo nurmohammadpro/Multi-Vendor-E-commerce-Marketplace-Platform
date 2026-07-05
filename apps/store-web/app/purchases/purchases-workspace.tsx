@@ -2,16 +2,15 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
-import { ListPager, type PaginationState } from '../list-pager';
-import { toast } from 'sonner';
 import {
   accentButtonStyle,
+  dangerButtonStyle,
   emptyStateStyle,
   fieldStyle,
   pageShellStyle,
   searchButtonStyle,
   secondaryButtonStyle,
-  sectionPanelStyle,
+  subtleButtonStyle,
   surfaceCardStyle,
   tableCellStyle,
   tableHeaderCellStyle,
@@ -19,92 +18,18 @@ import {
   tableWrapStyle,
   tokenMutedStyle,
 } from '../marketone-theme';
+import { ListPager, type PaginationState, totalPagesFor } from '../list-pager';
 import { searchRowStyle, stackedFilterGridStyle, useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
+import { toast } from 'sonner';
 
-type Supplier = {
-  id: string;
-  supplier_type: 'supplier' | 'importer' | 'company';
-  company_name: string;
-  contact_name?: string | null;
-  phone?: string | null;
-  email?: string | null;
-  address?: string | null;
-  note?: string | null;
-  opening_payable_amount?: string | number;
-  total_payable_amount?: string | number;
-  purchase_count?: number;
-  status: 'active' | 'inactive';
-};
+type Supplier = { id: string; company_name: string; contact_name?: string | null; phone?: string | null; opening_payable_amount?: string | number; current_payable_amount?: string | number };
+type Location = { id: string; code: string; name: string; location_type: string };
+type Purchase = { id: string; purchase_no: string; purchase_date: string; supplier_name: string; location_name: string; total_amount: string | number; paid_amount: string | number; payment_status: string; status: string; created_at: string };
+type PayableRow = { id: string; purchase_no: string; supplier_name: string; supplier_phone?: string | null; invoice_no?: string | null; purchase_date: string; total_amount: string | number; outstanding_amount: string | number; age_days: number };
+type SkuResult = { id: string; sku_code: string; product_name: string; product_code?: string | null; variant_label?: string | null; barcode?: string | null; sale_price?: string | number | null; cost_price?: string | number | null; available_qty?: string | number | null };
+type Aging = { today_amount?: string | number; today_count?: number; days_7_amount?: string | number; days_7_count?: number; days_30_amount?: string | number; days_30_count?: number; days_90_amount?: string | number; days_90_count?: number; days_90_plus_amount?: string | number; days_90_plus_count?: number };
 
-type Purchase = {
-  id: string;
-  purchase_no: string;
-  purchase_date: string;
-  invoice_no?: string | null;
-  total_amount: string | number;
-  paid_amount: string | number;
-  payment_status: string;
-  status: string;
-  supplier_name: string;
-  location_name: string;
-  item_count: number;
-};
-
-type PayableRow = {
-  id: string;
-  purchase_no: string;
-  purchase_date: string;
-  invoice_no?: string | null;
-  total_amount: string | number;
-  paid_amount: string | number;
-  outstanding_amount: string | number;
-  payment_status: string;
-  supplier_name: string;
-  supplier_phone?: string | null;
-  aging_days: number;
-};
-
-type Aging = {
-  today_amount: string | number;
-  today_count: number;
-  days_7_amount: string | number;
-  days_7_count: number;
-  days_30_amount: string | number;
-  days_30_count: number;
-  days_90_amount: string | number;
-  days_90_count: number;
-  days_90_plus_amount: string | number;
-  days_90_plus_count: number;
-};
-
-type Location = {
-  id: string;
-  name: string;
-  code: string;
-};
-
-type SkuResult = {
-  id: string;
-  product_id: string;
-  product_code?: string | null;
-  sku_code: string;
-  product_name: string;
-  has_variants?: boolean;
-  variant_mode?: string | null;
-  variant_label?: string | null;
-  cost_price?: string | number | null;
-  sale_price?: string | number | null;
-  available_qty?: string | number | null;
-};
-
-type PurchaseLineDraft = {
-  skuId: string;
-  label: string;
-  qty: string;
-  unitCost: string;
-  batchNo: string;
-  expiryDate: string;
-};
+const formatMoney = (v: string | number | null | undefined) => Number(Number(v ?? 0).toFixed(2)).toLocaleString('en-IN', { minimumFractionDigits: 2 });
 
 async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
   const response = await fetch(input, init);
@@ -115,21 +40,21 @@ async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
   return payload as T;
 }
 
-function formatMoney(value: string | number | null | undefined) {
-  const amount = Number(value ?? 0);
-  return Number.isFinite(amount) ? amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00';
+function MetricTile({ label, amount, count }: { label: string; amount?: string | number; count?: string | number }) {
+  return (
+    <article style={{ ...surfaceCardStyle, padding: '10px 14px' }}>
+      <div style={{ fontSize: 10, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>{label}</div>
+      <div style={{ fontSize: 18, fontWeight: 600, marginTop: 4 }}>BDT {formatMoney(amount)}</div>
+      <div style={{ fontSize: 11, color: '#94a3b8' }}>{count ?? '—'} invoices</div>
+    </article>
+  );
 }
 
 export function PurchasesWorkspace() {
   const compact = useCompactLayout();
-  const [activeTab, setActiveTab] = useState<'overview' | 'purchases' | 'suppliers' | 'receive'>('overview');
-  const [message, setMessage] = useState('Procurement workspace is ready.');
+  const [activeTab, setActiveTab] = useState<'receive' | 'purchases' | 'payables'>('receive');
+  const [message, setMessage] = useState('Purchases & stock management.');
   const [loading, setLoading] = useState(false);
-
-  const [supplierSearch, setSupplierSearch] = useState('');
-  const [purchaseSearch, setPurchaseSearch] = useState('');
-  const [payableSearch, setPayableSearch] = useState('');
-  const [purchaseStatus, setPurchaseStatus] = useState('');
 
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [purchases, setPurchases] = useState<Purchase[]>([]);
@@ -141,39 +66,14 @@ export function PurchasesWorkspace() {
   const [supplierPage, setSupplierPage] = useState(1);
   const [purchasePage, setPurchasePage] = useState(1);
   const [payablePage, setPayablePage] = useState(1);
-  const [supplierPagination, setSupplierPagination] = useState<PaginationState>({ page: 1, limit: 10, total: 0 });
   const [purchasePagination, setPurchasePagination] = useState<PaginationState>({ page: 1, limit: 10, total: 0 });
   const [payablePagination, setPayablePagination] = useState<PaginationState>({ page: 1, limit: 10, total: 0 });
-
-  const [supplierForm, setSupplierForm] = useState({
-    supplierType: 'supplier',
-    companyName: '',
-    contactName: '',
-    phone: '',
-    email: '',
-    address: '',
-    note: '',
-    openingPayableAmount: '0',
-  });
-
-  const [purchaseForm, setPurchaseForm] = useState({
-    supplierId: '',
-    locationId: '',
-    purchaseDate: new Date().toISOString().slice(0, 10),
-    invoiceNo: '',
-    discountAmount: '0',
-    taxAmount: '0',
-    shippingAmount: '0',
-    note: '',
-    paymentMethod: 'cash',
-    paidAmount: '0',
-    paymentReferenceNo: '',
-    paymentNote: '',
-  });
-
+  const [payableSearch, setPayableSearch] = useState('');
+  const [purchaseSearch, setPurchaseSearch] = useState('');
+  const [purchaseStatus, setPurchaseStatus] = useState('');
   const [skuSearch, setSkuSearch] = useState('');
 
-  // Quick Add + Receive form state
+  // Quick Add + Receive
   const [quickName, setQuickName] = useState('');
   const [quickSalePrice, setQuickSalePrice] = useState('');
   const [quickQty, setQuickQty] = useState('');
@@ -183,827 +83,383 @@ export function PurchasesWorkspace() {
   const [quickPaid, setQuickPaid] = useState('');
   const [quickHasVariants, setQuickHasVariants] = useState(false);
   const [quickVariantLabels, setQuickVariantLabels] = useState('');
-  const [quickNote, setQuickNote] = useState('');
   const [quickSaving, setQuickSaving] = useState(false);
 
-  // Location creation state
+  // Regular purchase form
+  const [purchaseForm, setPurchaseForm] = useState({ supplierId: '', locationId: '', purchaseDate: new Date().toISOString().slice(0, 10), invoiceNo: '', discountAmount: '0', taxAmount: '0', shippingAmount: '0', paidAmount: '0', paymentMethod: 'cash' as 'cash' | 'card' | 'mfs' | 'bank_transfer', paymentReference: '', note: '' });
+  const [items, setItems] = useState<Array<{ skuId: string; label: string; qty: string; unitCost: string; batchNo: string; expiryDate: string }>>([]);
+  const [lineDefaults, setLineDefaults] = useState({ qty: '1', unitCost: '' });
+
+  // Supplier form
+  const [supplierForm, setSupplierForm] = useState({ supplierType: 'company', companyName: '', contactName: '', phone: '', email: '', openingPayableAmount: '', address: '', note: '' });
+
+  // Location form
   const [newLocationCode, setNewLocationCode] = useState('');
   const [newLocationName, setNewLocationName] = useState('');
 
-  const [items, setItems] = useState<PurchaseLineDraft[]>([]);
-  const [lineDefaults, setLineDefaults] = useState({ qty: '1', unitCost: '' });
-  const [paymentAmounts, setPaymentAmounts] = useState<Record<string, string>>({});
+  const supplierOptions = useMemo(() => suppliers.map((s) => ({ id: s.id, company_name: s.company_name })), [suppliers]);
 
-  const refresh = async (
-    nextSupplierPage = supplierPage,
-    nextPurchasePage = purchasePage,
-    nextPayablePage = payablePage,
-  ) => {
-    const supplierParams = new URLSearchParams({ page: String(nextSupplierPage), limit: String(supplierPagination.limit) });
-    if (supplierSearch.trim()) supplierParams.set('search', supplierSearch.trim());
-    const purchaseParams = new URLSearchParams({ page: String(nextPurchasePage), limit: String(purchasePagination.limit) });
-    if (purchaseSearch.trim()) purchaseParams.set('search', purchaseSearch.trim());
-    if (purchaseStatus) purchaseParams.set('status', purchaseStatus);
-    const payableParams = new URLSearchParams({ page: String(nextPayablePage), limit: String(payablePagination.limit) });
-    if (payableSearch.trim()) payableParams.set('search', payableSearch.trim());
-
-    const [supplierPayload, purchasePayload, payablePayload, agingPayload, locationPayload] = await Promise.all([
-      readJson<{ suppliers: Supplier[]; pagination?: PaginationState }>(`/api/store-ops/suppliers?${supplierParams.toString()}`),
-      readJson<{ purchases: Purchase[]; pagination?: PaginationState }>(`/api/store-ops/purchases?${purchaseParams.toString()}`),
-      readJson<{ payables: PayableRow[]; pagination?: PaginationState }>(`/api/store-ops/payables?${payableParams.toString()}`),
-      readJson<{ aging: Aging }>('/api/store-ops/payables/aging'),
-      readJson<{ locations: Location[] }>('/api/inventory/locations'),
-    ]);
-
-    setSuppliers(supplierPayload.suppliers ?? []);
-    setPurchases(purchasePayload.purchases ?? []);
-    setPayables(payablePayload.payables ?? []);
-    setAging(agingPayload.aging ?? null);
-    setLocations(locationPayload.locations ?? []);
-
-    setSupplierPagination(supplierPayload.pagination ?? { page: nextSupplierPage, limit: supplierPagination.limit, total: supplierPayload.suppliers?.length ?? 0 });
-    setPurchasePagination(purchasePayload.pagination ?? { page: nextPurchasePage, limit: purchasePagination.limit, total: purchasePayload.purchases?.length ?? 0 });
-    setPayablePagination(payablePayload.pagination ?? { page: nextPayablePage, limit: payablePagination.limit, total: payablePayload.payables?.length ?? 0 });
-    setSupplierPage(supplierPayload.pagination?.page ?? nextSupplierPage);
-    setPurchasePage(purchasePayload.pagination?.page ?? nextPurchasePage);
-    setPayablePage(payablePayload.pagination?.page ?? nextPayablePage);
-
-    setPurchaseForm((current) => ({
-      ...current,
-      supplierId: current.supplierId || supplierPayload.suppliers?.[0]?.id || '',
-      locationId: current.locationId || locationPayload.locations?.[0]?.id || '',
-    }));
-  };
-
-  useEffect(() => {
-    void refresh().catch((error: Error) => setMessage(error.message));
-  }, []);
-
-  useEffect(() => {
-    const query = skuSearch.trim();
-    if (query.length < 2) {
-      setSkuResults([]);
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      void searchSkus();
-    }, 250);
-
-    return () => window.clearTimeout(timer);
-  }, [skuSearch]);
-
-  const supplierOptions = useMemo(
-    () => suppliers.filter((supplier) => supplier.status === 'active'),
-    [suppliers],
-  );
-
-  const totals = useMemo(() => {
-    const subtotal = items.reduce((sum, item) => sum + Number(item.qty || 0) * Number(item.unitCost || 0), 0);
-    const discountAmount = Number(purchaseForm.discountAmount || 0);
-    const taxAmount = Number(purchaseForm.taxAmount || 0);
-    const shippingAmount = Number(purchaseForm.shippingAmount || 0);
-    const total = subtotal - discountAmount + taxAmount + shippingAmount;
-    return {
-      subtotal,
-      total: Math.max(total, 0),
-      outstanding: Math.max(Math.max(total, 0) - Number(purchaseForm.paidAmount || 0), 0),
-    };
+  const lineTotal = useMemo(() => {
+    const discount = Number(purchaseForm.discountAmount || 0);
+    const tax = Number(purchaseForm.taxAmount || 0);
+    const shipping = Number(purchaseForm.shippingAmount || 0);
+    const subtotal = items.reduce((s, i) => s + Number(i.qty || 0) * Number(i.unitCost || 0), 0);
+    return { subtotal, total: subtotal + tax + shipping - discount, outstanding: Math.max(subtotal + tax + shipping - discount - Number(purchaseForm.paidAmount || 0), 0) };
   }, [items, purchaseForm.discountAmount, purchaseForm.taxAmount, purchaseForm.shippingAmount, purchaseForm.paidAmount]);
 
-  const searchSkus = async () => {
-    if (!skuSearch.trim()) {
-      setSkuResults([]);
-      return;
-    }
+  // ── Data loading ──
+
+  const refresh = async (sp = supplierPage, pp = purchasePage, ppage = payablePage) => {
     setLoading(true);
     try {
-      const payload = await readJson<{ skus: SkuResult[] }>(`/api/catalog/skus/search?q=${encodeURIComponent(skuSearch.trim())}&limit=20`);
+      const [supplierPayload, purchasePayload, payablePayload, agingPayload, locationPayload] = await Promise.all([
+        readJson<{ suppliers: Supplier[] }>(`/api/store-ops/suppliers?limit=100`),
+        readJson<{ purchases: Purchase[]; pagination?: PaginationState }>(`/api/store-ops/purchases?page=${pp}&limit=10&search=${encodeURIComponent(purchaseSearch)}&status=${purchaseStatus}`),
+        readJson<{ payables: PayableRow[]; pagination?: PaginationState }>(`/api/store-ops/payables?page=${ppage}&limit=10&search=${encodeURIComponent(payableSearch)}`),
+        readJson<{ aging: Aging }>('/api/store-ops/payables/aging'),
+        readJson<{ locations: Location[] }>('/api/inventory/locations'),
+      ]);
+      setSuppliers(supplierPayload.suppliers ?? []);
+      setPurchases(purchasePayload.purchases ?? []);
+      setPurchasePagination(purchasePayload.pagination ?? { page: 1, limit: 10, total: 0 });
+      setPayables(payablePayload.payables ?? []);
+      setPayablePagination(payablePayload.pagination ?? { page: 1, limit: 10, total: 0 });
+      setAging(agingPayload.aging ?? null);
+      setLocations(locationPayload.locations ?? []);
+      if (!purchaseForm.locationId && locationPayload.locations?.[0]) { setPurchaseForm((c) => ({ ...c, locationId: c.locationId || locationPayload.locations[0].id })); }
+      setMessage('Purchases ready.');
+    } catch (error) { setMessage((error as Error).message); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { void refresh(); }, []);
+
+  // ── SKU search ──
+
+  const searchSkus = async () => {
+    if (!skuSearch.trim()) { setSkuResults([]); return; }
+    setLoading(true);
+    try {
+      const payload = await readJson<{ skus: SkuResult[] }>(`/api/catalog/skus/search?q=${encodeURIComponent(skuSearch.trim())}&limit=12`);
       setSkuResults(payload.skus ?? []);
       setMessage(`Found ${payload.skus?.length ?? 0} SKU(s).`);
-    } catch (error) {
-      setMessage((error as Error).message);
-    } finally {
-      setLoading(false);
-    }
+    } catch (error) { setMessage((error as Error).message); }
+    finally { setLoading(false); }
   };
 
   const addSkuItem = (sku: SkuResult) => {
-    const defaultUnitCost = lineDefaults.unitCost || String(sku.cost_price ?? 0);
-    setItems((current) => {
-      if (current.some((item) => item.skuId === sku.id)) {
-        return current.map((item) =>
-          item.skuId === sku.id
-            ? { ...item, qty: String(Number(item.qty || 0) + Number(lineDefaults.qty || 1)) }
-            : item,
-        );
-      }
-      return [
-        ...current,
-        {
-          skuId: sku.id,
-          label: `${sku.product_name} · ${sku.sku_code}${sku.variant_label ? ` · ${sku.variant_label}` : ''}`,
-          qty: lineDefaults.qty || '1',
-          unitCost: defaultUnitCost,
-          batchNo: '',
-          expiryDate: '',
-        },
-      ];
+    setItems((cur) => {
+      if (cur.find((i) => i.skuId === sku.id)) return cur;
+      return [...cur, { skuId: sku.id, label: `${sku.product_name}${sku.variant_label ? ` · ${sku.variant_label}` : ''} (${sku.sku_code})`, qty: lineDefaults.qty, unitCost: lineDefaults.unitCost || String(sku.cost_price || ''), batchNo: '', expiryDate: '' }];
     });
-    setSkuSearch('');
     setSkuResults([]);
+    setSkuSearch('');
   };
 
-  const createSupplier = async () => {
-    if (!supplierForm.companyName.trim()) {
-      setMessage('Supplier company name is required.');
-      return;
-    }
-    setLoading(true);
-    try {
-      await readJson('/api/store-ops/suppliers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          supplierType: supplierForm.supplierType,
-          companyName: supplierForm.companyName.trim(),
-          contactName: supplierForm.contactName.trim() || undefined,
-          phone: supplierForm.phone.trim() || undefined,
-          email: supplierForm.email.trim() || undefined,
-          address: supplierForm.address.trim() || undefined,
-          note: supplierForm.note.trim() || undefined,
-          openingPayableAmount: Number(supplierForm.openingPayableAmount || 0),
-          status: 'active',
-        }),
-      });
-      setSupplierForm({
-        supplierType: 'supplier',
-        companyName: '',
-        contactName: '',
-        phone: '',
-        email: '',
-        address: '',
-        note: '',
-        openingPayableAmount: '0',
-      });
-      await refresh(1, purchasePage, payablePage);
-      setMessage('Supplier created successfully.');
-    } catch (error) {
-      setMessage((error as Error).message);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // ── Quick Receive ──
 
   const quickReceive = async () => {
-    if (!quickName.trim() || !quickQty || !quickSupplierId || !quickLocationId) {
-      setMessage('Product name, quantity, supplier, and location are required.');
-      return;
-    }
-
+    if (!quickName.trim() || !quickQty || !quickSupplierId || !quickLocationId) { setMessage('Product name, quantity, supplier, and location are required.'); return; }
     setQuickSaving(true);
     try {
-      const payload = await readJson<{ product: { id: string; name: string; productCode: string }; purchase: { id: string; purchaseNo: string; totalAmount: number; paidAmount: number }; skus: Array<unknown>; stockUpdated: boolean }>('/api/store-ops/quick-receive', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          productName: quickName.trim(),
-          supplierId: quickSupplierId,
-          locationId: quickLocationId,
-          salePrice: Number(quickSalePrice || 0),
-          purchaseQty: Number(quickQty),
-          unitCost: Number(quickCost || 0),
-          paidAmount: Number(quickPaid || 0),
-          hasVariants: quickHasVariants,
-          variantLabels: quickHasVariants && quickVariantLabels.trim()
-            ? quickVariantLabels.split(/\n|,/).map((s: string) => s.trim()).filter(Boolean)
-            : undefined,
-          note: quickNote.trim() || undefined,
-        }),
-      });
+      const payload = await readJson<{ product: { id: string; name: string; productCode: string }; purchase: { id: string; purchaseNo: string; totalAmount: number; paidAmount: number }; skus: Array<unknown>; stockUpdated: boolean }>('/api/store-ops/quick-receive', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ productName: quickName.trim(), supplierId: quickSupplierId, locationId: quickLocationId, salePrice: Number(quickSalePrice || 0), purchaseQty: Number(quickQty), unitCost: Number(quickCost || 0), paidAmount: Number(quickPaid || 0), hasVariants: quickHasVariants, variantLabels: quickHasVariants && quickVariantLabels.trim() ? quickVariantLabels.split(/[\n,]/).map((s) => s.trim()).filter(Boolean) : undefined, note: '' }) });
+      setMessage(`✓ "${payload.product.name}" created — stock +${quickQty}. Purchase ${payload.purchase.purchaseNo}.`);
+      setQuickName(''); setQuickSalePrice(''); setQuickQty(''); setQuickCost(''); setQuickPaid(''); setQuickVariantLabels(''); setQuickHasVariants(false);
+      await refresh();
+    } catch (error) { const msg = (error as Error).message; setMessage(msg); toast.error(msg); }
+    finally { setQuickSaving(false); }
+  };
 
-      setMessage(`Product "${payload.product.name}" created and stock received. Purchase ${payload.purchase.purchaseNo}.`);
-      // Reset form
-      setQuickName(''); setQuickSalePrice(''); setQuickQty(''); setQuickCost('');
-      setQuickPaid(''); setQuickSupplierId('');
-      setQuickVariantLabels(''); setQuickNote(''); setQuickHasVariants(false);
-      // Refresh lists
-      await refresh(supplierPage, purchasePage, payablePage);
-    } catch (error) {
-      const msg = (error as Error).message; setMessage(msg); toast.error(msg);
-    } finally {
-      setQuickSaving(false);
-    }
+  // ── Regular Purchase ──
+
+  const createPurchase = async () => {
+    if (!purchaseForm.supplierId || !purchaseForm.locationId) { setMessage('Choose a supplier and inventory location first.'); return; }
+    if (!items.length) { setMessage('Add at least one SKU line to receive stock.'); return; }
+    setLoading(true);
+    try {
+      const payload = await readJson<{ purchase: { id: string; purchaseNo: string } }>('/api/store-ops/purchases', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ supplierId: purchaseForm.supplierId, locationId: purchaseForm.locationId, purchaseDate: purchaseForm.purchaseDate, invoiceNo: purchaseForm.invoiceNo.trim() || undefined, discountAmount: Number(purchaseForm.discountAmount || 0), taxAmount: Number(purchaseForm.taxAmount || 0), shippingAmount: Number(purchaseForm.shippingAmount || 0), paidAmount: Number(purchaseForm.paidAmount || 0), paymentMethod: purchaseForm.paymentMethod, paymentReference: purchaseForm.paymentReference || undefined, note: purchaseForm.note || undefined, items: items.map((i) => ({ skuId: i.skuId, qty: Number(i.qty), unitCost: Number(i.unitCost), batchNo: i.batchNo || undefined, expiryDate: i.expiryDate || undefined })) }) });
+      setMessage(`✓ Purchase ${payload.purchase.purchaseNo} received. Stock updated.`);
+      setItems([]); setSkuSearch(''); setSkuResults([]);
+      setPurchaseForm((c) => ({ ...c, invoiceNo: '', discountAmount: '0', taxAmount: '0', shippingAmount: '0', paidAmount: '0', paymentReference: '', note: '' }));
+      await refresh();
+    } catch (error) { const msg = (error as Error).message; setMessage(msg); toast.error(msg); }
+    finally { setLoading(false); }
+  };
+
+  // ── Supplier ──
+
+  const createSupplier = async () => {
+    if (!supplierForm.companyName.trim()) { setMessage('Company name is required.'); return; }
+    setLoading(true);
+    try {
+      await readJson('/api/store-ops/suppliers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ supplierType: supplierForm.supplierType, companyName: supplierForm.companyName.trim(), contactName: supplierForm.contactName.trim() || undefined, phone: supplierForm.phone.trim() || undefined, email: supplierForm.email.trim() || undefined, openingPayableAmount: Number(supplierForm.openingPayableAmount || 0), address: supplierForm.address.trim() || undefined, note: supplierForm.note.trim() || undefined }) });
+      setMessage('Supplier created.');
+      setSupplierForm({ supplierType: 'company', companyName: '', contactName: '', phone: '', email: '', openingPayableAmount: '', address: '', note: '' });
+      await refresh();
+    } catch (error) { const msg = (error as Error).message; setMessage(msg); toast.error(msg); }
+    finally { setLoading(false); }
   };
 
   const createLocation = async () => {
-    if (!newLocationCode.trim() || !newLocationName.trim()) {
-      setMessage('Location code and name are required.');
-      return;
-    }
+    if (!newLocationCode.trim() || !newLocationName.trim()) { setMessage('Location code and name are required.'); return; }
     setLoading(true);
     try {
-      await readJson('/api/inventory/locations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: newLocationCode.trim(), name: newLocationName.trim() }),
-      });
+      await readJson('/api/inventory/locations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: newLocationCode.trim(), name: newLocationName.trim() }) });
       setMessage(`Location "${newLocationName}" created.`);
       setNewLocationCode(''); setNewLocationName('');
-      // Refresh locations
-      const locPayload = await readJson<{ locations: Location[] }>('/api/inventory/locations');
-      setLocations(locPayload.locations ?? []);
-    } catch (error) {
-      const msg = (error as Error).message; setMessage(msg); toast.error(msg);
-    } finally {
-      setLoading(false);
-    }
+      const loc = await readJson<{ locations: Location[] }>('/api/inventory/locations');
+      setLocations(loc.locations ?? []);
+    } catch (error) { const msg = (error as Error).message; setMessage(msg); toast.error(msg); }
+    finally { setLoading(false); }
   };
 
-
-const createPurchase = async () => {
-    if (!purchaseForm.supplierId || !purchaseForm.locationId) {
-      setMessage('Choose a supplier and inventory location first.');
-      return;
-    }
-    if (!items.length) {
-      setMessage('Add at least one SKU line to receive stock.');
-      return;
-    }
-    const normalizedItems = items
-      .map((item) => ({
-        skuId: item.skuId,
-        qty: Number(item.qty || 0),
-        unitCost: Number(item.unitCost || 0),
-        batchNo: item.batchNo.trim() || undefined,
-        expiryDate: item.expiryDate || undefined,
-      }))
-      .filter((item) => item.qty > 0);
-    if (!normalizedItems.length || normalizedItems.some((item) => item.unitCost < 0)) {
-      setMessage('Each purchase line needs a positive quantity and a valid cost.');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const payload = await readJson<{ purchaseNo: string; totalAmount: number; paymentStatus: string }>('/api/store-ops/purchases', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          supplierId: purchaseForm.supplierId,
-          locationId: purchaseForm.locationId,
-          purchaseDate: purchaseForm.purchaseDate,
-          invoiceNo: purchaseForm.invoiceNo.trim() || undefined,
-          discountAmount: Number(purchaseForm.discountAmount || 0),
-          taxAmount: Number(purchaseForm.taxAmount || 0),
-          shippingAmount: Number(purchaseForm.shippingAmount || 0),
-          note: purchaseForm.note.trim() || undefined,
-          paymentMethod: purchaseForm.paymentMethod,
-          paidAmount: Number(purchaseForm.paidAmount || 0),
-          paymentReferenceNo: purchaseForm.paymentReferenceNo.trim() || undefined,
-          paymentNote: purchaseForm.paymentNote.trim() || undefined,
-          items: normalizedItems,
-        }),
-      });
-      setItems([]);
-      setPurchaseForm((current) => ({
-        ...current,
-        invoiceNo: '',
-        discountAmount: '0',
-        taxAmount: '0',
-        shippingAmount: '0',
-        note: '',
-        paidAmount: '0',
-        paymentReferenceNo: '',
-        paymentNote: '',
-      }));
-      await refresh(supplierPage, 1, 1);
-      setActiveTab('purchases');
-      setMessage(`Purchase ${payload.purchaseNo} received successfully.`);
-    } catch (error) {
-      setMessage((error as Error).message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const addPayment = async (purchaseId: string) => {
-    const amount = Number(paymentAmounts[purchaseId] || 0);
-    if (!(amount > 0)) {
-      setMessage('Enter a payment amount before posting supplier payment.');
-      return;
-    }
-    setLoading(true);
-    try {
-      await readJson(`/api/store-ops/purchases/${purchaseId}/payments`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          amount,
-          paymentMethod: 'cash',
-        }),
-      });
-      setPaymentAmounts((current) => ({ ...current, [purchaseId]: '' }));
-      await refresh(supplierPage, purchasePage, payablePage);
-      setMessage('Supplier payment recorded.');
-    } catch (error) {
-      setMessage((error as Error).message);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const supplierOptions2 = useMemo(() => suppliers.map((s) => ({ id: s.id, company_name: s.company_name })), [suppliers]);
 
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
-      {compact ? (
-        <WorkspaceTabs
-          active={activeTab}
-          onChange={(key) => setActiveTab(key as 'overview' | 'purchases' | 'suppliers' | 'receive')}
-          tabs={[
-            { key: 'overview', label: 'Payables' },
-            { key: 'purchases', label: 'Purchases' },
-            { key: 'suppliers', label: 'Suppliers' },
-            { key: 'receive', label: 'Receive Stock' },
-          ]}
-        />
-      ) : null}
+      {/* ── Navigation pager ── */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+        <p style={{ margin: 0, color: '#475569', fontSize: 13 }}>{message}</p>
+        <WorkspaceTabs active={activeTab} onChange={(key) => setActiveTab(key as any)} tabs={[{ key: 'receive', label: 'Receive Stock' }, { key: 'purchases', label: 'Purchases' }, { key: 'payables', label: 'Payables' }]} />
+      </div>
 
-      {(!compact || activeTab === 'overview') ? (
-        <>
-          <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
-            <MetricTile label="Today" amount={aging?.today_amount} count={aging?.today_count} />
-            <MetricTile label="1-7 days" amount={aging?.days_7_amount} count={aging?.days_7_count} />
-            <MetricTile label="8-30 days" amount={aging?.days_30_amount} count={aging?.days_30_count} />
-            <MetricTile label="31-90 days" amount={aging?.days_90_amount} count={aging?.days_90_count} />
-            <MetricTile label="90+ days" amount={aging?.days_90_plus_amount} count={aging?.days_90_plus_count} />
-          </section>
-
-          <article style={surfaceCardStyle}>
-            <div style={{ ...searchRowStyle, marginBottom: 12 }}>
-              <input value={payableSearch} onChange={(event) => setPayableSearch(event.target.value)} style={{ ...fieldStyle, flex: 1, width: 'auto' }} placeholder="Search purchase no, invoice, supplier, or phone" />
-              <button onClick={() => void refresh(supplierPage, purchasePage, 1)} style={searchButtonStyle} disabled={loading}>Search</button>
-            </div>
-            {payables.length ? (
-              <>
-                <div style={tableWrapStyle}>
-                  <table style={tableStyle}>
-                    <thead>
-                      <tr>
-                        <th style={tableHeaderCellStyle}>Purchase</th>
-                        <th style={tableHeaderCellStyle}>Supplier</th>
-                        <th style={tableHeaderCellStyle}>Date</th>
-                        <th style={tableHeaderCellStyle}>Outstanding</th>
-                        <th style={tableHeaderCellStyle}>Aging</th>
-                        <th style={tableHeaderCellStyle}>Quick payment</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {payables.map((row) => (
-                        <tr key={row.id}>
-                          <td style={tableCellStyle}>
-                            <div>{row.purchase_no}</div>
-                            <div style={tokenMutedStyle}>{row.invoice_no || 'No invoice ref'}</div>
-                          </td>
-                          <td style={tableCellStyle}>
-                            <div>{row.supplier_name}</div>
-                            <div style={tokenMutedStyle}>{row.supplier_phone || '—'}</div>
-                          </td>
-                          <td style={tableCellStyle}>{row.purchase_date}</td>
-                          <td style={tableCellStyle}>{formatMoney(row.outstanding_amount)}</td>
-                          <td style={tableCellStyle}>{row.aging_days} day(s)</td>
-                          <td style={tableCellStyle}>
-                            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                              <input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={paymentAmounts[row.id] ?? ''}
-                                onChange={(event) => setPaymentAmounts((current) => ({ ...current, [row.id]: event.target.value }))}
-                                style={{ ...fieldStyle, minWidth: 100 }}
-                                placeholder="0.00"
-                              />
-                              <button onClick={() => void addPayment(row.id)} style={accentButtonStyle} disabled={loading}>Pay</button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <ListPager
-                  page={payablePage}
-                  pagination={payablePagination}
-                  loading={loading}
-                  label="payable(s)"
-                  onPrevious={() => void refresh(supplierPage, purchasePage, Math.max(1, payablePage - 1))}
-                  onNext={() => void refresh(supplierPage, purchasePage, payablePage + 1)}
-                />
-              </>
-            ) : (
-              <div style={emptyStateStyle}>No supplier payables yet. Receive a purchase first or add a supplier opening payable.</div>
-            )}
-          </article>
-        </>
-      ) : null}
-
-      {(!compact || activeTab === 'purchases') ? (
-        <article style={surfaceCardStyle}>
-          <div style={{ ...searchRowStyle, marginBottom: 12 }}>
-            <input value={purchaseSearch} onChange={(event) => setPurchaseSearch(event.target.value)} style={{ ...fieldStyle, flex: 1, width: 'auto' }} placeholder="Search purchase no, invoice, or supplier" />
-            <select value={purchaseStatus} onChange={(event) => setPurchaseStatus(event.target.value)} style={{ ...fieldStyle, width: 160 }}>
-              <option value="">All statuses</option>
-              <option value="received">Received</option>
-              <option value="draft">Draft</option>
-              <option value="cancelled">Cancelled</option>
+      {/* ═══════════════ Receive Stock Tab ═══════════════ */}
+      {activeTab === 'receive' ? (
+      <section style={{ display: 'grid', gap: 14 }}>
+        {/* ── Quick Add + Receive ── */}
+        <article style={{ ...surfaceCardStyle, border: '2px solid #1e293b', padding: 14 }}>
+          <h3 style={{ marginTop: 0, marginBottom: 4, fontSize: 15 }}>Quick Add + Receive</h3>
+          <p style={{ margin: '0 0 12px', color: '#64748b', fontSize: 12 }}>Create a new product and receive stock in one step.</p>
+          <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
+            <input value={quickName} onChange={(e) => setQuickName(e.target.value)} style={fieldStyle} placeholder="Product name (required)" />
+            <input type="number" min="0" step="0.01" value={quickSalePrice} onChange={(e) => setQuickSalePrice(e.target.value)} style={fieldStyle} placeholder="Sale price (BDT)" />
+            <input type="number" min="1" step="1" value={quickQty} onChange={(e) => setQuickQty(e.target.value)} style={fieldStyle} placeholder="Quantity (required)" />
+            <input type="number" min="0" step="0.01" value={quickCost} onChange={(e) => setQuickCost(e.target.value)} style={fieldStyle} placeholder="Unit cost (BDT)" />
+            <select value={quickSupplierId} onChange={(e) => setQuickSupplierId(e.target.value)} style={fieldStyle}>
+              <option value="">Supplier (required)</option>
+              {supplierOptions2.map((s) => <option key={s.id} value={s.id}>{s.company_name}</option>)}
             </select>
-            <button onClick={() => void refresh(supplierPage, 1, payablePage)} style={searchButtonStyle} disabled={loading}>Search</button>
+            <select value={quickLocationId} onChange={(e) => setQuickLocationId(e.target.value)} style={fieldStyle}>
+              <option value="">Location (required)</option>
+              {locations.map((l) => <option key={l.id} value={l.id}>{l.name} · {l.code}</option>)}
+            </select>
+            <input type="number" min="0" step="0.01" value={quickPaid} onChange={(e) => setQuickPaid(e.target.value)} style={fieldStyle} placeholder="Paid amount (BDT)" />
+            <div />
           </div>
-          {purchases.length ? (
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, cursor: 'pointer' }}>
+            <input type="checkbox" checked={quickHasVariants} onChange={(e) => setQuickHasVariants(e.target.checked)} style={{ accentColor: '#0f172a' }} />
+            <span style={{ fontSize: 13, color: '#334155' }}>Has variants (sizes, colors)</span>
+          </label>
+          {quickHasVariants ? (
+            <textarea value={quickVariantLabels} onChange={(e) => setQuickVariantLabels(e.target.value)} style={{ ...fieldStyle, minHeight: 60, marginTop: 8 }} placeholder="One per line: 90/90-12, Red, Blue" />
+          ) : null}
+          <button onClick={quickReceive} style={{ ...accentButtonStyle, marginTop: 10, width: '100%', minHeight: 36 }} disabled={quickSaving}>
+            {quickSaving ? 'Saving...' : 'Create Product & Receive Stock'}
+          </button>
+        </article>
+
+        {/* ── Regular Purchase (existing products) ── */}
+        <article style={surfaceCardStyle}>
+          <h3 style={{ marginTop: 0, marginBottom: 4, fontSize: 15 }}>Receive Existing Products</h3>
+          <p style={{ margin: '0 0 12px', color: '#64748b', fontSize: 12 }}>Add products already in your catalog. Use Quick Add above for new products.</p>
+
+          <details style={{ marginBottom: 12 }}>
+            <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#475569' }}>+ Add supplier or location</summary>
+            <div style={{ display: 'grid', gap: 10, marginTop: 10 }}>
+              {/* Supplier mini-form */}
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <input value={supplierForm.companyName} onChange={(e) => setSupplierForm((c) => ({ ...c, companyName: e.target.value }))} style={{ ...fieldStyle, flex: 1, minWidth: 160 }} placeholder="Company name" />
+                <input value={supplierForm.phone} onChange={(e) => setSupplierForm((c) => ({ ...c, phone: e.target.value }))} style={{ ...fieldStyle, width: 160 }} placeholder="Phone (optional)" />
+                <button onClick={createSupplier} style={accentButtonStyle} disabled={loading}>Add Supplier</button>
+              </div>
+              {/* Location mini-form */}
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <input value={newLocationCode} onChange={(e) => setNewLocationCode(e.target.value)} style={{ ...fieldStyle, width: 120 }} placeholder="Code (WH-01)" />
+                <input value={newLocationName} onChange={(e) => setNewLocationName(e.target.value)} style={{ ...fieldStyle, flex: 1, minWidth: 160 }} placeholder="Name (Main Warehouse)" />
+                <button onClick={createLocation} style={accentButtonStyle} disabled={loading}>Add Location</button>
+              </div>
+            </div>
+          </details>
+
+          <div style={{ ...stackedFilterGridStyle, marginBottom: 10 }}>
+            <select value={purchaseForm.supplierId} onChange={(e) => setPurchaseForm((c) => ({ ...c, supplierId: e.target.value }))} style={fieldStyle}>
+              <option value="">Select supplier</option>
+              {supplierOptions2.map((s) => <option key={s.id} value={s.id}>{s.company_name}</option>)}
+            </select>
+            <select value={purchaseForm.locationId} onChange={(e) => setPurchaseForm((c) => ({ ...c, locationId: e.target.value }))} style={fieldStyle}>
+              <option value="">Select location</option>
+              {locations.map((l) => <option key={l.id} value={l.id}>{l.name} · {l.code}</option>)}
+            </select>
+            <input type="date" value={purchaseForm.purchaseDate} onChange={(e) => setPurchaseForm((c) => ({ ...c, purchaseDate: e.target.value }))} style={fieldStyle} />
+            <input value={purchaseForm.invoiceNo} onChange={(e) => setPurchaseForm((c) => ({ ...c, invoiceNo: e.target.value }))} style={fieldStyle} placeholder="Invoice no (optional)" />
+          </div>
+
+          {/* SKU search */}
+          <div style={{ ...searchRowStyle, marginBottom: 10 }}>
+            <input value={skuSearch} onChange={(e) => setSkuSearch(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); searchSkus(); } }} style={{ ...fieldStyle, flex: 1, width: 'auto' }} placeholder="Search existing product or SKU to add" />
+            <button onClick={searchSkus} style={searchButtonStyle} disabled={loading}>Find</button>
+          </div>
+
+          {skuResults.length ? (
+            <div style={{ ...tableWrapStyle, marginBottom: 10 }}>
+              <table style={tableStyle}>
+                <thead><tr><th style={tableHeaderCellStyle}>Product</th><th style={tableHeaderCellStyle}>SKU</th><th style={tableHeaderCellStyle}>Price</th><th style={tableHeaderCellStyle}>Stock</th><th style={tableHeaderCellStyle}></th></tr></thead>
+                <tbody>
+                  {skuResults.map((sku) => (
+                    <tr key={sku.id}>
+                      <td style={tableCellStyle}><div style={{ fontWeight: 600 }}>{sku.product_name}</div>{sku.variant_label ? <div style={{ fontSize: 11, color: '#64748b' }}>{sku.variant_label}</div> : null}</td>
+                      <td style={tableCellStyle}>{sku.sku_code}</td>
+                      <td style={tableCellStyle}>{formatMoney(sku.sale_price)}</td>
+                      <td style={tableCellStyle}>{Number(sku.available_qty ?? 0)}</td>
+                      <td style={tableCellStyle}><button onClick={() => addSkuItem(sku)} style={secondaryButtonStyle}>+ Add</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+
+          {items.length ? (
+            <div style={{ ...tableWrapStyle, marginBottom: 10 }}>
+              <table style={tableStyle}>
+                <thead><tr><th style={tableHeaderCellStyle}>Item</th><th style={tableHeaderCellStyle}>Qty</th><th style={tableHeaderCellStyle}>Unit Cost</th><th style={tableHeaderCellStyle}>Total</th><th style={tableHeaderCellStyle}></th></tr></thead>
+                <tbody>
+                  {items.map((item) => (
+                    <tr key={item.skuId}>
+                      <td style={tableCellStyle}>{item.label}</td>
+                      <td style={tableCellStyle}><input type="number" min="0" step="1" value={item.qty} onChange={(e) => setItems((c) => c.map((i) => i.skuId === item.skuId ? { ...i, qty: e.target.value } : i))} style={{ ...fieldStyle, width: 80 }} /></td>
+                      <td style={tableCellStyle}><input type="number" min="0" step="0.01" value={item.unitCost} onChange={(e) => setItems((c) => c.map((i) => i.skuId === item.skuId ? { ...i, unitCost: e.target.value } : i))} style={{ ...fieldStyle, width: 100 }} /></td>
+                      <td style={tableCellStyle}>{formatMoney(Number(item.qty || 0) * Number(item.unitCost || 0))}</td>
+                      <td style={tableCellStyle}><button onClick={() => setItems((c) => c.filter((i) => i.skuId !== item.skuId))} style={dangerButtonStyle}>✕</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div style={{ ...emptyStateStyle, marginBottom: 10 }}>Search and add at least one SKU to receive stock.</div>
+          )}
+
+          {/* Totals + Receive */}
+          <details style={{ marginBottom: 10 }}>
+            <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#475569' }}>Payment details</summary>
+            <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8, marginTop: 8 }}>
+              <input type="number" min="0" step="0.01" value={purchaseForm.discountAmount} onChange={(e) => setPurchaseForm((c) => ({ ...c, discountAmount: e.target.value }))} style={fieldStyle} placeholder="Discount" />
+              <input type="number" min="0" step="0.01" value={purchaseForm.taxAmount} onChange={(e) => setPurchaseForm((c) => ({ ...c, taxAmount: e.target.value }))} style={fieldStyle} placeholder="Tax" />
+              <input type="number" min="0" step="0.01" value={purchaseForm.shippingAmount} onChange={(e) => setPurchaseForm((c) => ({ ...c, shippingAmount: e.target.value }))} style={fieldStyle} placeholder="Shipping" />
+              <input type="number" min="0" step="0.01" value={purchaseForm.paidAmount} onChange={(e) => setPurchaseForm((c) => ({ ...c, paidAmount: e.target.value }))} style={fieldStyle} placeholder="Paid now" />
+              <select value={purchaseForm.paymentMethod} onChange={(e) => setPurchaseForm((c) => ({ ...c, paymentMethod: e.target.value as any }))} style={fieldStyle}>
+                <option value="cash">Cash</option><option value="card">Card</option><option value="mfs">MFS</option><option value="bank_transfer">Bank</option>
+              </select>
+              <input value={purchaseForm.paymentReference} onChange={(e) => setPurchaseForm((c) => ({ ...c, paymentReference: e.target.value }))} style={fieldStyle} placeholder="Ref no" />
+            </div>
+            <input value={purchaseForm.note} onChange={(e) => setPurchaseForm((c) => ({ ...c, note: e.target.value }))} style={{ ...fieldStyle, marginTop: 8 }} placeholder="Note (optional)" />
+          </details>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+            <div style={{ fontSize: 13 }}>
+              <span style={{ color: '#475569' }}>Subtotal: </span><strong>BDT {formatMoney(lineTotal.subtotal)}</strong>
+              <span style={{ color: '#475569', marginLeft: 12 }}>Total: </span><strong style={{ fontSize: 16 }}>BDT {formatMoney(lineTotal.total)}</strong>
+              {lineTotal.outstanding > 0 ? <span style={{ color: '#b45309', marginLeft: 8, fontSize: 12 }}>(BDT {formatMoney(lineTotal.outstanding)} unpaid)</span> : null}
+            </div>
+            <button onClick={createPurchase} style={{ ...accentButtonStyle, minHeight: 36, minWidth: 180 }} disabled={loading || !items.length}>
+              {loading ? 'Saving...' : 'Receive Stock'}
+            </button>
+          </div>
+        </article>
+      </section>
+      ) : null}
+
+      {/* ═══════════════ Purchases Tab ═══════════════ */}
+      {activeTab === 'purchases' ? (
+      <article style={surfaceCardStyle}>
+        <h3 style={{ marginTop: 0, fontSize: 15 }}>Purchase History</h3>
+        <div style={{ ...searchRowStyle, marginBottom: 10 }}>
+          <input value={purchaseSearch} onChange={(e) => setPurchaseSearch(e.target.value)} style={{ ...fieldStyle, flex: 1, width: 'auto' }} placeholder="Search purchase no, invoice, or supplier" />
+          <select value={purchaseStatus} onChange={(e) => setPurchaseStatus(e.target.value)} style={{ ...fieldStyle, width: 160 }}>
+            <option value="">All statuses</option><option value="received">Received</option><option value="draft">Draft</option><option value="cancelled">Cancelled</option>
+          </select>
+          <button onClick={() => void refresh(supplierPage, 1, payablePage)} style={searchButtonStyle} disabled={loading}>Search</button>
+        </div>
+        {purchases.length ? (
+          <>
+            <div style={tableWrapStyle}>
+              <table style={tableStyle}>
+                <thead><tr><th style={tableHeaderCellStyle}>Purchase No</th><th style={tableHeaderCellStyle}>Date</th><th style={tableHeaderCellStyle}>Supplier</th><th style={tableHeaderCellStyle}>Location</th><th style={tableHeaderCellStyle}>Total</th><th style={tableHeaderCellStyle}>Paid</th><th style={tableHeaderCellStyle}>Status</th></tr></thead>
+                <tbody>
+                  {purchases.map((p) => (
+                    <tr key={p.id}>
+                      <td style={tableCellStyle}><div style={{ fontWeight: 600 }}>{p.purchase_no}</div></td>
+                      <td style={tableCellStyle}>{p.purchase_date}</td>
+                      <td style={tableCellStyle}>{p.supplier_name}</td>
+                      <td style={tableCellStyle}>{p.location_name}</td>
+                      <td style={tableCellStyle}>{formatMoney(p.total_amount)}</td>
+                      <td style={tableCellStyle}>{formatMoney(p.paid_amount)}</td>
+                      <td style={tableCellStyle}>{p.payment_status}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <ListPager
+              page={purchasePagination.page}
+              pagination={purchasePagination}
+              label="purchases"
+              onNext={() => { const np = purchasePage + 1; setPurchasePage(np); void refresh(supplierPage, np, payablePage); }}
+              onPrevious={() => { const np = Math.max(1, purchasePage - 1); setPurchasePage(np); void refresh(supplierPage, np, payablePage); }}
+            />
+          </>
+        ) : <div style={emptyStateStyle}>No purchases found. Receive stock to see purchases here.</div>}
+      </article>
+      ) : null}
+
+      {/* ═══════════════ Payables Tab ═══════════════ */}
+      {activeTab === 'payables' ? (
+      <>
+        {/* Aging summary */}
+        <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
+          <MetricTile label="Today" amount={aging?.today_amount} count={aging?.today_count} />
+          <MetricTile label="1-7 days" amount={aging?.days_7_amount} count={aging?.days_7_count} />
+          <MetricTile label="8-30 days" amount={aging?.days_30_amount} count={aging?.days_30_count} />
+          <MetricTile label="31-90 days" amount={aging?.days_90_amount} count={aging?.days_90_count} />
+          <MetricTile label="90+ days" amount={aging?.days_90_plus_amount} count={aging?.days_90_plus_count} />
+        </section>
+
+        <article style={surfaceCardStyle}>
+          <h3 style={{ marginTop: 0, fontSize: 15 }}>Supplier Payables</h3>
+          <div style={{ ...searchRowStyle, marginBottom: 10 }}>
+            <input value={payableSearch} onChange={(e) => setPayableSearch(e.target.value)} style={{ ...fieldStyle, flex: 1, width: 'auto' }} placeholder="Search purchase no, invoice, supplier, or phone" />
+            <button onClick={() => void refresh(supplierPage, purchasePage, 1)} style={searchButtonStyle} disabled={loading}>Search</button>
+          </div>
+          {payables.length ? (
             <>
               <div style={tableWrapStyle}>
                 <table style={tableStyle}>
-                  <thead>
-                    <tr>
-                      <th style={tableHeaderCellStyle}>Purchase</th>
-                      <th style={tableHeaderCellStyle}>Supplier</th>
-                      <th style={tableHeaderCellStyle}>Location</th>
-                      <th style={tableHeaderCellStyle}>Items</th>
-                      <th style={tableHeaderCellStyle}>Total</th>
-                      <th style={tableHeaderCellStyle}>Paid</th>
-                      <th style={tableHeaderCellStyle}>Status</th>
-                    </tr>
-                  </thead>
+                  <thead><tr><th style={tableHeaderCellStyle}>Purchase No</th><th style={tableHeaderCellStyle}>Supplier</th><th style={tableHeaderCellStyle}>Date</th><th style={tableHeaderCellStyle}>Total</th><th style={tableHeaderCellStyle}>Outstanding</th><th style={tableHeaderCellStyle}>Age (days)</th></tr></thead>
                   <tbody>
-                    {purchases.map((purchase) => (
-                      <tr key={purchase.id}>
-                        <td style={tableCellStyle}>
-                          <div>{purchase.purchase_no}</div>
-                          <div style={tokenMutedStyle}>{purchase.invoice_no || 'No invoice ref'}</div>
-                        </td>
-                        <td style={tableCellStyle}>{purchase.supplier_name}</td>
-                        <td style={tableCellStyle}>{purchase.location_name}</td>
-                        <td style={tableCellStyle}>{purchase.item_count}</td>
-                        <td style={tableCellStyle}>{formatMoney(purchase.total_amount)}</td>
-                        <td style={tableCellStyle}>{formatMoney(purchase.paid_amount)}</td>
-                        <td style={tableCellStyle}>{purchase.payment_status} · {purchase.status}</td>
+                    {payables.map((p) => (
+                      <tr key={p.id}>
+                        <td style={tableCellStyle}>{p.purchase_no}</td>
+                        <td style={tableCellStyle}><div style={{ fontWeight: 600 }}>{p.supplier_name}</div>{p.supplier_phone ? <div style={{ fontSize: 11, color: '#64748b' }}>{p.supplier_phone}</div> : null}</td>
+                        <td style={tableCellStyle}>{p.purchase_date}</td>
+                        <td style={tableCellStyle}>{formatMoney(p.total_amount)}</td>
+                        <td style={tableCellStyle}><strong style={{ color: Number(p.outstanding_amount) > 0 ? '#b45309' : '#16a34a' }}>{formatMoney(p.outstanding_amount)}</strong></td>
+                        <td style={tableCellStyle}>{p.age_days}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
               <ListPager
-                page={purchasePage}
-                pagination={purchasePagination}
-                loading={loading}
-                label="purchase(s)"
-                onPrevious={() => void refresh(supplierPage, Math.max(1, purchasePage - 1), payablePage)}
-                onNext={() => void refresh(supplierPage, purchasePage + 1, payablePage)}
+                page={payablePagination.page} pagination={payablePagination} label="payables"
+                onNext={() => { const np = payablePage + 1; setPayablePage(np); void refresh(supplierPage, purchasePage, np); }}
+                onPrevious={() => { const np = Math.max(1, payablePage - 1); setPayablePage(np); void refresh(supplierPage, purchasePage, np); }}
               />
             </>
-          ) : (
-            <div style={emptyStateStyle}>No purchase records yet.</div>
-          )}
+          ) : <div style={emptyStateStyle}>No payables found. Receive a purchase first.</div>}
         </article>
+      </>
       ) : null}
-
-      {(!compact || activeTab === 'suppliers') ? (
-        <section style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'minmax(0, 1.25fr) minmax(320px, 0.75fr)', gap: 16 }}>
-          <article style={surfaceCardStyle}>
-            <div style={{ ...searchRowStyle, marginBottom: 12 }}>
-              <input value={supplierSearch} onChange={(event) => setSupplierSearch(event.target.value)} style={{ ...fieldStyle, flex: 1, width: 'auto' }} placeholder="Search supplier name, contact, phone, or email" />
-              <button onClick={() => void refresh(1, purchasePage, payablePage)} style={searchButtonStyle} disabled={loading}>Search</button>
-            </div>
-            {suppliers.length ? (
-              <>
-                <div style={tableWrapStyle}>
-                  <table style={tableStyle}>
-                    <thead>
-                      <tr>
-                        <th style={tableHeaderCellStyle}>Supplier</th>
-                        <th style={tableHeaderCellStyle}>Type</th>
-                        <th style={tableHeaderCellStyle}>Contact</th>
-                        <th style={tableHeaderCellStyle}>Opening</th>
-                        <th style={tableHeaderCellStyle}>Outstanding</th>
-                        <th style={tableHeaderCellStyle}>Purchases</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {suppliers.map((supplier) => (
-                        <tr key={supplier.id}>
-                          <td style={tableCellStyle}>
-                            <div>{supplier.company_name}</div>
-                            <div style={tokenMutedStyle}>{supplier.address || 'No address'}</div>
-                          </td>
-                          <td style={tableCellStyle}>{supplier.supplier_type}</td>
-                          <td style={tableCellStyle}>{supplier.contact_name || supplier.phone || supplier.email || '—'}</td>
-                          <td style={tableCellStyle}>{formatMoney(supplier.opening_payable_amount)}</td>
-                          <td style={tableCellStyle}>{formatMoney(supplier.total_payable_amount)}</td>
-                          <td style={tableCellStyle}>{supplier.purchase_count ?? 0}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <ListPager
-                  page={supplierPage}
-                  pagination={supplierPagination}
-                  loading={loading}
-                  label="supplier(s)"
-                  onPrevious={() => void refresh(Math.max(1, supplierPage - 1), purchasePage, payablePage)}
-                  onNext={() => void refresh(supplierPage + 1, purchasePage, payablePage)}
-                />
-              </>
-            ) : (
-              <div style={emptyStateStyle}>No suppliers found yet.</div>
-            )}
-          </article>
-
-          <article style={surfaceCardStyle}>
-            <div style={{ ...sectionPanelStyle, padding: 12 }}>
-              <div style={{ fontSize: 14, fontWeight: 500 }}>Add supplier</div>
-              <div style={stackedFilterGridStyle}>
-                <select value={supplierForm.supplierType} onChange={(event) => setSupplierForm((current) => ({ ...current, supplierType: event.target.value }))} style={fieldStyle}>
-                  <option value="supplier">Supplier</option>
-                  <option value="importer">Importer</option>
-                  <option value="company">Company</option>
-                </select>
-                <input value={supplierForm.companyName} onChange={(event) => setSupplierForm((current) => ({ ...current, companyName: event.target.value }))} style={fieldStyle} placeholder="Company name" />
-                <input value={supplierForm.contactName} onChange={(event) => setSupplierForm((current) => ({ ...current, contactName: event.target.value }))} style={fieldStyle} placeholder="Contact name" />
-                <input value={supplierForm.phone} onChange={(event) => setSupplierForm((current) => ({ ...current, phone: event.target.value }))} style={fieldStyle} placeholder="Phone" />
-                <input value={supplierForm.email} onChange={(event) => setSupplierForm((current) => ({ ...current, email: event.target.value }))} style={fieldStyle} placeholder="Email" />
-                <input value={supplierForm.openingPayableAmount} onChange={(event) => setSupplierForm((current) => ({ ...current, openingPayableAmount: event.target.value }))} style={fieldStyle} placeholder="Opening payable" />
-                <input value={supplierForm.address} onChange={(event) => setSupplierForm((current) => ({ ...current, address: event.target.value }))} style={fieldStyle} placeholder="Address" />
-                <input value={supplierForm.note} onChange={(event) => setSupplierForm((current) => ({ ...current, note: event.target.value }))} style={fieldStyle} placeholder="Note" />
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <button onClick={() => void createSupplier()} style={accentButtonStyle} disabled={loading}>Create supplier</button>
-              </div>
-            </div>
-          </article>
-        </section>
-      ) : null}
-
-      {(!compact || activeTab === 'receive') ? (
-        <section style={{ display: 'grid', gap: 16 }}>
-          <article style={surfaceCardStyle}>
-            <div style={{ ...surfaceCardStyle, marginBottom: 16, border: '2px solid #1e293b' }}>
-              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Quick Add Product + Receive Stock</div>
-              <div style={{ fontSize: 11, color: '#64748b', marginBottom: 14 }}>
-                Create a new product and receive stock in one step. For existing products, use the regular form below.
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
-                <input value={quickName} onChange={(e) => setQuickName(e.target.value)} style={fieldStyle} placeholder="Product name (required)" />
-                <input type="number" min="0" step="0.01" value={quickSalePrice} onChange={(e) => setQuickSalePrice(e.target.value)} style={fieldStyle} placeholder="Sale price (BDT)" />
-                <input type="number" min="1" step="1" value={quickQty} onChange={(e) => setQuickQty(e.target.value)} style={fieldStyle} placeholder="Purchase quantity (required)" />
-                <input type="number" min="0" step="0.01" value={quickCost} onChange={(e) => setQuickCost(e.target.value)} style={fieldStyle} placeholder="Unit cost (BDT)" />
-                <select value={quickSupplierId} onChange={(e) => setQuickSupplierId(e.target.value)} style={fieldStyle}>
-                  <option value="">Supplier (required)</option>
-                  {supplierOptions.map((s) => (
-                    <option key={s.id} value={s.id}>{s.company_name}</option>
-                  ))}
-                </select>
-                <select value={quickLocationId} onChange={(e) => setQuickLocationId(e.target.value)} style={fieldStyle}>
-                  <option value="">Location (required)</option>
-                  {locations.map((l) => (
-                    <option key={l.id} value={l.id}>{l.name} · {l.code}</option>
-                  ))}
-                </select>
-                <input type="number" min="0" step="0.01" value={quickPaid} onChange={(e) => setQuickPaid(e.target.value)} style={fieldStyle} placeholder="Paid amount (BDT)" />
-                <input value={quickNote} onChange={(e) => setQuickNote(e.target.value)} style={fieldStyle} placeholder="Note (optional)" />
-              </div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, cursor: 'pointer', userSelect: 'none' }}>
-                <input type="checkbox" checked={quickHasVariants} onChange={(e) => setQuickHasVariants(e.target.checked)} style={{ accentColor: '#0f172a' }} />
-                <span style={{ fontSize: 13, color: '#334155' }}>Has variants (sizes, colors, etc.)</span>
-              </label>
-              {quickHasVariants ? (
-                <textarea
-                  value={quickVariantLabels}
-                  onChange={(e) => setQuickVariantLabels(e.target.value)}
-                  style={{ ...fieldStyle, minHeight: 72, marginTop: 8 }}
-                  placeholder="One per line: 90/90-12, Red, Blue"
-                />
-              ) : null}
-              <button onClick={quickReceive} style={{ ...accentButtonStyle, marginTop: 12, width: '100%', minHeight: 36 }} disabled={quickSaving}>
-                {quickSaving ? 'Saving...' : 'Create Product & Receive Stock'}
-              </button>
-            </div>
-
-            <details style={{ marginBottom: 16 }}>
-              <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#475569' }}>+ Add New Location</summary>
-              <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                <input value={newLocationCode} onChange={(e) => setNewLocationCode(e.target.value)} style={fieldStyle} placeholder="Code (e.g., WH-01)" />
-                <input value={newLocationName} onChange={(e) => setNewLocationName(e.target.value)} style={{ ...fieldStyle, flex: 1 }} placeholder="Name (e.g., Main Warehouse)" />
-                <button onClick={createLocation} style={accentButtonStyle} disabled={loading}>Add</button>
-              </div>
-            </details>
-
-
-                        <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 12 }}>Receive purchase stock</div>
-            <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
-              <select value={purchaseForm.supplierId} onChange={(event) => setPurchaseForm((current) => ({ ...current, supplierId: event.target.value }))} style={fieldStyle}>
-                <option value="">Select supplier</option>
-                {supplierOptions.map((supplier) => (
-                  <option key={supplier.id} value={supplier.id}>{supplier.company_name}</option>
-                ))}
-              </select>
-              <select value={purchaseForm.locationId} onChange={(event) => setPurchaseForm((current) => ({ ...current, locationId: event.target.value }))} style={fieldStyle}>
-                <option value="">Select location</option>
-                {locations.map((location) => (
-                  <option key={location.id} value={location.id}>{location.name} · {location.code}</option>
-                ))}
-              </select>
-              <input type="date" value={purchaseForm.purchaseDate} onChange={(event) => setPurchaseForm((current) => ({ ...current, purchaseDate: event.target.value }))} style={fieldStyle} />
-              <input value={purchaseForm.invoiceNo} onChange={(event) => setPurchaseForm((current) => ({ ...current, invoiceNo: event.target.value }))} style={fieldStyle} placeholder="Invoice no" />
-            </div>
-
-            <div style={{ ...surfaceCardStyle, padding: 12, marginBottom: 12 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 8 }}>Quick line defaults</div>
-              <div style={{ ...stackedFilterGridStyle, alignItems: 'end' }}>
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={lineDefaults.qty}
-                  onChange={(event) => setLineDefaults((current) => ({ ...current, qty: event.target.value }))}
-                  style={fieldStyle}
-                  placeholder="Default qty"
-                />
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={lineDefaults.unitCost}
-                  onChange={(event) => setLineDefaults((current) => ({ ...current, unitCost: event.target.value }))}
-                  style={fieldStyle}
-                  placeholder="Default unit cost"
-                />
-                <div style={tokenMutedStyle}>New lines use these values automatically.</div>
-              </div>
-            </div>
-
-            <div style={{ ...searchRowStyle, marginBottom: 12 }}>
-              <input value={skuSearch} onChange={(event) => setSkuSearch(event.target.value)} style={{ ...fieldStyle, flex: 1, width: 'auto' }} placeholder="Search product or SKU to add line" />
-              <button onClick={() => void searchSkus()} style={searchButtonStyle} disabled={loading}>Find SKU</button>
-            </div>
-
-            <div style={{ fontSize: 11, color: '#64748b', marginBottom: 12 }}>
-              Search returns the exact sellable SKU rows. If a product has variants, each variant shows separately so the operator can add the right line in one click.
-            </div>
-
-            {skuResults.length ? (
-              <div style={{ ...tableWrapStyle, marginBottom: 12 }}>
-                <table style={tableStyle}>
-                  <thead>
-                    <tr>
-                      <th style={tableHeaderCellStyle}>Product</th>
-                      <th style={tableHeaderCellStyle}>Variant</th>
-                      <th style={tableHeaderCellStyle}>SKU</th>
-                      <th style={tableHeaderCellStyle}>Available</th>
-                      <th style={tableHeaderCellStyle}>Last Cost</th>
-                      <th style={tableHeaderCellStyle}>Sale</th>
-                      <th style={tableHeaderCellStyle}>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {skuResults.map((sku) => (
-                      <tr key={sku.id}>
-                        <td style={tableCellStyle}>
-                          <div>{sku.product_name}</div>
-                          <div style={tokenMutedStyle}>{sku.product_code || '—'}</div>
-                        </td>
-                        <td style={tableCellStyle}>{sku.variant_label || 'Default'}</td>
-                        <td style={tableCellStyle}>{sku.sku_code}</td>
-                        <td style={tableCellStyle}>{Number(sku.available_qty ?? 0).toLocaleString()}</td>
-                        <td style={tableCellStyle}>{formatMoney(sku.cost_price)}</td>
-                        <td style={tableCellStyle}>{formatMoney(sku.sale_price)}</td>
-                        <td style={tableCellStyle}>
-                          <button onClick={() => addSkuItem(sku)} style={secondaryButtonStyle}>Add line</button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : null}
-
-            {items.length ? (
-              <div style={tableWrapStyle}>
-                <table style={tableStyle}>
-                  <thead>
-                    <tr>
-                      <th style={tableHeaderCellStyle}>Item</th>
-                      <th style={tableHeaderCellStyle}>Qty</th>
-                      <th style={tableHeaderCellStyle}>Unit cost</th>
-                      <th style={tableHeaderCellStyle}>Batch / lot</th>
-                      <th style={tableHeaderCellStyle}>Expiry</th>
-                      <th style={tableHeaderCellStyle}>Line total</th>
-                      <th style={tableHeaderCellStyle}>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {items.map((item) => (
-                      <tr key={item.skuId}>
-                        <td style={tableCellStyle}>{item.label}</td>
-                        <td style={tableCellStyle}>
-                          <input
-                            type="number"
-                            min="0"
-                            step="1"
-                            value={item.qty}
-                            onChange={(event) => setItems((current) => current.map((entry) => entry.skuId === item.skuId ? { ...entry, qty: event.target.value } : entry))}
-                            style={fieldStyle}
-                          />
-                        </td>
-                        <td style={tableCellStyle}>
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={item.unitCost}
-                            onChange={(event) => setItems((current) => current.map((entry) => entry.skuId === item.skuId ? { ...entry, unitCost: event.target.value } : entry))}
-                            style={fieldStyle}
-                          />
-                        </td>
-                        <td style={tableCellStyle}>
-                          <input
-                            value={item.batchNo}
-                            onChange={(event) => setItems((current) => current.map((entry) => entry.skuId === item.skuId ? { ...entry, batchNo: event.target.value } : entry))}
-                            style={fieldStyle}
-                            placeholder="Optional"
-                          />
-                        </td>
-                        <td style={tableCellStyle}>
-                          <input
-                            type="date"
-                            value={item.expiryDate}
-                            onChange={(event) => setItems((current) => current.map((entry) => entry.skuId === item.skuId ? { ...entry, expiryDate: event.target.value } : entry))}
-                            style={fieldStyle}
-                          />
-                        </td>
-                        <td style={tableCellStyle}>{formatMoney(Number(item.qty || 0) * Number(item.unitCost || 0))}</td>
-                        <td style={tableCellStyle}>
-                          <button onClick={() => setItems((current) => current.filter((entry) => entry.skuId !== item.skuId))} style={secondaryButtonStyle}>Remove</button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div style={emptyStateStyle}>Search and add at least one SKU line to receive purchase stock.</div>
-            )}
-
-            <details style={{ marginTop: 12 }}>
-              <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#475569' }}>Extra totals and payment details</summary>
-              <div style={{ ...stackedFilterGridStyle, marginTop: 12 }}>
-                <input type="number" min="0" step="0.01" value={purchaseForm.discountAmount} onChange={(event) => setPurchaseForm((current) => ({ ...current, discountAmount: event.target.value }))} style={fieldStyle} placeholder="Discount" />
-                <input type="number" min="0" step="0.01" value={purchaseForm.taxAmount} onChange={(event) => setPurchaseForm((current) => ({ ...current, taxAmount: event.target.value }))} style={fieldStyle} placeholder="Tax" />
-                <input type="number" min="0" step="0.01" value={purchaseForm.shippingAmount} onChange={(event) => setPurchaseForm((current) => ({ ...current, shippingAmount: event.target.value }))} style={fieldStyle} placeholder="Shipping" />
-                <input type="number" min="0" step="0.01" value={purchaseForm.paidAmount} onChange={(event) => setPurchaseForm((current) => ({ ...current, paidAmount: event.target.value }))} style={fieldStyle} placeholder="Paid now" />
-                <select value={purchaseForm.paymentMethod} onChange={(event) => setPurchaseForm((current) => ({ ...current, paymentMethod: event.target.value }))} style={fieldStyle}>
-                  <option value="cash">Cash</option>
-                  <option value="card">Card</option>
-                  <option value="mfs">MFS</option>
-                  <option value="bank_transfer">Bank transfer</option>
-                </select>
-                <input value={purchaseForm.paymentReferenceNo} onChange={(event) => setPurchaseForm((current) => ({ ...current, paymentReferenceNo: event.target.value }))} style={fieldStyle} placeholder="Payment reference" />
-                <input value={purchaseForm.note} onChange={(event) => setPurchaseForm((current) => ({ ...current, note: event.target.value }))} style={fieldStyle} placeholder="Purchase note" />
-                <input value={purchaseForm.paymentNote} onChange={(event) => setPurchaseForm((current) => ({ ...current, paymentNote: event.target.value }))} style={fieldStyle} placeholder="Payment note" />
-              </div>
-            </details>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginTop: 12 }}>
-              <div style={tokenMutedStyle}>
-                {items.length} line(s) · Subtotal {formatMoney(totals.subtotal)} · Total {formatMoney(totals.total)} · Due {formatMoney(totals.outstanding)}
-              </div>
-              <button onClick={() => void createPurchase()} style={accentButtonStyle} disabled={loading}>Receive purchase</button>
-            </div>
-          </article>
-        </section>
-      ) : null}
-
-      <article style={surfaceCardStyle}>
-        <h3 style={{ marginTop: 0 }}>Operator Notes</h3>
-        <p style={tokenMutedStyle}>{message}</p>
-      </article>
     </section>
-  );
-}
-
-function MetricTile({
-  label,
-  amount,
-  count,
-}: {
-  label: string;
-  amount: string | number | null | undefined;
-  count: number | null | undefined;
-}) {
-  return (
-    <article style={surfaceCardStyle}>
-      <div style={{ fontSize: 12, color: '#64748b' }}>{label}</div>
-      <div style={{ fontSize: 22, fontWeight: 600 }}>{formatMoney(amount)}</div>
-      <div style={{ color: '#64748b' }}>{count ?? 0} payable(s)</div>
-    </article>
   );
 }
