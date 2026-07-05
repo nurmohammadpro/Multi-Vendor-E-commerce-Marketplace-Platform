@@ -40,7 +40,16 @@ const navItems = [
   { href: '/pos', label: 'Sales', permission: 'sales.pos.create', feature: 'pos' },
   { href: '/catalog', label: 'Products', permission: 'catalog.manage', feature: 'catalog' },
   { href: '/purchases', label: 'Purchases', feature: 'purchases' },
+  { href: '/customers', label: 'Customers', permission: 'sales.report.view', feature: 'customers' },
   { href: '/reports', label: 'Reports', permission: 'sales.report.view', feature: 'reports' },
+  { href: '/staff', label: 'Staff', permission: 'store.staff.manage', feature: 'staff' },
+  { href: '/expenses', label: 'Expenses', feature: 'expenses' },
+  { href: '/payroll', label: 'Payroll', feature: 'payroll' },
+  { href: '/banking', label: 'Banking', feature: 'banking' },
+  { href: '/billing', label: 'Subscription', permission: 'billing.subscription.manage', feature: 'billing' },
+  { href: '/support', label: 'Support', permission: 'sales.report.view', feature: 'support' },
+  { href: '/settings', label: 'Settings', permission: 'store.settings.manage', feature: 'settings' },
+  { href: '/hardware', label: 'Hardware', permission: 'store.settings.manage', feature: 'hardware' },
 ] satisfies Array<{
   href: string;
   label: string;
