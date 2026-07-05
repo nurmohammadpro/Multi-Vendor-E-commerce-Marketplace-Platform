@@ -10,14 +10,10 @@ export const metadata = {
 
 const navItems = [
   { href: '/', label: 'Dashboard' },
-  { href: '/stores', label: 'Store Ops' },
+  { href: '/stores', label: 'Stores' },
   { href: '/payments', label: 'Payments' },
   { href: '/reports', label: 'Reports' },
-  { href: '/audit', label: 'Audit' },
-  { href: '/session', label: 'Session' },
-  { href: '/notifications', label: 'Notifications' },
   { href: '/support', label: 'Support' },
-  { href: '/settings', label: 'Settings' },
 ];
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
