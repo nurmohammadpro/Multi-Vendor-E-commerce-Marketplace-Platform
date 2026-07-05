@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 
 import {
   accentButtonStyle,
@@ -92,8 +92,17 @@ export function PurchasesWorkspace() {
   const [quickVariantCost, setQuickVariantCost] = useState('');
   const [quickVariantQty, setQuickVariantQty] = useState('1');
   // Categories loaded from API
-  const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([]);
+  const [categories, setCategories] = useState<Array<{ id: string; name: string; parent_id?: string | null; parent_name?: string | null }>>([]);
   const [brands, setBrands] = useState<Array<{ id: string; name: string }>>([]);
+  // Build hierarchical category display
+  const categoryTree = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; parent_id: string | null; children: Array<{ id: string; name: string }> }>();
+    for (const c of categories) { map.set(c.id, { id: c.id, name: c.name, parent_id: c.parent_id ?? null, children: [] }); }
+    for (const c of categories) {
+      if (c.parent_id && map.has(c.parent_id)) { map.get(c.parent_id)!.children.push({ id: c.id, name: c.name }); }
+    }
+    return Array.from(map.values()).filter((c) => !c.parent_id);
+  }, [categories]);
 
   // Regular purchase form
   const [purchaseForm, setPurchaseForm] = useState({ supplierId: '', locationId: '', purchaseDate: new Date().toISOString().slice(0, 10), invoiceNo: '', discountAmount: '0', taxAmount: '0', shippingAmount: '0', paidAmount: '0', paymentMethod: 'cash' as 'cash' | 'card' | 'mfs' | 'bank_transfer', paymentReference: '', note: '' });
@@ -322,9 +331,21 @@ export function PurchasesWorkspace() {
             <div style={{ display: 'flex', gap: 6 }}>
               <select value={quickCategoryId} onChange={(e) => setQuickCategoryId(e.target.value)} style={{ ...fieldStyle, flex: 1 }}>
                 <option value="">No category</option>
-                {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                {categoryTree.map((parent) => (
+                  <React.Fragment key={parent.id}>
+                    <option value={parent.id} style={{ fontWeight: 600 }}>{parent.name}</option>
+                    {parent.children.map((child) => (
+                      <option key={child.id} value={child.id} style={{ paddingLeft: 16 }}>&nbsp;&nbsp;&nbsp;↳ {child.name}</option>
+                    ))}
+                  </React.Fragment>
+                ))}
+                {categories.filter((c) => !c.parent_id && !categoryTree.find((t) => t.id === c.id)).length ? (
+                  categories.filter((c) => !c.parent_id && !categoryTree.find((t) => t.id === c.id)).map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))
+                ) : null}
               </select>
-              <input value={quickNewCategory} onChange={(e) => setQuickNewCategory(e.target.value)} style={{ ...fieldStyle, width: 120 }} placeholder="New category" />
+              <input value={quickNewCategory} onChange={(e) => setQuickNewCategory(e.target.value)} style={{ ...fieldStyle, width: 130 }} placeholder={quickCategoryId ? "New subcategory" : "New category"} />
               <button onClick={createCategoryQuick} style={{ ...secondaryButtonStyle, minWidth: 50, fontSize: 11 }} disabled={loading || !quickNewCategory.trim()}>+</button>
             </div>
             <div style={{ display: 'flex', gap: 6 }}>
