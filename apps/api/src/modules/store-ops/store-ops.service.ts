@@ -2250,7 +2250,7 @@ export class StoreOpsService {
       const now = new Date();
       const yyyymm = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
       const seqResult = await client.query<{ next_seq: string }>(
-        `select lpad(coalesce(max(nullif(regexp_replace(purchase_no, '^PUR-\\d+-\\d+-', ''), '')), '0')::int + 1, 3, '0') as next_seq
+        `select lpad((coalesce(max(nullif(regexp_replace(purchase_no, '^PUR-\\d+-\\d+-', ''), '')), '0')::int + 1)::text, 3, '0') as next_seq
          from procurement.purchases where purchase_no like 'PUR-' || $1 || '-' || $2 || '-%'`,
         [storeCode, yyyymm],
       );
