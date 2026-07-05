@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import { ListPager, type PaginationState } from '../list-pager';
+import { toast } from 'sonner';
 import {
   accentButtonStyle,
   emptyStateStyle,
@@ -171,6 +172,24 @@ export function PurchasesWorkspace() {
   });
 
   const [skuSearch, setSkuSearch] = useState('');
+
+  // Quick Add + Receive form state
+  const [quickName, setQuickName] = useState('');
+  const [quickSalePrice, setQuickSalePrice] = useState('');
+  const [quickQty, setQuickQty] = useState('');
+  const [quickCost, setQuickCost] = useState('');
+  const [quickSupplierId, setQuickSupplierId] = useState('');
+  const [quickLocationId, setQuickLocationId] = useState('');
+  const [quickPaid, setQuickPaid] = useState('');
+  const [quickHasVariants, setQuickHasVariants] = useState(false);
+  const [quickVariantLabels, setQuickVariantLabels] = useState('');
+  const [quickNote, setQuickNote] = useState('');
+  const [quickSaving, setQuickSaving] = useState(false);
+
+  // Location creation state
+  const [newLocationCode, setNewLocationCode] = useState('');
+  const [newLocationName, setNewLocationName] = useState('');
+
   const [items, setItems] = useState<PurchaseLineDraft[]>([]);
   const [lineDefaults, setLineDefaults] = useState({ qty: '1', unitCost: '' });
   const [paymentAmounts, setPaymentAmounts] = useState<Record<string, string>>({});
@@ -336,7 +355,73 @@ export function PurchasesWorkspace() {
     }
   };
 
-  const createPurchase = async () => {
+  const quickReceive = async () => {
+    if (!quickName.trim() || !quickQty || !quickSupplierId || !quickLocationId) {
+      setMessage('Product name, quantity, supplier, and location are required.');
+      return;
+    }
+
+    setQuickSaving(true);
+    try {
+      const payload = await readJson('/api/store-ops/quick-receive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productName: quickName.trim(),
+          supplierId: quickSupplierId,
+          locationId: quickLocationId,
+          salePrice: Number(quickSalePrice || 0),
+          purchaseQty: Number(quickQty),
+          unitCost: Number(quickCost || 0),
+          paidAmount: Number(quickPaid || 0),
+          hasVariants: quickHasVariants,
+          variantLabels: quickHasVariants && quickVariantLabels.trim()
+            ? quickVariantLabels.split(/\n|,/).map((s: string) => s.trim()).filter(Boolean)
+            : undefined,
+          note: quickNote.trim() || undefined,
+        }),
+      });
+
+      setMessage(`Product "${payload.product.name}" created and stock received. Purchase ${payload.purchase.purchaseNo}.`);
+      // Reset form
+      setQuickName(''); setQuickSalePrice(''); setQuickQty(''); setQuickCost('');
+      setQuickPaid(''); setQuickSupplierId('');
+      setQuickVariantLabels(''); setQuickNote(''); setQuickHasVariants(false);
+      // Refresh lists
+      await refresh(supplierPage, purchasePage, payablePage);
+    } catch (error) {
+      const msg = (error as Error).message; setMessage(msg); toast.error(msg);
+    } finally {
+      setQuickSaving(false);
+    }
+  };
+
+  const createLocation = async () => {
+    if (!newLocationCode.trim() || !newLocationName.trim()) {
+      setMessage('Location code and name are required.');
+      return;
+    }
+    setLoading(true);
+    try {
+      await readJson('/api/inventory/locations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: newLocationCode.trim(), name: newLocationName.trim() }),
+      });
+      setMessage(`Location "${newLocationName}" created.`);
+      setNewLocationCode(''); setNewLocationName('');
+      // Refresh locations
+      const locPayload = await readJson<{ locations: Location[] }>('/api/inventory/locations');
+      setLocations(locPayload.locations ?? []);
+    } catch (error) {
+      const msg = (error as Error).message; setMessage(msg); toast.error(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
+const createPurchase = async () => {
     if (!purchaseForm.supplierId || !purchaseForm.locationId) {
       setMessage('Choose a supplier and inventory location first.');
       return;
@@ -661,7 +746,63 @@ export function PurchasesWorkspace() {
       {(!compact || activeTab === 'receive') ? (
         <section style={{ display: 'grid', gap: 16 }}>
           <article style={surfaceCardStyle}>
-            <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 12 }}>Receive purchase stock</div>
+            {/* ── Quick Add + Receive ── */}
+            <div style={{ ...surfaceCardStyle, marginBottom: 16, border: '2px solid #1e293b' }}>
+              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Quick Add Product + Receive Stock</div>
+              <div style={{ fontSize: 11, color: '#64748b', marginBottom: 14 }}>
+                Create a new product and receive stock in one step. For existing products, use the regular form below.
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
+                <input value={quickName} onChange={(e) => setQuickName(e.target.value)} style={fieldStyle} placeholder="Product name (required)" />
+                <input type="number" min="0" step="0.01" value={quickSalePrice} onChange={(e) => setQuickSalePrice(e.target.value)} style={fieldStyle} placeholder="Sale price (BDT)" />
+                <input type="number" min="1" step="1" value={quickQty} onChange={(e) => setQuickQty(e.target.value)} style={fieldStyle} placeholder="Purchase quantity (required)" />
+                <input type="number" min="0" step="0.01" value={quickCost} onChange={(e) => setQuickCost(e.target.value)} style={fieldStyle} placeholder="Unit cost (BDT)" />
+                <select value={quickSupplierId} onChange={(e) => setQuickSupplierId(e.target.value)} style={fieldStyle}>
+                  <option value="">Supplier (required)</option>
+                  {supplierOptions.map((s) => (
+                    <option key={s.id} value={s.id}>{s.company_name}</option>
+                  ))}
+                </select>
+                <select value={quickLocationId} onChange={(e) => setQuickLocationId(e.target.value)} style={fieldStyle}>
+                  <option value="">Location (required)</option>
+                  {locations.map((l) => (
+                    <option key={l.id} value={l.id}>{l.name} · {l.code}</option>
+                  ))}
+                </select>
+                <input type="number" min="0" step="0.01" value={quickPaid} onChange={(e) => setQuickPaid(e.target.value)} style={fieldStyle} placeholder="Paid amount (BDT)" />
+                <input value={quickNote} onChange={(e) => setQuickNote(e.target.value)} style={fieldStyle} placeholder="Note (optional)" />
+              </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, cursor: 'pointer', userSelect: 'none' }}>
+                <input type="checkbox" checked={quickHasVariants} onChange={(e) => setQuickHasVariants(e.target.checked)} style={{ accentColor: '#0f172a' }} />
+                <span style={{ fontSize: 13, color: '#334155' }}>Has variants (sizes, colors, etc.)</span>
+              </label>
+              {quickHasVariants ? (
+                <textarea
+                  value={quickVariantLabels}
+                  onChange={(e) => setQuickVariantLabels(e.target.value)}
+                  style={{ ...fieldStyle, minHeight: 72, marginTop: 8 }}
+                  placeholder={'One variant per line
+90/90-12\n100/80-17\nRed'}
+                />
+              ) : null}
+              <button onClick={quickReceive} style={{ ...accentButtonStyle, marginTop: 12, width: '100%', minHeight: 36 }} disabled={quickSaving}>
+                {quickSaving ? 'Saving...' : 'Create Product & Receive Stock'}
+              </button>
+            </div>
+
+            {/* ── Add Location (Pro plan) ── */}
+            <details style={{ marginBottom: 16 }}>
+              <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#475569' }}>+ Add New Location</summary>
+              <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                <input value={newLocationCode} onChange={(e) => setNewLocationCode(e.target.value)} style={fieldStyle} placeholder="Code (e.g., WH-01)" />
+                <input value={newLocationName} onChange={(e) => setNewLocationName(e.target.value)} style={{ ...fieldStyle, flex: 1 }} placeholder="Name (e.g., Main Warehouse)" />
+                <button onClick={createLocation} style={accentButtonStyle} disabled={loading}>Add</button>
+              </div>
+            </details>
+
+
+            <!-- ── Regular Purchase ── -->
+                        <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 12 }}>Receive purchase stock</div>
             <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
               <select value={purchaseForm.supplierId} onChange={(event) => setPurchaseForm((current) => ({ ...current, supplierId: event.target.value }))} style={fieldStyle}>
                 <option value="">Select supplier</option>

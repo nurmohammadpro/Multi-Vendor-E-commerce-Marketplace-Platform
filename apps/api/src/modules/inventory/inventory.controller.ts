@@ -10,7 +10,7 @@ import { InventoryService } from './inventory.service.js';
 const createLocationSchema = z.object({
   code: z.string().min(1).max(50),
   name: z.string().min(1).max(150),
-  locationType: z.enum(['storefront', 'warehouse', 'backroom']),
+  locationType: z.enum(['store', 'warehouse', 'popup']).default('store'),
 });
 
 const requestAdjustmentSchema = z.object({
@@ -29,6 +29,7 @@ const decisionSchema = z.object({
 export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
 
+
   @Get('locations')
   @RequireContext('store')
   @RequirePermissions('inventory.view')
@@ -45,9 +46,10 @@ export class InventoryController {
   createLocation(
     @Headers('x-store-id') headerStoreId: string | undefined,
     @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @CurrentAuthSession() session: AuthSession | null,
     @Body() payload: unknown,
   ) {
-    return this.inventoryService.createLocation(headerStoreId, authContext, createLocationSchema.parse(payload));
+    return this.inventoryService.createLocation(headerStoreId, authContext, session, createLocationSchema.parse(payload));
   }
 
   @Get('balances')

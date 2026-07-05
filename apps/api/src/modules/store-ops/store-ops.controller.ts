@@ -175,6 +175,29 @@ const bankEntryUpdateSchema = bankEntrySchema.partial().extend({
   note: z.string().max(500).nullable().optional(),
 });
 
+
+// ── Quick Receive: create product + SKU + purchase + stock in one transaction ──
+
+const quickReceiveSchema = z.object({
+  productName: z.string().min(1).max(200),
+  categoryId: z.string().uuid().optional(),
+  brandId: z.string().uuid().optional(),
+  supplierId: z.string().uuid(),
+  locationId: z.string().uuid(),
+  salePrice: z.number().nonnegative(),
+  purchaseQty: z.number().positive(),
+  unitCost: z.number().nonnegative(),
+  paidAmount: z.number().nonnegative().default(0),
+  paymentMethod: z.enum(['cash','card','mfs','bank_transfer']).default('cash'),
+  paymentReference: z.string().max(150).optional(),
+  hasVariants: z.boolean().default(false),
+  variantLabels: z.array(z.string().max(100)).optional(),
+  variantPrices: z.array(z.number().nonnegative()).optional(),
+  variantCosts: z.array(z.number().nonnegative()).optional(),
+  note: z.string().max(500).optional(),
+});
+
+
 @Controller('store-ops')
 @UseGuards(PermissionsGuard)
 export class StoreOpsController {
