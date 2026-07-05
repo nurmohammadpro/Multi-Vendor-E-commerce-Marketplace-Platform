@@ -85,8 +85,8 @@ async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
 
   if (!response.ok) {
     const message =
-      payload && typeof payload === 'object' && (payload as any).error
-        ? (payload as any).error
+      payload && typeof payload === 'object' && ((payload as any).error || (payload as any).message)
+        ? ((payload as any).error || (payload as any).message)
         : `Request failed with ${response.status}`;
     throw new Error(message);
   }
@@ -210,7 +210,7 @@ export function InventoryWorkspace({
       setSkuResults(payload.skus ?? []);
       setMessage(`Found ${payload.skus?.length ?? 0} SKU(s) for inventory actions.`);
     } catch (error) {
-      setMessage((error as Error).message);
+      const msg = (error as Error).message; setMessage(msg); toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -241,7 +241,7 @@ export function InventoryWorkspace({
       setQuantity('');
       setReason('');
     } catch (error) {
-      setMessage((error as Error).message);
+      const msg = (error as Error).message; setMessage(msg); toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -276,7 +276,7 @@ export function InventoryWorkspace({
       setQuantity('');
       setReason('');
     } catch (error) {
-      setMessage((error as Error).message);
+      const msg = (error as Error).message; setMessage(msg); toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -298,7 +298,7 @@ export function InventoryWorkspace({
       setMessage(`Adjustment ${decision}d successfully.`);
       setDecisionNote('');
     } catch (error) {
-      setMessage((error as Error).message);
+      const msg = (error as Error).message; setMessage(msg); toast.error(msg);
     } finally {
       setLoading(false);
     }
