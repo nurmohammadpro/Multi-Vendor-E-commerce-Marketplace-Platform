@@ -2338,8 +2338,8 @@ export class StoreOpsService {
 
         // Upsert inventory balance
         await client.query(
-          `insert into inventory.balances (id, tenant_id, store_id, location_id, sku_id, on_hand_qty, created_at, updated_at)
-           values (gen_random_uuid(), $1, $2, $3, $4, $5, now(), now())
+          `insert into inventory.balances (id, tenant_id, store_id, location_id, sku_id, on_hand_qty, updated_at)
+           values (gen_random_uuid(), $1, $2, $3, $4, $5, now())
            on conflict (location_id, sku_id) do update set on_hand_qty = inventory.balances.on_hand_qty + $5, updated_at = now()`,
           [tenantId, storeId, payload.locationId, sku.id, sku.qty],
         );
