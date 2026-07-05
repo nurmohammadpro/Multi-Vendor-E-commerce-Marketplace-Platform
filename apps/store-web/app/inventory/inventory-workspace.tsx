@@ -209,7 +209,7 @@ export function InventoryWorkspace({
       setSkuResults(payload.skus ?? []);
       setMessage(`Found ${payload.skus?.length ?? 0} SKU(s) for inventory actions.`);
     } catch (error) {
-      const msg = (error as Error).message; setMessage(msg); toast.error(msg);
+      setMessage((error as Error).message);
     } finally {
       setLoading(false);
     }
@@ -244,7 +244,7 @@ export function InventoryWorkspace({
       setQuantity('');
       setReason('');
     } catch (error) {
-      const msg = (error as Error).message; setMessage(msg); toast.error(msg);
+      setMessage((error as Error).message);
     } finally {
       setLoading(false);
     }
@@ -266,7 +266,7 @@ export function InventoryWorkspace({
       setMessage(`Adjustment ${decision}d successfully.`);
       setDecisionNote('');
     } catch (error) {
-      const msg = (error as Error).message; setMessage(msg); toast.error(msg);
+      setMessage((error as Error).message);
     } finally {
       setLoading(false);
     }
