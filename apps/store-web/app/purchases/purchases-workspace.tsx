@@ -99,6 +99,7 @@ export function PurchasesWorkspace() {
   const [quickNewBrand, setQuickNewBrand] = useState('');
   // Variants with individual pricing
   const [quickHasVariants, setQuickHasVariants] = useState(false);
+  const [quickIsTrackable, setQuickIsTrackable] = useState(true);
   const [quickVariantRows, setQuickVariantRows] = useState<Array<{ key: string; label: string; price: string; cost: string; qty: string }>>([]);
   const [quickVariantInput, setQuickVariantInput] = useState('');
   const [quickVariantPrice, setQuickVariantPrice] = useState('');
@@ -223,7 +224,7 @@ export function PurchasesWorkspace() {
         categoryId: quickCategoryId || undefined, brandId: quickBrandId || undefined,
         salePrice: Number(row.price || 0), purchaseQty: Number(row.qty || 1),
         unitCost: Number(row.cost || 0), paidAmount: Number(quickPaid || 0),
-        hasVariants: false, variantLabels: undefined, note: '',
+        hasVariants: false, variantLabels: undefined, isTrackable: quickIsTrackable, note: '',
       })) : [{
         productName: quickName.trim(),
         supplierId: quickSupplierId, locationId: quickLocationId,
@@ -232,7 +233,7 @@ export function PurchasesWorkspace() {
         purchaseQty: Number(quickVariantRows[0]?.qty || 1),
         unitCost: Number(quickVariantRows[0]?.cost || 0),
         paidAmount: Number(quickPaid || 0),
-        hasVariants: false, variantLabels: undefined, note: '',
+        hasVariants: false, variantLabels: undefined, isTrackable: quickIsTrackable, note: '',
       }];
 
       let lastResult: any = null;
@@ -375,6 +376,12 @@ export function PurchasesWorkspace() {
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, cursor: 'pointer' }}>
             <input type="checkbox" checked={quickHasVariants} onChange={(e) => { setQuickHasVariants(e.target.checked); if (!e.target.checked) setQuickVariantRows([]); }} style={{ accentColor: '#0f172a' }} />
             <span style={{ fontSize: 13, color: '#334155' }}>Has variants (sizes, colors, etc.)</span>
+          </label>
+
+          {/* Trackable toggle */}
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, cursor: 'pointer' }}>
+            <input type="checkbox" checked={quickIsTrackable} onChange={(e) => setQuickIsTrackable(e.target.checked)} style={{ accentColor: '#0f172a' }} />
+            <span style={{ fontSize: 13, color: '#334155' }}>Track inventory (stock levels)</span>
           </label>
 
           {/* Variant input row */}

@@ -194,6 +194,7 @@ const quickReceiveSchema = z.object({
   variantLabels: z.array(z.string().max(100)).optional(),
   variantPrices: z.array(z.number().nonnegative()).optional(),
   variantCosts: z.array(z.number().nonnegative()).optional(),
+  isTrackable: z.boolean().default(true),
   note: z.string().max(500).optional(),
 });
 
