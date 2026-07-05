@@ -2249,7 +2249,7 @@ export class StoreOpsService {
       const tenantResult = await client.query<{ tenant_id: string; store_code: string }>(
         `select tenant_id, store_code from store.stores where id = $1 limit 1`, [storeId],
       );
-      const { tenant_id: tenantId, store_code: storeCode } = tenantResult.rows[0];
+      const { tenant_id: tenantId } = tenantResult.rows[0];
 
       // Trim name and generate product code
       const productName = payload.productName.trim();
@@ -2257,15 +2257,9 @@ export class StoreOpsService {
       const categoryId = payload.categoryId || null;
       const brandId = payload.brandId || null;
 
-      // Generate purchase number
-      const now = new Date();
-      const yyyymm = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
-      const seqResult = await client.query<{ next_seq: string }>(
-        `select lpad((coalesce(max(nullif(regexp_replace(purchase_no, '^PUR-[A-Z0-9]+-\\d+-', ''), '')), '0')::int + 1)::text, 3, '0') as next_seq
-         from procurement.purchases where purchase_no like 'PUR-' || $1 || '-' || $2 || '-%'`,
-        [storeCode, yyyymm],
-      );
-      const purchaseNo = `PUR-${storeCode}-${yyyymm}-${seqResult.rows[0]?.next_seq || '001'}`;
+      // Generate purchase number (use same logic as createPurchase)
+      const today = new Date().toISOString().slice(0, 10);
+      const purchaseNo = await this.generatePurchaseNumber(storeId, today);
 
       // Calculate totals
       const subtotal = payload.purchaseQty * payload.unitCost;
@@ -2323,7 +2317,7 @@ export class StoreOpsService {
       const purchaseResult = await client.query<{ id: string }>(
         `insert into procurement.purchases (id, tenant_id, store_id, supplier_id, location_id, purchase_no, purchase_date, status, subtotal_amount, discount_amount, tax_amount, shipping_amount, total_amount, paid_amount, payment_status, note, created_by, received_at, created_at, updated_at)
          values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, 'received', $7, 0, 0, 0, $8, $9, $10, $11, $12, now(), now(), now()) returning id`,
-        [tenantId, storeId, payload.supplierId, payload.locationId, purchaseNo, new Date().toISOString().slice(0, 10), subtotal, totalAmount, paidAmount, isFullyPaid ? 'paid' : 'partial', payload.note || null, userId],
+        [tenantId, storeId, payload.supplierId, payload.locationId, purchaseNo, today, subtotal, totalAmount, paidAmount, paidAmount <= 0 ? 'pending' : isFullyPaid ? 'paid' : 'partial', payload.note || null, userId],
       );
       const purchaseId = purchaseResult.rows[0].id;
 
