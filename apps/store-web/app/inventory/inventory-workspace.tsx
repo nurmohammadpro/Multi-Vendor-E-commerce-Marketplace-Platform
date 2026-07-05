@@ -81,7 +81,7 @@ type SkuResult = {
 
 async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
   const response = await fetch(input, init);
-  const payload = (await response.json().catch(() => null)) as T | { error?: string } | null;
+  const payload = (await response.json().catch(() => null)) as T | { error?: string; message?: string | string[] } | null;
 
   if (!response.ok) {
     let message = `Request failed with ${response.status}`;
