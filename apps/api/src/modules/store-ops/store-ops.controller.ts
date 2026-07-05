@@ -377,6 +377,18 @@ export class StoreOpsController {
     return this.storeOpsService.getPurchase(purchaseId, headerStoreId, authContext);
   }
 
+  @Post('quick-receive')
+  @RequireContext('store')
+  @RequirePermissions('procurement.manage')
+  quickReceive(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @CurrentAuthSession() session: AuthSession | null,
+    @Body() payload: unknown,
+  ) {
+    return this.storeOpsService.quickReceive(headerStoreId, authContext, session, quickReceiveSchema.parse(payload));
+  }
+
   @Post('purchases')
   @RequireContext('store')
   @RequirePermissions('procurement.manage')
