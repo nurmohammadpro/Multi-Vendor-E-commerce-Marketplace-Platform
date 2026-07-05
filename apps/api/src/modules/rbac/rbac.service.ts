@@ -18,6 +18,7 @@ const roleToPermissions: Record<string, string[]> = {
     'payment.gateway.manage',
   ],
   store_manager: [
+    'inventory.adjust.direct',
     'inventory.adjust.request',
     'inventory.view',
     'catalog.manage',
