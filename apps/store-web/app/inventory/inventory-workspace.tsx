@@ -143,7 +143,6 @@ export function InventoryWorkspace({
     () => skuResults.find((sku) => sku.id === selectedSkuId) ?? null,
     [skuResults, selectedSkuId],
   );
-  const canInitializeStock = Boolean(selectedLocationId && selectedSkuId && quantity && !loading);
   const canRequestAdjustment = Boolean(selectedLocationId && selectedSkuId && quantity && reason.trim() && !loading);
 
   const refreshInventory = async (
@@ -209,37 +208,6 @@ export function InventoryWorkspace({
       );
       setSkuResults(payload.skus ?? []);
       setMessage(`Found ${payload.skus?.length ?? 0} SKU(s) for inventory actions.`);
-    } catch (error) {
-      const msg = (error as Error).message; setMessage(msg); toast.error(msg);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const initializeStock = async () => {
-    if (!selectedLocationId || !selectedSkuId || !quantity) {
-      setMessage('Select a location, select a SKU, and enter quantity.');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      await readJson('/api/inventory/initialize', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          locationId: selectedLocationId,
-          skuId: selectedSkuId,
-          quantity: Number(quantity),
-          note: reason || undefined,
-        }),
-      });
-      await refreshInventory(1, adjustmentPage, ledgerPage, selectedLocationId);
-      setMessage('Initial stock posted successfully.');
-      setQuantity('');
-      setReason('');
     } catch (error) {
       const msg = (error as Error).message; setMessage(msg); toast.error(msg);
     } finally {
@@ -469,7 +437,7 @@ export function InventoryWorkspace({
           {!canAdjustInventory ? (
             <div style={{ ...emptyStateStyle, marginBottom: 12 }}>Your role can review inventory, but stock changes are restricted.</div>
           ) : !canDirectAdjustInventory ? (
-            <div style={{ ...emptyStateStyle, marginBottom: 12 }}>You can request quantity changes, but only owner-level roles can post stock directly.</div>
+            <div style={{ ...emptyStateStyle, marginBottom: 12 }}>Stock is updated through purchase receipts. You can request adjustments below.</div>
           ) : null}
           <div style={{ ...searchRowStyle, marginBottom: 12 }}>
             <input
@@ -500,9 +468,6 @@ export function InventoryWorkspace({
           <input value={quantity} onChange={(event) => setQuantity(event.target.value)} style={{ ...fieldStyle, marginBottom: 12 }} placeholder="Quantity or requested final qty" />
           <textarea value={reason} onChange={(event) => setReason(event.target.value)} style={{ ...fieldStyle, minHeight: 88, marginBottom: 12 }} placeholder="Reason / note" />
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button onClick={initializeStock} style={accentButtonStyle} disabled={!canInitializeStock || !canDirectAdjustInventory}>
-              Initialize Stock
-            </button>
             <button onClick={requestAdjustment} style={accentButtonStyle} disabled={!canRequestAdjustment || !canRequestAdjustInventory}>
               Request Change
             </button>
