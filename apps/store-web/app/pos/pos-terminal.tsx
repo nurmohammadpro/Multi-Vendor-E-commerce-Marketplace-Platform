@@ -148,7 +148,7 @@ async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
 
   if (!response.ok) {
     const message =
-      payload && typeof payload === 'object' && 'error' in payload && payload.error
+      payload && typeof payload === 'object' && (payload as any).error
         ? payload.error
         : `Request failed with ${response.status}`;
     throw new Error(message);

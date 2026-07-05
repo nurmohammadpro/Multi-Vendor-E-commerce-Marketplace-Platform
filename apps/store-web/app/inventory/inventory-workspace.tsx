@@ -81,19 +81,13 @@ type SkuResult = {
 
 async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
   const response = await fetch(input, init);
-  const payload = (await response.json().catch(() => null)) as T | { error?: string; message?: string | string[] } | null;
+  const payload = (await response.json().catch(() => null)) as T | { error?: string } | null;
 
   if (!response.ok) {
-    let message = `Request failed with ${response.status}`;
-    if (payload && typeof payload === 'object') {
-      if (typeof payload.message === 'string') {
-        message = payload.message;
-      } else if (Array.isArray(payload.message) && payload.message.length > 0) {
-        message = payload.message[0];
-      } else if (typeof payload.error === 'string') {
-        message = payload.error;
-      }
-    }
+    const message =
+      payload && typeof payload === 'object' && (payload as any).error
+        ? payload.error
+        : `Request failed with ${response.status}`;
     throw new Error(message);
   }
 
@@ -509,11 +503,9 @@ export function InventoryWorkspace({
             <button onClick={initializeStock} style={accentButtonStyle} disabled={!canInitializeStock || !canDirectAdjustInventory}>
               Initialize Stock
             </button>
-            {!canDirectAdjustInventory ? (
-              <button onClick={requestAdjustment} style={accentButtonStyle} disabled={!canRequestAdjustment || !canRequestAdjustInventory}>
-                Request Change
-              </button>
-            ) : null}
+            <button onClick={requestAdjustment} style={accentButtonStyle} disabled={!canRequestAdjustment || !canRequestAdjustInventory}>
+              Request Change
+            </button>
           </div>
           {selectedSku ? (
             <p style={{ marginTop: 12, marginBottom: 0, color: '#475569' }}>
