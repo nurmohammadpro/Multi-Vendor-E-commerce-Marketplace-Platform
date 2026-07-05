@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Package, ShoppingCart, Truck, BarChart3 } from 'lucide-react';
+import { Package, ClipboardList, ShoppingCart, Truck, BarChart3, CreditCard, Users, Wallet, ReceiptText, Landmark } from 'lucide-react';
 
 import { fetchStoreApi, isStoreApiConfigured } from '../lib/api';
 import { getStoreConsoleAccess } from '../lib/access';
@@ -16,13 +16,29 @@ import {
   tokenMutedStyle,
 } from './marketone-theme';
 
+function formatQty(value: number | string | null | undefined) {
+  const numeric = Number(value ?? 0);
+  if (Number.isNaN(numeric)) return '0';
+  return Number.isInteger(numeric) ? String(numeric) : String(numeric).replace(/\.?0+$/, '');
+}
+
 const quickActions = [
-  { href: '/pos', title: 'New Sale', detail: 'Start a POS sale — scan barcode, add items, checkout, print receipt.', icon: ShoppingCart, permission: 'sales.pos.create', feature: 'pos' },
-  { href: '/catalog', title: 'Manage Products', detail: 'Add categories, brands, products, variants, and SKUs.', icon: Package, permission: 'catalog.manage', feature: 'catalog' },
-  { href: '/purchases', title: 'Receive Stock', detail: 'Record supplier purchases — stock quantity updates automatically.', icon: Truck, feature: 'purchases' },
-  { href: '/reports', title: 'View Reports', detail: 'Daily sales, stock snapshots, and business performance.', icon: BarChart3, permission: 'sales.report.view', feature: 'reports' },
+  // Daily operations
+  { href: '/pos', group: 'Daily Operations', title: 'New Sale', detail: 'Run a POS sale — barcode scan, add items, checkout, print receipt.', icon: ShoppingCart, permission: 'sales.pos.create', feature: 'pos' },
+  { href: '/customers', group: 'Daily Operations', title: 'Customers', detail: 'Track due customers, contacts, shop identity, and payment collections.', icon: Users, permission: 'sales.report.view', feature: 'customers' },
+  // Product & Stock
+  { href: '/catalog', group: 'Product & Stock', title: 'Manage Products', detail: 'Manage categories, brands, products, variants, SKUs, and pricing.', icon: Package, permission: 'catalog.manage', feature: 'catalog' },
+  { href: '/purchases', group: 'Product & Stock', title: 'Receive Stock', detail: 'Record supplier purchases — stock quantity updates automatically.', icon: Truck, feature: 'purchases' },
+  { href: '/reports', group: 'Product & Stock', title: 'Reports', detail: 'Daily sales, stock snapshots, and exportable business reports.', icon: BarChart3, permission: 'sales.report.view', feature: 'reports' },
+  // Management
+  { href: '/staff', group: 'Management', title: 'Staff Management', detail: 'Manage store owner, manager, and salesman access and roles.', icon: Users, permission: 'store.staff.manage', feature: 'staff' },
+  { href: '/expenses', group: 'Management', title: 'Daily Expenses', detail: 'Track day-level store expenses and spending.', icon: ReceiptText, feature: 'expenses' },
+  { href: '/payroll', group: 'Management', title: 'Payroll', detail: 'Manage payroll runs and employee compensation.', icon: Wallet, feature: 'payroll' },
+  { href: '/banking', group: 'Management', title: 'Banking', detail: 'Reconcile banking activity, deposits, and withdrawals.', icon: Landmark, feature: 'banking' },
+  { href: '/billing', group: 'Management', title: 'Subscription', detail: 'Check plan health, invoices, and payment status.', icon: CreditCard, permission: 'billing.subscription.manage', feature: 'billing' },
 ] satisfies Array<{
   href: string;
+  group: string;
   title: string;
   detail: string;
   icon: typeof Package;
@@ -30,10 +46,7 @@ const quickActions = [
   feature?: StoreConsoleFeature;
 }>;
 
-type StoreSalesReport = {
-  summary?: { total_sales_amount?: string | number; total_orders_count?: number };
-};
-
+type StoreSalesReport = { summary?: { total_sales_amount?: string | number; total_orders_count?: number } };
 type PendingAdjustmentsPayload = { adjustmentRequests?: Array<unknown> };
 
 function metricNumber(value: string | number | undefined) {
@@ -59,7 +72,7 @@ export default async function StoreDashboard() {
       if (approvalsPayload?.adjustmentRequests) {
         pendingApprovals = String(approvalsPayload.adjustmentRequests.length);
       }
-    } catch { /* dashboard stays usable without API */ }
+    } catch {}
   }
 
   const allowedActions = quickActions.filter(
@@ -68,18 +81,18 @@ export default async function StoreDashboard() {
       && canAccessStoreFeature(access, item.feature),
   );
 
+  const groups = [...new Set(allowedActions.map((a) => a.group))];
+
   return (
     <div style={pageShellStyle}>
       <div style={{ marginBottom: 32 }}>
         <h1 style={{ margin: '0 0 6px', fontSize: 'clamp(24px, 2.2vw, 32px)', lineHeight: 1.1, letterSpacing: '-0.03em', fontWeight: 500 }}>
-          Store Dashboard
+          {access.storeName || 'Store Dashboard'}
         </h1>
-        <p style={{ ...tokenMutedStyle, margin: 0 }}>
-          {access.storeName || 'Your store'} · {access.planName} plan
-        </p>
+        <p style={{ ...tokenMutedStyle, margin: 0 }}>{access.planName} plan · {access.role} access</p>
       </div>
 
-      <section style={{ ...sectionPanelStyle, gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', marginBottom: 24 }}>
+      <section style={{ ...sectionPanelStyle, gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', marginBottom: 32 }}>
         <article style={surfaceCardStyle}>
           <div style={metricLabelStyle}>Today's Sales</div>
           <div style={metricValueStyle}>{todaySales}</div>
@@ -93,49 +106,48 @@ export default async function StoreDashboard() {
         <article style={surfaceCardStyle}>
           <div style={metricLabelStyle}>Plan</div>
           <div style={{ ...metricValueStyle, textTransform: 'capitalize' }}>{access.planName}</div>
-          <div style={metricNoteStyle}>{access.storeName || 'Active'}</div>
+          <div style={metricNoteStyle}>Market One BD</div>
         </article>
       </section>
 
-      <div style={sectionLabelStyle}>Quick Actions</div>
-      <section style={{ ...sectionPanelStyle, gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', marginTop: 10 }}>
-        {allowedActions.length ? (
-          allowedActions.map((action) => {
-            const Icon = action.icon;
-            return (
-              <Link
-                key={action.href}
-                href={action.href}
-                style={{
-                  ...surfaceCardStyle,
-                  display: 'flex',
-                  gap: 16,
-                  alignItems: 'flex-start',
-                  textDecoration: 'none',
-                  color: marketoneColors.ink,
-                  transition: 'border-color 0.15s, box-shadow 0.15s',
-                }}
-              >
-                <div style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  width: 44, height: 44, borderRadius: 10, flexShrink: 0,
-                  background: marketoneColors.backgroundAlt, border: `1px solid ${marketoneColors.border}`,
-                }}>
-                  <Icon size={20} style={{ color: marketoneColors.ink }} />
-                </div>
-                <div>
-                  <div style={{ fontWeight: 600, marginBottom: 4 }}>{action.title}</div>
-                  <div style={tokenMutedStyle}>{action.detail}</div>
-                </div>
-              </Link>
-            );
-          })
-        ) : (
-          <div style={{ ...tokenMutedStyle, padding: '40px 0', textAlign: 'center', gridColumn: '1 / -1' }}>
-            No actions available for your role yet. Contact the store owner to get started.
+      {groups.map((group) => {
+        const groupItems = allowedActions.filter((a) => a.group === group);
+        if (!groupItems.length) return null;
+        return (
+          <div key={group} style={{ marginBottom: 28 }}>
+            <div style={{ ...sectionLabelStyle, marginBottom: 10 }}>{group}</div>
+            <section style={{ ...sectionPanelStyle, gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}>
+              {groupItems.map((action) => {
+                const Icon = action.icon;
+                return (
+                  <Link
+                    key={action.href}
+                    href={action.href}
+                    style={{
+                      ...surfaceCardStyle,
+                      display: 'flex', gap: 16, alignItems: 'flex-start',
+                      textDecoration: 'none', color: marketoneColors.ink,
+                      transition: 'border-color 0.15s, box-shadow 0.15s',
+                    }}
+                  >
+                    <div style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      width: 44, height: 44, borderRadius: 10, flexShrink: 0,
+                      background: marketoneColors.backgroundAlt, border: `1px solid ${marketoneColors.border}`,
+                    }}>
+                      <Icon size={20} style={{ color: marketoneColors.ink }} />
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 600, marginBottom: 4 }}>{action.title}</div>
+                      <div style={tokenMutedStyle}>{action.detail}</div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </section>
           </div>
-        )}
-      </section>
+        );
+      })}
     </div>
   );
 }
