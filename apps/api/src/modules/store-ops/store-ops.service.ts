@@ -2291,18 +2291,30 @@ export class StoreOpsService {
           const cost = payload.variantCosts?.[i] ?? payload.unitCost;
           const skuCode = `${productCode}-${label.replace(/[^A-Za-z0-9]/g, '-').toUpperCase()}`.slice(0, 80);
           const skuResult = await client.query<{ id: string }>(
-            `insert into catalog.skus (id, tenant_id, store_id, product_id, sku_code, variant_label, sale_price, cost_price, status, created_at, updated_at)
-             values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, 'active', now(), now()) returning id`,
-            [tenantId, storeId, productId, skuCode, label, String(price), String(cost)],
+            `insert into catalog.skus (id, tenant_id, store_id, product_id, sku_code, variant_label, status, created_at, updated_at)
+             values (gen_random_uuid(), $1, $2, $3, $4, $5, 'active', now(), now()) returning id`,
+            [tenantId, storeId, productId, skuCode, label],
+          );
+          // Insert price record
+          await client.query(
+            `insert into catalog.prices (id, tenant_id, store_id, sku_id, sale_price, cost_price, effective_from, created_at)
+             values (gen_random_uuid(), $1, $2, $3, $4, $5, now(), now())`,
+            [tenantId, storeId, skuResult.rows[0].id, String(price), String(cost)],
           );
           skus.push({ id: skuResult.rows[0].id, skuCode, label, price, cost, qty: 1 });
         }
       } else {
         const skuCode = productCode.slice(0, 40);
         const skuResult = await client.query<{ id: string }>(
-          `insert into catalog.skus (id, tenant_id, store_id, product_id, sku_code, sale_price, cost_price, status, created_at, updated_at)
-           values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, 'active', now(), now()) returning id`,
-          [tenantId, storeId, productId, skuCode, String(payload.salePrice), String(payload.unitCost)],
+          `insert into catalog.skus (id, tenant_id, store_id, product_id, sku_code, status, created_at, updated_at)
+           values (gen_random_uuid(), $1, $2, $3, $4, 'active', now(), now()) returning id`,
+          [tenantId, storeId, productId, skuCode],
+        );
+        // Insert price record
+        await client.query(
+          `insert into catalog.prices (id, tenant_id, store_id, sku_id, sale_price, cost_price, effective_from, created_at)
+           values (gen_random_uuid(), $1, $2, $3, $4, $5, now(), now())`,
+          [tenantId, storeId, skuResult.rows[0].id, String(payload.salePrice), String(payload.unitCost)],
         );
         skus.push({ id: skuResult.rows[0].id, skuCode, label: null, price: payload.salePrice, cost: payload.unitCost, qty: payload.purchaseQty });
       }
