@@ -963,7 +963,7 @@ export class StoreOpsService {
               id, tenant_id, store_id, location_id, sku_id, movement_type, qty_delta, reference_type, reference_id, note, actor_id, created_at
             )
             values (
-              gen_random_uuid(), $1, $2, $3, $4, 'manual_adjustment', $5, 'purchase', $6, $7, $8, now()
+              gen_random_uuid(), $1, $2, $3, $4, 'purchase_receive', $5, 'purchase', $6, $7, $8, now()
             )
           `,
           [tenantId, storeId, locationId, item.skuId, item.qty, purchaseId, `Purchase receive ${purchaseNo}`, userId],

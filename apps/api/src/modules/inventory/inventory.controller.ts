@@ -13,13 +13,6 @@ const createLocationSchema = z.object({
   locationType: z.enum(['storefront', 'warehouse', 'backroom']),
 });
 
-const initializeStockSchema = z.object({
-  locationId: z.string().uuid(),
-  skuId: z.string().uuid(),
-  quantity: z.number().positive(),
-  note: z.string().optional(),
-});
-
 const requestAdjustmentSchema = z.object({
   locationId: z.string().uuid(),
   skuId: z.string().uuid(),
@@ -74,23 +67,6 @@ export class InventoryController {
       page: page ? Number(page) : undefined,
       limit: limit ? Number(limit) : undefined,
     });
-  }
-
-  @Post('initialize')
-  @RequireContext('store')
-  @RequirePermissions('inventory.adjust.direct')
-  initializeStock(
-    @Headers('x-store-id') headerStoreId: string | undefined,
-    @CurrentAuthContext() authContext: StoreAuthContext | null,
-    @CurrentAuthSession() session: AuthSession | null,
-    @Body() payload: unknown,
-  ) {
-    return this.inventoryService.initializeStock(
-      headerStoreId,
-      authContext,
-      session,
-      initializeStockSchema.parse(payload),
-    );
   }
 
   @Post('adjustments/request')
