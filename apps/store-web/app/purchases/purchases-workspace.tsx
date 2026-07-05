@@ -38,12 +38,13 @@ async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
   if (!response.ok) {
     let message = `Request failed with ${response.status}`;
     if (payload && typeof payload === 'object') {
-      if (typeof payload.message === 'string') {
-        message = payload.message;
-      } else if (Array.isArray(payload.message) && payload.message.length > 0) {
-        message = payload.message[0];
-      } else if (typeof payload.error === 'string') {
-        message = payload.error;
+      const err = payload as { error?: string; message?: string | string[] };
+      if (typeof err.message === 'string') {
+        message = err.message;
+      } else if (Array.isArray(err.message) && err.message.length > 0) {
+        message = err.message[0];
+      } else if (typeof err.error === 'string') {
+        message = err.error;
       }
     }
     throw new Error(message);
