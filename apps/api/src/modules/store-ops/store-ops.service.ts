@@ -2309,8 +2309,8 @@ export class StoreOpsService {
 
       // 3. Create purchase record
       const purchaseResult = await client.query<{ id: string }>(
-        `insert into procurement.purchases (id, tenant_id, store_id, supplier_id, location_id, purchase_no, purchase_date, status, subtotal_amount, discount_amount, tax_amount, shipping_amount, total_amount, paid_amount, payment_status, note, received_by_user_id, created_at, updated_at)
-         values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, 'received', $7, 0, 0, 0, $8, $9, $10, $11, $12, now(), now()) returning id`,
+        `insert into procurement.purchases (id, tenant_id, store_id, supplier_id, location_id, purchase_no, purchase_date, status, subtotal_amount, discount_amount, tax_amount, shipping_amount, total_amount, paid_amount, payment_status, note, created_by, received_at, created_at, updated_at)
+         values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, 'received', $7, 0, 0, 0, $8, $9, $10, $11, $12, now(), now(), now()) returning id`,
         [tenantId, storeId, payload.supplierId, payload.locationId, purchaseNo, new Date().toISOString().slice(0, 10), subtotal, totalAmount, paidAmount, isFullyPaid ? 'paid' : 'partial', payload.note || null, userId],
       );
       const purchaseId = purchaseResult.rows[0].id;
@@ -2326,9 +2326,9 @@ export class StoreOpsService {
 
         // Upsert inventory balance
         await client.query(
-          `insert into inventory.balances (id, tenant_id, store_id, location_id, sku_id, on_hand_qty, available_qty, created_at, updated_at)
-           values (gen_random_uuid(), $1, $2, $3, $4, $5, $5, now(), now())
-           on conflict (location_id, sku_id) do update set on_hand_qty = inventory.balances.on_hand_qty + $5, available_qty = inventory.balances.available_qty + $5, updated_at = now()`,
+          `insert into inventory.balances (id, tenant_id, store_id, location_id, sku_id, on_hand_qty, created_at, updated_at)
+           values (gen_random_uuid(), $1, $2, $3, $4, $5, now(), now())
+           on conflict (location_id, sku_id) do update set on_hand_qty = inventory.balances.on_hand_qty + $5, updated_at = now()`,
           [tenantId, storeId, payload.locationId, sku.id, sku.qty],
         );
 
@@ -2343,9 +2343,9 @@ export class StoreOpsService {
       // 5. Record payment if paid
       if (paidAmount > 0) {
         await client.query(
-          `insert into procurement.purchase_payments (id, purchase_id, payment_method, amount, reference_no, status, created_at)
-           values (gen_random_uuid(), $1, $2, $3, $4, 'paid', now())`,
-          [purchaseId, payload.paymentMethod, paidAmount, payload.paymentReference || null],
+          `insert into procurement.purchase_payments (id, purchase_id, payment_method, amount, reference_no, status, paid_at, created_by, created_at)
+           values (gen_random_uuid(), $1, $2, $3, $4, 'paid', now(), $5, now())`,
+          [purchaseId, payload.paymentMethod, paidAmount, payload.paymentReference || null, userId],
         );
       }
 
