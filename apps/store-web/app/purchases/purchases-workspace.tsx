@@ -363,7 +363,7 @@ export function PurchasesWorkspace() {
 
     setQuickSaving(true);
     try {
-      const payload = await readJson('/api/store-ops/quick-receive', {
+      const payload = await readJson<{ product: { id: string; name: string; productCode: string }; purchase: { id: string; purchaseNo: string; totalAmount: number; paidAmount: number }; skus: Array<unknown>; stockUpdated: boolean }>('/api/store-ops/quick-receive', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -746,7 +746,6 @@ const createPurchase = async () => {
       {(!compact || activeTab === 'receive') ? (
         <section style={{ display: 'grid', gap: 16 }}>
           <article style={surfaceCardStyle}>
-            {/* ── Quick Add + Receive ── */}
             <div style={{ ...surfaceCardStyle, marginBottom: 16, border: '2px solid #1e293b' }}>
               <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Quick Add Product + Receive Stock</div>
               <div style={{ fontSize: 11, color: '#64748b', marginBottom: 14 }}>
@@ -781,8 +780,7 @@ const createPurchase = async () => {
                   value={quickVariantLabels}
                   onChange={(e) => setQuickVariantLabels(e.target.value)}
                   style={{ ...fieldStyle, minHeight: 72, marginTop: 8 }}
-                  placeholder={'One variant per line
-90/90-12\n100/80-17\nRed'}
+                  placeholder="One per line: 90/90-12, Red, Blue"
                 />
               ) : null}
               <button onClick={quickReceive} style={{ ...accentButtonStyle, marginTop: 12, width: '100%', minHeight: 36 }} disabled={quickSaving}>
@@ -790,7 +788,6 @@ const createPurchase = async () => {
               </button>
             </div>
 
-            {/* ── Add Location (Pro plan) ── */}
             <details style={{ marginBottom: 16 }}>
               <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#475569' }}>+ Add New Location</summary>
               <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
@@ -801,7 +798,6 @@ const createPurchase = async () => {
             </details>
 
 
-            <!-- ── Regular Purchase ── -->
                         <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 12 }}>Receive purchase stock</div>
             <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
               <select value={purchaseForm.supplierId} onChange={(event) => setPurchaseForm((current) => ({ ...current, supplierId: event.target.value }))} style={fieldStyle}>
