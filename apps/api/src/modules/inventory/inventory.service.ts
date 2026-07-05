@@ -50,6 +50,35 @@ export class InventoryService {
     );
   }
 
+  async createLocation(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    session: AuthSession | null,
+    payload: { code: string; name: string; locationType: string },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const userId = this.requireUserId(session);
+
+    const tenantResult = await this.pool.query<{ tenant_id: string }>(
+      `select tenant_id from store.stores where id = $1 limit 1`, [storeId],
+    );
+    const tenantId = tenantResult.rows[0].tenant_id;
+
+    const result = await this.pool.query<{ id: string; code: string; name: string; location_type: string; status: string }>(
+      `insert into inventory.locations (id, tenant_id, store_id, code, name, location_type, status, created_at, updated_at)
+       values (gen_random_uuid(), $1, $2, $3, $4, $5, 'active', now(), now()) returning id, code, name, location_type, status`,
+      [tenantId, storeId, payload.code, payload.name, payload.locationType],
+    );
+
+    await this.auditService.recordStoreAction({
+      storeId, actorUserId: userId, actionCode: 'location.create',
+      resourceType: 'location', resourceId: result.rows[0].id, after: result.rows[0],
+    });
+
+    return { location: result.rows[0] };
+  }
+
+
   async listLocations(headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
     await this.ensureDefaultLocation(storeId);
@@ -66,48 +95,7 @@ export class InventoryService {
     return { locations: result.rows };
   }
 
-  async createLocation(
-    headerStoreId: string | undefined,
-    authContext: StoreAuthContext | null,
-    payload: { code: string; name: string; locationType: string },
-  ) {
-    const storeId = this.assertStoreContext(headerStoreId, authContext);
-    const result = await this.pool.query(
-      `
-        insert into inventory.locations (
-          id, tenant_id, store_id, code, name, location_type, status, created_at, updated_at
-        )
-        select
-          gen_random_uuid(),
-          s.tenant_id,
-          s.id,
-          $2,
-          $3,
-          $4,
-          'active',
-          now(),
-          now()
-        from store.stores s
-        where s.id = $1
-        returning id, code, name, location_type, status
-      `,
-      [storeId, payload.code, payload.name, payload.locationType],
-    );
-
-    const location = result.rows[0];
-    await this.auditService.recordStoreAction({
-      storeId,
-      actorUserId: null,
-      actionCode: 'inventory.location.create',
-      resourceType: 'inventory_location',
-      resourceId: String(location?.id ?? ''),
-      after: location ?? null,
-    });
-
-    return { location };
-  }
-
-  async listBalances(
+    async listBalances(
     headerStoreId: string | undefined,
     authContext: StoreAuthContext | null,
     filters: { locationId?: string; search?: string; page?: number; limit?: number } = {},

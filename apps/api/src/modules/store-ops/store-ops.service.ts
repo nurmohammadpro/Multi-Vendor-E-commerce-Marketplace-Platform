@@ -2202,6 +2202,159 @@ export class StoreOpsService {
     return `PUR-${prefix}-${Date.now().toString().slice(-6)}`;
   }
 
+
+
+  async quickReceive(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    session: AuthSession | null,
+    payload: {
+      productName: string;
+      categoryId?: string;
+      brandId?: string;
+      supplierId: string;
+      locationId: string;
+      salePrice: number;
+      purchaseQty: number;
+      unitCost: number;
+      paidAmount: number;
+      paymentMethod: string;
+      paymentReference?: string;
+      hasVariants: boolean;
+      variantLabels?: string[];
+      variantPrices?: number[];
+      variantCosts?: number[];
+      note?: string;
+    },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const userId = this.requireUserId(session);
+    const client = await this.pool.connect();
+
+    try {
+      await client.query('begin');
+
+      // Resolve tenant
+      const tenantResult = await client.query<{ tenant_id: string; store_code: string }>(
+        `select tenant_id, store_code from store.stores where id = $1 limit 1`, [storeId],
+      );
+      const { tenant_id: tenantId, store_code: storeCode } = tenantResult.rows[0];
+
+      // Trim name and generate product code
+      const productName = payload.productName.trim();
+      const productCode = productName.replace(/[^A-Za-z0-9]/g, '-').toUpperCase().slice(0, 32) || 'PRODUCT';
+      const categoryId = payload.categoryId || null;
+      const brandId = payload.brandId || null;
+
+      // Generate purchase number
+      const now = new Date();
+      const yyyymm = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const seqResult = await client.query<{ next_seq: string }>(
+        `select lpad(coalesce(max(nullif(regexp_replace(purchase_no, '^PUR-\\d+-\\d+-', ''), '')), '0')::int + 1, 3, '0') as next_seq
+         from procurement.purchases where purchase_no like 'PUR-' || $1 || '-' || $2 || '-%'`,
+        [storeCode, yyyymm],
+      );
+      const purchaseNo = `PUR-${storeCode}-${yyyymm}-${seqResult.rows[0]?.next_seq || '001'}`;
+
+      // Calculate totals
+      const subtotal = payload.purchaseQty * payload.unitCost;
+      const totalAmount = subtotal;
+      const paidAmount = Math.min(payload.paidAmount, totalAmount);
+      const isFullyPaid = paidAmount >= totalAmount;
+
+      // 1. Create product
+      const productResult = await client.query<{ id: string }>(
+        `insert into catalog.products (id, tenant_id, store_id, product_code, name, category_id, brand_id, has_variants, variant_mode, is_trackable, status, created_at, updated_at)
+         values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, 'active', now(), now()) returning id`,
+        [tenantId, storeId, productCode, productName, categoryId, brandId, payload.hasVariants, payload.hasVariants ? 'single' : 'none'],
+      );
+      const productId = productResult.rows[0].id;
+
+      // 2. Create SKU(s)
+      const skus: Array<{ id: string; skuCode: string; label: string | null; price: number; cost: number; qty: number }> = [];
+
+      if (payload.hasVariants && payload.variantLabels?.length) {
+        for (let i = 0; i < payload.variantLabels.length; i++) {
+          const label = payload.variantLabels[i].trim();
+          const price = payload.variantPrices?.[i] ?? payload.salePrice;
+          const cost = payload.variantCosts?.[i] ?? payload.unitCost;
+          const skuCode = `${productCode}-${label.replace(/[^A-Za-z0-9]/g, '-').toUpperCase()}`.slice(0, 80);
+          const skuResult = await client.query<{ id: string }>(
+            `insert into catalog.skus (id, tenant_id, store_id, product_id, sku_code, variant_label, sale_price, cost_price, status, created_at, updated_at)
+             values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, 'active', now(), now()) returning id`,
+            [tenantId, storeId, productId, skuCode, label, String(price), String(cost)],
+          );
+          skus.push({ id: skuResult.rows[0].id, skuCode, label, price, cost, qty: 1 });
+        }
+      } else {
+        const skuCode = productCode.slice(0, 40);
+        const skuResult = await client.query<{ id: string }>(
+          `insert into catalog.skus (id, tenant_id, store_id, product_id, sku_code, sale_price, cost_price, status, created_at, updated_at)
+           values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, 'active', now(), now()) returning id`,
+          [tenantId, storeId, productId, skuCode, String(payload.salePrice), String(payload.unitCost)],
+        );
+        skus.push({ id: skuResult.rows[0].id, skuCode, label: null, price: payload.salePrice, cost: payload.unitCost, qty: payload.purchaseQty });
+      }
+
+      // 3. Create purchase record
+      const purchaseResult = await client.query<{ id: string }>(
+        `insert into procurement.purchases (id, tenant_id, store_id, supplier_id, location_id, purchase_no, purchase_date, status, subtotal_amount, discount_amount, tax_amount, shipping_amount, total_amount, paid_amount, payment_status, note, received_by_user_id, created_at, updated_at)
+         values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, 'received', $7, 0, 0, 0, $8, $9, $10, $11, $12, now(), now()) returning id`,
+        [tenantId, storeId, payload.supplierId, payload.locationId, purchaseNo, new Date().toISOString().slice(0, 10), subtotal, totalAmount, paidAmount, isFullyPaid ? 'paid' : 'partial', payload.note || null, userId],
+      );
+      const purchaseId = purchaseResult.rows[0].id;
+
+      // 4. Create purchase items, update balances, write ledger
+      for (const sku of skus) {
+        const lineTotal = sku.qty * sku.cost;
+        await client.query(
+          `insert into procurement.purchase_items (id, purchase_id, sku_id, product_name_snapshot, sku_code_snapshot, qty, unit_cost, line_total, created_at)
+           values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, now())`,
+          [purchaseId, sku.id, productName, sku.skuCode, sku.qty, sku.cost, lineTotal],
+        );
+
+        // Upsert inventory balance
+        await client.query(
+          `insert into inventory.balances (id, tenant_id, store_id, location_id, sku_id, on_hand_qty, available_qty, created_at, updated_at)
+           values (gen_random_uuid(), $1, $2, $3, $4, $5, $5, now(), now())
+           on conflict (location_id, sku_id) do update set on_hand_qty = inventory.balances.on_hand_qty + $5, available_qty = inventory.balances.available_qty + $5, updated_at = now()`,
+          [tenantId, storeId, payload.locationId, sku.id, sku.qty],
+        );
+
+        // Write ledger
+        await client.query(
+          `insert into inventory.ledger (id, tenant_id, store_id, location_id, sku_id, movement_type, qty_delta, reference_type, reference_id, note, actor_id, created_at)
+           values (gen_random_uuid(), $1, $2, $3, $4, 'purchase_receive', $5, 'purchase', $6, $7, $8, now())`,
+          [tenantId, storeId, payload.locationId, sku.id, sku.qty, purchaseId, `Quick receive ${purchaseNo}`, userId],
+        );
+      }
+
+      // 5. Record payment if paid
+      if (paidAmount > 0) {
+        await client.query(
+          `insert into procurement.purchase_payments (id, purchase_id, payment_method, amount, reference_no, status, created_at)
+           values (gen_random_uuid(), $1, $2, $3, $4, 'paid', now())`,
+          [purchaseId, payload.paymentMethod, paidAmount, payload.paymentReference || null],
+        );
+      }
+
+      await client.query('commit');
+
+      return {
+        product: { id: productId, name: productName, productCode },
+        purchase: { id: purchaseId, purchaseNo, totalAmount, paidAmount },
+        skus,
+        stockUpdated: true,
+      };
+    } catch (error) {
+      await client.query('rollback').catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+
   private assertStoreContext(headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
     if (!authContext || authContext.type !== 'store') {
       throw new ForbiddenException('Store context is required');
