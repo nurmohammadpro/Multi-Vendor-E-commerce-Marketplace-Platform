@@ -833,7 +833,6 @@ export class StoreOpsService {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
     this.assertAllowedRoles(authContext, ['store_owner', 'store_manager']);
     const userId = this.requireUserId(session);
-    const tenantId = session?.user.tenantId ?? '';
     const locationId = payload.locationId ?? await this.getDefaultInventoryLocationId(storeId);
     const purchaseNo = await this.generatePurchaseNumber(storeId, payload.purchaseDate);
 
@@ -884,15 +883,18 @@ export class StoreOpsService {
             subtotal_amount, discount_amount, tax_amount, shipping_amount, total_amount, paid_amount,
             payment_status, status, note, created_by, received_at, created_at, updated_at
           )
-          values (
-            gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7,
-            $8, $9, $10, $11, $12, $13,
-            $14, 'received', $15, $16, now(), now(), now()
-          )
+          select
+            gen_random_uuid(),
+            s.tenant_id,
+            s.id,
+            $2, $3, $4, $5, $6,
+            $7, $8, $9, $10, $11, $12,
+            $13, 'received', $14, $15, now(), now(), now()
+          from store.stores s
+          where s.id = $1
           returning id
         `,
         [
-          tenantId,
           storeId,
           payload.supplierId,
           locationId,
@@ -946,15 +948,19 @@ export class StoreOpsService {
             insert into inventory.balances (
               id, tenant_id, store_id, location_id, sku_id, on_hand_qty, reserved_qty, damaged_qty, returned_qty, updated_at
             )
-            values (
-              gen_random_uuid(), $1, $2, $3, $4, $5, 0, 0, 0, now()
-            )
+            select
+              gen_random_uuid(),
+              s.tenant_id,
+              s.id,
+              $2, $3, $4, 0, 0, 0, now()
+            from store.stores s
+            where s.id = $1
             on conflict (location_id, sku_id)
             do update set
               on_hand_qty = inventory.balances.on_hand_qty + excluded.on_hand_qty,
               updated_at = now()
           `,
-          [tenantId, storeId, locationId, item.skuId, item.qty],
+          [storeId, locationId, item.skuId, item.qty],
         );
 
         await client.query(
@@ -962,11 +968,15 @@ export class StoreOpsService {
             insert into inventory.ledger (
               id, tenant_id, store_id, location_id, sku_id, movement_type, qty_delta, reference_type, reference_id, note, actor_id, created_at
             )
-            values (
-              gen_random_uuid(), $1, $2, $3, $4, 'purchase_receive', $5, 'purchase', $6, $7, $8, now()
-            )
+            select
+              gen_random_uuid(),
+              s.tenant_id,
+              s.id,
+              $2, $3, 'purchase_receive', $4, 'purchase', $5, $6, $7, now()
+            from store.stores s
+            where s.id = $1
           `,
-          [tenantId, storeId, locationId, item.skuId, item.qty, purchaseId, `Purchase receive ${purchaseNo}`, userId],
+          [storeId, locationId, item.skuId, item.qty, purchaseId, `Purchase receive ${purchaseNo}`, userId],
         );
       }
 
