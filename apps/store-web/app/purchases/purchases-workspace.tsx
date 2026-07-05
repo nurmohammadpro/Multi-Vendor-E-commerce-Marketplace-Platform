@@ -75,15 +75,25 @@ export function PurchasesWorkspace() {
 
   // Quick Add + Receive
   const [quickName, setQuickName] = useState('');
-  const [quickSalePrice, setQuickSalePrice] = useState('');
-  const [quickQty, setQuickQty] = useState('');
-  const [quickCost, setQuickCost] = useState('');
   const [quickSupplierId, setQuickSupplierId] = useState('');
   const [quickLocationId, setQuickLocationId] = useState('');
   const [quickPaid, setQuickPaid] = useState('');
-  const [quickHasVariants, setQuickHasVariants] = useState(false);
-  const [quickVariantLabels, setQuickVariantLabels] = useState('');
   const [quickSaving, setQuickSaving] = useState(false);
+  // Category & Brand inline creation
+  const [quickCategoryId, setQuickCategoryId] = useState('');
+  const [quickBrandId, setQuickBrandId] = useState('');
+  const [quickNewCategory, setQuickNewCategory] = useState('');
+  const [quickNewBrand, setQuickNewBrand] = useState('');
+  // Variants with individual pricing
+  const [quickHasVariants, setQuickHasVariants] = useState(false);
+  const [quickVariantRows, setQuickVariantRows] = useState<Array<{ key: string; label: string; price: string; cost: string; qty: string }>>([]);
+  const [quickVariantInput, setQuickVariantInput] = useState('');
+  const [quickVariantPrice, setQuickVariantPrice] = useState('');
+  const [quickVariantCost, setQuickVariantCost] = useState('');
+  const [quickVariantQty, setQuickVariantQty] = useState('1');
+  // Categories loaded from API
+  const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([]);
+  const [brands, setBrands] = useState<Array<{ id: string; name: string }>>([]);
 
   // Regular purchase form
   const [purchaseForm, setPurchaseForm] = useState({ supplierId: '', locationId: '', purchaseDate: new Date().toISOString().slice(0, 10), invoiceNo: '', discountAmount: '0', taxAmount: '0', shippingAmount: '0', paidAmount: '0', paymentMethod: 'cash' as 'cash' | 'card' | 'mfs' | 'bank_transfer', paymentReference: '', note: '' });
@@ -132,7 +142,14 @@ export function PurchasesWorkspace() {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { void refresh(); }, []);
+  // Load categories and brands for Quick Add
+  useEffect(() => {
+    Promise.all([
+      readJson<{ categories: Array<{ id: string; name: string }> }>('/api/catalog/categories?limit=200'),
+      readJson<{ brands: Array<{ id: string; name: string }> }>('/api/catalog/brands?limit=200'),
+    ]).then(([c, b]) => { setCategories(c.categories ?? []); setBrands(b.brands ?? []); }).catch(() => {});
+    void refresh();
+  }, []);
 
   // ── SKU search ──
 
@@ -158,17 +175,83 @@ export function PurchasesWorkspace() {
 
   // ── Quick Receive ──
 
+  // Quick variant row helpers
+  const addVariantRow = () => {
+    const label = quickVariantInput.trim();
+    if (!label) return;
+    setQuickVariantRows((cur) => [...cur, {
+      key: String(Date.now()),
+      label,
+      price: quickVariantPrice || quickVariantRows[quickVariantRows.length - 1]?.price || '',
+      cost: quickVariantCost || quickVariantRows[quickVariantRows.length - 1]?.cost || '',
+      qty: quickVariantQty || '1',
+    }]);
+    setQuickVariantInput(''); setQuickVariantPrice(''); setQuickVariantCost(''); setQuickVariantQty('1');
+  };
+
   const quickReceive = async () => {
-    if (!quickName.trim() || !quickQty || !quickSupplierId || !quickLocationId) { setMessage('Product name, quantity, supplier, and location are required.'); return; }
+    if (!quickName.trim() || !quickSupplierId || !quickLocationId) { setMessage('Product name, supplier, and location are required.'); return; }
+    const hasRows = quickHasVariants && quickVariantRows.length > 0;
+    if (!hasRows && quickHasVariants) { setMessage('Add at least one variant row, or uncheck Has Variants.'); return; }
     setQuickSaving(true);
     try {
-      const payload = await readJson<{ product: { id: string; name: string; productCode: string }; purchase: { id: string; purchaseNo: string; totalAmount: number; paidAmount: number }; skus: Array<unknown>; stockUpdated: boolean }>('/api/store-ops/quick-receive', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ productName: quickName.trim(), supplierId: quickSupplierId, locationId: quickLocationId, salePrice: Number(quickSalePrice || 0), purchaseQty: Number(quickQty), unitCost: Number(quickCost || 0), paidAmount: Number(quickPaid || 0), hasVariants: quickHasVariants, variantLabels: quickHasVariants && quickVariantLabels.trim() ? quickVariantLabels.split(/[\n,]/).map((s) => s.trim()).filter(Boolean) : undefined, note: '' }) });
-      setMessage(`✓ "${payload.product.name}" created — stock +${quickQty}. Purchase ${payload.purchase.purchaseNo}.`);
-      setQuickName(''); setQuickSalePrice(''); setQuickQty(''); setQuickCost(''); setQuickPaid(''); setQuickVariantLabels(''); setQuickHasVariants(false);
+      const bodies = hasRows ? quickVariantRows.map((row) => ({
+        productName: `${quickName.trim()} · ${row.label}`,
+        supplierId: quickSupplierId, locationId: quickLocationId,
+        categoryId: quickCategoryId || undefined, brandId: quickBrandId || undefined,
+        salePrice: Number(row.price || 0), purchaseQty: Number(row.qty || 1),
+        unitCost: Number(row.cost || 0), paidAmount: Number(quickPaid || 0),
+        hasVariants: false, variantLabels: undefined, note: '',
+      })) : [{
+        productName: quickName.trim(),
+        supplierId: quickSupplierId, locationId: quickLocationId,
+        categoryId: quickCategoryId || undefined, brandId: quickBrandId || undefined,
+        salePrice: Number(quickVariantRows[0]?.price || 0) || 0,
+        purchaseQty: Number(quickVariantRows[0]?.qty || 1),
+        unitCost: Number(quickVariantRows[0]?.cost || 0),
+        paidAmount: Number(quickPaid || 0),
+        hasVariants: false, variantLabels: undefined, note: '',
+      }];
+
+      let lastResult: any = null;
+      for (const body of bodies) {
+        lastResult = await readJson<any>('/api/store-ops/quick-receive', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      }
+      const count = bodies.length;
+      setMessage(`✓ Created ${count > 1 ? `${count} products` : `"${lastResult?.product?.name}"`} — stock updated. ${lastResult?.purchase?.purchaseNo ? `Purchase ${lastResult.purchase.purchaseNo}.` : ''}`);
+      setQuickName(''); setQuickVariantRows([]); setQuickHasVariants(false);
+      setQuickPaid(''); setQuickCategoryId(''); setQuickBrandId('');
       await refresh();
     } catch (error) { const msg = (error as Error).message; setMessage(msg); toast.error(msg); }
     finally { setQuickSaving(false); }
   };
+  // Create category inline
+  const createCategoryQuick = async () => {
+    if (!quickNewCategory.trim()) return;
+    setLoading(true);
+    try {
+      const payload = await readJson<{ category: { id: string; name: string } }>('/api/catalog/categories', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: quickNewCategory.trim(), code: quickNewCategory.trim().replace(/\s+/g, '-').toUpperCase().slice(0, 20) }) });
+      setMessage(`Category "${payload.category.name}" created.`);
+      setCategories((cur) => [...cur, payload.category]);
+      setQuickCategoryId(payload.category.id);
+      setQuickNewCategory('');
+    } catch (error) { const msg = (error as Error).message; setMessage(msg); toast.error(msg); }
+    finally { setLoading(false); }
+  };
+  // Create brand inline
+  const createBrandQuick = async () => {
+    if (!quickNewBrand.trim()) return;
+    setLoading(true);
+    try {
+      const payload = await readJson<{ brand: { id: string; name: string } }>('/api/catalog/brands', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: quickNewBrand.trim() }) });
+      setMessage(`Brand "${payload.brand.name}" created.`);
+      setBrands((cur) => [...cur, payload.brand]);
+      setQuickBrandId(payload.brand.id);
+      setQuickNewBrand('');
+    } catch (error) { const msg = (error as Error).message; setMessage(msg); toast.error(msg); }
+    finally { setLoading(false); }
+  };
+
 
   // ── Regular Purchase ──
 
@@ -226,15 +309,81 @@ export function PurchasesWorkspace() {
       {/* ═══════════════ Receive Stock Tab ═══════════════ */}
       {activeTab === 'receive' ? (
       <section style={{ display: 'grid', gap: 14 }}>
-        {/* ── Quick Add + Receive ── */}
+        {/* ── Quick Add Product + Receive Stock ── */}
         <article style={{ ...surfaceCardStyle, border: '2px solid #1e293b', padding: 14 }}>
-          <h3 style={{ marginTop: 0, marginBottom: 4, fontSize: 15 }}>Quick Add + Receive</h3>
-          <p style={{ margin: '0 0 12px', color: '#64748b', fontSize: 12 }}>Create a new product and receive stock in one step.</p>
-          <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
-            <input value={quickName} onChange={(e) => setQuickName(e.target.value)} style={fieldStyle} placeholder="Product name (required)" />
-            <input type="number" min="0" step="0.01" value={quickSalePrice} onChange={(e) => setQuickSalePrice(e.target.value)} style={fieldStyle} placeholder="Sale price (BDT)" />
-            <input type="number" min="1" step="1" value={quickQty} onChange={(e) => setQuickQty(e.target.value)} style={fieldStyle} placeholder="Quantity (required)" />
-            <input type="number" min="0" step="0.01" value={quickCost} onChange={(e) => setQuickCost(e.target.value)} style={fieldStyle} placeholder="Unit cost (BDT)" />
+          <h3 style={{ marginTop: 0, marginBottom: 4, fontSize: 15 }}>New Product + Receive Stock</h3>
+          <p style={{ margin: '0 0 14px', color: '#64748b', fontSize: 12 }}>Name the product, choose category/brand, add variants, set prices, receive stock — all in one form.</p>
+
+          {/* Product name */}
+          <input value={quickName} onChange={(e) => setQuickName(e.target.value)} style={{ ...fieldStyle, marginBottom: 10 }} placeholder="Product name (required)" />
+
+          {/* Category + Brand */}
+          <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : '1fr 1fr', gap: 8, marginBottom: 10 }}>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <select value={quickCategoryId} onChange={(e) => setQuickCategoryId(e.target.value)} style={{ ...fieldStyle, flex: 1 }}>
+                <option value="">No category</option>
+                {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              <input value={quickNewCategory} onChange={(e) => setQuickNewCategory(e.target.value)} style={{ ...fieldStyle, width: 120 }} placeholder="New category" />
+              <button onClick={createCategoryQuick} style={{ ...secondaryButtonStyle, minWidth: 50, fontSize: 11 }} disabled={loading || !quickNewCategory.trim()}>+</button>
+            </div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <select value={quickBrandId} onChange={(e) => setQuickBrandId(e.target.value)} style={{ ...fieldStyle, flex: 1 }}>
+                <option value="">No brand</option>
+                {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+              <input value={quickNewBrand} onChange={(e) => setQuickNewBrand(e.target.value)} style={{ ...fieldStyle, width: 120 }} placeholder="New brand" />
+              <button onClick={createBrandQuick} style={{ ...secondaryButtonStyle, minWidth: 50, fontSize: 11 }} disabled={loading || !quickNewBrand.trim()}>+</button>
+            </div>
+          </div>
+
+          {/* Variants toggle */}
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, cursor: 'pointer' }}>
+            <input type="checkbox" checked={quickHasVariants} onChange={(e) => { setQuickHasVariants(e.target.checked); if (!e.target.checked) setQuickVariantRows([]); }} style={{ accentColor: '#0f172a' }} />
+            <span style={{ fontSize: 13, color: '#334155' }}>Has variants (sizes, colors, etc.)</span>
+          </label>
+
+          {/* Variant input row */}
+          {quickHasVariants ? (
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+                <input value={quickVariantInput} onChange={(e) => setQuickVariantInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addVariantRow(); } }} style={{ ...fieldStyle, flex: 1, minWidth: 100 }} placeholder="Variant label (e.g. 90/90-12)" />
+                <input value={quickVariantPrice} onChange={(e) => setQuickVariantPrice(e.target.value)} style={{ ...fieldStyle, width: 90 }} placeholder="Price" />
+                <input value={quickVariantCost} onChange={(e) => setQuickVariantCost(e.target.value)} style={{ ...fieldStyle, width: 90 }} placeholder="Cost" />
+                <input value={quickVariantQty} onChange={(e) => setQuickVariantQty(e.target.value)} style={{ ...fieldStyle, width: 70 }} placeholder="Qty" />
+                <button onClick={addVariantRow} style={{ ...accentButtonStyle, minWidth: 60, fontSize: 11 }} disabled={loading || !quickVariantInput.trim()}>Add</button>
+              </div>
+
+              {quickVariantRows.length ? (
+                <div style={tableWrapStyle}>
+                  <table style={tableStyle}>
+                    <thead><tr><th style={tableHeaderCellStyle}>Variant</th><th style={tableHeaderCellStyle}>Price</th><th style={tableHeaderCellStyle}>Cost</th><th style={tableHeaderCellStyle}>Qty</th><th style={tableHeaderCellStyle}></th></tr></thead>
+                    <tbody>
+                      {quickVariantRows.map((row) => (
+                        <tr key={row.key}>
+                          <td style={tableCellStyle}><strong>{row.label}</strong></td>
+                          <td style={tableCellStyle}>{row.price ? `BDT ${Number(row.price).toFixed(2)}` : '—'}</td>
+                          <td style={tableCellStyle}>{row.cost ? `BDT ${Number(row.cost).toFixed(2)}` : '—'}</td>
+                          <td style={tableCellStyle}>{row.qty}</td>
+                          <td style={tableCellStyle}><button onClick={() => setQuickVariantRows((cur) => cur.filter((r) => r.key !== row.key))} style={dangerButtonStyle}>✕</button></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            /* Simple product — single price/cost/qty row */
+            <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr 1fr' : 'repeat(auto-fit, minmax(100px, 1fr))', gap: 8, marginBottom: 10 }}>
+              <input type="number" min="0" step="0.01" value={quickVariantRows[0]?.price || ''} onChange={(e) => setQuickVariantRows([{ key: 'simple', label: quickName || 'default', price: e.target.value, cost: quickVariantRows[0]?.cost || '', qty: quickVariantRows[0]?.qty || '1' }])} style={fieldStyle} placeholder="Sale price (BDT)" />
+              <input type="number" min="0" step="0.01" value={quickVariantRows[0]?.cost || ''} onChange={(e) => setQuickVariantRows([{ key: 'simple', label: quickName || 'default', price: quickVariantRows[0]?.price || '', cost: e.target.value, qty: quickVariantRows[0]?.qty || '1' }])} style={fieldStyle} placeholder="Unit cost (BDT)" />
+              <input type="number" min="1" step="1" value={quickVariantRows[0]?.qty || '1'} onChange={(e) => setQuickVariantRows([{ key: 'simple', label: quickName || 'default', price: quickVariantRows[0]?.price || '', cost: quickVariantRows[0]?.cost || '', qty: e.target.value }])} style={fieldStyle} placeholder="Quantity" />
+            </div>
+          )}
+
+          {/* Supplier + Location + Paid */}
+          <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(3, minmax(0, 1fr))', gap: 8, marginBottom: 10 }}>
             <select value={quickSupplierId} onChange={(e) => setQuickSupplierId(e.target.value)} style={fieldStyle}>
               <option value="">Supplier (required)</option>
               {supplierOptions2.map((s) => <option key={s.id} value={s.id}>{s.company_name}</option>)}
@@ -244,17 +393,10 @@ export function PurchasesWorkspace() {
               {locations.map((l) => <option key={l.id} value={l.id}>{l.name} · {l.code}</option>)}
             </select>
             <input type="number" min="0" step="0.01" value={quickPaid} onChange={(e) => setQuickPaid(e.target.value)} style={fieldStyle} placeholder="Paid amount (BDT)" />
-            <div />
           </div>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, cursor: 'pointer' }}>
-            <input type="checkbox" checked={quickHasVariants} onChange={(e) => setQuickHasVariants(e.target.checked)} style={{ accentColor: '#0f172a' }} />
-            <span style={{ fontSize: 13, color: '#334155' }}>Has variants (sizes, colors)</span>
-          </label>
-          {quickHasVariants ? (
-            <textarea value={quickVariantLabels} onChange={(e) => setQuickVariantLabels(e.target.value)} style={{ ...fieldStyle, minHeight: 60, marginTop: 8 }} placeholder="One per line: 90/90-12, Red, Blue" />
-          ) : null}
-          <button onClick={quickReceive} style={{ ...accentButtonStyle, marginTop: 10, width: '100%', minHeight: 36 }} disabled={quickSaving}>
-            {quickSaving ? 'Saving...' : 'Create Product & Receive Stock'}
+
+          <button onClick={quickReceive} style={{ ...accentButtonStyle, width: '100%', minHeight: 36 }} disabled={loading || quickSaving || !quickName.trim()}>
+            {quickSaving ? 'Saving...' : `Create & Receive Stock (${quickHasVariants && quickVariantRows.length ? quickVariantRows.length : 1} item${quickHasVariants && quickVariantRows.length > 1 ? 's' : ''})`}
           </button>
         </article>
 
