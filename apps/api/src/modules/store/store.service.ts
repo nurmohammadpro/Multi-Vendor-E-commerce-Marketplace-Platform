@@ -19,6 +19,7 @@ type InviteStaffPayload = {
 type UpdateMembershipPayload = {
   status?: 'active' | 'suspended' | 'removed';
   roleCode?: 'store_owner' | 'store_manager' | 'store_salesman';
+  locationId?: string | null;
   fullName?: string;
   phone?: string | null;
   email?: string | null;
@@ -72,6 +73,7 @@ type CreateStaffMemberPayload = StaffEmploymentProfilePayload & {
   password: string;
   address: string;
   roleCode: 'store_manager' | 'store_salesman';
+  locationId?: string;
 };
 
 type CreateStorePayload = {
@@ -1164,6 +1166,7 @@ export class StoreService {
             sm.status,
             sm.joined_at,
             sm.created_at,
+            sm.location_id,
             r.code as role_code,
             u.email,
             u.phone,
@@ -1175,12 +1178,14 @@ export class StoreService {
             he.department,
             he.employment_status,
             he.monthly_salary,
+            il.name as location_name,
             count(*) over()::int as total_count
           from access.store_memberships sm
           join access.roles r on r.id = sm.role_id
           join identity.users u on u.id = sm.user_id
           left join identity.user_profiles up on up.user_id = u.id
           left join hr.employees he on he.store_id = sm.store_id and he.user_id = sm.user_id
+          left join inventory.locations il on il.id = sm.location_id
           where sm.store_id = $1
             and (
               $2::text is null
@@ -1294,6 +1299,20 @@ export class StoreService {
       );
 
       const roleId = await this.findRoleIdWithClient(client, payload.roleCode);
+
+      if (payload.roleCode === 'store_manager') {
+        if (!payload.locationId) {
+          throw new ForbiddenException('A location must be assigned when creating a manager.');
+        }
+        const location = await client.query<{ id: string }>(
+          `select id from inventory.locations where id = $1 and store_id = $2 and status = 'active' limit 1`,
+          [payload.locationId, storeId],
+        );
+        if (!location.rows[0]) {
+          throw new NotFoundException('Assigned location not found or is not active.');
+        }
+      }
+
       await client.query(
         `
           insert into access.store_memberships (
@@ -1302,6 +1321,7 @@ export class StoreService {
             store_id,
             user_id,
             role_id,
+            location_id,
             status,
             joined_at,
             created_at,
@@ -1313,13 +1333,14 @@ export class StoreService {
             $2,
             $3,
             $4,
+            $5,
             'active',
             now(),
             now(),
             now()
           )
         `,
-        [tenantId, storeId, userId, roleId],
+        [tenantId, storeId, userId, roleId, payload.locationId ?? null],
       );
 
       const employee = await this.upsertLinkedEmployee(client, {
@@ -1454,9 +1475,10 @@ export class StoreService {
       role_id: string;
       status: string;
       tenant_id: string;
+      location_id: string | null;
     }>(
       `
-        select id, user_id, role_id, status, tenant_id
+        select id, user_id, role_id, status, tenant_id, location_id
         from access.store_memberships
         where id = $1
           and store_id = $2
@@ -1537,15 +1559,22 @@ export class StoreService {
         );
       }
 
+      const nextLocationId = payload.locationId !== undefined ? payload.locationId : currentMembership.location_id ?? null;
+
+      if (nextRoleCode === 'store_manager' && !nextLocationId) {
+        throw new ForbiddenException('A location must be assigned when the role is manager.');
+      }
+
       await client.query(
         `
           update access.store_memberships
           set role_id = $2,
               status = $3,
+              location_id = $4,
               updated_at = now()
           where id = $1
         `,
-        [membershipId, nextRoleId, nextStatus],
+        [membershipId, nextRoleId, nextStatus, nextLocationId ?? null],
       );
 
       const userSnapshot = await client.query<{

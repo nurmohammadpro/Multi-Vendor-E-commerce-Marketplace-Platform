@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Package, ClipboardList, ShoppingCart, Truck, BarChart3, CreditCard, Users, Wallet, ReceiptText, Landmark } from 'lucide-react';
+import { Package, ClipboardList, ShoppingCart, Truck, BarChart3, CreditCard, Users, Wallet, ReceiptText, Landmark, MapPin } from 'lucide-react';
 
 import { fetchStoreApi, isStoreApiConfigured } from '../lib/api';
 import { getStoreConsoleAccess } from '../lib/access';
@@ -29,6 +29,7 @@ const quickActions = [
   // Product & Stock
   { href: '/purchases', group: 'Product & Stock', title: 'Products & Stock', detail: 'Quick add new products, receive supplier stock, manage categories and suppliers.', icon: Package, feature: 'purchases' },
   { href: '/reports', group: 'Product & Stock', title: 'Reports', detail: 'Daily sales, stock snapshots, and exportable business reports.', icon: BarChart3, permission: 'sales.report.view', feature: 'reports' },
+  { href: '/locations', group: 'Product & Stock', title: 'Locations', detail: 'Manage inventory locations, addresses, and contact details.', icon: MapPin, feature: 'inventory' },
   // Management
   { href: '/staff', group: 'Management', title: 'Staff Management', detail: 'Manage store owner, manager, and salesman access and roles.', icon: Users, permission: 'store.staff.manage', feature: 'staff' },
   { href: '/expenses', group: 'Management', title: 'Daily Expenses', detail: 'Track day-level store expenses and spending.', icon: ReceiptText, feature: 'expenses' },
