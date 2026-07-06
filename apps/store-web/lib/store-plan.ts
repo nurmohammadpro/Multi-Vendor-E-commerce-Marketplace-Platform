@@ -31,7 +31,7 @@ const featurePlanRequirements: Record<StoreConsoleFeature, StoreSubscriptionPlan
   catalog: 'basic',
   inventory: 'basic',
   pos: 'basic',
-  purchases: 'standard',
+  purchases: 'basic',
   receivables: 'basic',
   customers: 'basic',
   reports: 'basic',
