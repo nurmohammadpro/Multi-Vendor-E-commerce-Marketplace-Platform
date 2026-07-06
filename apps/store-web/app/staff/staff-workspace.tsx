@@ -35,6 +35,8 @@ type StaffMember = {
   department?: string | null;
   employment_status?: string | null;
   monthly_salary?: string | number | null;
+  location_id?: string | null;
+  location_name?: string | null;
 };
 
 type StaffCapabilities = {
@@ -62,6 +64,7 @@ const defaultForm = {
   password: '',
   address: '',
   roleCode: 'store_salesman',
+  locationId: '',
   joinDate: new Date().toISOString().slice(0, 10),
   monthlySalary: '',
   employmentType: 'permanent',
@@ -89,6 +92,9 @@ export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) 
   const [activeTab, setActiveTab] = useState<'create' | 'users'>('users');
   const [subscriptionPlan, setSubscriptionPlan] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [locations, setLocations] = useState<Array<{ id: string; name: string; code: string }>>([]);
+  const [promotingId, setPromotingId] = useState<string | null>(null);
+  const [promoteLocationId, setPromoteLocationId] = useState('');
 
   const isPro = subscriptionPlan === 'pro';
 
@@ -106,6 +112,7 @@ export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) 
     void Promise.all([
       refresh(),
       readJson<{ subscription?: { plan_code: string } }>('/api/billing/subscription').then((data) => setSubscriptionPlan(data.subscription?.plan_code ?? null)).catch(() => {}),
+      readJson<{ locations: Array<{ id: string; name: string; code: string }> }>('/api/inventory/locations').then((data) => setLocations(data.locations ?? [])).catch(() => {}),
     ]).catch((error: Error) => setMessage(error.message));
   }, []);
 
@@ -118,6 +125,10 @@ export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) 
       setMessage('Name, phone, email, password, and address are required.');
       return;
     }
+    if (form.roleCode === 'store_manager' && !form.locationId) {
+      setMessage('A location must be assigned when creating a manager.');
+      return;
+    }
 
     setLoading(true);
     try {
@@ -126,6 +137,7 @@ export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...form,
+          locationId: form.locationId || undefined,
           monthlySalary: Number(form.monthlySalary || 0),
           designation: form.designation || undefined,
           department: form.department || undefined,
@@ -210,6 +222,14 @@ export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) 
             {capabilities?.canInviteManager ? <option value="store_manager">Manager</option> : null}
             <option value="store_salesman">Salesman</option>
           </select>
+          {form.roleCode === 'store_manager' ? (
+            <select value={form.locationId} onChange={(e) => setForm((v) => ({ ...v, locationId: e.target.value }))} style={{ ...fieldStyle, borderColor: !form.locationId ? '#f59e0b' : undefined }} required>
+              <option value="">Select location*</option>
+              {locations.map((loc) => (
+                <option key={loc.id} value={loc.id}>{loc.name} ({loc.code})</option>
+              ))}
+            </select>
+          ) : null}
           <input type="date" value={form.joinDate} onChange={(e) => setForm((v) => ({ ...v, joinDate: e.target.value }))} style={fieldStyle} />
           {isPro ? <input value={form.monthlySalary} onChange={(e) => setForm((v) => ({ ...v, monthlySalary: e.target.value }))} style={fieldStyle} placeholder="Monthly salary" /> : null}
           {isPro ? <input value={form.designation} onChange={(e) => setForm((v) => ({ ...v, designation: e.target.value }))} style={fieldStyle} placeholder="Designation" /> : null}
@@ -250,6 +270,7 @@ export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) 
                     <th style={tableHeaderCellStyle}>Status</th>
                     <th style={tableHeaderCellStyle}>Employee ID</th>
                     <th style={tableHeaderCellStyle}>Contact</th>
+                    <th style={tableHeaderCellStyle}>Location</th>
                     {isPro ? <th style={tableHeaderCellStyle}>Designation</th> : null}
                     {isPro ? <th style={tableHeaderCellStyle}>Department</th> : null}
                     {isPro ? <th style={tableHeaderCellStyle}>Salary</th> : null}
@@ -270,13 +291,32 @@ export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) 
                         {member.email || '—'}
                         <div style={{ color: '#64748b', marginTop: 4 }}>{member.phone || '—'}</div>
                       </td>
+                      <td style={tableCellStyle}>{member.location_name || '—'}</td>
                       {isPro ? <td style={tableCellStyle}>{member.designation || '—'}</td> : null}
                       {isPro ? <td style={tableCellStyle}>{member.department || '—'}</td> : null}
                       {isPro ? <td style={tableCellStyle}>{member.monthly_salary || 0}</td> : null}
                       <td style={tableCellStyle}>
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                           {capabilities?.canUpdateManager && member.role_code === 'store_salesman' ? (
-                            <button onClick={() => updateMembership(member.id, { roleCode: 'store_manager' })} style={secondaryButtonStyle} disabled={loading}>Make Manager</button>
+                            promotingId === member.id ? (
+                              <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
+                                <select value={promoteLocationId} onChange={(e) => setPromoteLocationId(e.target.value)} style={{ ...fieldStyle, width: 140, fontSize: 12 }}>
+                                  <option value="">Select location*</option>
+                                  {locations.map((loc) => (
+                                    <option key={loc.id} value={loc.id}>{loc.name}</option>
+                                  ))}
+                                </select>
+                                <button onClick={() => {
+                                  if (!promoteLocationId) { setMessage('Select a location first.'); return; }
+                                  updateMembership(member.id, { roleCode: 'store_manager', locationId: promoteLocationId });
+                                  setPromotingId(null);
+                                  setPromoteLocationId('');
+                                }} style={secondaryButtonStyle} disabled={loading}>Confirm</button>
+                                <button onClick={() => { setPromotingId(null); setPromoteLocationId(''); }} style={secondaryButtonStyle} disabled={loading}>Cancel</button>
+                              </div>
+                            ) : (
+                              <button onClick={() => { setPromotingId(member.id); setPromoteLocationId(member.location_id ?? ''); }} style={secondaryButtonStyle} disabled={loading}>Make Manager</button>
+                            )
                           ) : null}
                           {capabilities?.canUpdateManager && member.role_code === 'store_manager' ? (
                             <button onClick={() => updateMembership(member.id, { roleCode: 'store_salesman' })} style={secondaryButtonStyle} disabled={loading}>Make Salesman</button>
