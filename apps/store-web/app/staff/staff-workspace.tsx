@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 
 import {
   accentButtonStyle,
@@ -87,6 +88,7 @@ export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) 
   const [pagination, setPagination] = useState<PaginationState>({ page: 1, limit: 12, total: 0 });
   const [activeTab, setActiveTab] = useState<'create' | 'users'>('users');
   const [subscriptionPlan, setSubscriptionPlan] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   const isPro = subscriptionPlan === 'pro';
 
@@ -197,7 +199,12 @@ export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) 
           <input value={form.fullName} onChange={(e) => setForm((v) => ({ ...v, fullName: e.target.value }))} style={fieldStyle} placeholder="Full name*" />
           <input value={form.phone} onChange={(e) => setForm((v) => ({ ...v, phone: e.target.value }))} style={fieldStyle} placeholder="Phone*" />
           <input value={form.email} onChange={(e) => setForm((v) => ({ ...v, email: e.target.value }))} style={fieldStyle} placeholder="Email*" />
-          <input type="password" value={form.password} onChange={(e) => setForm((v) => ({ ...v, password: e.target.value }))} style={fieldStyle} placeholder="Password*" />
+          <div style={{ position: 'relative' }}>
+            <input type={showPassword ? 'text' : 'password'} value={form.password} onChange={(e) => setForm((v) => ({ ...v, password: e.target.value }))} style={{ ...fieldStyle, paddingRight: 30 }} placeholder="Password*" />
+            <button type="button" onClick={() => setShowPassword((v) => !v)} style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#888', padding: 0, lineHeight: 0 }} tabIndex={-1} aria-label={showPassword ? 'Hide password' : 'Show password'}>
+              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
+          </div>
           <input value={form.address} onChange={(e) => setForm((v) => ({ ...v, address: e.target.value }))} style={fieldStyle} placeholder="Address*" />
           <select value={form.roleCode} onChange={(e) => setForm((v) => ({ ...v, roleCode: e.target.value }))} style={fieldStyle}>
             {capabilities?.canInviteManager ? <option value="store_manager">Manager</option> : null}
