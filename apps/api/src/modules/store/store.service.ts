@@ -2182,7 +2182,7 @@ export class StoreService {
       canUpdateManager: actorRole === 'store_owner',
       canUpdateSalesman: actorRole === 'store_owner' || actorRole === 'store_manager',
       canRemoveManager: actorRole === 'store_owner',
-      canRemoveSalesman: actorRole === 'store_owner',
+      canRemoveSalesman: actorRole === 'store_owner' || actorRole === 'store_manager',
     };
   }
 
@@ -2214,9 +2214,6 @@ export class StoreService {
         throw new ForbiddenException('Managers can only keep salesmen as salesmen');
       }
 
-      if (payload.status === 'removed') {
-        throw new ForbiddenException('Managers cannot remove salesmen');
-      }
     }
   }
 
