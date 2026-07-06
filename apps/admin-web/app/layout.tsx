@@ -11,6 +11,7 @@ export const metadata = {
 const navItems = [
   { href: '/', label: 'Dashboard' },
   { href: '/stores', label: 'Store Ops' },
+  { href: '/billing', label: 'Billing Plans' },
   { href: '/payments', label: 'Payments' },
   { href: '/reports', label: 'Reports' },
   { href: '/notifications', label: 'Notifications' },

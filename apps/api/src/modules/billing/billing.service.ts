@@ -21,13 +21,17 @@ export class BillingService {
           p.code,
           p.name,
           p.price_amount,
+          p.signup_fee,
           p.billing_cycle,
           p.features_json,
+          p.max_users,
+          p.max_locations,
+          p.is_custom,
           p.status
         from billing.plans p
         where p.tenant_id = $1
-          and p.status = 'active'
         order by
+          case when p.is_custom then 1 else 0 end,
           case p.code
             when 'basic' then 1
             when 'standard' then 2
@@ -51,8 +55,12 @@ export class BillingService {
           p.code,
           p.name,
           p.price_amount,
+          p.signup_fee,
           p.billing_cycle,
           p.features_json,
+          p.max_users,
+          p.max_locations,
+          p.is_custom,
           p.status
         from billing.plans p
         join store.stores s on s.tenant_id = p.tenant_id
@@ -87,8 +95,12 @@ export class BillingService {
           p.code as plan_code,
           p.name as plan_name,
           p.price_amount,
+          p.signup_fee,
           p.billing_cycle,
-          p.features_json
+          p.features_json,
+          p.max_users,
+          p.max_locations,
+          p.is_custom
         from billing.subscriptions sub
         join billing.plans p on p.id = sub.plan_id
         where sub.store_id = $1
@@ -103,11 +115,98 @@ export class BillingService {
     };
   }
 
+  async createPlan(tenantId: string, payload: {
+    code: string; name: string; priceAmount: number; signupFee: number;
+    billingCycle: string; maxUsers: number; maxLocations: number; features: string[];
+  }) {
+    const result = await this.pool.query(
+      `insert into billing.plans (id, tenant_id, code, name, price_amount, signup_fee, billing_cycle, max_users, max_locations, features_json, is_custom, status, created_at, updated_at)
+       values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, true, 'active', now(), now())
+       on conflict (tenant_id, code) do update set
+         name = excluded.name, price_amount = excluded.price_amount, signup_fee = excluded.signup_fee,
+         max_users = excluded.max_users, max_locations = excluded.max_locations,
+         features_json = excluded.features_json, updated_at = now()
+       returning id`,
+      [tenantId, payload.code, payload.name, payload.priceAmount, payload.signupFee,
+       payload.billingCycle, payload.maxUsers, payload.maxLocations, JSON.stringify(payload.features)],
+    );
+    return { plan: result.rows[0] };
+  }
+
+  async updatePlan(planId: string, tenantId: string, payload: Record<string, unknown>) {
+    const sets: string[] = [];
+    const values: unknown[] = [];
+    let idx = 1;
+
+    if (payload.name !== undefined) { sets.push(`name = $${idx++}`); values.push(payload.name); }
+    if (payload.priceAmount !== undefined) { sets.push(`price_amount = $${idx++}`); values.push(payload.priceAmount); }
+    if (payload.signupFee !== undefined) { sets.push(`signup_fee = $${idx++}`); values.push(payload.signupFee); }
+    if (payload.billingCycle !== undefined) { sets.push(`billing_cycle = $${idx++}`); values.push(payload.billingCycle); }
+    if (payload.maxUsers !== undefined) { sets.push(`max_users = $${idx++}`); values.push(payload.maxUsers); }
+    if (payload.maxLocations !== undefined) { sets.push(`max_locations = $${idx++}`); values.push(payload.maxLocations); }
+    if (payload.features !== undefined) { sets.push(`features_json = $${idx++}`); values.push(JSON.stringify(payload.features)); }
+    if (payload.status !== undefined) { sets.push(`status = $${idx++}`); values.push(payload.status); }
+    sets.push('updated_at = now()');
+
+    values.push(planId, tenantId);
+    const result = await this.pool.query(
+      `update billing.plans set ${sets.join(', ')} where id = $${idx++} and tenant_id = $${idx++} returning id`,
+      values,
+    );
+    if (!result.rows[0]) throw new NotFoundException('Plan not found');
+    return { success: true };
+  }
+
+  async deactivatePlan(planId: string, tenantId: string) {
+    const result = await this.pool.query(
+      `update billing.plans set status = 'inactive', updated_at = now() where id = $1 and tenant_id = $2 and is_custom = true returning id`,
+      [planId, tenantId],
+    );
+    if (!result.rows[0]) throw new NotFoundException('Custom plan not found');
+    return { success: true };
+  }
+
+  async getPlanLimits(headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+
+    const planResult = await this.pool.query<{
+      max_users: number; max_locations: number; features_json: string;
+    }>(
+      `select p.max_users, p.max_locations, p.features_json
+       from billing.subscriptions sub
+       join billing.plans p on p.id = sub.plan_id
+       where sub.store_id = $1 and sub.status in ('trial', 'active', 'past_due')
+       order by sub.created_at desc limit 1`,
+      [storeId],
+    );
+
+    const plan = planResult.rows[0];
+    if (!plan) return { limits: null, usage: null };
+
+    const usageResult = await this.pool.query<{ active_users: string; total_locations: string }>(
+      `select
+         (select count(*)::text from access.store_memberships where store_id = $1 and status = 'active') as active_users,
+         (select count(*)::text from inventory.locations where store_id = $1 and status = 'active') as total_locations`,
+      [storeId],
+    );
+
+    const features: string[] = typeof plan.features_json === 'string'
+      ? JSON.parse(plan.features_json) : plan.features_json;
+
+    return {
+      limits: { maxUsers: plan.max_users, maxLocations: plan.max_locations, features },
+      usage: {
+        activeUsers: Number(usageResult.rows[0]?.active_users ?? 0),
+        totalLocations: Number(usageResult.rows[0]?.total_locations ?? 0),
+      },
+    };
+  }
+
   async changeSubscription(
     headerStoreId: string | undefined,
     authContext: StoreAuthContext | null,
     session: AuthSession | null,
-    payload: { planCode: 'basic' | 'standard' | 'pro'; autoRenew: boolean },
+    payload: { planCode: string; autoRenew: boolean },
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
     const userId = this.requireUserId(session);
@@ -426,6 +525,48 @@ export class BillingService {
     } finally {
       client.release();
     }
+  }
+
+  async checkUserLimit(storeId: string): Promise<{ current: number; max: number }> {
+    const result = await this.pool.query<{ max_users: number; active_count: string }>(
+      `select p.max_users,
+         (select count(*)::text from access.store_memberships where store_id = $1 and status = 'active') as active_count
+       from billing.subscriptions sub
+       join billing.plans p on p.id = sub.plan_id
+       where sub.store_id = $1 and sub.status in ('trial', 'active', 'past_due')
+       order by sub.created_at desc limit 1`,
+      [storeId],
+    );
+    const row = result.rows[0];
+    if (!row) throw new NotFoundException('No active subscription');
+    const current = Number(row.active_count);
+    if (current >= row.max_users) {
+      throw new ForbiddenException(
+        `User limit reached (${current}/${row.max_users}). Upgrade your plan to add more users.`,
+      );
+    }
+    return { current, max: row.max_users };
+  }
+
+  async checkLocationLimit(storeId: string): Promise<{ current: number; max: number }> {
+    const result = await this.pool.query<{ max_locations: number; active_count: string }>(
+      `select p.max_locations,
+         (select count(*)::text from inventory.locations where store_id = $1 and status = 'active') as active_count
+       from billing.subscriptions sub
+       join billing.plans p on p.id = sub.plan_id
+       where sub.store_id = $1 and sub.status in ('trial', 'active', 'past_due')
+       order by sub.created_at desc limit 1`,
+      [storeId],
+    );
+    const row = result.rows[0];
+    if (!row) throw new NotFoundException('No active subscription');
+    const current = Number(row.active_count);
+    if (current >= row.max_locations) {
+      throw new ForbiddenException(
+        `Location limit reached (${current}/${row.max_locations}). Upgrade your plan to add more locations.`,
+      );
+    }
+    return { current, max: row.max_locations };
   }
 
   private assertStoreContext(headerStoreId: string | undefined, authContext: StoreAuthContext | null) {

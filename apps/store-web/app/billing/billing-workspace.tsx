@@ -25,12 +25,21 @@ import { searchRowStyle, stackedFilterGridStyle, useCompactLayout, WorkspaceTabs
 
 type Plan = {
   id: string;
-  code: 'basic' | 'standard' | 'pro';
+  code: string;
   name: string;
   price_amount: string | number;
+  signup_fee: string | number;
   billing_cycle: string;
+  max_users: number;
+  max_locations: number;
   features_json?: string[] | Record<string, unknown> | null;
   status: string;
+  is_custom: boolean;
+};
+
+type PlanLimits = {
+  limits: { maxUsers: number; maxLocations: number; features: string[] } | null;
+  usage: { activeUsers: number; totalLocations: number } | null;
 };
 
 type Subscription = {
@@ -42,7 +51,10 @@ type Subscription = {
   plan_code: string;
   plan_name: string;
   price_amount: string | number;
+  signup_fee?: string | number;
   billing_cycle: string;
+  max_users?: number;
+  max_locations?: number;
   features_json?: string[] | Record<string, unknown> | null;
 } | null;
 
@@ -94,6 +106,7 @@ export function BillingWorkspace({ canManageBilling }: { canManageBilling: boole
   const compact = useCompactLayout();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [subscription, setSubscription] = useState<Subscription>(null);
+  const [planLimits, setPlanLimits] = useState<PlanLimits>({ limits: null, usage: null });
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceDetail | null>(null);
   const [message, setMessage] = useState('Billing workspace is ready.');
@@ -124,13 +137,15 @@ export function BillingWorkspace({ canManageBilling }: { canManageBilling: boole
     });
     if (invoiceSearch.trim()) params.set('search', invoiceSearch.trim());
     if (invoiceStatus) params.set('status', invoiceStatus);
-    const [planPayload, subscriptionPayload, invoicePayload] = await Promise.all([
+    const [planPayload, subscriptionPayload, limitsPayload, invoicePayload] = await Promise.all([
       readJson<{ plans: Plan[] }>('/api/billing/plans'),
       readJson<{ subscription: Subscription }>('/api/billing/subscription'),
+      readJson<PlanLimits>('/api/billing/plan-limits').catch(() => ({ limits: null, usage: null })),
       readJson<{ invoices: Invoice[]; pagination?: Pagination }>(`/api/billing/invoices?${params.toString()}`),
     ]);
     setPlans(planPayload.plans ?? []);
     setSubscription(subscriptionPayload.subscription ?? null);
+    setPlanLimits(limitsPayload);
     setInvoices(invoicePayload.invoices ?? []);
     setInvoicePagination(invoicePayload.pagination ?? { page: nextPage, limit: invoicePagination.limit, total: invoicePayload.invoices?.length ?? 0 });
     setInvoicePage(invoicePayload.pagination?.page ?? nextPage);
@@ -229,11 +244,33 @@ export function BillingWorkspace({ canManageBilling }: { canManageBilling: boole
             <>
               <div style={{ fontSize: 20, fontWeight: 600 }}>{subscription.plan_name}</div>
               <div style={tokenMutedStyle}>
-                {subscription.status} · {subscription.price_amount} / {subscription.billing_cycle}
+                {subscription.status} · BDT {Number(subscription.price_amount).toLocaleString()} / {subscription.billing_cycle}
+                {Number(subscription.signup_fee ?? 0) > 0 ? ` · BDT ${Number(subscription.signup_fee).toLocaleString()} signup fee` : ''}
               </div>
-              <div style={{ color: '#64748b' }}>
+              <div style={{ color: '#64748b', marginBottom: 12 }}>
                 Renewal: {subscription.renewal_at ? new Date(subscription.renewal_at).toLocaleString() : '—'}
               </div>
+              {planLimits.limits ? (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 13 }}>
+                  <div>
+                    <span style={tokenMutedStyle}>Users</span>
+                    <div style={{ fontWeight: 500 }}>{planLimits.usage?.activeUsers ?? '?'} / {planLimits.limits.maxUsers}</div>
+                  </div>
+                  <div>
+                    <span style={tokenMutedStyle}>Locations</span>
+                    <div style={{ fontWeight: 500 }}>{planLimits.usage?.totalLocations ?? '?'} / {planLimits.limits.maxLocations}</div>
+                  </div>
+                </div>
+              ) : null}
+              {planLimits.limits?.features?.length ? (
+                <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  {planLimits.limits.features.map((f) => (
+                    <span key={f} style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, background: '#e2e8f0', color: '#334155' }}>
+                      {f}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
             </>
           ) : (
             <div style={emptyStateStyle}>No active subscription is assigned to this store yet.</div>
@@ -279,6 +316,9 @@ export function BillingWorkspace({ canManageBilling }: { canManageBilling: boole
                     <th style={tableHeaderCellStyle}>Plan</th>
                     <th style={tableHeaderCellStyle}>Code</th>
                     <th style={tableHeaderCellStyle}>Price</th>
+                    <th style={tableHeaderCellStyle}>Signup Fee</th>
+                    <th style={tableHeaderCellStyle}>Users</th>
+                    <th style={tableHeaderCellStyle}>Locations</th>
                     <th style={tableHeaderCellStyle}>Cycle</th>
                     <th style={tableHeaderCellStyle}>Status</th>
                     <th style={tableHeaderCellStyle}>Features</th>
@@ -287,9 +327,12 @@ export function BillingWorkspace({ canManageBilling }: { canManageBilling: boole
                 <tbody>
                   {plans.map((plan) => (
                     <tr key={plan.id}>
-                      <td style={tableCellStyle}>{plan.name}</td>
+                      <td style={tableCellStyle}>{plan.name} {plan.is_custom ? '(Custom)' : ''}</td>
                       <td style={tableCellStyle}>{plan.code}</td>
-                      <td style={tableCellStyle}>{plan.price_amount}</td>
+                      <td style={tableCellStyle}>BDT {Number(plan.price_amount).toLocaleString()}</td>
+                      <td style={tableCellStyle}>BDT {Number(plan.signup_fee).toLocaleString()}</td>
+                      <td style={tableCellStyle}>{plan.max_users}</td>
+                      <td style={tableCellStyle}>{plan.max_locations}</td>
                       <td style={tableCellStyle}>{plan.billing_cycle}</td>
                       <td style={tableCellStyle}>{plan.status}</td>
                       <td style={tableCellStyle}>{Array.isArray(plan.features_json) ? plan.features_json.join(', ') : 'Feature set configured'}</td>

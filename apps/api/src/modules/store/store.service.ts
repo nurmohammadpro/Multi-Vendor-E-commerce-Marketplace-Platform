@@ -6,6 +6,7 @@ import { hashPassword } from '@mvp/auth';
 
 import type { AdminAuthContext, AuthSession, StoreAuthContext } from '../auth/auth.types.js';
 import { AuditService } from '../audit/audit.service.js';
+import { BillingService } from '../billing/billing.service.js';
 import { normalizePageQuery, stripPaginationTotal } from '../common/pagination.js';
 import { DATABASE_POOL } from '../database/database.constants.js';
 
@@ -127,6 +128,7 @@ export class StoreService {
   constructor(
     @Inject(DATABASE_POOL) private readonly pool: Pool,
     private readonly auditService: AuditService,
+    private readonly billingService: BillingService,
   ) {}
 
   async createStore(session: AuthSession | null, payload: CreateStorePayload) {
@@ -1218,6 +1220,7 @@ export class StoreService {
     const actorUserId = this.requireUserId(session);
     const actorRole = this.requireStoreActorRole(authContext);
     this.assertCanInviteStaff(actorRole, payload.roleCode);
+    await this.billingService.checkUserLimit(storeId);
 
     const client = await this.pool.connect();
     try {
@@ -1376,6 +1379,7 @@ export class StoreService {
 
     const actorRole = this.requireStoreActorRole(authContext);
     this.assertCanInviteStaff(actorRole, payload.roleCode);
+    await this.billingService.checkUserLimit(storeId);
 
     const roleId = await this.findRoleId(payload.roleCode);
     const invitationToken = randomBytes(24).toString('hex');
