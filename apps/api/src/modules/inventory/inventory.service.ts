@@ -3,6 +3,7 @@ import type { Pool, PoolClient } from 'pg';
 
 import type { AuthSession, StoreAuthContext } from '../auth/auth.types.js';
 import { AuditService } from '../audit/audit.service.js';
+import { BillingService } from '../billing/billing.service.js';
 import { normalizePageQuery, stripPaginationTotal } from '../common/pagination.js';
 import { DATABASE_POOL } from '../database/database.constants.js';
 
@@ -11,6 +12,7 @@ export class InventoryService {
   constructor(
     @Inject(DATABASE_POOL) private readonly pool: Pool,
     private readonly auditService: AuditService,
+    private readonly billingService: BillingService,
   ) {}
 
   private async ensureDefaultLocation(storeId: string) {
@@ -58,6 +60,8 @@ export class InventoryService {
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
     const userId = this.requireUserId(session);
+
+    await this.billingService.checkLocationLimit(storeId);
 
     const tenantResult = await this.pool.query<{ tenant_id: string }>(
       `select tenant_id from store.stores where id = $1 limit 1`, [storeId],
