@@ -95,6 +95,8 @@ export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) 
   const [locations, setLocations] = useState<Array<{ id: string; name: string; code: string }>>([]);
   const [promotingId, setPromotingId] = useState<string | null>(null);
   const [promoteLocationId, setPromoteLocationId] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ fullName: '', phone: '', email: '', password: '', address: '' });
 
   const isPro = subscriptionPlan === 'pro';
 
@@ -325,6 +327,42 @@ export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) 
                             <button onClick={() => updateMembership(member.id, { status: member.status === 'suspended' ? 'active' : 'suspended' })} style={secondaryButtonStyle} disabled={loading}>
                               {member.status === 'suspended' ? 'Activate' : 'Suspend'}
                             </button>
+                          ) : null}
+                          {editingId !== member.id && member.role_code !== 'store_owner' ? (
+                            <button onClick={() => {
+                              setEditForm({
+                                fullName: member.full_name || '',
+                                phone: member.phone || '',
+                                email: member.email || '',
+                                password: '',
+                                address: member.address_text || '',
+                              });
+                              setEditingId(member.id);
+                            }} style={secondaryButtonStyle} disabled={loading}>Edit</button>
+                          ) : null}
+                          {editingId === member.id ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: 8, background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', width: '100%' }}>
+                              <input value={editForm.fullName} onChange={(e) => setEditForm((v) => ({ ...v, fullName: e.target.value }))} style={{ ...fieldStyle, fontSize: 12 }} placeholder="Full name" />
+                              <input value={editForm.phone} onChange={(e) => setEditForm((v) => ({ ...v, phone: e.target.value }))} style={{ ...fieldStyle, fontSize: 12 }} placeholder="Phone" />
+                              <input value={editForm.email} onChange={(e) => setEditForm((v) => ({ ...v, email: e.target.value }))} style={{ ...fieldStyle, fontSize: 12 }} placeholder="Email" />
+                              <input type="password" value={editForm.password} onChange={(e) => setEditForm((v) => ({ ...v, password: e.target.value }))} style={{ ...fieldStyle, fontSize: 12 }} placeholder="New password (leave blank to keep)" />
+                              <textarea value={editForm.address} onChange={(e) => setEditForm((v) => ({ ...v, address: e.target.value }))} style={{ ...fieldStyle, fontSize: 12, minHeight: 48 }} placeholder="Address" />
+                              <div style={{ display: 'flex', gap: 4 }}>
+                                <button onClick={() => {
+                                  const update: Record<string, unknown> = {};
+                                  if (editForm.fullName.trim()) update.fullName = editForm.fullName.trim();
+                                  if (editForm.phone.trim()) update.phone = editForm.phone.trim();
+                                  if (editForm.email.trim()) update.email = editForm.email.trim();
+                                  if (editForm.password.trim()) update.password = editForm.password.trim();
+                                  if (editForm.address.trim()) update.address = editForm.address.trim();
+                                  if (!Object.keys(update).length) { setMessage('No changes to save.'); return; }
+                                  updateMembership(member.id, update);
+                                  setEditingId(null);
+                                  setEditForm({ fullName: '', phone: '', email: '', password: '', address: '' });
+                                }} style={accentButtonStyle} disabled={loading}>Save</button>
+                                <button onClick={() => { setEditingId(null); setEditForm({ fullName: '', phone: '', email: '', password: '', address: '' }); }} style={secondaryButtonStyle} disabled={loading}>Cancel</button>
+                              </div>
+                            </div>
                           ) : null}
                           {member.role_code === 'store_manager' && capabilities?.canRemoveManager ? (
                             <button onClick={() => updateMembership(member.id, { status: 'removed' })} style={secondaryButtonStyle} disabled={loading}>Remove</button>
