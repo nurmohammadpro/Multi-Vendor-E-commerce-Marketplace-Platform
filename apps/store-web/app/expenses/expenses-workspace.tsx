@@ -215,11 +215,11 @@ export function ExpensesWorkspace() {
                   gap: 6,
                   padding: '4px 8px',
                   borderRadius: 6,
-                  border: `1px solid ${cat.status === 'active' ? 'rgba(37, 99, 235, 0.2)' : 'rgba(148, 163, 184, 0.22)'}`,
-                  background: cat.status === 'active' ? 'rgba(37, 99, 235, 0.06)' : '#ffffff',
+                  border: `1px solid ${cat.status === 'active' ? 'var(--accent)' : 'var(--border)'}`,
+                  background: cat.status === 'active' ? 'var(--accent-soft)' : 'var(--card)',
                   fontSize: 12,
                   fontWeight: 500,
-                  color: cat.status === 'active' ? '#1d4ed8' : '#475569',
+                  color: cat.status === 'active' ? 'var(--accent-deep)' : 'var(--muted-foreground)',
                   opacity: cat.status === 'archived' ? 0.6 : 1,
                 }}
               >
@@ -227,7 +227,7 @@ export function ExpensesWorkspace() {
                 {cat.status === 'active' ? (
                   <button
                     onClick={() => void toggleCategoryStatus(cat)}
-                    style={{ ...subtleButtonStyle, minHeight: 18, padding: '0 4px', fontSize: 11, lineHeight: '18px', color: '#475569' }}
+                    style={{ ...subtleButtonStyle, minHeight: 18, padding: '0 4px', fontSize: 11, lineHeight: '18px', color: 'var(--muted-foreground)' }}
                     title="Archive"
                   >
                     ✕

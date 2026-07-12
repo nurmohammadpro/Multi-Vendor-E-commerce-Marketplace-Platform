@@ -260,7 +260,7 @@ export function SupportWorkspace({
                 </thead>
                 <tbody>
                   {tickets.map((ticket) => (
-                    <tr key={ticket.id} style={{ background: selectedTicket?.ticket.id === ticket.id ? 'rgba(241,245,249,0.9)' : '#fff' }}>
+                    <tr key={ticket.id} style={{ background: selectedTicket?.ticket.id === ticket.id ? 'var(--muted)' : 'var(--card)' }}>
                       <td style={tableCellStyle}>{ticket.ticket_no}</td>
                       <td style={tableCellStyle}>{ticket.subject}</td>
                       <td style={tableCellStyle}>{ticket.priority}</td>
@@ -297,7 +297,7 @@ export function SupportWorkspace({
           <div style={{ display: 'grid', gap: 12 }}>
             <div>
               <div style={{ fontWeight: 600 }}>{selectedTicket.ticket.subject}</div>
-              <div style={{ color: '#64748b' }}>
+              <div style={{ color: 'var(--muted-foreground)' }}>
                 {selectedTicket.ticket.ticket_no} · {selectedTicket.ticket.priority} · {selectedTicket.ticket.status}
               </div>
             </div>

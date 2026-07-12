@@ -307,7 +307,7 @@ export function PayrollWorkspace() {
                       <tr key={employee.id}>
                         <td style={tableCellStyle}>
                           {employee.full_name}
-                          <div style={{ color: '#64748b', marginTop: 4 }}>{employee.employee_number || 'Pending ID'}</div>
+                          <div style={{ color: 'var(--muted-foreground)', marginTop: 4 }}>{employee.employee_number || 'Pending ID'}</div>
                         </td>
                         <td style={tableCellStyle}>{employee.role_code}</td>
                         {isPro ? <td style={tableCellStyle}>{employee.designation || '—'}</td> : null}
@@ -344,7 +344,7 @@ export function PayrollWorkspace() {
               <option value="paid">Paid</option>
             </select>
             <textarea value={runForm.note} onChange={(event) => setRunForm((current) => ({ ...current, note: event.target.value }))} style={{ ...fieldStyle, minHeight: 88 }} placeholder="Payroll note" />
-            <div style={{ color: '#64748b', fontSize: 13 }}>
+            <div style={{ color: 'var(--muted-foreground)', fontSize: 13 }}>
               Gross: {previewTotals.gross.toFixed(2)} · Bonus: {previewTotals.bonus.toFixed(2)} · Deduction: {previewTotals.deduction.toFixed(2)} · Net: {previewTotals.net.toFixed(2)}
             </div>
             <button onClick={createRun} style={accentButtonStyle} disabled={loading}>Create Payroll Run</button>

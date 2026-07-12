@@ -273,9 +273,9 @@ function MetricTile({
 }) {
   return (
     <article style={surfaceCardStyle}>
-      <div style={{ fontSize: 12, color: '#64748b' }}>{label}</div>
+      <div style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>{label}</div>
       <div style={{ fontSize: 22, fontWeight: 600 }}>{formatMoney(amount)}</div>
-      <div style={{ color: '#64748b' }}>{count ?? 0} due sale(s)</div>
+      <div style={{ color: 'var(--muted-foreground)' }}>{count ?? 0} due sale(s)</div>
     </article>
   );
 }

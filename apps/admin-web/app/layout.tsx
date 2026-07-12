@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { ThemeProvider } from '@mvp/theme';
 
 import './globals.css';
 import { WorkspaceShell } from './workspace-shell';
@@ -24,6 +25,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body>
+        <ThemeProvider>
         <WorkspaceShell
           badge="Platform Admin"
           navItems={navItems}
@@ -31,6 +33,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         >
           {children}
         </WorkspaceShell>
+        </ThemeProvider>
       </body>
     </html>
   );

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import type { Metadata, Viewport } from 'next';
+import { ThemeProvider } from '@mvp/theme';
 
 import { Toaster } from '@/components/ui/sonner';
 import './globals.css';
@@ -64,6 +65,7 @@ export default async function StoreLayout({ children }: { children: ReactNode })
   return (
     <html lang="en">
       <body>
+        <ThemeProvider>
         <WorkspaceShell
           access={access}
           badge="Market One BD"
@@ -73,6 +75,7 @@ export default async function StoreLayout({ children }: { children: ReactNode })
           {children}
         </WorkspaceShell>
         <Toaster />
+        </ThemeProvider>
       </body>
     </html>
   );

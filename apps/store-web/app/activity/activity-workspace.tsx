@@ -151,7 +151,7 @@ export function ActivityWorkspace() {
 
 function AuditAfterCell({ value }: { value?: Record<string, unknown> | null }) {
   if (!value || !Object.keys(value).length) {
-    return <span style={{ color: '#94a3b8', fontSize: 12 }}>No recorded field changes</span>;
+    return <span style={{ color: 'var(--muted-foreground)', fontSize: 12 }}>No recorded field changes</span>;
   }
 
   const entries = Object.entries(value)
@@ -159,7 +159,7 @@ function AuditAfterCell({ value }: { value?: Record<string, unknown> | null }) {
     .slice(0, 6);
 
   if (!entries.length) {
-    return <span style={{ color: '#94a3b8', fontSize: 12 }}>No recorded field changes</span>;
+    return <span style={{ color: 'var(--muted-foreground)', fontSize: 12 }}>No recorded field changes</span>;
   }
 
   return (
@@ -177,7 +177,7 @@ function AuditAfterCell({ value }: { value?: Record<string, unknown> | null }) {
         >
           <span
             style={{
-              color: '#64748b',
+              color: 'var(--muted-foreground)',
               textTransform: 'uppercase',
               letterSpacing: '0.08em',
               fontSize: 11,
@@ -185,13 +185,13 @@ function AuditAfterCell({ value }: { value?: Record<string, unknown> | null }) {
           >
             {humanizeAuditKey(key)}
           </span>
-          <span style={{ color: '#0f172a', wordBreak: 'break-word' }}>
+          <span style={{ color: 'var(--foreground)', wordBreak: 'break-word' }}>
             {formatAuditValue(entryValue)}
           </span>
         </div>
       ))}
       {Object.keys(value).length > entries.length ? (
-        <span style={{ color: '#94a3b8', fontSize: 11 }}>
+        <span style={{ color: 'var(--muted-foreground)', fontSize: 11 }}>
           +{Object.keys(value).length - entries.length} more field(s)
         </span>
       ) : null}

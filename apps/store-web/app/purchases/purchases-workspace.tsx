@@ -56,9 +56,9 @@ async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
 function MetricTile({ label, amount, count }: { label: string; amount?: string | number; count?: string | number }) {
   return (
     <article style={{ ...surfaceCardStyle, padding: '10px 14px' }}>
-      <div style={{ fontSize: 10, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>{label}</div>
+      <div style={{ fontSize: 10, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>{label}</div>
       <div style={{ fontSize: 18, fontWeight: 600, marginTop: 4 }}>BDT {formatMoney(amount)}</div>
-      <div style={{ fontSize: 11, color: '#94a3b8' }}>{count ?? '—'} invoices</div>
+      <div style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>{count ?? '—'} invoices</div>
     </article>
   );
 }
@@ -325,7 +325,7 @@ export function PurchasesWorkspace() {
     <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
       {/* ── Navigation pager ── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-        <p style={{ margin: 0, color: '#475569', fontSize: 13 }}>{message}</p>
+        <p style={{ margin: 0, color: 'var(--muted-foreground)', fontSize: 13 }}>{message}</p>
         <WorkspaceTabs active={activeTab} onChange={(key) => setActiveTab(key as any)} tabs={[{ key: 'receive', label: 'Receive Stock' }, { key: 'purchases', label: 'Purchases' }, { key: 'payables', label: 'Payables' }]} />
       </div>
 
@@ -335,7 +335,7 @@ export function PurchasesWorkspace() {
         {/* ── Quick Add Product + Receive Stock ── */}
         <article style={{ ...surfaceCardStyle, border: '2px solid #1e293b', padding: 14 }}>
           <h3 style={{ marginTop: 0, marginBottom: 4, fontSize: 15 }}>New Product + Receive Stock</h3>
-          <p style={{ margin: '0 0 14px', color: '#64748b', fontSize: 12 }}>Name the product, choose category/brand, add variants, set prices, receive stock — all in one form.</p>
+          <p style={{ margin: '0 0 14px', color: 'var(--muted-foreground)', fontSize: 12 }}>Name the product, choose category/brand, add variants, set prices, receive stock — all in one form.</p>
 
           {/* Product name */}
           <input value={quickName} onChange={(e) => setQuickName(e.target.value)} style={{ ...fieldStyle, marginBottom: 10 }} placeholder="Product name (required)" />
@@ -375,13 +375,13 @@ export function PurchasesWorkspace() {
           {/* Variants toggle */}
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, cursor: 'pointer' }}>
             <input type="checkbox" checked={quickHasVariants} onChange={(e) => { setQuickHasVariants(e.target.checked); if (!e.target.checked) setQuickVariantRows([]); }} style={{ accentColor: '#0f172a' }} />
-            <span style={{ fontSize: 13, color: '#334155' }}>Has variants (sizes, colors, etc.)</span>
+            <span style={{ fontSize: 13, color: 'var(--muted-foreground)' }}>Has variants (sizes, colors, etc.)</span>
           </label>
 
           {/* Trackable toggle */}
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, cursor: 'pointer' }}>
             <input type="checkbox" checked={quickIsTrackable} onChange={(e) => setQuickIsTrackable(e.target.checked)} style={{ accentColor: '#0f172a' }} />
-            <span style={{ fontSize: 13, color: '#334155' }}>Track inventory (stock levels)</span>
+            <span style={{ fontSize: 13, color: 'var(--muted-foreground)' }}>Track inventory (stock levels)</span>
           </label>
 
           {/* Variant input row */}
@@ -444,10 +444,10 @@ export function PurchasesWorkspace() {
         {/* ── Regular Purchase (existing products) ── */}
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0, marginBottom: 4, fontSize: 15 }}>Receive Existing Products</h3>
-          <p style={{ margin: '0 0 12px', color: '#64748b', fontSize: 12 }}>Add products already in your catalog. Use Quick Add above for new products.</p>
+          <p style={{ margin: '0 0 12px', color: 'var(--muted-foreground)', fontSize: 12 }}>Add products already in your catalog. Use Quick Add above for new products.</p>
 
           <details style={{ marginBottom: 12 }}>
-            <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#475569' }}>+ Add supplier or location</summary>
+            <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 600, color: 'var(--muted-foreground)' }}>+ Add supplier or location</summary>
             <div style={{ display: 'grid', gap: 10, marginTop: 10 }}>
               {/* Supplier mini-form */}
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -490,7 +490,7 @@ export function PurchasesWorkspace() {
                 <tbody>
                   {skuResults.map((sku) => (
                     <tr key={sku.id}>
-                      <td style={tableCellStyle}><div style={{ fontWeight: 600 }}>{sku.product_name}</div>{sku.variant_label ? <div style={{ fontSize: 11, color: '#64748b' }}>{sku.variant_label}</div> : null}</td>
+                      <td style={tableCellStyle}><div style={{ fontWeight: 600 }}>{sku.product_name}</div>{sku.variant_label ? <div style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>{sku.variant_label}</div> : null}</td>
                       <td style={tableCellStyle}>{sku.sku_code}</td>
                       <td style={tableCellStyle}>{formatMoney(sku.sale_price)}</td>
                       <td style={tableCellStyle}>{Number(sku.available_qty ?? 0)}</td>
@@ -525,7 +525,7 @@ export function PurchasesWorkspace() {
 
           {/* Totals + Receive */}
           <details style={{ marginBottom: 10 }}>
-            <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#475569' }}>Payment details</summary>
+            <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 600, color: 'var(--muted-foreground)' }}>Payment details</summary>
             <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8, marginTop: 8 }}>
               <input type="number" min="0" step="0.01" value={purchaseForm.discountAmount} onChange={(e) => setPurchaseForm((c) => ({ ...c, discountAmount: e.target.value }))} style={fieldStyle} placeholder="Discount" />
               <input type="number" min="0" step="0.01" value={purchaseForm.taxAmount} onChange={(e) => setPurchaseForm((c) => ({ ...c, taxAmount: e.target.value }))} style={fieldStyle} placeholder="Tax" />
@@ -541,8 +541,8 @@ export function PurchasesWorkspace() {
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
             <div style={{ fontSize: 13 }}>
-              <span style={{ color: '#475569' }}>Subtotal: </span><strong>BDT {formatMoney(lineTotal.subtotal)}</strong>
-              <span style={{ color: '#475569', marginLeft: 12 }}>Total: </span><strong style={{ fontSize: 16 }}>BDT {formatMoney(lineTotal.total)}</strong>
+              <span style={{ color: 'var(--muted-foreground)' }}>Subtotal: </span><strong>BDT {formatMoney(lineTotal.subtotal)}</strong>
+              <span style={{ color: 'var(--muted-foreground)', marginLeft: 12 }}>Total: </span><strong style={{ fontSize: 16 }}>BDT {formatMoney(lineTotal.total)}</strong>
               {lineTotal.outstanding > 0 ? <span style={{ color: '#b45309', marginLeft: 8, fontSize: 12 }}>(BDT {formatMoney(lineTotal.outstanding)} unpaid)</span> : null}
             </div>
             <button onClick={createPurchase} style={{ ...accentButtonStyle, minHeight: 36, minWidth: 180 }} disabled={loading || !items.length}>
@@ -623,7 +623,7 @@ export function PurchasesWorkspace() {
                     {payables.map((p) => (
                       <tr key={p.id}>
                         <td style={tableCellStyle}>{p.purchase_no}</td>
-                        <td style={tableCellStyle}><div style={{ fontWeight: 600 }}>{p.supplier_name}</div>{p.supplier_phone ? <div style={{ fontSize: 11, color: '#64748b' }}>{p.supplier_phone}</div> : null}</td>
+                        <td style={tableCellStyle}><div style={{ fontWeight: 600 }}>{p.supplier_name}</div>{p.supplier_phone ? <div style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>{p.supplier_phone}</div> : null}</td>
                         <td style={tableCellStyle}>{p.purchase_date}</td>
                         <td style={tableCellStyle}>{formatMoney(p.total_amount)}</td>
                         <td style={tableCellStyle}><strong style={{ color: Number(p.outstanding_amount) > 0 ? '#b45309' : '#16a34a' }}>{formatMoney(p.outstanding_amount)}</strong></td>
