@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Eye, EyeOff, Loader2, Mail, Lock } from 'lucide-react';
 
 import { getWorkspaceUrl, hasOnlyAdminContext, hasOnlyStoreContext, login, storeStoreId, storeToken } from '@/lib/auth';
+import { ThemeToggle } from '@mvp/theme';
 import { IntroSplash } from './intro-splash';
 
 type FormErrors = {
@@ -98,6 +99,7 @@ export default function LoginPage() {
       <div className={`login-shell flex min-h-screen items-center justify-center bg-background px-4 ${splashComplete ? 'login-shell--ready' : ''}`}>
         {/* Theme toggle — top-right corner */}
         <div className="fixed top-4 right-4 z-50">
+          <ThemeToggle />
         </div>
 
         <div
@@ -146,8 +148,7 @@ export default function LoginPage() {
               </div>
 
               <h2
-                className={`login-stagger login-stagger--2 text-center text-2xl font-semibold tracking-tight ${splashComplete ? 'login-stagger--ready' : ''}`}
-                style={{ color: 'rgb(17, 17, 17)' }}
+                className={`login-stagger login-stagger--2 text-center text-2xl font-semibold tracking-tight text-foreground ${splashComplete ? 'login-stagger--ready' : ''}`}
               >
                 {loginRole === 'admin' ? 'Admin sign in' : 'Store sign in'}
               </h2>
@@ -240,7 +241,6 @@ export default function LoginPage() {
                 type="submit"
                 disabled={loading || !splashComplete}
                 className={`login-stagger login-stagger--6 inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] bg-primary text-primary-foreground hover:bg-primary/90 px-3 py-2.5 h-11 w-full ${splashComplete ? 'login-stagger--ready' : ''}`}
-                style={{ backgroundColor: 'rgb(17, 17, 17)', color: 'rgb(255, 255, 255)' }}
               >
                 {loading ? (
                   <>

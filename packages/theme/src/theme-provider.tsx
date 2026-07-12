@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 
-export type ThemeName = 'slate-pro' | 'stone-sky';
+export type ThemeName = 'slate-pro' | 'stone-sky' | 'emerald-cream' | 'ocean-sand';
 export type ColorMode = 'light' | 'dark' | 'system';
 
 export type ThemeContextValue = {
