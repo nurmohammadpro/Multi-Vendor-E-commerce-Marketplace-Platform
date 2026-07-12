@@ -6,7 +6,16 @@ import { useTheme, type ThemeName } from './theme-provider';
 const THEMES: Array<{ id: ThemeName; label: string }> = [
   { id: 'slate-pro', label: 'Slate Pro' },
   { id: 'stone-sky', label: 'Stone & Sky' },
+  { id: 'emerald-cream', label: 'Emerald & Cream' },
+  { id: 'ocean-sand', label: 'Ocean & Sand' },
 ];
+
+const THEME_ICONS: Record<string, string> = {
+  'slate-pro': '◐',
+  'stone-sky': '✦',
+  'emerald-cream': '🌿',
+  'ocean-sand': '🌊',
+};
 
 const MODE_LABELS: Record<string, string> = {
   light: 'Light',
@@ -48,7 +57,7 @@ export function ThemeToggle() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-1.5 min-w-[180px] rounded-lg border border-border bg-popover p-1.5 shadow-lg">
+        <div className="absolute right-0 top-full z-50 mt-1.5 w-64 rounded-lg border border-border bg-popover p-1.5 shadow-lg">
           {/* Theme selector */}
           <div className="px-2.5 pb-1 pt-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
             Theme
@@ -70,7 +79,7 @@ export function ThemeToggle() {
                 }`}
               >
                 <span className="text-[11px]">
-                  {t.id === 'slate-pro' ? '◐' : '✦'}
+                  {THEME_ICONS[t.id]}
                 </span>
                 {t.label}
               </button>
