@@ -155,7 +155,7 @@ export const fieldStyle: CSSProperties = {
   width: '100%',
   padding: '5px 9px',
   borderRadius: 6,
-  border: `1px solid ${marketoneColors.border}`,
+  border: `1px solid ${marketoneColors.borderStrong}`,
   background: 'var(--card)',
   color: marketoneColors.ink,
   font: 'inherit',
