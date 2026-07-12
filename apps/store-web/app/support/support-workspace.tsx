@@ -3,9 +3,9 @@
 import { useEffect, useState } from 'react';
 
 import {
-  accentButtonStyle,
   emptyStateStyle,
   fieldStyle,
+  gray800ButtonStyle,
   neutralButtonStyle,
   pageShellStyle,
   searchButtonStyle,
@@ -224,7 +224,7 @@ export function SupportWorkspace({
               style={{ ...fieldStyle, minHeight: 120 }}
               placeholder={kind === 'dispute' ? 'Describe the refund, returned items, and customer context.' : 'Describe the support issue clearly.'}
             />
-            <button onClick={createTicket} style={accentButtonStyle} disabled={loading}>
+            <button onClick={createTicket} style={gray800ButtonStyle} disabled={loading}>
               {kind === 'dispute' ? 'Create dispute case' : 'Create support ticket'}
             </button>
           </div>
@@ -333,7 +333,7 @@ export function SupportWorkspace({
               style={{ ...fieldStyle, minHeight: 100 }}
               placeholder="Reply to this ticket"
             />
-            <button onClick={sendReply} style={accentButtonStyle} disabled={loading}>
+            <button onClick={sendReply} style={gray800ButtonStyle} disabled={loading}>
               Send reply
             </button>
           </div>

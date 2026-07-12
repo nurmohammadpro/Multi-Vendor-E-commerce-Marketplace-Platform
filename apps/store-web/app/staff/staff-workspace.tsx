@@ -7,6 +7,7 @@ import {
   accentButtonStyle,
   emptyStateStyle,
   fieldStyle,
+  gray800ButtonStyle,
   pageShellStyle,
   searchButtonStyle,
   secondaryButtonStyle,
@@ -246,7 +247,7 @@ export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) 
           <textarea value={form.note} onChange={(e) => setForm((v) => ({ ...v, note: e.target.value }))} style={{ ...fieldStyle, minHeight: 74 }} placeholder="Internal note" />
         </div>
         <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-          <button onClick={createUser} style={accentButtonStyle} disabled={loading || !canCreateRole}>Create user</button>
+          <button onClick={createUser} style={gray800ButtonStyle} disabled={loading || !canCreateRole}>Create user</button>
           <span style={tokenMutedStyle}>
             {capabilities?.canInviteManager ? 'Owners can create managers and salesmen.' : 'Managers can create salesmen only.'}
           </span>
