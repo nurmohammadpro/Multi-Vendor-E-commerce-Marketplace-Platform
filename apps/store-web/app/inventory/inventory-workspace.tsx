@@ -328,13 +328,13 @@ export function InventoryWorkspace({
             </p>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <div style={{ padding: '8px 12px', borderRadius: 10, border: '1px solid rgba(148,163,184,0.22)', background: '#fff', fontSize: 13 }}>
+            <div style={{ padding: '8px 12px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--card)', fontSize: 13 }}>
               Rows: <strong>{balanceSummary.visibleRows}</strong>
             </div>
-            <div style={{ padding: '8px 12px', borderRadius: 10, border: '1px solid rgba(148,163,184,0.22)', background: '#fff', fontSize: 13 }}>
+            <div style={{ padding: '8px 12px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--card)', fontSize: 13 }}>
               On hand: <strong>{formatQty(balanceSummary.onHand)}</strong>
             </div>
-            <div style={{ padding: '8px 12px', borderRadius: 10, border: '1px solid rgba(148,163,184,0.22)', background: '#fff', fontSize: 13 }}>
+            <div style={{ padding: '8px 12px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--card)', fontSize: 13 }}>
               Available: <strong>{formatQty(balanceSummary.available)}</strong>
             </div>
           </div>
@@ -473,7 +473,7 @@ export function InventoryWorkspace({
             </button>
           </div>
           {selectedSku ? (
-            <p style={{ marginTop: 12, marginBottom: 0, color: '#475569' }}>
+            <p style={{ marginTop: 12, marginBottom: 0, color: 'var(--muted-foreground)' }}>
               Selected: {selectedSku.product_name} · {selectedSku.sku_code}
             </p>
           ) : null}

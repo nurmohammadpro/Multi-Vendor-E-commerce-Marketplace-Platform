@@ -25,6 +25,7 @@ import {
   Wallet,
   Wrench,
 } from 'lucide-react';
+import { ThemeToggle } from '@mvp/theme';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -114,7 +115,7 @@ export function WorkspaceShell({ navItems, title, badge, children, access }: Wor
                 : `This store is currently marked as ${access.storeStatus}. Review settings and subscription state before daily operations.`}
             </div>
           ) : null}
-          <main className="flex-1 overflow-auto bg-slate-50/80 p-4 sm:p-6 lg:p-8">
+          <main className="flex-1 overflow-auto bg-muted p-4 sm:p-6 lg:p-8">
             <div className="w-full">{children}</div>
           </main>
         </div>
@@ -148,7 +149,7 @@ function AppSidebar({
       <SidebarHeader>
         <div className="flex items-center justify-between gap-1.5 px-1.5 py-1.5">
           <div className="flex items-center gap-1.5">
-            <div className="flex items-center justify-center size-8 rounded-md border bg-white p-1">
+            <div className="flex items-center justify-center size-8 rounded-md border bg-card p-1">
               {access.storeLogoUrl ? (
                 <img
                   src={access.storeLogoUrl}
@@ -260,6 +261,7 @@ function Header({ access }: { access: StoreConsoleAccess }) {
       </div>
 
       <div className="flex items-center gap-1.5 sm:gap-2">
+        <ThemeToggle />
         <RuntimeStatus />
         <PwaClient />
         <span className="hidden sm:inline-flex items-center rounded-md border bg-muted px-2 py-1 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">

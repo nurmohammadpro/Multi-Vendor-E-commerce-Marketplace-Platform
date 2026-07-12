@@ -278,9 +278,9 @@ export function SettingsWorkspace({ canManageSettings }: { canManageSettings: bo
                 <img
                   src={profileForm.logoUrl}
                   alt={`${profileForm.name || 'Store'} logo preview`}
-                  style={{ width: 64, height: 64, objectFit: 'contain', borderRadius: 10, border: '1px solid rgba(148, 163, 184, 0.22)', background: '#fff', padding: 6 }}
+                  style={{ width: 64, height: 64, objectFit: 'contain', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--card)', padding: 6 }}
                 />
-                <div style={{ color: '#475569', fontSize: 13 }}>Logo preview</div>
+                <div style={{ color: 'var(--muted-foreground)', fontSize: 13 }}>Logo preview</div>
               </div>
             ) : (
               <div style={emptyStateStyle}>No store logo saved yet.</div>
@@ -346,7 +346,7 @@ export function SettingsWorkspace({ canManageSettings }: { canManageSettings: bo
               placeholder="Receipt footer"
               disabled={!canManageSettings || loading}
             />
-            <label style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#0f172a', fontSize: 14 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--foreground)', fontSize: 14 }}>
               <input
                 type="checkbox"
                 checked={settingsForm.allowNegativeStock}
@@ -396,7 +396,7 @@ export function SettingsWorkspace({ canManageSettings }: { canManageSettings: bo
           <div><strong>Low stock threshold:</strong> {settings.low_stock_threshold_default ?? '—'}</div>
           <div><strong>Negative stock:</strong> {settings.allow_negative_stock ? 'Allowed' : 'Blocked'}</div>
         </div>
-        <p style={{ marginTop: 14, marginBottom: 0, color: '#475569' }}>{message}</p>
+        <p style={{ marginTop: 14, marginBottom: 0, color: 'var(--muted-foreground)' }}>{message}</p>
       </article>
     </section>
   );

@@ -211,29 +211,29 @@ export function ApprovalsWorkspace({ canApproveInventory }: { canApproveInventor
     <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
         <article style={surfaceCardStyle}>
-          <div style={{ fontSize: 12, color: '#64748b' }}>Cash variance</div>
+          <div style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>Cash variance</div>
           <div style={{ fontSize: 22, fontWeight: 600 }}>{overview?.cashVarianceAmount ?? '—'}</div>
-          <div style={{ color: '#64748b' }}>
+          <div style={{ color: 'var(--muted-foreground)' }}>
             Expected {overview?.expectedCashAmount ?? 0} · Counted {overview?.countedCashAmount ?? 'Not counted yet'}
           </div>
-          <div style={{ color: '#64748b', marginTop: 4 }}>
+          <div style={{ color: 'var(--muted-foreground)', marginTop: 4 }}>
             Sales {overview?.todayCashSalesAmount ?? 0} + due {overview?.todayCashDueCollectionsAmount ?? 0} - expenses {overview?.todayCashExpenseAmount ?? 0}
           </div>
         </article>
         <article style={surfaceCardStyle}>
-          <div style={{ fontSize: 12, color: '#64748b' }}>Today&apos;s due collections</div>
+          <div style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>Today&apos;s due collections</div>
           <div style={{ fontSize: 22, fontWeight: 600 }}>{overview?.todayDueCollectionsAmount ?? '—'}</div>
-          <div style={{ color: '#64748b' }}>{overview?.todayDueCollectionsCount ?? 0} collection(s)</div>
+          <div style={{ color: 'var(--muted-foreground)' }}>{overview?.todayDueCollectionsCount ?? 0} collection(s)</div>
         </article>
         <article style={surfaceCardStyle}>
-          <div style={{ fontSize: 12, color: '#64748b' }}>Pending stock approvals</div>
+          <div style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>Pending stock approvals</div>
           <div style={{ fontSize: 22, fontWeight: 600 }}>{overview?.pendingStockApprovals ?? '—'}</div>
-          <div style={{ color: '#64748b' }}>Quantity updates waiting on owner action.</div>
+          <div style={{ color: 'var(--muted-foreground)' }}>Quantity updates waiting on owner action.</div>
         </article>
         <article style={surfaceCardStyle}>
-          <div style={{ fontSize: 12, color: '#64748b' }}>Pending price approvals</div>
+          <div style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>Pending price approvals</div>
           <div style={{ fontSize: 22, fontWeight: 600 }}>{overview?.pendingPriceApprovals ?? '—'}</div>
-          <div style={{ color: '#64748b' }}>Pricing changes waiting on owner action.</div>
+          <div style={{ color: 'var(--muted-foreground)' }}>Pricing changes waiting on owner action.</div>
         </article>
       </section>
 
@@ -245,7 +245,7 @@ export function ApprovalsWorkspace({ canApproveInventory }: { canApproveInventor
           style={{ ...fieldStyle, minHeight: 84 }}
           placeholder="Optional note shared with the manager"
         />
-        <p style={{ marginBottom: 0, marginTop: 10, color: '#475569' }}>
+        <p style={{ marginBottom: 0, marginTop: 10, color: 'var(--muted-foreground)' }}>
           {message} Total pending items: {overview?.totalPendingApprovals ?? 0}.
         </p>
       </article>
@@ -253,12 +253,12 @@ export function ApprovalsWorkspace({ canApproveInventory }: { canApproveInventor
       <article style={surfaceCardStyle}>
         <h3 style={{ marginTop: 0 }}>Cash count</h3>
         <div style={{ display: 'grid', gap: 12 }}>
-          <div style={{ color: '#475569' }}>
+          <div style={{ color: 'var(--muted-foreground)' }}>
             Count today&apos;s drawer cash once the owner finishes counting. The saved value becomes the real counted-vs-expected variance.
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
             <label style={{ display: 'grid', gap: 6 }}>
-              <span style={{ fontSize: 12, color: '#64748b' }}>Counted cash amount</span>
+              <span style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>Counted cash amount</span>
               <input
                 type="number"
                 min="0"
@@ -273,7 +273,7 @@ export function ApprovalsWorkspace({ canApproveInventory }: { canApproveInventor
               />
             </label>
             <label style={{ display: 'grid', gap: 6 }}>
-              <span style={{ fontSize: 12, color: '#64748b' }}>Cash count note</span>
+              <span style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>Cash count note</span>
               <input
                 value={cashCountNote}
                 onChange={(event) => {

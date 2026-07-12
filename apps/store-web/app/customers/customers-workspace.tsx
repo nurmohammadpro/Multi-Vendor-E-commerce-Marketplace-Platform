@@ -175,29 +175,29 @@ export function CustomersWorkspace() {
       {(!compact || activeTab === 'aging') ? (
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
         <article style={surfaceCardStyle}>
-          <div style={{ fontSize: 12, color: '#64748b' }}>Today</div>
+          <div style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>Today</div>
           <div style={{ fontSize: 22, fontWeight: 600 }}>{aging?.today_amount ?? '—'}</div>
-          <div style={{ color: '#64748b' }}>{aging?.today_count ?? 0} sale(s)</div>
+          <div style={{ color: 'var(--muted-foreground)' }}>{aging?.today_count ?? 0} sale(s)</div>
         </article>
         <article style={surfaceCardStyle}>
-          <div style={{ fontSize: 12, color: '#64748b' }}>1-7 days</div>
+          <div style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>1-7 days</div>
           <div style={{ fontSize: 22, fontWeight: 600 }}>{aging?.days_7_amount ?? '—'}</div>
-          <div style={{ color: '#64748b' }}>{aging?.days_7_count ?? 0} sale(s)</div>
+          <div style={{ color: 'var(--muted-foreground)' }}>{aging?.days_7_count ?? 0} sale(s)</div>
         </article>
         <article style={surfaceCardStyle}>
-          <div style={{ fontSize: 12, color: '#64748b' }}>8-30 days</div>
+          <div style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>8-30 days</div>
           <div style={{ fontSize: 22, fontWeight: 600 }}>{aging?.days_30_amount ?? '—'}</div>
-          <div style={{ color: '#64748b' }}>{aging?.days_30_count ?? 0} sale(s)</div>
+          <div style={{ color: 'var(--muted-foreground)' }}>{aging?.days_30_count ?? 0} sale(s)</div>
         </article>
         <article style={surfaceCardStyle}>
-          <div style={{ fontSize: 12, color: '#64748b' }}>31-90 days</div>
+          <div style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>31-90 days</div>
           <div style={{ fontSize: 22, fontWeight: 600 }}>{aging?.days_90_amount ?? '—'}</div>
-          <div style={{ color: '#64748b' }}>{aging?.days_90_count ?? 0} sale(s)</div>
+          <div style={{ color: 'var(--muted-foreground)' }}>{aging?.days_90_count ?? 0} sale(s)</div>
         </article>
         <article style={surfaceCardStyle}>
-          <div style={{ fontSize: 12, color: '#64748b' }}>90+ days</div>
+          <div style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>90+ days</div>
           <div style={{ fontSize: 22, fontWeight: 600 }}>{aging?.days_90_plus_amount ?? '—'}</div>
-          <div style={{ color: '#64748b' }}>{aging?.days_90_plus_count ?? 0} sale(s)</div>
+          <div style={{ color: 'var(--muted-foreground)' }}>{aging?.days_90_plus_count ?? 0} sale(s)</div>
         </article>
       </section>
       ) : null}
@@ -259,11 +259,11 @@ export function CustomersWorkspace() {
             <div style={{ display: 'grid', gap: 12 }}>
               <div>
                 <div style={{ fontWeight: 600 }}>{selectedCustomer.customer.full_name || 'Unnamed customer'}</div>
-                <div style={{ color: '#475569' }}>{selectedCustomer.customer.shop_name || 'No shop name'}</div>
-                <div style={{ color: '#64748b' }}>
+                <div style={{ color: 'var(--muted-foreground)' }}>{selectedCustomer.customer.shop_name || 'No shop name'}</div>
+                <div style={{ color: 'var(--muted-foreground)' }}>
                   {selectedCustomer.customer.mobile_no || 'No mobile'} · {selectedCustomer.customer.email || 'No email'}
                 </div>
-                <div style={{ color: '#64748b' }}>{selectedCustomer.customer.address || 'No address'}</div>
+                <div style={{ color: 'var(--muted-foreground)' }}>{selectedCustomer.customer.address || 'No address'}</div>
               </div>
 
               {selectedCustomer.dueSales.length ? (

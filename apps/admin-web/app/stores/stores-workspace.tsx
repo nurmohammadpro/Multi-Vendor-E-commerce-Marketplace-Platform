@@ -455,7 +455,7 @@ export function StoresWorkspace() {
               <Input id="storeLogoFile" type="file" accept="image/*" onChange={(event) => void handleLogoFileChange(event)} />
               {form.logoUrl ? (
                 <div className="flex items-center gap-3 rounded-md border border-border/60 bg-muted/30 p-3">
-                  <img src={form.logoUrl} alt="Store logo preview" className="h-14 w-14 rounded-md object-contain bg-white p-1" />
+                  <img src={form.logoUrl} alt="Store logo preview" className="h-14 w-14 rounded-md object-contain bg-card p-1" />
                   <Button
                     variant="outline"
                     type="button"

@@ -190,7 +190,7 @@ export function ReportsWorkspace({ canViewReports }: { canViewReports: boolean }
         <article style={surfaceCardStyle}>
           <div style={metricLabelStyle}>Due Sales</div>
           <div style={metricValueStyle}>{sales?.summary.due_sales_count ?? '—'}</div>
-          <div style={{ color: '#64748b', fontSize: 12, marginTop: 4 }}>
+          <div style={{ color: 'var(--muted-foreground)', fontSize: 12, marginTop: 4 }}>
             Amount: {sales?.summary.due_sales_amount ?? '—'}
           </div>
         </article>

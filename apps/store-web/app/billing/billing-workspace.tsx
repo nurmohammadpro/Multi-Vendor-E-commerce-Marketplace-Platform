@@ -247,7 +247,7 @@ export function BillingWorkspace({ canManageBilling }: { canManageBilling: boole
                 {subscription.status} · BDT {Number(subscription.price_amount).toLocaleString()} / {subscription.billing_cycle}
                 {Number(subscription.signup_fee ?? 0) > 0 ? ` · BDT ${Number(subscription.signup_fee).toLocaleString()} signup fee` : ''}
               </div>
-              <div style={{ color: '#64748b', marginBottom: 12 }}>
+              <div style={{ color: 'var(--muted-foreground)', marginBottom: 12 }}>
                 Renewal: {subscription.renewal_at ? new Date(subscription.renewal_at).toLocaleString() : '—'}
               </div>
               {planLimits.limits ? (
@@ -265,7 +265,7 @@ export function BillingWorkspace({ canManageBilling }: { canManageBilling: boole
               {planLimits.limits?.features?.length ? (
                 <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                   {planLimits.limits.features.map((f) => (
-                    <span key={f} style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, background: '#e2e8f0', color: '#334155' }}>
+                    <span key={f} style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, background: 'var(--muted)', color: 'var(--muted-foreground)' }}>
                       {f}
                     </span>
                   ))}
@@ -416,10 +416,10 @@ export function BillingWorkspace({ canManageBilling }: { canManageBilling: boole
           <section style={{ display: 'grid', gap: 12 }}>
             <div>
               <div style={{ fontWeight: 600 }}>{selectedInvoice.invoice.invoice_no}</div>
-              <div style={{ color: '#475569' }}>
+              <div style={{ color: 'var(--muted-foreground)' }}>
                 {selectedInvoice.invoice.status} · Total: {selectedInvoice.invoice.total_amount}
               </div>
-              <div style={{ color: '#64748b' }}>Remaining balance: {remainingAmount}</div>
+              <div style={{ color: 'var(--muted-foreground)' }}>Remaining balance: {remainingAmount}</div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
               <select value={paymentForm.paymentMethod} onChange={(e) => setPaymentForm((v) => ({ ...v, paymentMethod: e.target.value }))} style={fieldStyle}>

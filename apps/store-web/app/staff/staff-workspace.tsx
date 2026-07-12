@@ -215,7 +215,7 @@ export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) 
           <input value={form.email} onChange={(e) => setForm((v) => ({ ...v, email: e.target.value }))} style={fieldStyle} placeholder="Email*" />
           <div style={{ position: 'relative' }}>
             <input type={showPassword ? 'text' : 'password'} value={form.password} onChange={(e) => setForm((v) => ({ ...v, password: e.target.value }))} style={{ ...fieldStyle, paddingRight: 30 }} placeholder="Password*" />
-            <button type="button" onClick={() => setShowPassword((v) => !v)} style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#888', padding: 0, lineHeight: 0 }} tabIndex={-1} aria-label={showPassword ? 'Hide password' : 'Show password'}>
+            <button type="button" onClick={() => setShowPassword((v) => !v)} style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted-foreground)', padding: 0, lineHeight: 0 }} tabIndex={-1} aria-label={showPassword ? 'Hide password' : 'Show password'}>
               {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>
           </div>
@@ -284,14 +284,14 @@ export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) 
                     <tr key={member.id}>
                       <td style={tableCellStyle}>
                         <div style={{ fontWeight: 600 }}>{member.full_name || member.email || member.phone || member.user_id}</div>
-                        <div style={{ color: '#64748b', marginTop: 4 }}>{member.address_text || 'No address'}</div>
+                        <div style={{ color: 'var(--muted-foreground)', marginTop: 4 }}>{member.address_text || 'No address'}</div>
                       </td>
                       <td style={tableCellStyle}>{member.role_code}</td>
                       <td style={tableCellStyle}>{member.status}</td>
                       <td style={tableCellStyle}>{member.employee_number || '—'}</td>
                       <td style={tableCellStyle}>
                         {member.email || '—'}
-                        <div style={{ color: '#64748b', marginTop: 4 }}>{member.phone || '—'}</div>
+                        <div style={{ color: 'var(--muted-foreground)', marginTop: 4 }}>{member.phone || '—'}</div>
                       </td>
                       <td style={tableCellStyle}>{member.location_name || '—'}</td>
                       {isPro ? <td style={tableCellStyle}>{member.designation || '—'}</td> : null}
@@ -341,7 +341,7 @@ export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) 
                             }} style={secondaryButtonStyle} disabled={loading}>Edit</button>
                           ) : null}
                           {editingId === member.id ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: 8, background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', width: '100%' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: 8, background: 'var(--background)', borderRadius: 8, border: '1px solid var(--border)', width: '100%' }}>
                               <input value={editForm.fullName} onChange={(e) => setEditForm((v) => ({ ...v, fullName: e.target.value }))} style={{ ...fieldStyle, fontSize: 12 }} placeholder="Full name" />
                               <input value={editForm.phone} onChange={(e) => setEditForm((v) => ({ ...v, phone: e.target.value }))} style={{ ...fieldStyle, fontSize: 12 }} placeholder="Phone" />
                               <input value={editForm.email} onChange={(e) => setEditForm((v) => ({ ...v, email: e.target.value }))} style={{ ...fieldStyle, fontSize: 12 }} placeholder="Email" />

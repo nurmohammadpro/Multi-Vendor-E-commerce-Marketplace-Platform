@@ -763,11 +763,11 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', alignItems: 'flex-start', marginBottom: 8 }}>
               <div>
                 <h3 style={{ marginTop: 0, marginBottom: 4, fontSize: 14 }}>Product Search</h3>
-                <p style={{ margin: 0, color: '#475569', fontSize: 12, lineHeight: 1.35 }}>
+                <p style={{ margin: 0, color: 'var(--muted-foreground)', fontSize: 12, lineHeight: 1.35 }}>
                   Search, scan, and select the exact sellable item fast.
                 </p>
               </div>
-              <div style={{ display: 'grid', gap: 2, fontSize: 11, color: '#64748b', textAlign: 'right' }}>
+              <div style={{ display: 'grid', gap: 2, fontSize: 11, color: 'var(--muted-foreground)', textAlign: 'right' }}>
                 <div>Register: {selectedRegister?.name || 'Not selected'}</div>
                 <div>Location: {locations.find((location) => location.id === selectedLocationId)?.name || 'Not selected'}</div>
               </div>
@@ -794,7 +794,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                     placeholder="Scan barcode or search product / SKU"
                   />
                   {searching ? (
-                    <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: 12 }}>
+                    <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted-foreground)', fontSize: 12 }}>
                       searching...
                     </span>
                   ) : null}
@@ -813,9 +813,9 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                     top: '100%',
                     zIndex: 50,
                     marginTop: 4,
-                    background: '#fff',
+                    background: 'var(--card)',
                     borderRadius: 10,
-                    border: '1px solid rgba(148,163,184,0.25)',
+                    border: '1px solid var(--border)',
                     boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
                     maxHeight: 340,
                     overflowY: 'auto',
@@ -829,14 +829,14 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                         alignItems: 'center',
                         justifyContent: 'space-between',
                         padding: '10px 12px',
-                        borderBottom: '1px solid rgba(148,163,184,0.1)',
+                        borderBottom: '1px solid var(--border)',
                         cursor: 'pointer',
                       }}
                       onMouseDown={(e) => e.preventDefault()}
                     >
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: 600, fontSize: 14 }}>{group.productName}</div>
-                        <div style={{ color: '#64748b', fontSize: 12, marginTop: 2 }}>
+                        <div style={{ color: 'var(--muted-foreground)', fontSize: 12, marginTop: 2 }}>
                           {group.hasVariants
                             ? `${group.variantMode || 'variant'} · ${group.skuCount} variant(s)`
                             : group.skus[0]?.sku_code}
@@ -900,11 +900,11 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
               <div>
                 <h3 style={{ marginTop: 0, marginBottom: 6 }}>Cart</h3>
-                <p style={{ margin: 0, color: '#475569' }}>
+                <p style={{ margin: 0, color: 'var(--muted-foreground)' }}>
                   Keep the cart tight: selling price, quantity, line total, and nothing distracting.
                 </p>
               </div>
-              <div style={{ fontSize: 12, color: '#64748b', textAlign: 'right' }}>
+              <div style={{ fontSize: 12, color: 'var(--muted-foreground)', textAlign: 'right' }}>
                 <div>{cart.length} item(s) · Subtotal {currency(total)}</div>
                 {totalDiscount > 0 ? (
                   <div style={{ color: '#b45309' }}>Discount -{currency(totalDiscount)}</div>
@@ -930,7 +930,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                       <tr key={item.skuId}>
                         <td style={tableCellStyle}>
                           <div style={{ fontWeight: 600 }}>{item.productName}</div>
-                          <div style={{ color: '#64748b', marginTop: 4 }}>
+                          <div style={{ color: 'var(--muted-foreground)', marginTop: 4 }}>
                             {item.skuCode}
                             {item.variantLabel ? ` · ${item.variantLabel}` : ''}
                           </div>
@@ -1000,7 +1000,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                 </table>
               </div>
             ) : (
-              <div style={{ display: 'grid', placeItems: 'center', height: '100%', color: '#64748b', fontSize: 13 }}>
+              <div style={{ display: 'grid', placeItems: 'center', height: '100%', color: 'var(--muted-foreground)', fontSize: 13 }}>
                 Cart is empty. Scan or search a product to start the sale.
               </div>
             )}
@@ -1012,7 +1012,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
         {(!compact || activeTab === 'checkout') ? (
         <article style={cardStyle}>
           <h3 style={{ marginTop: 0, marginBottom: 6 }}>Checkout</h3>
-          <p style={{ marginTop: 0, color: '#475569' }}>
+          <p style={{ marginTop: 0, color: 'var(--muted-foreground)' }}>
             Customer details stay optional for paid sales, while cash change stays visible for the cashier.
           </p>
 
@@ -1065,7 +1065,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                 <strong>-{currency(totalDiscount)}</strong>
               </div>
             ) : null}
-            <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #e5e7eb', paddingTop: 4 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border)', paddingTop: 4 }}>
               <span>Total</span>
               <strong>{currency(grandTotal)}</strong>
             </div>
@@ -1079,7 +1079,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
               </>
             ) : null}
             {saleMode === 'due' ? (
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--muted-foreground)' }}>
                 <span>Due amount</span>
                 <strong>{currency(grandTotal)}</strong>
               </div>
@@ -1109,7 +1109,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
-              backgroundColor: '#fff', borderRadius: 12,
+              backgroundColor: 'var(--card)', borderRadius: 12,
               width: '90%', maxWidth: 896, height: '75vh', maxHeight: 672,
               display: 'flex', flexDirection: 'column',
               boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
@@ -1118,13 +1118,13 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '20px 24px 0', flexShrink: 0 }}>
               <div>
                 <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>{variantProduct?.product.name || 'Choose variant'}</h2>
-                <p style={{ margin: '4px 0 0', fontSize: 14, color: '#64748b' }}>
+                <p style={{ margin: '4px 0 0', fontSize: 14, color: 'var(--muted-foreground)' }}>
                   {variantPickerHint || 'Select the exact variant before adding it to the cart.'}
                 </p>
               </div>
               <button
                 onClick={() => setVariantPickerOpen(false)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px', fontSize: 18, color: '#64748b', lineHeight: 1 }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px', fontSize: 18, color: 'var(--muted-foreground)', lineHeight: 1 }}
               >
                 &times;
               </button>
@@ -1244,10 +1244,10 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
               {printError ? 'Offline' : 'Ready'}
             </span>
           </div>
-          <div style={{ marginTop: 8, fontSize: 12, color: '#475569', display: 'grid', gap: 4 }}>
+          <div style={{ marginTop: 8, fontSize: 12, color: 'var(--muted-foreground)', display: 'grid', gap: 4 }}>
             <div>Receipt: {printHealth?.printerName || receiptPrinterName || 'Not set'}</div>
             <div>Label: {printHealth?.labelPrinterName || labelPrinterName || 'Not set'}</div>
-            <div style={{ color: '#94a3b8', fontSize: 11 }}>{agentUrl}</div>
+            <div style={{ color: 'var(--muted-foreground)', fontSize: 11 }}>{agentUrl}</div>
             {printError ? (
               <div style={{ color: '#b45309', fontSize: 11 }}>
                 Printing is optional here. If the local agent is unavailable, the sale still completes and falls back to invoice preview.
@@ -1268,7 +1268,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
             ))}
           </select>
           {!SHOW_SHIFT_CONTROLS ? (
-            <p style={{ marginTop: 8, marginBottom: 0, fontSize: 11, color: '#94a3b8' }}>
+            <p style={{ marginTop: 8, marginBottom: 0, fontSize: 11, color: 'var(--muted-foreground)' }}>
               Shift controls are hidden for now.
             </p>
           ) : null}
@@ -1288,7 +1288,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
               <option key={location.id} value={location.id}>{location.code} — {location.name}</option>
             ))}
           </select>
-          <p style={{ marginTop: 8, marginBottom: 0, fontSize: 11, color: '#94a3b8' }}>
+          <p style={{ marginTop: 8, marginBottom: 0, fontSize: 11, color: 'var(--muted-foreground)' }}>
             Barcode scanners type into the search field above.
           </p>
         </article>
@@ -1296,7 +1296,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
 
       <article style={cardStyle}>
         <h3 style={{ marginTop: 0 }}>Operator Notes</h3>
-        <p style={{ marginTop: 0, color: '#475569' }}>{message}</p>
+        <p style={{ marginTop: 0, color: 'var(--muted-foreground)' }}>{message}</p>
         {lastInvoice ? (
           <div style={{ marginBottom: 16, display: 'grid', gap: 10 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
@@ -1307,31 +1307,31 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
             </div>
             <div
               style={{
-                border: '1px solid rgba(148, 163, 184, 0.22)',
+                border: '1px solid var(--border)',
                 borderRadius: 12,
-                background: '#fff',
+                background: 'var(--card)',
                 padding: 16,
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start', borderBottom: '1px solid #e2e8f0', paddingBottom: 14 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start', borderBottom: '1px solid var(--border)', paddingBottom: 14 }}>
                 <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                   {lastInvoice.store?.logoUrl ? (
                     <img
                       src={lastInvoice.store.logoUrl}
                       alt={`${lastInvoice.store?.name || 'Store'} logo`}
-                      style={{ width: 60, height: 60, objectFit: 'contain', border: '1px solid #e2e8f0', borderRadius: 10, padding: 6, background: '#fff' }}
+                      style={{ width: 60, height: 60, objectFit: 'contain', border: '1px solid var(--border)', borderRadius: 10, padding: 6, background: 'var(--card)' }}
                     />
                   ) : null}
                   <div>
                     <div style={{ fontSize: 20, fontWeight: 700 }}>{lastInvoice.store?.name || 'Store'}</div>
-                    {lastInvoice.store?.phone ? <div style={{ color: '#475569' }}>{lastInvoice.store.phone}</div> : null}
-                    {lastInvoice.store?.email ? <div style={{ color: '#475569' }}>{lastInvoice.store.email}</div> : null}
-                    {lastInvoice.store?.address ? <div style={{ color: '#475569' }}>{lastInvoice.store.address}</div> : null}
+                    {lastInvoice.store?.phone ? <div style={{ color: 'var(--muted-foreground)' }}>{lastInvoice.store.phone}</div> : null}
+                    {lastInvoice.store?.email ? <div style={{ color: 'var(--muted-foreground)' }}>{lastInvoice.store.email}</div> : null}
+                    {lastInvoice.store?.address ? <div style={{ color: 'var(--muted-foreground)' }}>{lastInvoice.store.address}</div> : null}
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: 22, fontWeight: 700 }}>Invoice</div>
-                  <div style={{ color: '#475569' }}>No: {lastInvoice.saleNo || '—'}</div>
+                  <div style={{ color: 'var(--muted-foreground)' }}>No: {lastInvoice.saleNo || '—'}</div>
                 </div>
               </div>
               <div style={{ marginTop: 14, display: 'grid', gap: 8 }}>
@@ -1339,7 +1339,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                 {lastInvoice.customer?.phone ? <div><strong>Phone:</strong> {lastInvoice.customer.phone}</div> : null}
                 {lastInvoice.customer?.address ? <div><strong>Address:</strong> {lastInvoice.customer.address}</div> : null}
               </div>
-              <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid #e2e8f0', textAlign: 'center', color: '#64748b', fontSize: 12 }}>
+              <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border)', textAlign: 'center', color: 'var(--muted-foreground)', fontSize: 12 }}>
                 Developed and maintained by Market One BD · Your One Stop Marketplace
               </div>
             </div>
@@ -1351,12 +1351,12 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
               marginBottom: 0,
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-word',
-              background: '#ffffff',
+              background: 'var(--card)',
               padding: 12,
               borderRadius: 6,
-              border: '1px solid rgba(148, 163, 184, 0.22)',
+              border: '1px solid var(--border)',
               overflowX: 'auto',
-              color: '#0f172a',
+              color: 'var(--foreground)',
             }}
           >
             {lastReceiptText}
