@@ -19,9 +19,10 @@ import {
   accentButtonStyle,
   compactSurfaceCardStyle,
   fieldStyle,
+  gray800ButtonStyle,
   neutralButtonStyle,
-  sectionPanelStyle,
   primaryButtonStyle,
+  sectionPanelStyle,
   searchButtonStyle,
   secondaryButtonStyle,
   subtleButtonStyle,
@@ -1084,7 +1085,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                 <strong>{currency(grandTotal)}</strong>
               </div>
             ) : null}
-            <button onClick={checkout} style={primaryButtonStyle} disabled={loading || cart.length === 0 || !selectedLocationId}>
+            <button onClick={checkout} style={gray800ButtonStyle} disabled={loading || cart.length === 0 || !selectedLocationId}>
               {saleMode === 'due' ? 'Save Due Sale' : 'Complete Sale'}
             </button>
             {!selectedLocationId ? (

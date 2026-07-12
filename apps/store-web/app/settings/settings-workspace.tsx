@@ -5,8 +5,8 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   emptyStateStyle,
   fieldStyle,
+  gray800ButtonStyle,
   pageShellStyle,
-  primaryButtonStyle,
   secondaryButtonStyle,
   surfaceCardStyle,
   tokenMutedStyle,
@@ -288,7 +288,7 @@ export function SettingsWorkspace({ canManageSettings }: { canManageSettings: bo
             <div style={{ display: 'flex', gap: 10 }}>
               <button
                 onClick={() => void saveProfile()}
-                style={primaryButtonStyle}
+                style={gray800ButtonStyle}
                 disabled={!canManageSettings || loading || !dirtyProfile}
               >
                 Save identity
@@ -365,7 +365,7 @@ export function SettingsWorkspace({ canManageSettings }: { canManageSettings: bo
             <div style={{ display: 'flex', gap: 10 }}>
               <button
                 onClick={() => void saveSettings()}
-                style={primaryButtonStyle}
+                style={gray800ButtonStyle}
                 disabled={!canManageSettings || loading || !dirtySettings}
               >
                 Save settings

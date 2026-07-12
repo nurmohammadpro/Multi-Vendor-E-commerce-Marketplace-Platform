@@ -3,9 +3,9 @@
 import { useEffect, useState } from 'react';
 
 import {
-  accentButtonStyle,
   emptyStateStyle,
   fieldStyle,
+  gray800ButtonStyle,
   metricLabelStyle,
   metricValueStyle,
   neutralButtonStyle,
@@ -296,7 +296,7 @@ export function BillingWorkspace({ canManageBilling }: { canManageBilling: boole
             <input type="checkbox" checked={changeForm.autoRenew} onChange={(e) => setChangeForm((v) => ({ ...v, autoRenew: e.target.checked }))} />
             Auto renew
           </label>
-          <button onClick={changeSubscription} style={accentButtonStyle} disabled={!canUpdateSubscription}>
+          <button onClick={changeSubscription} style={gray800ButtonStyle} disabled={!canUpdateSubscription}>
             Update Subscription
           </button>
         </article>
@@ -433,7 +433,7 @@ export function BillingWorkspace({ canManageBilling }: { canManageBilling: boole
               <input value={paymentForm.amount} onChange={(e) => setPaymentForm((v) => ({ ...v, amount: e.target.value }))} style={fieldStyle} placeholder="Amount" />
               <input value={paymentForm.referenceNo} onChange={(e) => setPaymentForm((v) => ({ ...v, referenceNo: e.target.value }))} style={fieldStyle} placeholder="Reference no" />
             </div>
-            <button onClick={payInvoice} style={accentButtonStyle} disabled={!canPayInvoice}>Record Payment</button>
+            <button onClick={payInvoice} style={gray800ButtonStyle} disabled={!canPayInvoice}>Record Payment</button>
             {selectedInvoice.payments.length ? (
               <div style={tableWrapStyle}>
                 <table style={tableStyle}>

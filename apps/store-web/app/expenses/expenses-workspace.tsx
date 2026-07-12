@@ -3,9 +3,9 @@
 import { useEffect, useState } from 'react';
 
 import {
-  accentButtonStyle,
   emptyStateStyle,
   fieldStyle,
+  gray800ButtonStyle,
   sectionPanelStyle,
   pageShellStyle,
   searchButtonStyle,
@@ -186,7 +186,7 @@ export function ExpensesWorkspace() {
               <option value="void">Void</option>
             </select>
             <textarea value={form.note} onChange={(event) => setForm((current) => ({ ...current, note: event.target.value }))} style={{ ...fieldStyle, minHeight: 90 }} placeholder="Note" />
-            <button onClick={saveExpense} style={accentButtonStyle} disabled={loading}>{selectedExpenseId ? 'Update Expense' : 'Save Expense'}</button>
+            <button onClick={saveExpense} style={gray800ButtonStyle} disabled={loading}>{selectedExpenseId ? 'Update Expense' : 'Save Expense'}</button>
           </div>
         </article>
 
@@ -200,7 +200,7 @@ export function ExpensesWorkspace() {
               style={{ ...fieldStyle, flex: 1 }}
               placeholder="New category name"
             />
-            <button onClick={() => void addCategory()} style={accentButtonStyle}>Add</button>
+            <button onClick={() => void addCategory()} style={gray800ButtonStyle}>Add</button>
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {categories.length === 0 && (

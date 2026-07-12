@@ -7,6 +7,7 @@ import {
   dangerButtonStyle,
   emptyStateStyle,
   fieldStyle,
+  gray800ButtonStyle,
   pageShellStyle,
   searchButtonStyle,
   secondaryButtonStyle,
@@ -436,7 +437,7 @@ export function PurchasesWorkspace() {
             <input type="number" min="0" step="0.01" value={quickPaid} onChange={(e) => setQuickPaid(e.target.value)} style={fieldStyle} placeholder="Paid amount (BDT)" />
           </div>
 
-          <button onClick={quickReceive} style={{ ...accentButtonStyle, width: '100%', minHeight: 36 }} disabled={loading || quickSaving || !quickName.trim()}>
+          <button onClick={quickReceive} style={{ ...gray800ButtonStyle, width: '100%', minHeight: 36 }} disabled={loading || quickSaving || !quickName.trim()}>
             {quickSaving ? 'Saving...' : `Create & Receive Stock (${quickHasVariants && quickVariantRows.length ? quickVariantRows.length : 1} item${quickHasVariants && quickVariantRows.length > 1 ? 's' : ''})`}
           </button>
         </article>
@@ -453,13 +454,13 @@ export function PurchasesWorkspace() {
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <input value={supplierForm.companyName} onChange={(e) => setSupplierForm((c) => ({ ...c, companyName: e.target.value }))} style={{ ...fieldStyle, flex: 1, minWidth: 160 }} placeholder="Company name" />
                 <input value={supplierForm.phone} onChange={(e) => setSupplierForm((c) => ({ ...c, phone: e.target.value }))} style={{ ...fieldStyle, width: 160 }} placeholder="Phone (optional)" />
-                <button onClick={createSupplier} style={accentButtonStyle} disabled={loading}>Add Supplier</button>
+                <button onClick={createSupplier} style={gray800ButtonStyle} disabled={loading}>Add Supplier</button>
               </div>
               {/* Location mini-form */}
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <input value={newLocationCode} onChange={(e) => setNewLocationCode(e.target.value)} style={{ ...fieldStyle, width: 120 }} placeholder="Code (WH-01)" />
                 <input value={newLocationName} onChange={(e) => setNewLocationName(e.target.value)} style={{ ...fieldStyle, flex: 1, minWidth: 160 }} placeholder="Name (Main Warehouse)" />
-                <button onClick={createLocation} style={accentButtonStyle} disabled={loading}>Add Location</button>
+                <button onClick={createLocation} style={gray800ButtonStyle} disabled={loading}>Add Location</button>
               </div>
             </div>
           </details>
@@ -545,7 +546,7 @@ export function PurchasesWorkspace() {
               <span style={{ color: 'var(--muted-foreground)', marginLeft: 12 }}>Total: </span><strong style={{ fontSize: 16 }}>BDT {formatMoney(lineTotal.total)}</strong>
               {lineTotal.outstanding > 0 ? <span style={{ color: '#b45309', marginLeft: 8, fontSize: 12 }}>(BDT {formatMoney(lineTotal.outstanding)} unpaid)</span> : null}
             </div>
-            <button onClick={createPurchase} style={{ ...accentButtonStyle, minHeight: 36, minWidth: 180 }} disabled={loading || !items.length}>
+            <button onClick={createPurchase} style={{ ...gray800ButtonStyle, minHeight: 36, minWidth: 180 }} disabled={loading || !items.length}>
               {loading ? 'Saving...' : 'Receive Stock'}
             </button>
           </div>

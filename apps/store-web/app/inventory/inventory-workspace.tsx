@@ -7,6 +7,7 @@ import {
   dangerButtonStyle,
   emptyStateStyle,
   fieldStyle,
+  gray800ButtonStyle,
   pageShellStyle,
   searchButtonStyle,
   secondaryButtonStyle,
@@ -468,7 +469,7 @@ export function InventoryWorkspace({
           <input value={quantity} onChange={(event) => setQuantity(event.target.value)} style={{ ...fieldStyle, marginBottom: 12 }} placeholder="Quantity or requested final qty" />
           <textarea value={reason} onChange={(event) => setReason(event.target.value)} style={{ ...fieldStyle, minHeight: 88, marginBottom: 12 }} placeholder="Reason / note" />
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button onClick={requestAdjustment} style={accentButtonStyle} disabled={!canRequestAdjustment || !canRequestAdjustInventory}>
+            <button onClick={requestAdjustment} style={gray800ButtonStyle} disabled={!canRequestAdjustment || !canRequestAdjustInventory}>
               Request Change
             </button>
           </div>

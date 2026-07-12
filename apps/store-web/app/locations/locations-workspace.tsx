@@ -3,9 +3,9 @@
 import { useEffect, useState } from 'react';
 
 import {
-  accentButtonStyle,
   emptyStateStyle,
   fieldStyle,
+  gray800ButtonStyle,
   pageShellStyle,
   secondaryButtonStyle,
   surfaceCardStyle,
@@ -174,7 +174,7 @@ export function LocationsWorkspace({ canViewInventory, canManageLocations }: Wor
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <h3 style={{ margin: 0 }}>{createOpen || editingId ? (editingId ? 'Edit Location' : 'New Location') : 'Locations'}</h3>
             {!createOpen && !editingId ? (
-              <button onClick={() => setCreateOpen(true)} style={accentButtonStyle} disabled={loading}>+ Add Location</button>
+              <button onClick={() => setCreateOpen(true)} style={gray800ButtonStyle} disabled={loading}>+ Add Location</button>
             ) : null}
           </div>
 
@@ -220,7 +220,7 @@ export function LocationsWorkspace({ canViewInventory, canManageLocations }: Wor
                 />
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={editingId ? saveEdit : createLocation} style={accentButtonStyle} disabled={loading}>
+                <button onClick={editingId ? saveEdit : createLocation} style={gray800ButtonStyle} disabled={loading}>
                   {editingId ? 'Save Changes' : 'Create Location'}
                 </button>
                 <button onClick={resetForm} style={secondaryButtonStyle} disabled={loading}>Cancel</button>
