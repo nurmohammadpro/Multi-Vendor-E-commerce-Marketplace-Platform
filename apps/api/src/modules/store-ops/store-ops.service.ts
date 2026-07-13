@@ -2253,7 +2253,8 @@ export class StoreOpsService {
 
       // Trim name and generate product code
       const productName = payload.productName.trim();
-      const productCode = productName.replace(/[^A-Za-z0-9]/g, '-').toUpperCase().slice(0, 32) || 'PRODUCT';
+      const baseCode = productName.replace(/[^A-Za-z0-9]/g, '-').toUpperCase().slice(0, 28) || 'PRODUCT';
+      const productCode = `${baseCode}-${Date.now().toString(36).slice(-4).toUpperCase()}`;
       const categoryId = payload.categoryId || null;
       const brandId = payload.brandId || null;
 
@@ -2405,7 +2406,8 @@ export class StoreOpsService {
       const tenantId = tenantResult.rows[0].tenant_id;
 
       const productName = payload.productName.trim();
-      const productCode = productName.replace(/[^A-Za-z0-9]/g, '-').toUpperCase().slice(0, 32) || 'EXCHANGE';
+      const baseCode = productName.replace(/[^A-Za-z0-9]/g, '-').toUpperCase().slice(0, 28) || 'EXCHANGE';
+      const productCode = `${baseCode}-${Date.now().toString(36).slice(-4).toUpperCase()}`;
       const categoryId = payload.categoryId || null;
       const brandId = payload.brandId || null;
 
