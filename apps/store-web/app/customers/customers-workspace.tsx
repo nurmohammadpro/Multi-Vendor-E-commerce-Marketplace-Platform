@@ -3,9 +3,9 @@
 import { useEffect, useState } from 'react';
 
 import {
-  accentButtonStyle,
   emptyStateStyle,
   fieldStyle,
+  gray800ButtonStyle,
   pageShellStyle,
   searchButtonStyle,
   secondaryButtonStyle,
@@ -315,7 +315,7 @@ export function CustomersWorkspace() {
                 </select>
                 <input value={collectionForm.referenceNo} onChange={(event) => setCollectionForm((current) => ({ ...current, referenceNo: event.target.value }))} style={fieldStyle} placeholder="Reference no (optional)" />
                 <textarea value={collectionForm.note} onChange={(event) => setCollectionForm((current) => ({ ...current, note: event.target.value }))} style={{ ...fieldStyle, minHeight: 88 }} placeholder="Collection note (optional)" />
-                <button onClick={collectPayment} style={accentButtonStyle} disabled={loading}>Collect Due</button>
+                <button onClick={collectPayment} style={gray800ButtonStyle} disabled={loading}>Collect Due</button>
               </div>
             </div>
           ) : (

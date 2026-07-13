@@ -176,10 +176,15 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
   const [customerShopName, setCustomerShopName] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
   const [dueDate, setDueDate] = useState('');
-  const [saleMode, setSaleMode] = useState<'paid' | 'due'>('paid');
+  const [saleMode, setSaleMode] = useState<'paid' | 'due' | 'exchange'>('paid');
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'mfs' | 'bank_transfer'>('cash');
   const [paymentReference, setPaymentReference] = useState('');
   const [cashReceived, setCashReceived] = useState('');
+  const [exchangeItem, setExchangeItem] = useState<{ skuId: string; skuCode: string; productName: string; exchangeAmount: number } | null>(null);
+  const [exchangeSearch, setExchangeSearch] = useState('');
+  const [exchangeResults, setExchangeResults] = useState<SkuSearchResult[]>([]);
+  const [exchangeSearching, setExchangeSearching] = useState(false);
+  const exchangeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [openingCash, setOpeningCash] = useState('0');
   const [closingCash, setClosingCash] = useState('0');
   const [loading, setLoading] = useState(false);
@@ -302,11 +307,16 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
     [total, totalDiscount],
   );
 
+  const exchangeAmount = exchangeItem?.exchangeAmount ?? 0;
+  const amountAfterExchange = useMemo(() => Math.max(grandTotal - exchangeAmount, 0), [grandTotal, exchangeAmount]);
+
   const changeAmount = useMemo(() => {
-    if (saleMode !== 'paid' || paymentMethod !== 'cash') return 0;
+    if (paymentMethod !== 'cash') return 0;
+    if (saleMode !== 'paid' && saleMode !== 'exchange') return 0;
     const paid = Number(cashReceived || 0);
-    return Math.max(paid - grandTotal, 0);
-  }, [cashReceived, paymentMethod, saleMode, grandTotal]);
+    const required = saleMode === 'exchange' ? amountAfterExchange : grandTotal;
+    return Math.max(paid - required, 0);
+  }, [cashReceived, paymentMethod, saleMode, grandTotal, amountAfterExchange]);
 
   const groupedResults = useMemo(() => {
     const groups = new Map<string, {
@@ -483,6 +493,37 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
     }
   };
 
+  // ── Exchange product search ──
+
+  const searchExchangeProducts = async (q: string) => {
+    if (!q.trim()) { setExchangeResults([]); return; }
+    setExchangeSearching(true);
+    try {
+      const payload = await readJson<{ skus: SkuSearchResult[] }>(`/api/pos/search?q=${encodeURIComponent(q.trim())}&limit=10&productType=exchange`);
+      setExchangeResults(payload.skus ?? []);
+    } catch { /* ignore */ }
+    finally { setExchangeSearching(false); }
+  };
+
+  useEffect(() => {
+    if (exchangeDebounceRef.current) clearTimeout(exchangeDebounceRef.current);
+    if (!exchangeSearch.trim()) { setExchangeResults([]); setExchangeSearching(false); return; }
+    setExchangeSearching(true);
+    exchangeDebounceRef.current = setTimeout(() => { void searchExchangeProducts(exchangeSearch.trim()); }, 150);
+    return () => { if (exchangeDebounceRef.current) clearTimeout(exchangeDebounceRef.current); };
+  }, [exchangeSearch]);
+
+  const selectExchangeItem = (sku: SkuSearchResult) => {
+    setExchangeItem({
+      skuId: sku.id,
+      skuCode: sku.sku_code,
+      productName: sku.product_name,
+      exchangeAmount: Number(sku.sale_price ?? 0),
+    });
+    setExchangeSearch('');
+    setExchangeResults([]);
+  };
+
   const updateCartQty = (skuId: string, nextQty: number) => {
     setCart((current) =>
       current.map((item) =>
@@ -584,7 +625,12 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
       setMessage('Due sales need a customer name or phone number.');
       return;
     }
-    if (saleMode === 'paid' && paymentMethod === 'cash' && Number(cashReceived || 0) < grandTotal) {
+    if (saleMode === 'exchange' && !exchangeItem) {
+      setMessage('Select an exchange product first.');
+      return;
+    }
+    const paymentRequired = saleMode === 'exchange' ? amountAfterExchange : grandTotal;
+    if (saleMode === 'paid' && paymentMethod === 'cash' && Number(cashReceived || 0) < paymentRequired) {
       setMessage('Cash received is lower than the sale total.');
       return;
     }
@@ -597,6 +643,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
     setLoading(true);
     try {
       const saleIsDue = saleMode === 'due';
+      const saleIsExchange = saleMode === 'exchange';
       const clientRequestId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
         ? crypto.randomUUID()
         : `sale-${Date.now()}`;
@@ -617,6 +664,8 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
           customerShopName: customerShopName || undefined,
           customerAddress: customerAddress || undefined,
           dueDate: saleIsDue && dueDate ? dueDate : undefined,
+          exchangeSkuId: saleIsExchange ? exchangeItem!.skuId : undefined,
+          exchangeAmount: saleIsExchange ? exchangeItem!.exchangeAmount : 0,
           discountAmount: 0,
           taxAmount: 0,
           shippingAmount: 0,
@@ -630,7 +679,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
           payments: [
             {
               paymentMethod,
-              amount: grandTotal,
+              amount: saleIsExchange ? amountAfterExchange : grandTotal,
               referenceNo: paymentReference || undefined,
               status: saleIsDue ? 'pending' : 'paid',
             },
@@ -687,6 +736,9 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
       setSaleMode('paid');
       setPaymentMethod('cash');
       setPaymentReference('');
+      setExchangeItem(null);
+      setExchangeSearch('');
+      setExchangeResults([]);
       setCashReceived('');
       clearSearchState();
     } catch (error) {
@@ -1009,9 +1061,10 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
           </div>
 
           <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
-            <select aria-label="Sale mode" value={saleMode} onChange={(event) => setSaleMode(event.target.value as 'paid' | 'due')} style={inputStyle}>
+            <select aria-label="Sale mode" value={saleMode} onChange={(event) => { setSaleMode(event.target.value as 'paid' | 'due' | 'exchange'); if (event.target.value !== 'exchange') setExchangeItem(null); }} style={inputStyle}>
               <option value="paid">Paid sale</option>
               <option value="due">Due sale</option>
+              <option value="exchange">Exchange</option>
             </select>
             <select
               aria-label="Payment method"
@@ -1050,6 +1103,49 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
               <span>Total</span>
               <strong>{currency(grandTotal)}</strong>
             </div>
+            {saleMode === 'exchange' ? (
+              <>
+                <div style={{ position: 'relative', marginTop: 4 }}>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <div style={{ position: 'relative', flex: 1 }}>
+                      <input value={exchangeSearch} onChange={(event) => setExchangeSearch(event.target.value)} style={{ ...inputStyle, width: '100%' }} placeholder="Search exchange product" />
+                      {exchangeSearching ? <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: 'var(--muted-foreground)' }}>searching...</span> : null}
+                    </div>
+                  </div>
+                  {exchangeResults.length > 0 ? (
+                    <div style={{ position: 'absolute', left: 0, right: 0, top: '100%', zIndex: 50, background: 'var(--card)', borderRadius: 8, border: '1px solid var(--border)', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', maxHeight: 200, overflowY: 'auto' }}>
+                      {exchangeResults.map((sku) => (
+                        <div key={sku.id} onMouseDown={(e) => e.preventDefault()} onClick={() => selectExchangeItem(sku)} style={{ padding: '8px 10px', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontSize: 13 }}>
+                          <div style={{ fontWeight: 600 }}>{sku.product_name}</div>
+                          <div style={{ color: 'var(--muted-foreground)', fontSize: 11 }}>{sku.sku_code} · BDT {Number(sku.sale_price ?? 0).toFixed(2)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+                {exchangeItem ? (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderTop: '1px solid var(--border-weak)' }}>
+                      <span style={{ color: 'var(--muted-foreground)' }}>Exchange: {exchangeItem.productName}</span>
+                      <strong style={{ color: '#16a34a' }}>-{currency(exchangeItem.exchangeAmount)}</strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 15, paddingTop: 4 }}>
+                      <span>Remaining</span>
+                      <strong>{currency(amountAfterExchange)}</strong>
+                    </div>
+                    {paymentMethod === 'cash' ? (
+                      <>
+                        <input value={cashReceived} onChange={(event) => setCashReceived(event.target.value)} style={inputStyle} placeholder={`Amount paid by customer (${currency(amountAfterExchange)} required)`} />
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span>Change due</span>
+                          <strong>{currency(changeAmount)}</strong>
+                        </div>
+                      </>
+                    ) : null}
+                  </>
+                ) : null}
+              </>
+            ) : null}
             {saleMode === 'paid' && paymentMethod === 'cash' ? (
               <>
                 <input value={cashReceived} onChange={(event) => setCashReceived(event.target.value)} style={inputStyle} placeholder="Amount paid by customer" />
@@ -1065,8 +1161,8 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                 <strong>{currency(grandTotal)}</strong>
               </div>
             ) : null}
-            <button onClick={checkout} style={gray800ButtonStyle} disabled={loading || cart.length === 0 || !selectedLocationId}>
-              {saleMode === 'due' ? 'Save Due Sale' : 'Complete Sale'}
+            <button onClick={checkout} style={gray800ButtonStyle} disabled={loading || cart.length === 0 || !selectedLocationId || (saleMode === 'exchange' && !exchangeItem)}>
+              {saleMode === 'due' ? 'Save Due Sale' : saleMode === 'exchange' ? 'Complete Exchange' : 'Complete Sale'}
             </button>
             {!selectedLocationId ? (
               <div style={{ fontSize: 12, color: '#b45309' }}>

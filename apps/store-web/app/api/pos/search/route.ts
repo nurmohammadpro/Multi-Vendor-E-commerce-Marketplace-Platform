@@ -6,7 +6,7 @@ export async function GET(request: NextRequest) {
   const search = request.nextUrl.searchParams;
   const query = new URLSearchParams();
 
-  for (const key of ['q', 'barcode', 'locationId', 'limit']) {
+  for (const key of ['q', 'barcode', 'locationId', 'limit', 'productType']) {
     const value = search.get(key);
     if (value) {
       query.set(key, value);

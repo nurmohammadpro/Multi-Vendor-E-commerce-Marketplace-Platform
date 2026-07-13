@@ -81,7 +81,7 @@ export class PosService {
   async searchCatalog(
     headerStoreId: string | undefined,
     authContext: StoreAuthContext | null,
-    payload: { barcode?: string; q?: string; locationId?: string; limit: number },
+    payload: { barcode?: string; q?: string; locationId?: string; limit: number; productType?: string },
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
 
@@ -135,6 +135,7 @@ export class PosService {
         left join stock_totals st on st.sku_id = sku.id
         where sku.store_id = $1
           and sku.status = 'active'
+          and ($6::text is null or p.product_type = $6::text)
           and (
             $2::varchar is null
             or sku.barcode = $2::varchar
@@ -154,7 +155,7 @@ export class PosService {
           sku.created_at asc
         limit $5
       `,
-      [storeId, payload.barcode ?? null, payload.q ?? null, payload.locationId ?? null, payload.limit],
+      [storeId, payload.barcode ?? null, payload.q ?? null, payload.locationId ?? null, payload.limit, payload.productType ?? null],
     );
 
     return {
@@ -278,6 +279,8 @@ export class PosService {
       discountAmount: number;
       taxAmount: number;
       shippingAmount: number;
+      exchangeSkuId?: string;
+      exchangeAmount: number;
       note?: string;
       items: Array<{
         skuId: string;
@@ -351,7 +354,7 @@ export class PosService {
       const itemTaxTotal = payload.items.reduce((sum, item) => sum + item.taxAmount, 0);
       const discountAmount = payload.discountAmount + itemDiscountTotal;
       const taxAmount = payload.taxAmount + itemTaxTotal;
-      const totalAmount = subtotalAmount - discountAmount + taxAmount + payload.shippingAmount;
+      const totalAmount = subtotalAmount - discountAmount + taxAmount + payload.shippingAmount - (payload.exchangeAmount || 0);
       const paidAmount = payload.payments
         .filter((payment) => payment.status === 'paid')
         .reduce((sum, payment) => sum + payment.amount, 0);
@@ -413,6 +416,8 @@ export class PosService {
             customer_shop_name,
             customer_address,
             due_date,
+            exchange_sku_id,
+            exchange_amount,
             subtotal_amount,
             discount_amount,
             tax_amount,
@@ -448,9 +453,11 @@ export class PosService {
             $18,
             $19,
             $20,
-            case when coalesce($18::numeric, 0) > 0 then 'delivery_pending' else 'completed' end,
-            'completed',
             $21,
+            $22,
+            case when coalesce($20::numeric, 0) > 0 then 'delivery_pending' else 'completed' end,
+            'completed',
+            $23,
             now(),
             now()
           from store.stores s
@@ -472,6 +479,8 @@ export class PosService {
           payload.customerShopName ?? null,
           payload.customerAddress ?? null,
           payload.dueDate ?? null,
+          (payload as any).exchangeSkuId ?? null,
+          (payload as any).exchangeAmount || 0,
           subtotalAmount,
           discountAmount,
           taxAmount,
