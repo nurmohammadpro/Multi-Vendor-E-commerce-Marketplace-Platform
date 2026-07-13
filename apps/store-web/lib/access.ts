@@ -9,6 +9,14 @@ type StoreSessionContext = {
 };
 
 export type StoreSessionProfile = {
+  user?: {
+    id?: string;
+    email?: string | null;
+    phone?: string | null;
+    fullName?: string | null;
+    preferredLocale?: string;
+    status?: string;
+  };
   contexts?: StoreSessionContext[];
   permissions?: string[];
 };
@@ -24,6 +32,8 @@ export type StoreConsoleAccess = {
   storeLogoUrl: string | null;
   storeStatus: string | null;
   planFeatures: string[];
+  userName: string | null;
+  userEmail: string | null;
   canManageCatalog: boolean;
   canViewInventory: boolean;
   canAdjustInventory: boolean;
@@ -82,6 +92,8 @@ export function deriveStoreConsoleAccess(
     storeName?: string | null;
     storeLogoUrl?: string | null;
     storeStatus?: string | null;
+    userName?: string | null;
+    userEmail?: string | null;
   },
 ): StoreConsoleAccess {
   const roles = Array.from(
@@ -119,6 +131,8 @@ export function deriveStoreConsoleAccess(
     storeName: options?.storeName ?? null,
     storeLogoUrl: options?.storeLogoUrl ?? null,
     storeStatus: options?.storeStatus ?? null,
+    userName: options?.userName ?? null,
+    userEmail: options?.userEmail ?? null,
     canManageCatalog: permissionSet.has('catalog.manage') && canAccessStoreFeature({ planCode, planFeatures }, 'catalog'),
     canViewInventory: permissionSet.has('inventory.view') && canAccessStoreFeature({ planCode, planFeatures }, 'inventory'),
     canAdjustInventory: canRequestAdjustInventory,
@@ -172,5 +186,7 @@ export async function getStoreConsoleAccess() {
     storeName: storePayload?.store?.name ?? null,
     storeLogoUrl: storePayload?.store?.logo_url ?? null,
     storeStatus: storePayload?.store?.status ?? null,
+    userName: profile?.user?.fullName ?? null,
+    userEmail: profile?.user?.email ?? null,
   });
 }
