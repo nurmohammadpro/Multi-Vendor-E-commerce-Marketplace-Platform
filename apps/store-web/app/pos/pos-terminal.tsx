@@ -822,74 +822,54 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                     overflowY: 'auto',
                   }}
                 >
-                  {groupedResults.map((group) => (
-                    <div
-                      key={group.productId}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '10px 12px',
-                        borderBottom: '1px solid var(--border)',
-                        cursor: 'pointer',
-                      }}
-                      onMouseDown={(e) => e.preventDefault()}
-                    >
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 600, fontSize: 14 }}>{group.productName}</div>
-                        <div style={{ color: 'var(--muted-foreground)', fontSize: 12, marginTop: 2 }}>
-                          {group.hasVariants
-                            ? `${group.variantMode || 'variant'} · ${group.skuCount} variant(s)`
-                            : group.skus[0]?.sku_code}
-                          {' · '}Available: {formatQty(group.totalAvailable)}
-                          {' · '}From {currency(group.lowestPrice)}
+                  {groupedResults.map((group) => {
+                    if (group.hasVariants) {
+                      return (
+                        <div
+                          key={group.productId}
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => { setShowSuggestions(false); openVariantPicker(group); }}
+                          style={{ display: 'flex', alignItems: 'center', padding: '10px 12px', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
+                        >
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: 600, fontSize: 14 }}>{group.productName}</div>
+                            <div style={{ color: 'var(--muted-foreground)', fontSize: 12, marginTop: 2 }}>
+                              {group.variantMode || 'variant'} · {group.skuCount} variant(s)
+                              {' · '}Available: {formatQty(group.totalAvailable)}
+                              {' · '}From {currency(group.lowestPrice)}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+                    const singleSku = group.skus[0];
+                    const singleTrackable = singleSku.is_trackable !== false;
+                    const singleAvailable = !singleTrackable || getSkuAvailableQty(singleSku) > 0;
+                    return (
+                      <div
+                        key={group.productId}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          if (!singleAvailable) return;
+                          setShowSuggestions(false);
+                          addSkuToCart(singleSku);
+                          clearSearchState();
+                          setMessage(`${group.productName} added to cart.`);
+                        }}
+                        style={{ display: 'flex', alignItems: 'center', padding: '10px 12px', borderBottom: '1px solid var(--border)', cursor: singleAvailable ? 'pointer' : 'default', opacity: singleAvailable ? 1 : 0.5 }}
+                      >
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 600, fontSize: 14 }}>{group.productName}</div>
+                          <div style={{ color: 'var(--muted-foreground)', fontSize: 12, marginTop: 2 }}>
+                            {singleSku.sku_code}
+                            {' · '}Available: {formatQty(group.totalAvailable)}
+                            {' · '}From {currency(group.lowestPrice)}
+                            {!singleAvailable ? ' · Out of Stock' : ''}
+                          </div>
                         </div>
                       </div>
-                      <div style={{ display: 'flex', gap: 6, flexShrink: 0, marginLeft: 12 }}>
-                        {group.hasVariants ? (
-                          <button
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => {
-                              setShowSuggestions(false);
-                              openVariantPicker(group);
-                            }}
-                            style={accentButtonStyle}
-                          >
-                            Choose Variant
-                          </button>
-                        ) : (() => {
-                          const singleSku = group.skus[0];
-                          const singleTrackable = singleSku.is_trackable !== false;
-                          const singleAvailable = !singleTrackable || getSkuAvailableQty(singleSku) > 0;
-                          return (
-                          <button
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => {
-                              addSkuToCart(singleSku);
-                              clearSearchState();
-                              if (singleAvailable) {
-                                setMessage(`${group.productName} added to cart.`);
-                              }
-                            }}
-                            style={neutralButtonStyle}
-                            disabled={!singleAvailable}
-                          >
-                            {!singleAvailable ? 'Out of Stock' : 'Add'}
-                          </button>
-                          );
-                        })()}
-                        <button
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => {
-                            handlePrintLabel(group.skus[0]);
-                          }}
-                          style={subtleButtonStyle}
-                        >
-                          Label
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : null}
             </div>
