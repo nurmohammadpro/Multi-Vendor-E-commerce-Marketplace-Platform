@@ -509,12 +509,11 @@ export function PurchasesWorkspace() {
             {showSkuSuggestions && skuResults.length > 0 ? (
               <div style={{ position: 'absolute', left: 0, right: 0, top: '100%', zIndex: 50, marginTop: -6, background: 'var(--card)', borderRadius: 10, border: '1px solid var(--border)', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', maxHeight: 340, overflowY: 'auto', marginBottom: 10 }}>
                 {skuResults.map((sku) => (
-                  <div key={sku.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
+                  <div key={sku.id} onMouseDown={(e) => e.preventDefault()} onClick={() => { addSkuItem(sku); }} style={{ display: 'flex', alignItems: 'center', padding: '10px 12px', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 600, fontSize: 14 }}>{sku.product_name}</div>
                       <div style={{ color: 'var(--muted-foreground)', fontSize: 12, marginTop: 2 }}>{sku.sku_code}{sku.variant_label ? ` · ${sku.variant_label}` : ''} · Stock: {Number(sku.available_qty ?? 0)} · BDT {formatMoney(sku.sale_price)}</div>
                     </div>
-                    <button onMouseDown={(e) => e.preventDefault()} onClick={() => { addSkuItem(sku); }} style={secondaryButtonStyle}>+ Add</button>
                   </div>
                 ))}
               </div>
