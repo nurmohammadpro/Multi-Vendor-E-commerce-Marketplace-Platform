@@ -112,6 +112,7 @@ export function PurchasesWorkspace() {
   const [exIsTrackable, setExIsTrackable] = useState(false);
   const [exSalePrice, setExSalePrice] = useState('');
   const [exUnitCost, setExUnitCost] = useState('');
+  const [exQty, setExQty] = useState('1');
   const [exVariantRows, setExVariantRows] = useState<Array<{ key: string; label: string; price: string; cost: string }>>([]);
   const [exVariantInput, setExVariantInput] = useState('');
   const [exVariantPrice, setExVariantPrice] = useState('');
@@ -341,7 +342,7 @@ export function PurchasesWorkspace() {
         productName: exName.trim(),
         customerName: exCustomerName.trim(), customerPhone: exCustomerPhone.trim(), customerEmail: exCustomerEmail.trim() || undefined,
         categoryId: exCategoryId || undefined, brandId: exBrandId || undefined,
-        salePrice: Number(exSalePrice || 0), unitCost: Number(exUnitCost || 0),
+        salePrice: Number(exSalePrice || 0) * Number(exQty || 1), unitCost: Number(exUnitCost || 0) * Number(exQty || 1),
         hasVariants: false, isTrackable: exIsTrackable, note: '',
       }];
 
@@ -352,7 +353,7 @@ export function PurchasesWorkspace() {
       const count = bodies.length;
       setMessage(`✓ Exchange product "${lastResult?.product?.name}" created for ${exCustomerName}.`);
       setExName(''); setExCustomerName(''); setExCustomerPhone(''); setExCustomerEmail('');
-      setExSalePrice(''); setExUnitCost(''); setExVariantRows([]); setExHasVariants(false);
+      setExSalePrice(''); setExUnitCost(''); setExQty('1'); setExVariantRows([]); setExHasVariants(false);
       setExCategoryId(''); setExBrandId('');
     } catch (error) { const msg = (error as Error).message; setMessage(msg); toast.error(msg); }
     finally { setExSaving(false); }
@@ -694,7 +695,7 @@ export function PurchasesWorkspace() {
                 <input value={exVariantInput} onChange={(e) => setExVariantInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addExVariantRow(); } }} style={{ ...fieldStyle, flex: 1, minWidth: 100 }} placeholder="Variant label" />
                 <input value={exVariantPrice} onChange={(e) => setExVariantPrice(e.target.value)} style={{ ...fieldStyle, width: 90 }} placeholder="Price" />
                 <input value={exVariantCost} onChange={(e) => setExVariantCost(e.target.value)} style={{ ...fieldStyle, width: 90 }} placeholder="Cost" />
-                <button onClick={addExVariantRow} style={{ ...accentButtonStyle, minWidth: 60, fontSize: 11 }} disabled={!exVariantInput.trim()}>Add</button>
+                <button onClick={addExVariantRow} style={{ ...gray800ButtonStyle, minWidth: 60, fontSize: 11 }} disabled={!exVariantInput.trim()}>Add</button>
               </div>
               {exVariantRows.length ? (
                 <div style={tableWrapStyle}>
@@ -715,9 +716,10 @@ export function PurchasesWorkspace() {
               ) : null}
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr 1fr' : 'repeat(auto-fit, minmax(100px, 1fr))', gap: 8, marginBottom: 10 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr 1fr' : 'repeat(3, 1fr)', gap: 8, marginBottom: 10 }}>
               <input type="number" min="0" step="0.01" value={exSalePrice} onChange={(e) => setExSalePrice(e.target.value)} style={fieldStyle} placeholder="Sale price (BDT)" />
               <input type="number" min="0" step="0.01" value={exUnitCost} onChange={(e) => setExUnitCost(e.target.value)} style={fieldStyle} placeholder="Unit cost (BDT)" />
+              <input type="number" min="1" step="1" value={exQty} onChange={(e) => setExQty(e.target.value)} style={fieldStyle} placeholder="Quantity" />
             </div>
           )}
 
