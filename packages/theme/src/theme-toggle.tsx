@@ -57,7 +57,7 @@ export function ThemeToggle() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-1.5 w-64 rounded-lg border border-border bg-popover p-1.5 shadow-lg">
+        <div className="absolute right-0 top-full z-50 mt-1.5 w-72 rounded-lg border border-border bg-popover p-1.5 shadow-lg">
           {/* Theme selector */}
           <div className="px-2.5 pb-1 pt-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
             Theme
