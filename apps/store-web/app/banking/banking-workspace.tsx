@@ -195,7 +195,7 @@ export function BankingWorkspace() {
             <input value={accountForm.accountNumber} onChange={(event) => setAccountForm((current) => ({ ...current, accountNumber: event.target.value }))} style={fieldStyle} placeholder="Account number" />
             <input value={accountForm.openingBalance} onChange={(event) => setAccountForm((current) => ({ ...current, openingBalance: event.target.value }))} style={fieldStyle} placeholder="Opening balance" />
             <input value={accountForm.currentBalance} onChange={(event) => setAccountForm((current) => ({ ...current, currentBalance: event.target.value }))} style={fieldStyle} placeholder="Current balance" />
-            <button onClick={saveAccount} style={accentButtonStyle} disabled={loading}>Save Bank Account</button>
+            <button onClick={saveAccount} style={searchButtonStyle} disabled={loading}>Save Bank Account</button>
           </div>
           <div style={{ ...stackedFilterGridStyle, marginTop: 12 }}>
             <input value={accountSearch} onChange={(event) => setAccountSearch(event.target.value)} style={fieldStyle} placeholder="Search account, bank, or number" />
@@ -270,7 +270,7 @@ export function BankingWorkspace() {
               <option value="matched">Matched</option>
               <option value="flagged">Flagged</option>
             </select>
-            <button onClick={saveEntry} style={accentButtonStyle} disabled={loading}>Save Entry</button>
+            <button onClick={saveEntry} style={searchButtonStyle} disabled={loading}>Save Entry</button>
           </div>
           <div style={{ ...stackedFilterGridStyle, marginTop: 12 }}>
             <input value={entrySearch} onChange={(event) => setEntrySearch(event.target.value)} style={fieldStyle} placeholder="Search account, reference, or source" />
