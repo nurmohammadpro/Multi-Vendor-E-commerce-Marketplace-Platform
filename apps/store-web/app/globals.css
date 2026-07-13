@@ -77,4 +77,22 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
+
+  /* Form field hover/focus border — works with fieldStyle's outline:none */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]):not([type="reset"]),
+  select,
+  textarea {
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]):not([type="reset"]):hover,
+  select:hover,
+  textarea:hover {
+    border-color: var(--ring);
+  }
+  input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]):not([type="reset"]):focus,
+  select:focus,
+  textarea:focus {
+    border-color: var(--ring);
+    box-shadow: 0 0 0 1px var(--ring);
+  }
 }

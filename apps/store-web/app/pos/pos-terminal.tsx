@@ -311,13 +311,13 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
   );
 
   const exchangeAmount = exchangeItem?.exchangeAmount ?? 0;
-  const amountAfterExchange = useMemo(() => Math.max(grandTotal - exchangeAmount, 0), [grandTotal, exchangeAmount]);
+  const amountAfterExchange = useMemo(() => grandTotal - exchangeAmount, [grandTotal, exchangeAmount]);
 
   const changeAmount = useMemo(() => {
     if (paymentMethod !== 'cash') return 0;
     if (saleMode !== 'paid' && saleMode !== 'exchange') return 0;
     const paid = Number(cashReceived || 0);
-    const required = saleMode === 'exchange' ? amountAfterExchange : grandTotal;
+    const required = saleMode === 'exchange' ? Math.max(amountAfterExchange, 0) : grandTotal;
     return Math.max(paid - required, 0);
   }, [cashReceived, paymentMethod, saleMode, grandTotal, amountAfterExchange]);
 
@@ -632,7 +632,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
       setMessage('Select an exchange product first.');
       return;
     }
-    const paymentRequired = saleMode === 'exchange' ? amountAfterExchange : grandTotal;
+    const paymentRequired = saleMode === 'exchange' ? Math.max(amountAfterExchange, 0) : grandTotal;
     if (saleMode === 'paid' && paymentMethod === 'cash' && Number(cashReceived || 0) < paymentRequired) {
       setMessage('Cash received is lower than the sale total.');
       return;
@@ -682,7 +682,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
           payments: [
             {
               paymentMethod,
-              amount: saleIsExchange ? amountAfterExchange : grandTotal,
+              amount: saleIsExchange ? Math.max(amountAfterExchange, 0) : grandTotal,
               referenceNo: paymentReference || undefined,
               status: saleIsDue ? 'pending' : 'paid',
             },
@@ -1149,10 +1149,12 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                       <strong style={{ color: '#16a34a' }}>-{currency(exchangeItem.exchangeAmount)}</strong>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 15, paddingTop: 4 }}>
-                      <span>Remaining</span>
-                      <strong>{currency(amountAfterExchange)}</strong>
+                      <span>{amountAfterExchange < 0 ? 'Excess to return' : 'Remaining'}</span>
+                      <strong style={amountAfterExchange < 0 ? { color: '#16a34a' } : undefined}>
+                        {amountAfterExchange < 0 ? currency(Math.abs(amountAfterExchange)) : currency(amountAfterExchange)}
+                      </strong>
                     </div>
-                    {paymentMethod === 'cash' ? (
+                    {paymentMethod === 'cash' && amountAfterExchange > 0 ? (
                       <>
                         <input value={cashReceived} onChange={(event) => setCashReceived(event.target.value)} style={inputStyle} placeholder={`Amount paid by customer (${currency(amountAfterExchange)} required)`} />
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}>

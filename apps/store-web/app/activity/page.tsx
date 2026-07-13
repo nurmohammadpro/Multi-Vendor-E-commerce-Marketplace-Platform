@@ -1,5 +1,5 @@
 import { getStoreConsoleAccess } from '../../lib/access';
-import { emptyStateStyle, pageLeadStyle, pageTitleStyle, sectionIntroStyle, sectionLabelStyle } from '../marketone-theme';
+import { emptyStateStyle } from '../marketone-theme';
 import { ActivityWorkspace } from './activity-workspace';
 
 export default async function StoreActivityPage() {
@@ -7,13 +7,6 @@ export default async function StoreActivityPage() {
 
   return (
     <section style={{ display: 'grid', gap: 16 }}>
-      <header style={sectionIntroStyle}>
-        <span style={sectionLabelStyle}>Activity</span>
-        <h2 style={pageTitleStyle}>Store audit trail</h2>
-        <p style={pageLeadStyle}>
-          Review operational history for sales, shipments, billing changes, inventory actions, and support activity.
-        </p>
-      </header>
       {access.canViewReports ? (
         <ActivityWorkspace />
       ) : (

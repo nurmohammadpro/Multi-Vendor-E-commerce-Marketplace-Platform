@@ -1,14 +1,5 @@
 import { getStoreConsoleAccess } from '../../lib/access';
-import {
-  emptyStateStyle,
-  pageIntroCardStyle,
-  pageLeadStyle,
-  pageShellStyle,
-  pageTitleStyle,
-  sectionIntroStyle,
-  sectionLabelStyle,
-  surfaceCardStyle,
-} from '../marketone-theme';
+import { emptyStateStyle, pageShellStyle, surfaceCardStyle } from '../marketone-theme';
 
 import { PurchasesWorkspace } from './purchases-workspace';
 
@@ -17,13 +8,6 @@ export default async function StorePurchasesPage() {
 
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
-      <div style={{ ...sectionIntroStyle, ...pageIntroCardStyle, maxWidth: 900 }}>
-        <div style={sectionLabelStyle}>Purchases</div>
-        <h2 style={pageTitleStyle}>Supplier purchases and payables</h2>
-        <p style={pageLeadStyle}>
-          Receive supplier stock, keep purchase history clean, and track what the store still owes.
-        </p>
-      </div>
       {access.canUsePurchases ? (
         <PurchasesWorkspace />
       ) : (
