@@ -279,7 +279,7 @@ export function PayrollWorkspace() {
             <textarea value={employeeForm.trainingSummary} onChange={(event) => setEmployeeForm((current) => ({ ...current, trainingSummary: event.target.value }))} style={{ ...fieldStyle, minHeight: 74 }} placeholder="Training and certifications" />
             <textarea value={employeeForm.note} onChange={(event) => setEmployeeForm((current) => ({ ...current, note: event.target.value }))} style={{ ...fieldStyle, minHeight: 74 }} placeholder="Internal note" />
           </div>
-          <button onClick={saveEmployee} style={{ ...accentButtonStyle, marginTop: 10 }} disabled={loading}>Save Employee</button>
+          <button onClick={saveEmployee} style={{ ...searchButtonStyle, marginTop: 10 }} disabled={loading}>Save Employee</button>
         </article>
 
         <article style={surfaceCardStyle}>
@@ -347,7 +347,7 @@ export function PayrollWorkspace() {
             <div style={{ color: 'var(--muted-foreground)', fontSize: 13 }}>
               Gross: {previewTotals.gross.toFixed(2)} · Bonus: {previewTotals.bonus.toFixed(2)} · Deduction: {previewTotals.deduction.toFixed(2)} · Net: {previewTotals.net.toFixed(2)}
             </div>
-            <button onClick={createRun} style={accentButtonStyle} disabled={loading}>Create Payroll Run</button>
+            <button onClick={createRun} style={searchButtonStyle} disabled={loading}>Create Payroll Run</button>
           </div>
         </article>
 
@@ -424,7 +424,7 @@ export function PayrollWorkspace() {
                       <td style={tableCellStyle}>{run.status}</td>
                       <td style={tableCellStyle}>
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                          <button onClick={() => void updateRunStatus(run.id, 'approved')} style={accentButtonStyle} disabled={loading}>Approve</button>
+                          <button onClick={() => void updateRunStatus(run.id, 'approved')} style={searchButtonStyle} disabled={loading}>Approve</button>
                           <button onClick={() => void updateRunStatus(run.id, 'paid')} style={subtleButtonStyle} disabled={loading}>Mark Paid</button>
                         </div>
                       </td>
