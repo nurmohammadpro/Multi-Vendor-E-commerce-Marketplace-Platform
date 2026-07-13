@@ -179,6 +179,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
   const [saleMode, setSaleMode] = useState<'paid' | 'due' | 'exchange'>('paid');
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'mfs' | 'bank_transfer'>('cash');
   const [paymentReference, setPaymentReference] = useState('');
+  const [orderDiscount, setOrderDiscount] = useState('');
   const [cashReceived, setCashReceived] = useState('');
   const [exchangeItem, setExchangeItem] = useState<{ skuId: string; skuCode: string; productName: string; exchangeAmount: number } | null>(null);
   const [exchangeSearch, setExchangeSearch] = useState('');
@@ -302,9 +303,11 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
     [cart],
   );
 
+  const orderDiscountAmount = useMemo(() => Math.max(Number(orderDiscount || 0), 0), [orderDiscount]);
+
   const grandTotal = useMemo(
-    () => Math.max(total - totalDiscount, 0),
-    [total, totalDiscount],
+    () => Math.max(total - totalDiscount - orderDiscountAmount, 0),
+    [total, totalDiscount, orderDiscountAmount],
   );
 
   const exchangeAmount = exchangeItem?.exchangeAmount ?? 0;
@@ -666,7 +669,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
           dueDate: saleIsDue && dueDate ? dueDate : undefined,
           exchangeSkuId: saleIsExchange ? exchangeItem!.skuId : undefined,
           exchangeAmount: saleIsExchange ? exchangeItem!.exchangeAmount : 0,
-          discountAmount: 0,
+          discountAmount: orderDiscountAmount,
           taxAmount: 0,
           shippingAmount: 0,
           items: cart.map((item) => ({
@@ -739,6 +742,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
       setExchangeItem(null);
       setExchangeSearch('');
       setExchangeResults([]);
+      setOrderDiscount('');
       setCashReceived('');
       clearSearchState();
     } catch (error) {
@@ -940,7 +944,10 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
               <div style={{ fontSize: 12, color: 'var(--muted-foreground)', textAlign: 'right' }}>
                 <div>{cart.length} item(s) · Subtotal {currency(total)}</div>
                 {totalDiscount > 0 ? (
-                  <div style={{ color: '#b45309' }}>Discount -{currency(totalDiscount)}</div>
+                  <div style={{ color: '#b45309' }}>Item Disc. -{currency(totalDiscount)}</div>
+                ) : null}
+                {orderDiscountAmount > 0 ? (
+                  <div style={{ color: '#b45309' }}>Order Disc. -{currency(orderDiscountAmount)}</div>
                 ) : null}
                 <div style={{ fontWeight: 700, fontSize: 14 }}>Total {currency(grandTotal)}</div>
               </div>
@@ -1095,10 +1102,22 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
             </div>
             {totalDiscount > 0 ? (
               <div style={{ display: 'flex', justifyContent: 'space-between', color: '#b45309' }}>
-                <span>Discount</span>
+                <span>Item Discount</span>
                 <strong>-{currency(totalDiscount)}</strong>
               </div>
             ) : null}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 13 }}>Order Discount</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={orderDiscount}
+                onChange={(e) => setOrderDiscount(e.target.value)}
+                style={{ ...inputStyle, width: 100, fontSize: 12, textAlign: 'right', padding: '4px 8px' }}
+                placeholder="0.00"
+              />
+            </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border)', paddingTop: 4 }}>
               <span>Total</span>
               <strong>{currency(grandTotal)}</strong>
