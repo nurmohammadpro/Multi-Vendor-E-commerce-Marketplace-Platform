@@ -101,6 +101,22 @@ export function PurchasesWorkspace() {
   const [quickBrandId, setQuickBrandId] = useState('');
   const [quickNewCategory, setQuickNewCategory] = useState('');
   const [quickNewBrand, setQuickNewBrand] = useState('');
+  // Exchange product form
+  const [exCustomerName, setExCustomerName] = useState('');
+  const [exCustomerPhone, setExCustomerPhone] = useState('');
+  const [exCustomerEmail, setExCustomerEmail] = useState('');
+  const [exName, setExName] = useState('');
+  const [exCategoryId, setExCategoryId] = useState('');
+  const [exBrandId, setExBrandId] = useState('');
+  const [exHasVariants, setExHasVariants] = useState(false);
+  const [exIsTrackable, setExIsTrackable] = useState(false);
+  const [exSalePrice, setExSalePrice] = useState('');
+  const [exUnitCost, setExUnitCost] = useState('');
+  const [exVariantRows, setExVariantRows] = useState<Array<{ key: string; label: string; price: string; cost: string }>>([]);
+  const [exVariantInput, setExVariantInput] = useState('');
+  const [exVariantPrice, setExVariantPrice] = useState('');
+  const [exVariantCost, setExVariantCost] = useState('');
+  const [exSaving, setExSaving] = useState(false);
   // Variants with individual pricing
   const [quickHasVariants, setQuickHasVariants] = useState(false);
   const [quickIsTrackable, setQuickIsTrackable] = useState(true);
@@ -292,6 +308,54 @@ export function PurchasesWorkspace() {
       setQuickNewBrand('');
     } catch (error) { const msg = (error as Error).message; setMessage(msg); toast.error(msg); }
     finally { setLoading(false); }
+  };
+
+  // ── Exchange Product ──
+
+  const addExVariantRow = () => {
+    const label = exVariantInput.trim();
+    if (!label) return;
+    setExVariantRows((cur) => [...cur, {
+      key: String(Date.now()),
+      label,
+      price: exVariantPrice || exVariantRows[exVariantRows.length - 1]?.price || '',
+      cost: exVariantCost || exVariantRows[exVariantRows.length - 1]?.cost || '',
+    }]);
+    setExVariantInput(''); setExVariantPrice(''); setExVariantCost('');
+  };
+
+  const createExchangeProduct = async () => {
+    if (!exCustomerName.trim() || !exCustomerPhone.trim()) { setMessage('Customer name and phone are required.'); return; }
+    if (!exName.trim()) { setMessage('Product name is required.'); return; }
+    const hasRows = exHasVariants && exVariantRows.length > 0;
+    if (!hasRows && exHasVariants) { setMessage('Add at least one variant row.'); return; }
+    setExSaving(true);
+    try {
+      const bodies = hasRows ? exVariantRows.map((row) => ({
+        productName: `${exName.trim()} · ${row.label}`,
+        customerName: exCustomerName.trim(), customerPhone: exCustomerPhone.trim(), customerEmail: exCustomerEmail.trim() || undefined,
+        categoryId: exCategoryId || undefined, brandId: exBrandId || undefined,
+        salePrice: Number(row.price || 0), unitCost: Number(row.cost || 0),
+        hasVariants: false, isTrackable: exIsTrackable, note: '',
+      })) : [{
+        productName: exName.trim(),
+        customerName: exCustomerName.trim(), customerPhone: exCustomerPhone.trim(), customerEmail: exCustomerEmail.trim() || undefined,
+        categoryId: exCategoryId || undefined, brandId: exBrandId || undefined,
+        salePrice: Number(exSalePrice || 0), unitCost: Number(exUnitCost || 0),
+        hasVariants: false, isTrackable: exIsTrackable, note: '',
+      }];
+
+      let lastResult: any = null;
+      for (const body of bodies) {
+        lastResult = await readJson<any>('/api/store-ops/quick-exchange', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      }
+      const count = bodies.length;
+      setMessage(`✓ Exchange product "${lastResult?.product?.name}" created for ${exCustomerName}.`);
+      setExName(''); setExCustomerName(''); setExCustomerPhone(''); setExCustomerEmail('');
+      setExSalePrice(''); setExUnitCost(''); setExVariantRows([]); setExHasVariants(false);
+      setExCategoryId(''); setExBrandId('');
+    } catch (error) { const msg = (error as Error).message; setMessage(msg); toast.error(msg); }
+    finally { setExSaving(false); }
   };
 
 
@@ -567,6 +631,99 @@ export function PurchasesWorkspace() {
               {loading ? 'Saving...' : 'Receive Stock'}
             </button>
           </div>
+        </article>
+
+        {/* ── Add Exchange Product ── */}
+        <article style={{ ...surfaceCardStyle, border: '2px solid #1e293b', padding: 14 }}>
+          <h3 style={{ marginTop: 0, marginBottom: 4, fontSize: 15 }}>Add Exchange Product</h3>
+          <p style={{ margin: '0 0 14px', color: 'var(--muted-foreground)', fontSize: 12 }}>Record a product accepted as a trade-in/exchange from a customer.</p>
+
+          {/* Customer fields */}
+          <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : '1fr 1fr 1fr', gap: 8, marginBottom: 10 }}>
+            <input value={exCustomerName} onChange={(e) => setExCustomerName(e.target.value)} style={fieldStyle} placeholder="Customer name (required)" />
+            <input value={exCustomerPhone} onChange={(e) => setExCustomerPhone(e.target.value)} style={fieldStyle} placeholder="Customer phone (required)" />
+            <input value={exCustomerEmail} onChange={(e) => setExCustomerEmail(e.target.value)} style={fieldStyle} placeholder="Customer email (optional)" />
+          </div>
+
+          {/* Product name */}
+          <input value={exName} onChange={(e) => setExName(e.target.value)} style={{ ...fieldStyle, marginBottom: 10 }} placeholder="Product name (required)" />
+
+          {/* Category + Brand */}
+          <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : '1fr 1fr', gap: 8, marginBottom: 10 }}>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <select value={exCategoryId} onChange={(e) => setExCategoryId(e.target.value)} style={{ ...fieldStyle, flex: 1 }}>
+                <option value="">No category</option>
+                {categoryTree.map((parent) => (
+                  <React.Fragment key={parent.id}>
+                    <option value={parent.id} style={{ fontWeight: 600 }}>{parent.name}</option>
+                    {parent.children.map((child) => (
+                      <option key={child.id} value={child.id} style={{ paddingLeft: 16 }}>&nbsp;&nbsp;&nbsp;↳ {child.name}</option>
+                    ))}
+                  </React.Fragment>
+                ))}
+              </select>
+              <input value={quickNewCategory} onChange={(e) => setQuickNewCategory(e.target.value)} style={{ ...fieldStyle, width: 130 }} placeholder={exCategoryId ? "New subcategory" : "New category"} />
+              <button onClick={createCategoryQuick} style={{ ...secondaryButtonStyle, minWidth: 50, fontSize: 11 }} disabled={loading || !quickNewCategory.trim()}>+</button>
+            </div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <select value={exBrandId} onChange={(e) => setExBrandId(e.target.value)} style={{ ...fieldStyle, flex: 1 }}>
+                <option value="">No brand</option>
+                {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+              <input value={quickNewBrand} onChange={(e) => setQuickNewBrand(e.target.value)} style={{ ...fieldStyle, width: 120 }} placeholder="New brand" />
+              <button onClick={createBrandQuick} style={{ ...secondaryButtonStyle, minWidth: 50, fontSize: 11 }} disabled={loading || !quickNewBrand.trim()}>+</button>
+            </div>
+          </div>
+
+          {/* Variants toggle */}
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, cursor: 'pointer' }}>
+            <input type="checkbox" checked={exHasVariants} onChange={(e) => { setExHasVariants(e.target.checked); if (!e.target.checked) setExVariantRows([]); }} style={{ accentColor: '#0f172a' }} />
+            <span style={{ fontSize: 13, color: 'var(--muted-foreground)' }}>Has variants (sizes, colors, etc.)</span>
+          </label>
+
+          {/* Trackable toggle */}
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, cursor: 'pointer' }}>
+            <input type="checkbox" checked={exIsTrackable} onChange={(e) => setExIsTrackable(e.target.checked)} style={{ accentColor: '#0f172a' }} />
+            <span style={{ fontSize: 13, color: 'var(--muted-foreground)' }}>Track inventory (stock levels)</span>
+          </label>
+
+          {/* Variant rows */}
+          {exHasVariants ? (
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+                <input value={exVariantInput} onChange={(e) => setExVariantInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addExVariantRow(); } }} style={{ ...fieldStyle, flex: 1, minWidth: 100 }} placeholder="Variant label" />
+                <input value={exVariantPrice} onChange={(e) => setExVariantPrice(e.target.value)} style={{ ...fieldStyle, width: 90 }} placeholder="Price" />
+                <input value={exVariantCost} onChange={(e) => setExVariantCost(e.target.value)} style={{ ...fieldStyle, width: 90 }} placeholder="Cost" />
+                <button onClick={addExVariantRow} style={{ ...accentButtonStyle, minWidth: 60, fontSize: 11 }} disabled={!exVariantInput.trim()}>Add</button>
+              </div>
+              {exVariantRows.length ? (
+                <div style={tableWrapStyle}>
+                  <table style={tableStyle}>
+                    <thead><tr><th style={tableHeaderCellStyle}>Variant</th><th style={tableHeaderCellStyle}>Price</th><th style={tableHeaderCellStyle}>Cost</th><th style={tableHeaderCellStyle}></th></tr></thead>
+                    <tbody>
+                      {exVariantRows.map((row) => (
+                        <tr key={row.key}>
+                          <td style={tableCellStyle}><strong>{row.label}</strong></td>
+                          <td style={tableCellStyle}>{row.price ? `BDT ${Number(row.price).toFixed(2)}` : '—'}</td>
+                          <td style={tableCellStyle}>{row.cost ? `BDT ${Number(row.cost).toFixed(2)}` : '—'}</td>
+                          <td style={tableCellStyle}><button onClick={() => setExVariantRows((cur) => cur.filter((r) => r.key !== row.key))} style={dangerButtonStyle}>✕</button></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr 1fr' : 'repeat(auto-fit, minmax(100px, 1fr))', gap: 8, marginBottom: 10 }}>
+              <input type="number" min="0" step="0.01" value={exSalePrice} onChange={(e) => setExSalePrice(e.target.value)} style={fieldStyle} placeholder="Sale price (BDT)" />
+              <input type="number" min="0" step="0.01" value={exUnitCost} onChange={(e) => setExUnitCost(e.target.value)} style={fieldStyle} placeholder="Unit cost (BDT)" />
+            </div>
+          )}
+
+          <button onClick={createExchangeProduct} style={{ ...gray800ButtonStyle, width: '100%', minHeight: 36 }} disabled={exSaving || !exCustomerName.trim() || !exCustomerPhone.trim() || !exName.trim()}>
+            {exSaving ? 'Saving...' : `Create Exchange Product (${exHasVariants && exVariantRows.length ? exVariantRows.length : 1} item${exHasVariants && exVariantRows.length > 1 ? 's' : ''})`}
+          </button>
         </article>
       </section>
       ) : null}

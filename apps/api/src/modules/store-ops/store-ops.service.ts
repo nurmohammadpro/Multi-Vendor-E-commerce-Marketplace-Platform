@@ -2371,6 +2371,116 @@ export class StoreOpsService {
     }
   }
 
+  async quickExchange(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    session: AuthSession | null,
+    payload: {
+      productName: string;
+      customerName: string;
+      customerPhone: string;
+      customerEmail?: string;
+      categoryId?: string;
+      brandId?: string;
+      salePrice: number;
+      unitCost: number;
+      hasVariants: boolean;
+      variantLabels?: string[];
+      variantPrices?: number[];
+      variantCosts?: number[];
+      isTrackable?: boolean;
+      note?: string;
+    },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const userId = this.requireUserId(session);
+    const client = await this.pool.connect();
+
+    try {
+      await client.query('begin');
+
+      const tenantResult = await client.query<{ tenant_id: string; store_code: string }>(
+        'select tenant_id, store_code from store.stores where id = $1 limit 1', [storeId],
+      );
+      const tenantId = tenantResult.rows[0].tenant_id;
+
+      const productName = payload.productName.trim();
+      const productCode = productName.replace(/[^A-Za-z0-9]/g, '-').toUpperCase().slice(0, 32) || 'EXCHANGE';
+      const categoryId = payload.categoryId || null;
+      const brandId = payload.brandId || null;
+
+      // 1. Create exchange product
+      const productResult = await client.query<{ id: string }>(
+        `insert into catalog.products (id, tenant_id, store_id, product_code, name, category_id, brand_id, has_variants, variant_mode, is_trackable, product_type, status, created_at, updated_at)
+         values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, 'exchange', 'active', now(), now()) returning id`,
+        [tenantId, storeId, productCode, productName, categoryId, brandId, payload.hasVariants, payload.hasVariants ? 'single' : 'none', payload.isTrackable ?? false],
+      );
+      const productId = productResult.rows[0].id;
+
+      // 2. Create SKU(s) + prices (no inventory or purchase)
+      const skus: Array<{ id: string; skuCode: string; label: string | null; price: number; cost: number }> = [];
+
+      if (payload.hasVariants && payload.variantLabels?.length) {
+        for (let i = 0; i < payload.variantLabels.length; i++) {
+          const label = payload.variantLabels[i].trim();
+          const price = payload.variantPrices?.[i] ?? payload.salePrice;
+          const cost = payload.variantCosts?.[i] ?? payload.unitCost;
+          const skuCode = `${productCode}-${label.replace(/[^A-Za-z0-9]/g, '-').toUpperCase()}`.slice(0, 80);
+          const skuResult = await client.query<{ id: string }>(
+            `insert into catalog.skus (id, tenant_id, store_id, product_id, sku_code, variant_label, status, created_at, updated_at)
+             values (gen_random_uuid(), $1, $2, $3, $4, $5, 'active', now(), now()) returning id`,
+            [tenantId, storeId, productId, skuCode, label],
+          );
+          await client.query(
+            `insert into catalog.prices (id, tenant_id, store_id, sku_id, sale_price, cost_price, effective_from, created_at)
+             values (gen_random_uuid(), $1, $2, $3, $4, $5, now(), now())`,
+            [tenantId, storeId, skuResult.rows[0].id, String(price), String(cost)],
+          );
+          skus.push({ id: skuResult.rows[0].id, skuCode, label, price, cost });
+        }
+      } else {
+        const skuCode = productCode.slice(0, 40);
+        const skuResult = await client.query<{ id: string }>(
+          `insert into catalog.skus (id, tenant_id, store_id, product_id, sku_code, status, created_at, updated_at)
+           values (gen_random_uuid(), $1, $2, $3, $4, 'active', now(), now()) returning id`,
+          [tenantId, storeId, productId, skuCode],
+        );
+        await client.query(
+          `insert into catalog.prices (id, tenant_id, store_id, sku_id, sale_price, cost_price, effective_from, created_at)
+           values (gen_random_uuid(), $1, $2, $3, $4, $5, now(), now())`,
+          [tenantId, storeId, skuResult.rows[0].id, String(payload.salePrice), String(payload.unitCost)],
+        );
+        skus.push({ id: skuResult.rows[0].id, skuCode, label: null, price: payload.salePrice, cost: payload.unitCost });
+      }
+
+      // 3. Record exchange product metadata — store customer info in product description
+      const customerInfo = [
+        `Exchange from: ${payload.customerName}`,
+        `Phone: ${payload.customerPhone}`,
+        payload.customerEmail ? `Email: ${payload.customerEmail}` : null,
+        payload.note ? `Note: ${payload.note}` : null,
+      ].filter(Boolean).join('\n');
+
+      await client.query(
+        `update catalog.products set description = $1, updated_at = now() where id = $2`,
+        [customerInfo, productId],
+      );
+
+      await client.query('commit');
+
+      return {
+        product: { id: productId, name: productName, productCode },
+        skus,
+        customer: { name: payload.customerName, phone: payload.customerPhone, email: payload.customerEmail },
+      };
+    } catch (error) {
+      await client.query('rollback').catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
 
   private assertStoreContext(headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
     if (!authContext || authContext.type !== 'store') {
