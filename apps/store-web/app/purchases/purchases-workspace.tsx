@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   accentButtonStyle,
@@ -86,6 +86,9 @@ export function PurchasesWorkspace() {
   const [purchaseSearch, setPurchaseSearch] = useState('');
   const [purchaseStatus, setPurchaseStatus] = useState('');
   const [skuSearch, setSkuSearch] = useState('');
+  const [showSkuSuggestions, setShowSkuSuggestions] = useState(false);
+  const [skuSearching, setSkuSearching] = useState(false);
+  const skuDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Quick Add + Receive
   const [quickName, setQuickName] = useState('');
@@ -179,14 +182,29 @@ export function PurchasesWorkspace() {
 
   const searchSkus = async () => {
     if (!skuSearch.trim()) { setSkuResults([]); return; }
-    setLoading(true);
+    setSkuSearching(true);
     try {
       const payload = await readJson<{ skus: SkuResult[] }>(`/api/catalog/skus/search?q=${encodeURIComponent(skuSearch.trim())}&limit=12`);
       setSkuResults(payload.skus ?? []);
+      setShowSkuSuggestions((payload.skus?.length ?? 0) > 0);
       setMessage(`Found ${payload.skus?.length ?? 0} SKU(s).`);
     } catch (error) { setMessage((error as Error).message); }
-    finally { setLoading(false); }
+    finally { setSkuSearching(false); }
   };
+
+  // Debounce auto-search for SKU lookup (like POS)
+  useEffect(() => {
+    if (skuDebounceRef.current) clearTimeout(skuDebounceRef.current);
+    if (!skuSearch.trim()) {
+      setSkuResults([]);
+      setShowSkuSuggestions(false);
+      setSkuSearching(false);
+      return;
+    }
+    setSkuSearching(true);
+    skuDebounceRef.current = setTimeout(() => { void searchSkus(); }, 150);
+    return () => { if (skuDebounceRef.current) clearTimeout(skuDebounceRef.current); };
+  }, [skuSearch]);
 
   const addSkuItem = (sku: SkuResult) => {
     setItems((cur) => {
@@ -479,29 +497,29 @@ export function PurchasesWorkspace() {
           </div>
 
           {/* SKU search */}
-          <div style={{ ...searchRowStyle, marginBottom: 10 }}>
-            <input value={skuSearch} onChange={(e) => setSkuSearch(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); searchSkus(); } }} style={{ ...fieldStyle, flex: 1, width: 'auto' }} placeholder="Search existing product or SKU to add" />
-            <button onClick={searchSkus} style={searchButtonStyle} disabled={loading}>Find</button>
-          </div>
-
-          {skuResults.length ? (
-            <div style={{ ...tableWrapStyle, marginBottom: 10 }}>
-              <table style={tableStyle}>
-                <thead><tr><th style={tableHeaderCellStyle}>Product</th><th style={tableHeaderCellStyle}>SKU</th><th style={tableHeaderCellStyle}>Price</th><th style={tableHeaderCellStyle}>Stock</th><th style={tableHeaderCellStyle}></th></tr></thead>
-                <tbody>
-                  {skuResults.map((sku) => (
-                    <tr key={sku.id}>
-                      <td style={tableCellStyle}><div style={{ fontWeight: 600 }}>{sku.product_name}</div>{sku.variant_label ? <div style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>{sku.variant_label}</div> : null}</td>
-                      <td style={tableCellStyle}>{sku.sku_code}</td>
-                      <td style={tableCellStyle}>{formatMoney(sku.sale_price)}</td>
-                      <td style={tableCellStyle}>{Number(sku.available_qty ?? 0)}</td>
-                      <td style={tableCellStyle}><button onClick={() => addSkuItem(sku)} style={secondaryButtonStyle}>+ Add</button></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          <div style={{ position: 'relative' }}>
+            <div style={{ ...searchRowStyle, marginBottom: 10 }}>
+              <div style={{ position: 'relative', flex: 1 }}>
+                <input value={skuSearch} onChange={(e) => { setSkuSearch(e.target.value); if (e.target.value) setShowSkuSuggestions(true); }} onFocus={() => { if (skuResults.length > 0) setShowSkuSuggestions(true); }} onBlur={() => setTimeout(() => setShowSkuSuggestions(false), 200)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); setShowSkuSuggestions(false); void searchSkus(); } }} style={{ ...fieldStyle, width: '100%' }} placeholder="Search existing product or SKU to add" />
+                {skuSearching ? <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted-foreground)', fontSize: 12 }}>searching...</span> : null}
+              </div>
+              <button onClick={() => { setShowSkuSuggestions(false); searchSkus(); }} style={searchButtonStyle} disabled={skuSearching}>Find</button>
             </div>
-          ) : null}
+
+            {showSkuSuggestions && skuResults.length > 0 ? (
+              <div style={{ position: 'absolute', left: 0, right: 0, top: '100%', zIndex: 50, marginTop: -6, background: 'var(--card)', borderRadius: 10, border: '1px solid var(--border)', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', maxHeight: 340, overflowY: 'auto', marginBottom: 10 }}>
+                {skuResults.map((sku) => (
+                  <div key={sku.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>{sku.product_name}</div>
+                      <div style={{ color: 'var(--muted-foreground)', fontSize: 12, marginTop: 2 }}>{sku.sku_code}{sku.variant_label ? ` · ${sku.variant_label}` : ''} · Stock: {Number(sku.available_qty ?? 0)} · BDT {formatMoney(sku.sale_price)}</div>
+                    </div>
+                    <button onMouseDown={(e) => e.preventDefault()} onClick={() => { addSkuItem(sku); }} style={secondaryButtonStyle}>+ Add</button>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
 
           {items.length ? (
             <div style={{ ...tableWrapStyle, marginBottom: 10 }}>
