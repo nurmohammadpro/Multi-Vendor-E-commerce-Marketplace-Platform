@@ -176,7 +176,8 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
   const [customerShopName, setCustomerShopName] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
   const [dueDate, setDueDate] = useState('');
-  const [saleMode, setSaleMode] = useState<'paid' | 'due' | 'exchange'>('paid');
+  const [saleMode, setSaleMode] = useState<'paid' | 'due'>('paid');
+  const [exchangeEnabled, setExchangeEnabled] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'mfs' | 'bank_transfer'>('cash');
   const [paymentReference, setPaymentReference] = useState('');
   const [orderDiscount, setOrderDiscount] = useState('');
@@ -321,8 +322,8 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
   const amountAfterExchange = useMemo(() => grandTotal - exchangeAmount, [grandTotal, exchangeAmount]);
 
   const paymentRequired = useMemo(
-    () => saleMode === 'exchange' ? Math.max(amountAfterExchange, 0) : grandTotal,
-    [saleMode, amountAfterExchange, grandTotal],
+    () => exchangeEnabled && exchangeItem ? Math.max(amountAfterExchange, 0) : grandTotal,
+    [exchangeEnabled, exchangeItem, amountAfterExchange, grandTotal],
   );
 
   const totalPaidFromPartial = useMemo(
@@ -331,12 +332,11 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
   );
 
   const changeAmount = useMemo(() => {
+    if (saleMode === 'due') return 0;
     if (usePartialPayments) {
-      if (saleMode !== 'paid' && saleMode !== 'exchange') return 0;
       return Math.max(totalPaidFromPartial - paymentRequired, 0);
     }
     if (paymentMethod !== 'cash') return 0;
-    if (saleMode !== 'paid' && saleMode !== 'exchange') return 0;
     const paid = Number(cashReceived || 0);
     return Math.max(paid - paymentRequired, 0);
   }, [cashReceived, paymentMethod, saleMode, paymentRequired, usePartialPayments, totalPaidFromPartial]);
@@ -648,7 +648,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
       setMessage('Due sales need a customer name or phone number.');
       return;
     }
-    if (saleMode === 'exchange' && !exchangeItem) {
+    if (exchangeEnabled && !exchangeItem) {
       setMessage('Select an exchange product first.');
       return;
     }
@@ -670,7 +670,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
     setLoading(true);
     try {
       const saleIsDue = saleMode === 'due';
-      const saleIsExchange = saleMode === 'exchange';
+      const saleIsExchange = exchangeEnabled && !!exchangeItem;
       const clientRequestId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
         ? crypto.randomUUID()
         : `sale-${Date.now()}`;
@@ -770,6 +770,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
       setCustomerAddress('');
       setDueDate('');
       setSaleMode('paid');
+      setExchangeEnabled(false);
       setPaymentMethod('cash');
       setPaymentReference('');
       setExchangeItem(null);
@@ -1102,13 +1103,49 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
             ) : null}
           </div>
 
-          <div style={{ ...stackedFilterGridStyle, marginBottom: 12 }}>
-            <select aria-label="Sale mode" value={saleMode} onChange={(event) => { setSaleMode(event.target.value as 'paid' | 'due' | 'exchange'); if (event.target.value !== 'exchange') setExchangeItem(null); }} style={inputStyle}>
-              <option value="paid">Paid sale</option>
+          <div style={{ marginBottom: 12 }}>
+            <select aria-label="Sale mode" value={saleMode} onChange={(event) => setSaleMode(event.target.value as 'paid' | 'due')} style={inputStyle}>
+              <option value="paid">Cash sale</option>
               <option value="due">Due sale</option>
-              <option value="exchange">Exchange</option>
             </select>
-            {!usePartialPayments ? (
+          </div>
+
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13 }}>
+              <input type="checkbox" checked={exchangeEnabled} onChange={(e) => { setExchangeEnabled(e.target.checked); if (!e.target.checked) { setExchangeItem(null); setExchangeSearch(''); setExchangeResults([]); } }} style={{ accentColor: '#0f172a' }} />
+              <span style={{ color: 'var(--muted-foreground)' }}>Exchange / Trade-in</span>
+            </label>
+          </div>
+
+          {exchangeEnabled ? (
+            <div style={{ position: 'relative', marginBottom: 12 }}>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <div style={{ position: 'relative', flex: 1 }}>
+                  <input value={exchangeSearch} onChange={(event) => setExchangeSearch(event.target.value)} style={{ ...inputStyle, width: '100%' }} placeholder="Search exchange product" />
+                  {exchangeSearching ? <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: 'var(--muted-foreground)' }}>searching...</span> : null}
+                </div>
+              </div>
+              {exchangeResults.length > 0 ? (
+                <div style={{ position: 'absolute', left: 0, right: 0, top: '100%', zIndex: 50, background: 'var(--card)', borderRadius: 8, border: '1px solid var(--border)', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', maxHeight: 200, overflowY: 'auto' }}>
+                  {exchangeResults.map((sku) => (
+                    <div key={sku.id} onMouseDown={(e) => e.preventDefault()} onClick={() => selectExchangeItem(sku)} style={{ padding: '8px 10px', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontSize: 13 }}>
+                      <div style={{ fontWeight: 600 }}>{sku.product_name}</div>
+                      <div style={{ color: 'var(--muted-foreground)', fontSize: 11 }}>{sku.sku_code} · BDT {Number(sku.sale_price ?? 0).toFixed(2)}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              {exchangeItem ? (
+                <div style={{ fontSize: 12, color: '#16a34a', marginTop: 4 }}>
+                  Selected: {exchangeItem.productName} (-{currency(exchangeItem.exchangeAmount)})
+                  <button onClick={() => { setExchangeItem(null); setExchangeSearch(''); }} style={{ ...subtleButtonStyle, marginLeft: 8, fontSize: 11 }}>Remove</button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          {!usePartialPayments ? (
+            <div style={{ marginBottom: 12 }}>
               <select
                 aria-label="Payment method"
                 value={paymentMethod}
@@ -1120,8 +1157,8 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                 <option value="mfs">MFS</option>
                 <option value="bank_transfer">Bank</option>
               </select>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
 
           {saleMode !== 'due' ? (
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, cursor: 'pointer', fontSize: 13 }}>
@@ -1164,37 +1201,14 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
               </div>
             </div>
           ) : (
-            <>
-              {saleMode === 'exchange' ? (
-                <div style={{ position: 'relative', marginBottom: 12 }}>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <div style={{ position: 'relative', flex: 1 }}>
-                      <input value={exchangeSearch} onChange={(event) => setExchangeSearch(event.target.value)} style={{ ...inputStyle, width: '100%' }} placeholder="Search exchange product" />
-                      {exchangeSearching ? <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: 'var(--muted-foreground)' }}>searching...</span> : null}
-                    </div>
-                  </div>
-                  {exchangeResults.length > 0 ? (
-                    <div style={{ position: 'absolute', left: 0, right: 0, top: '100%', zIndex: 50, background: 'var(--card)', borderRadius: 8, border: '1px solid var(--border)', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', maxHeight: 200, overflowY: 'auto' }}>
-                      {exchangeResults.map((sku) => (
-                        <div key={sku.id} onMouseDown={(e) => e.preventDefault()} onClick={() => selectExchangeItem(sku)} style={{ padding: '8px 10px', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontSize: 13 }}>
-                          <div style={{ fontWeight: 600 }}>{sku.product_name}</div>
-                          <div style={{ color: 'var(--muted-foreground)', fontSize: 11 }}>{sku.sku_code} · BDT {Number(sku.sale_price ?? 0).toFixed(2)}</div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
-
-              <div style={{ display: 'grid', gap: 8, marginBottom: 16 }}>
-                <input
-                  value={paymentReference}
-                  onChange={(event) => setPaymentReference(event.target.value)}
-                  style={inputStyle}
-                  placeholder={paymentMethod === 'cash' ? 'Payment note (optional)' : 'Reference no / transaction id'}
-                />
-              </div>
-            </>
+            <div style={{ display: 'grid', gap: 8, marginBottom: 16 }}>
+              <input
+                value={paymentReference}
+                onChange={(event) => setPaymentReference(event.target.value)}
+                style={inputStyle}
+                placeholder={paymentMethod === 'cash' ? 'Payment note (optional)' : 'Reference no / transaction id'}
+              />
+            </div>
           )}
 
           <div style={{ display: 'grid', gap: 8 }}>
@@ -1224,36 +1238,18 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
               <span>Total</span>
               <strong>{currency(grandTotal)}</strong>
             </div>
-            {saleMode === 'exchange' && exchangeItem ? (
+            {exchangeEnabled && exchangeItem ? (
               <>
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderTop: '1px solid var(--border-weak)' }}>
                   <span style={{ color: 'var(--muted-foreground)' }}>Exchange: {exchangeItem.productName}</span>
                   <strong style={{ color: '#16a34a' }}>-{currency(exchangeItem.exchangeAmount)}</strong>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 15, paddingTop: 4 }}>
-                  <span>{amountAfterExchange < 0 ? 'Excess to return' : 'Remaining'}</span>
+                  <span>{amountAfterExchange < 0 ? 'Excess to return' : 'Net payable'}</span>
                   <strong style={amountAfterExchange < 0 ? { color: '#16a34a' } : undefined}>
                     {amountAfterExchange < 0 ? currency(Math.abs(amountAfterExchange)) : currency(amountAfterExchange)}
                   </strong>
                 </div>
-                {amountAfterExchange > 0 && (usePartialPayments || paymentMethod === 'cash') ? (
-                  usePartialPayments ? (
-                    changeAmount > 0 ? (
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span>Change due</span>
-                        <strong>{currency(changeAmount)}</strong>
-                      </div>
-                    ) : null
-                  ) : (
-                    <>
-                      <input value={cashReceived} onChange={(event) => setCashReceived(event.target.value)} style={inputStyle} placeholder={`Amount paid by customer (${currency(amountAfterExchange)} required)`} />
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span>Change due</span>
-                        <strong>{currency(changeAmount)}</strong>
-                      </div>
-                    </>
-                  )
-                ) : null}
               </>
             ) : null}
             {saleMode === 'paid' ? (
@@ -1266,22 +1262,24 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                 ) : null
               ) : paymentMethod === 'cash' ? (
                 <>
-                  <input value={cashReceived} onChange={(event) => setCashReceived(event.target.value)} style={inputStyle} placeholder="Amount paid by customer" />
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Change due</span>
-                    <strong>{currency(changeAmount)}</strong>
-                  </div>
+                  <input value={cashReceived} onChange={(event) => setCashReceived(event.target.value)} style={inputStyle} placeholder={`Amount paid by customer (${currency(paymentRequired)} required)`} />
+                  {changeAmount > 0 ? (
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Change due</span>
+                      <strong>{currency(changeAmount)}</strong>
+                    </div>
+                  ) : null}
                 </>
               ) : null
             ) : null}
             {saleMode === 'due' ? (
               <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--muted-foreground)' }}>
                 <span>Due amount</span>
-                <strong>{currency(grandTotal)}</strong>
+                <strong>{currency(paymentRequired)}</strong>
               </div>
             ) : null}
-            <button onClick={checkout} style={gray800ButtonStyle} disabled={loading || cart.length === 0 || !selectedLocationId || (saleMode === 'exchange' && !exchangeItem)}>
-              {saleMode === 'due' ? 'Save Due Sale' : saleMode === 'exchange' ? 'Complete Exchange' : 'Complete Sale'}
+            <button onClick={checkout} style={gray800ButtonStyle} disabled={loading || cart.length === 0 || !selectedLocationId || (exchangeEnabled && !exchangeItem)}>
+              {saleMode === 'due' ? 'Save Due Sale' : 'Complete Sale'}
             </button>
             {!selectedLocationId ? (
               <div style={{ fontSize: 12, color: '#b45309' }}>
