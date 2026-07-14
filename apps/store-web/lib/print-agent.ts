@@ -347,17 +347,19 @@ export function renderInvoiceHtml(receipt: ReceiptPayload) {
   ].filter(Boolean) as string[];
 
   const itemRows = (receipt.items ?? [])
-    .map((item) => {
-      const discount = Number(item.discountAmount ?? 0);
+    .map((item, index) => {
       const isExchange = item.isExchangeItem;
+      const lineTotal = Number(item.lineTotal ?? 0);
       return `
       <tr${isExchange ? ' style="color:#16a34a;"' : ''}>
-        <td>${escapeHtml(item.name || 'Item')}</td>
-        <td>${escapeHtml(item.skuCode || '—')}</td>
-        <td>${Number(item.qty ?? 0)}</td>
-        <td>${money(item.unitPrice)}</td>
-        ${discount > 0 ? `<td style="color:#b45309;font-size:12px;">-${money(discount)}</td>` : ''}
-        <td${isExchange ? ' style="font-weight:600;"' : ''}>${money(item.lineTotal)}</td>
+        <td style="text-align:center;width:40px;">${index + 1}.</td>
+        <td>
+          <div>${escapeHtml(item.name || 'Item')}</div>
+          ${item.skuCode ? `<div style="font-size:11px;color:#64748b;">${escapeHtml(item.skuCode)}</div>` : ''}
+        </td>
+        <td style="text-align:center;">${item.isExchangeItem ? '—' : Number(item.qty ?? 0)}</td>
+        <td style="text-align:right;">${money(item.unitPrice)}</td>
+        <td style="text-align:right;font-weight:600;${lineTotal < 0 ? 'color:#16a34a;' : ''}">${lineTotal < 0 ? '-' : ''}${money(Math.abs(lineTotal))}</td>
       </tr>`;
     })
     .join('');
@@ -432,12 +434,11 @@ export function renderInvoiceHtml(receipt: ReceiptPayload) {
         <table>
           <thead>
             <tr>
-              <th>Item</th>
-              <th>SKU</th>
-              <th>Qty</th>
-              <th>Unit</th>
-              ${receipt.items?.some((item) => Number(item.discountAmount ?? 0) > 0) ? '<th>Disc</th>' : ''}
-              <th>Total</th>
+              <th style="text-align:center;width:40px;">SL</th>
+              <th>Description</th>
+              <th style="text-align:center;">Qty</th>
+              <th style="text-align:right;">Unit Price</th>
+              <th style="text-align:right;">Amount</th>
             </tr>
           </thead>
           <tbody>${itemRows}</tbody>
