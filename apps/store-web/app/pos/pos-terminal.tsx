@@ -710,7 +710,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                   paymentMethod: method,
                   amount: Number(entry.amount),
                   referenceNo: entry.reference || undefined,
-                  status: 'paid',
+                  status: saleIsDue ? 'pending' : 'paid',
                 }))
             : [
                 {
@@ -1160,14 +1160,12 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
             </div>
           ) : null}
 
-          {saleMode !== 'due' ? (
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, cursor: 'pointer', fontSize: 13 }}>
-              <input type="checkbox" checked={usePartialPayments} onChange={(e) => setUsePartialPayments(e.target.checked)} style={{ accentColor: '#0f172a' }} />
-              <span style={{ color: 'var(--muted-foreground)' }}>Split payment across multiple methods</span>
-            </label>
-          ) : null}
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, cursor: 'pointer', fontSize: 13 }}>
+            <input type="checkbox" checked={usePartialPayments} onChange={(e) => setUsePartialPayments(e.target.checked)} style={{ accentColor: '#0f172a' }} />
+            <span style={{ color: 'var(--muted-foreground)' }}>Split payment across multiple methods</span>
+          </label>
 
-          {saleMode !== 'due' && usePartialPayments ? (
+          {usePartialPayments ? (
             <div style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
               {(['cash', 'card', 'mfs', 'bank_transfer'] as const).map((method) => {
                 const entry = partialPayments[method];
