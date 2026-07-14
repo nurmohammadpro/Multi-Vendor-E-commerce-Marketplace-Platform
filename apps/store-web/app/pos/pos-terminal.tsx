@@ -653,8 +653,12 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
       return;
     }
     if (usePartialPayments) {
-      if (totalPaidFromPartial < paymentRequired) {
+      if (saleMode === 'paid' && totalPaidFromPartial < paymentRequired) {
         setMessage('Total payment is less than the required amount.');
+        return;
+      }
+      if (saleMode === 'due' && totalPaidFromPartial > paymentRequired) {
+        setMessage('Payment exceeds the total amount.');
         return;
       }
     } else if (saleMode === 'paid' && paymentMethod === 'cash' && Number(cashReceived || 0) < paymentRequired) {
@@ -704,14 +708,24 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
             taxAmount: 0,
           })),
           payments: usePartialPayments
-            ? (Object.entries(partialPayments) as Array<[string, { amount: string; reference: string }]>)
-                .filter(([, entry]) => Number(entry.amount) > 0)
-                .map(([method, entry]) => ({
-                  paymentMethod: method,
-                  amount: Number(entry.amount),
-                  referenceNo: entry.reference || undefined,
-                  status: saleIsDue ? 'pending' : 'paid',
-                }))
+            ? (() => {
+                const paid = (Object.entries(partialPayments) as Array<[string, { amount: string; reference: string }]>)
+                  .filter(([, entry]) => Number(entry.amount) > 0)
+                  .map(([method, entry]) => ({
+                    paymentMethod: method,
+                    amount: Number(entry.amount),
+                    referenceNo: entry.reference || undefined,
+                    status: 'paid',
+                  }));
+                if (saleIsDue) {
+                  const totalPaid = paid.reduce((s, p) => s + p.amount, 0);
+                  const remaining = paymentRequired - totalPaid;
+                  if (remaining > 0) {
+                    paid.push({ paymentMethod: 'due', amount: remaining, referenceNo: undefined, status: 'pending' });
+                  }
+                }
+                return paid;
+              })()
             : [
                 {
                   paymentMethod,
@@ -1273,7 +1287,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
             {saleMode === 'due' ? (
               <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--muted-foreground)' }}>
                 <span>Due amount</span>
-                <strong>{currency(paymentRequired)}</strong>
+                <strong>{currency(usePartialPayments ? Math.max(paymentRequired - totalPaidFromPartial, 0) : paymentRequired)}</strong>
               </div>
             ) : null}
             <button onClick={checkout} style={gray800ButtonStyle} disabled={loading || cart.length === 0 || !selectedLocationId || (exchangeEnabled && !exchangeItem)}>
