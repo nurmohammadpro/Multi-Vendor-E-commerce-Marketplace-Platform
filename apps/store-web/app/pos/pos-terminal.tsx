@@ -1086,6 +1086,27 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
             </select>
           </div>
 
+          {saleMode === 'exchange' ? (
+            <div style={{ position: 'relative', marginBottom: 12 }}>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <div style={{ position: 'relative', flex: 1 }}>
+                  <input value={exchangeSearch} onChange={(event) => setExchangeSearch(event.target.value)} style={{ ...inputStyle, width: '100%' }} placeholder="Search exchange product" />
+                  {exchangeSearching ? <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: 'var(--muted-foreground)' }}>searching...</span> : null}
+                </div>
+              </div>
+              {exchangeResults.length > 0 ? (
+                <div style={{ position: 'absolute', left: 0, right: 0, top: '100%', zIndex: 50, background: 'var(--card)', borderRadius: 8, border: '1px solid var(--border)', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', maxHeight: 200, overflowY: 'auto' }}>
+                  {exchangeResults.map((sku) => (
+                    <div key={sku.id} onMouseDown={(e) => e.preventDefault()} onClick={() => selectExchangeItem(sku)} style={{ padding: '8px 10px', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontSize: 13 }}>
+                      <div style={{ fontWeight: 600 }}>{sku.product_name}</div>
+                      <div style={{ color: 'var(--muted-foreground)', fontSize: 11 }}>{sku.sku_code} · BDT {Number(sku.sale_price ?? 0).toFixed(2)}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
           <div style={{ display: 'grid', gap: 8, marginBottom: 16 }}>
             <input
               value={paymentReference}
@@ -1122,47 +1143,25 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
               <span>Total</span>
               <strong>{currency(grandTotal)}</strong>
             </div>
-            {saleMode === 'exchange' ? (
+            {saleMode === 'exchange' && exchangeItem ? (
               <>
-                <div style={{ position: 'relative', marginTop: 4 }}>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <div style={{ position: 'relative', flex: 1 }}>
-                      <input value={exchangeSearch} onChange={(event) => setExchangeSearch(event.target.value)} style={{ ...inputStyle, width: '100%' }} placeholder="Search exchange product" />
-                      {exchangeSearching ? <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: 'var(--muted-foreground)' }}>searching...</span> : null}
-                    </div>
-                  </div>
-                  {exchangeResults.length > 0 ? (
-                    <div style={{ position: 'absolute', left: 0, right: 0, top: '100%', zIndex: 50, background: 'var(--card)', borderRadius: 8, border: '1px solid var(--border)', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', maxHeight: 200, overflowY: 'auto' }}>
-                      {exchangeResults.map((sku) => (
-                        <div key={sku.id} onMouseDown={(e) => e.preventDefault()} onClick={() => selectExchangeItem(sku)} style={{ padding: '8px 10px', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontSize: 13 }}>
-                          <div style={{ fontWeight: 600 }}>{sku.product_name}</div>
-                          <div style={{ color: 'var(--muted-foreground)', fontSize: 11 }}>{sku.sku_code} · BDT {Number(sku.sale_price ?? 0).toFixed(2)}</div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderTop: '1px solid var(--border-weak)' }}>
+                  <span style={{ color: 'var(--muted-foreground)' }}>Exchange: {exchangeItem.productName}</span>
+                  <strong style={{ color: '#16a34a' }}>-{currency(exchangeItem.exchangeAmount)}</strong>
                 </div>
-                {exchangeItem ? (
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 15, paddingTop: 4 }}>
+                  <span>{amountAfterExchange < 0 ? 'Excess to return' : 'Remaining'}</span>
+                  <strong style={amountAfterExchange < 0 ? { color: '#16a34a' } : undefined}>
+                    {amountAfterExchange < 0 ? currency(Math.abs(amountAfterExchange)) : currency(amountAfterExchange)}
+                  </strong>
+                </div>
+                {paymentMethod === 'cash' && amountAfterExchange > 0 ? (
                   <>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderTop: '1px solid var(--border-weak)' }}>
-                      <span style={{ color: 'var(--muted-foreground)' }}>Exchange: {exchangeItem.productName}</span>
-                      <strong style={{ color: '#16a34a' }}>-{currency(exchangeItem.exchangeAmount)}</strong>
+                    <input value={cashReceived} onChange={(event) => setCashReceived(event.target.value)} style={inputStyle} placeholder={`Amount paid by customer (${currency(amountAfterExchange)} required)`} />
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Change due</span>
+                      <strong>{currency(changeAmount)}</strong>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 15, paddingTop: 4 }}>
-                      <span>{amountAfterExchange < 0 ? 'Excess to return' : 'Remaining'}</span>
-                      <strong style={amountAfterExchange < 0 ? { color: '#16a34a' } : undefined}>
-                        {amountAfterExchange < 0 ? currency(Math.abs(amountAfterExchange)) : currency(amountAfterExchange)}
-                      </strong>
-                    </div>
-                    {paymentMethod === 'cash' && amountAfterExchange > 0 ? (
-                      <>
-                        <input value={cashReceived} onChange={(event) => setCashReceived(event.target.value)} style={inputStyle} placeholder={`Amount paid by customer (${currency(amountAfterExchange)} required)`} />
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <span>Change due</span>
-                          <strong>{currency(changeAmount)}</strong>
-                        </div>
-                      </>
-                    ) : null}
                   </>
                 ) : null}
               </>

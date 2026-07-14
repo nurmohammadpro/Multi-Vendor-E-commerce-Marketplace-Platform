@@ -476,7 +476,7 @@ export function PurchasesWorkspace() {
                 <input value={quickVariantPrice} onChange={(e) => setQuickVariantPrice(e.target.value)} style={{ ...fieldStyle, width: 90 }} placeholder="Price" />
                 <input value={quickVariantCost} onChange={(e) => setQuickVariantCost(e.target.value)} style={{ ...fieldStyle, width: 90 }} placeholder="Cost" />
                 <input value={quickVariantQty} onChange={(e) => setQuickVariantQty(e.target.value)} style={{ ...fieldStyle, width: 70 }} placeholder="Qty" />
-                <button onClick={addVariantRow} style={{ ...accentButtonStyle, minWidth: 60, fontSize: 11 }} disabled={loading || !quickVariantInput.trim()}>Add</button>
+                <button onClick={addVariantRow} style={{ ...gray800ButtonStyle, minWidth: 60, fontSize: 11 }} disabled={loading || !quickVariantInput.trim()}>Add</button>
               </div>
 
               {quickVariantRows.length ? (
