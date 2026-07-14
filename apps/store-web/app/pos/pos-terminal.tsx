@@ -181,6 +181,13 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
   const [paymentReference, setPaymentReference] = useState('');
   const [orderDiscount, setOrderDiscount] = useState('');
   const [cashReceived, setCashReceived] = useState('');
+  const [usePartialPayments, setUsePartialPayments] = useState(false);
+  const [partialPayments, setPartialPayments] = useState<Record<'cash' | 'card' | 'mfs' | 'bank_transfer', { amount: string; reference: string }>>({
+    cash: { amount: '', reference: '' },
+    card: { amount: '', reference: '' },
+    mfs: { amount: '', reference: '' },
+    bank_transfer: { amount: '', reference: '' },
+  });
   const [exchangeItem, setExchangeItem] = useState<{ skuId: string; skuCode: string; productName: string; exchangeAmount: number } | null>(null);
   const [exchangeSearch, setExchangeSearch] = useState('');
   const [exchangeResults, setExchangeResults] = useState<SkuSearchResult[]>([]);
@@ -313,13 +320,26 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
   const exchangeAmount = exchangeItem?.exchangeAmount ?? 0;
   const amountAfterExchange = useMemo(() => grandTotal - exchangeAmount, [grandTotal, exchangeAmount]);
 
+  const paymentRequired = useMemo(
+    () => saleMode === 'exchange' ? Math.max(amountAfterExchange, 0) : grandTotal,
+    [saleMode, amountAfterExchange, grandTotal],
+  );
+
+  const totalPaidFromPartial = useMemo(
+    () => (Object.values(partialPayments) as Array<{ amount: string; reference: string }>).reduce((sum, p) => sum + Number(p.amount || 0), 0),
+    [partialPayments],
+  );
+
   const changeAmount = useMemo(() => {
+    if (usePartialPayments) {
+      if (saleMode !== 'paid' && saleMode !== 'exchange') return 0;
+      return Math.max(totalPaidFromPartial - paymentRequired, 0);
+    }
     if (paymentMethod !== 'cash') return 0;
     if (saleMode !== 'paid' && saleMode !== 'exchange') return 0;
     const paid = Number(cashReceived || 0);
-    const required = saleMode === 'exchange' ? Math.max(amountAfterExchange, 0) : grandTotal;
-    return Math.max(paid - required, 0);
-  }, [cashReceived, paymentMethod, saleMode, grandTotal, amountAfterExchange]);
+    return Math.max(paid - paymentRequired, 0);
+  }, [cashReceived, paymentMethod, saleMode, paymentRequired, usePartialPayments, totalPaidFromPartial]);
 
   const groupedResults = useMemo(() => {
     const groups = new Map<string, {
@@ -632,8 +652,12 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
       setMessage('Select an exchange product first.');
       return;
     }
-    const paymentRequired = saleMode === 'exchange' ? Math.max(amountAfterExchange, 0) : grandTotal;
-    if (saleMode === 'paid' && paymentMethod === 'cash' && Number(cashReceived || 0) < paymentRequired) {
+    if (usePartialPayments) {
+      if (totalPaidFromPartial < paymentRequired) {
+        setMessage('Total payment is less than the required amount.');
+        return;
+      }
+    } else if (saleMode === 'paid' && paymentMethod === 'cash' && Number(cashReceived || 0) < paymentRequired) {
       setMessage('Cash received is lower than the sale total.');
       return;
     }
@@ -679,14 +703,23 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
             discountAmount: item.discountAmount,
             taxAmount: 0,
           })),
-          payments: [
-            {
-              paymentMethod,
-              amount: saleIsExchange ? Math.max(amountAfterExchange, 0) : grandTotal,
-              referenceNo: paymentReference || undefined,
-              status: saleIsDue ? 'pending' : 'paid',
-            },
-          ],
+          payments: usePartialPayments
+            ? (Object.entries(partialPayments) as Array<[string, { amount: string; reference: string }]>)
+                .filter(([, entry]) => Number(entry.amount) > 0)
+                .map(([method, entry]) => ({
+                  paymentMethod: method,
+                  amount: Number(entry.amount),
+                  referenceNo: entry.reference || undefined,
+                  status: 'paid',
+                }))
+            : [
+                {
+                  paymentMethod,
+                  amount: saleIsExchange ? Math.max(amountAfterExchange, 0) : grandTotal,
+                  referenceNo: paymentReference || undefined,
+                  status: saleIsDue ? 'pending' : 'paid',
+                },
+              ],
         }),
       });
 
@@ -713,7 +746,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
           try {
             await printReceipt(reprintPayload.receipt, receiptPrinterName || undefined, agentUrl);
             printed = true;
-            if (!saleIsDue && paymentMethod === 'cash') {
+            if (!saleIsDue && (usePartialPayments ? Number(partialPayments.cash?.amount || 0) > 0 : paymentMethod === 'cash')) {
               await openCashDrawer({ printerName: receiptPrinterName || undefined }, agentUrl).catch(() => {});
             }
           } catch { /* fall through */ }
@@ -744,6 +777,8 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
       setExchangeResults([]);
       setOrderDiscount('');
       setCashReceived('');
+      setUsePartialPayments(false);
+      setPartialPayments({ cash: { amount: '', reference: '' }, card: { amount: '', reference: '' }, mfs: { amount: '', reference: '' }, bank_transfer: { amount: '', reference: '' } });
       clearSearchState();
     } catch (error) {
       setMessage((error as Error).message);
@@ -1073,48 +1108,94 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
               <option value="due">Due sale</option>
               <option value="exchange">Exchange</option>
             </select>
-            <select
-              aria-label="Payment method"
-              value={paymentMethod}
-              onChange={(event) => setPaymentMethod(event.target.value as 'cash' | 'card' | 'mfs' | 'bank_transfer')}
-              style={inputStyle}
-            >
-              <option value="cash">Cash</option>
-              <option value="card">Card</option>
-              <option value="mfs">MFS</option>
-              <option value="bank_transfer">Bank</option>
-            </select>
+            {!usePartialPayments ? (
+              <select
+                aria-label="Payment method"
+                value={paymentMethod}
+                onChange={(event) => setPaymentMethod(event.target.value as 'cash' | 'card' | 'mfs' | 'bank_transfer')}
+                style={inputStyle}
+              >
+                <option value="cash">Cash</option>
+                <option value="card">Card</option>
+                <option value="mfs">MFS</option>
+                <option value="bank_transfer">Bank</option>
+              </select>
+            ) : null}
           </div>
 
-          {saleMode === 'exchange' ? (
-            <div style={{ position: 'relative', marginBottom: 12 }}>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <div style={{ position: 'relative', flex: 1 }}>
-                  <input value={exchangeSearch} onChange={(event) => setExchangeSearch(event.target.value)} style={{ ...inputStyle, width: '100%' }} placeholder="Search exchange product" />
-                  {exchangeSearching ? <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: 'var(--muted-foreground)' }}>searching...</span> : null}
-                </div>
-              </div>
-              {exchangeResults.length > 0 ? (
-                <div style={{ position: 'absolute', left: 0, right: 0, top: '100%', zIndex: 50, background: 'var(--card)', borderRadius: 8, border: '1px solid var(--border)', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', maxHeight: 200, overflowY: 'auto' }}>
-                  {exchangeResults.map((sku) => (
-                    <div key={sku.id} onMouseDown={(e) => e.preventDefault()} onClick={() => selectExchangeItem(sku)} style={{ padding: '8px 10px', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontSize: 13 }}>
-                      <div style={{ fontWeight: 600 }}>{sku.product_name}</div>
-                      <div style={{ color: 'var(--muted-foreground)', fontSize: 11 }}>{sku.sku_code} · BDT {Number(sku.sale_price ?? 0).toFixed(2)}</div>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-            </div>
+          {saleMode !== 'due' ? (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, cursor: 'pointer', fontSize: 13 }}>
+              <input type="checkbox" checked={usePartialPayments} onChange={(e) => setUsePartialPayments(e.target.checked)} style={{ accentColor: '#0f172a' }} />
+              <span style={{ color: 'var(--muted-foreground)' }}>Split payment across multiple methods</span>
+            </label>
           ) : null}
 
-          <div style={{ display: 'grid', gap: 8, marginBottom: 16 }}>
-            <input
-              value={paymentReference}
-              onChange={(event) => setPaymentReference(event.target.value)}
-              style={inputStyle}
-              placeholder={paymentMethod === 'cash' ? 'Payment note (optional)' : 'Reference no / transaction id'}
-            />
-          </div>
+          {saleMode !== 'due' && usePartialPayments ? (
+            <div style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
+              {(['cash', 'card', 'mfs', 'bank_transfer'] as const).map((method) => {
+                const entry = partialPayments[method];
+                return (
+                  <div key={method} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <span style={{ minWidth: 90, fontSize: 13, fontWeight: 500, color: 'var(--muted-foreground)' }}>
+                      {method === 'bank_transfer' ? 'Bank' : method.charAt(0).toUpperCase() + method.slice(1)}
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={entry?.amount || ''}
+                      onChange={(e) => setPartialPayments((cur) => ({ ...cur, [method]: { ...cur[method], amount: e.target.value } }))}
+                      style={{ ...inputStyle, width: 120 }}
+                      placeholder="Amount"
+                    />
+                    <input
+                      value={entry?.reference || ''}
+                      onChange={(e) => setPartialPayments((cur) => ({ ...cur, [method]: { ...cur[method], reference: e.target.value } }))}
+                      style={{ ...inputStyle, flex: 1 }}
+                      placeholder="Reference (optional)"
+                    />
+                  </div>
+                );
+              })}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', fontSize: 13, color: 'var(--muted-foreground)' }}>
+                Total: <strong style={{ marginLeft: 4, color: totalPaidFromPartial >= paymentRequired ? '#16a34a' : '#b45309' }}>{currency(totalPaidFromPartial)}</strong>
+                <span style={{ margin: '0 4px' }}>/</span>
+                Required: <strong style={{ marginLeft: 4 }}>{currency(paymentRequired)}</strong>
+              </div>
+            </div>
+          ) : (
+            <>
+              {saleMode === 'exchange' ? (
+                <div style={{ position: 'relative', marginBottom: 12 }}>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <div style={{ position: 'relative', flex: 1 }}>
+                      <input value={exchangeSearch} onChange={(event) => setExchangeSearch(event.target.value)} style={{ ...inputStyle, width: '100%' }} placeholder="Search exchange product" />
+                      {exchangeSearching ? <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: 'var(--muted-foreground)' }}>searching...</span> : null}
+                    </div>
+                  </div>
+                  {exchangeResults.length > 0 ? (
+                    <div style={{ position: 'absolute', left: 0, right: 0, top: '100%', zIndex: 50, background: 'var(--card)', borderRadius: 8, border: '1px solid var(--border)', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', maxHeight: 200, overflowY: 'auto' }}>
+                      {exchangeResults.map((sku) => (
+                        <div key={sku.id} onMouseDown={(e) => e.preventDefault()} onClick={() => selectExchangeItem(sku)} style={{ padding: '8px 10px', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontSize: 13 }}>
+                          <div style={{ fontWeight: 600 }}>{sku.product_name}</div>
+                          <div style={{ color: 'var(--muted-foreground)', fontSize: 11 }}>{sku.sku_code} · BDT {Number(sku.sale_price ?? 0).toFixed(2)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
+              <div style={{ display: 'grid', gap: 8, marginBottom: 16 }}>
+                <input
+                  value={paymentReference}
+                  onChange={(event) => setPaymentReference(event.target.value)}
+                  style={inputStyle}
+                  placeholder={paymentMethod === 'cash' ? 'Payment note (optional)' : 'Reference no / transaction id'}
+                />
+              </div>
+            </>
+          )}
 
           <div style={{ display: 'grid', gap: 8 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -1155,25 +1236,43 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                     {amountAfterExchange < 0 ? currency(Math.abs(amountAfterExchange)) : currency(amountAfterExchange)}
                   </strong>
                 </div>
-                {paymentMethod === 'cash' && amountAfterExchange > 0 ? (
-                  <>
-                    <input value={cashReceived} onChange={(event) => setCashReceived(event.target.value)} style={inputStyle} placeholder={`Amount paid by customer (${currency(amountAfterExchange)} required)`} />
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span>Change due</span>
-                      <strong>{currency(changeAmount)}</strong>
-                    </div>
-                  </>
+                {amountAfterExchange > 0 && (usePartialPayments || paymentMethod === 'cash') ? (
+                  usePartialPayments ? (
+                    changeAmount > 0 ? (
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span>Change due</span>
+                        <strong>{currency(changeAmount)}</strong>
+                      </div>
+                    ) : null
+                  ) : (
+                    <>
+                      <input value={cashReceived} onChange={(event) => setCashReceived(event.target.value)} style={inputStyle} placeholder={`Amount paid by customer (${currency(amountAfterExchange)} required)`} />
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span>Change due</span>
+                        <strong>{currency(changeAmount)}</strong>
+                      </div>
+                    </>
+                  )
                 ) : null}
               </>
             ) : null}
-            {saleMode === 'paid' && paymentMethod === 'cash' ? (
-              <>
-                <input value={cashReceived} onChange={(event) => setCashReceived(event.target.value)} style={inputStyle} placeholder="Amount paid by customer" />
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Change due</span>
-                  <strong>{currency(changeAmount)}</strong>
-                </div>
-              </>
+            {saleMode === 'paid' ? (
+              usePartialPayments ? (
+                changeAmount > 0 ? (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Change due</span>
+                    <strong>{currency(changeAmount)}</strong>
+                  </div>
+                ) : null
+              ) : paymentMethod === 'cash' ? (
+                <>
+                  <input value={cashReceived} onChange={(event) => setCashReceived(event.target.value)} style={inputStyle} placeholder="Amount paid by customer" />
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Change due</span>
+                    <strong>{currency(changeAmount)}</strong>
+                  </div>
+                </>
+              ) : null
             ) : null}
             {saleMode === 'due' ? (
               <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--muted-foreground)' }}>
