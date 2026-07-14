@@ -985,8 +985,9 @@ export class PosService {
     const dueAmount = Math.max(Number(sale.total_amount ?? 0) - paidAmount, 0);
 
     // Look up exchange product name if this is an exchange sale
+    const exchangeAmount = Number(sale.exchange_amount ?? 0);
     let exchangeInfo: Record<string, unknown> | null = null;
-    if (sale.exchange_sku_id) {
+    if (sale.exchange_sku_id && exchangeAmount > 0) {
       const exchangeSkuResult = await this.pool.query(
         `
           select p.name as product_name, s.sku_code
@@ -1002,7 +1003,7 @@ export class PosService {
         exchangeInfo = {
           productName: exchangeSku.product_name ?? null,
           skuCode: exchangeSku.sku_code ?? null,
-          amount: Number(sale.exchange_amount ?? 0),
+          amount: exchangeAmount,
         };
       }
     }
@@ -1025,17 +1026,32 @@ export class PosService {
         shopName: sale.customer_shop_name ?? null,
         address: sale.customer_address ?? null,
       },
-      items: items.map((item) => ({
-        name: item.product_name_snapshot ?? null,
-        skuCode: item.sku_code_snapshot ?? null,
-        qty: Number(item.qty ?? 0),
-        unitPrice: Number(item.unit_price ?? 0),
-        discountAmount: Number(item.discount_amount ?? 0),
-        taxAmount: Number(item.tax_amount ?? 0),
-        lineTotal: Number(item.line_total ?? 0),
-      })),
+      items: (() => {
+        const mapped = items.map((item) => ({
+          name: item.product_name_snapshot ?? null,
+          skuCode: item.sku_code_snapshot ?? null,
+          qty: Number(item.qty ?? 0),
+          unitPrice: Number(item.unit_price ?? 0),
+          discountAmount: Number(item.discount_amount ?? 0),
+          taxAmount: Number(item.tax_amount ?? 0),
+          lineTotal: Number(item.line_total ?? 0),
+        }));
+        if (exchangeInfo && exchangeAmount > 0) {
+          (mapped as any[]).push({
+            name: (exchangeInfo.productName ?? 'Exchange') + ' (Trade-in)',
+            skuCode: exchangeInfo.skuCode ?? null,
+            qty: 1,
+            unitPrice: exchangeAmount,
+            discountAmount: 0,
+            taxAmount: 0,
+            lineTotal: -exchangeAmount,
+            isExchangeItem: true,
+          });
+        }
+        return mapped;
+      })(),
       totals: {
-        subtotal: Number(sale.subtotal_amount ?? 0),
+        subtotal: Number(sale.subtotal_amount ?? 0) - (exchangeInfo && exchangeAmount > 0 ? exchangeAmount : 0),
         discount: Number(sale.discount_amount ?? 0),
         tax: Number(sale.tax_amount ?? 0),
         shipping: Number(sale.shipping_amount ?? 0),
