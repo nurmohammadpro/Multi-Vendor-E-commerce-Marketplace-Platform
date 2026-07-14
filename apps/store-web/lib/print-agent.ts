@@ -134,7 +134,6 @@ export function formatReceiptText(receipt: ReceiptPayload) {
     `Subtotal: ${money(receipt.totals?.subtotal)}`,
     `Discount: ${money(receipt.totals?.discount)}`,
     `Tax: ${money(receipt.totals?.tax)}`,
-    `Shipping: ${money(receipt.totals?.shipping)}`,
     `Total: ${money(receipt.totals?.total)}`,
     `Paid: ${money(receipt.totals?.paid)}`,
     `Due: ${money(receipt.totals?.due)}`,
@@ -301,7 +300,6 @@ async function buildEscPosReceipt(receipt: ReceiptPayload) {
   pushText(padLine('Subtotal', money(receipt.totals?.subtotal)));
   pushText(padLine('Discount', money(receipt.totals?.discount)));
   pushText(padLine('Tax', money(receipt.totals?.tax)));
-  pushText(padLine('Shipping', money(receipt.totals?.shipping)));
   pushText(padLine('Total', money(receipt.totals?.total)));
   pushText(padLine('Paid', money(receipt.totals?.paid)));
   pushText(padLine('Due', money(receipt.totals?.due)));
@@ -449,7 +447,6 @@ export function renderInvoiceHtml(receipt: ReceiptPayload) {
         <div class="totals-row"><span>Subtotal</span><span>${money(receipt.totals?.subtotal)}</span></div>
         <div class="totals-row"><span>Discount</span><span>${money(receipt.totals?.discount)}</span></div>
         <div class="totals-row"><span>Tax</span><span>${money(receipt.totals?.tax)}</span></div>
-        <div class="totals-row"><span>Shipping</span><span>${money(receipt.totals?.shipping)}</span></div>
         <div class="totals-row total"><span>Total</span><span>${money(receipt.totals?.total)}</span></div>
         <div class="totals-row"><span>Paid</span><span>${money(receipt.totals?.paid)}</span></div>
         ${(receipt.totals?.change ?? 0) > 0 ? `<div class="totals-row"><span>Change</span><span>${money(receipt.totals?.change)}</span></div>` : ''}
