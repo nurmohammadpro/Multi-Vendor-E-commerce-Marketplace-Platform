@@ -984,6 +984,29 @@ export class PosService {
     );
     const dueAmount = Math.max(Number(sale.total_amount ?? 0) - paidAmount, 0);
 
+    // Look up exchange product name if this is an exchange sale
+    let exchangeInfo: Record<string, unknown> | null = null;
+    if (sale.exchange_sku_id) {
+      const exchangeSkuResult = await this.pool.query(
+        `
+          select p.name as product_name, s.sku_code
+          from catalog.skus s
+          join catalog.products p on p.id = s.product_id
+          where s.id = $1
+          limit 1
+        `,
+        [sale.exchange_sku_id],
+      );
+      const exchangeSku = exchangeSkuResult.rows[0];
+      if (exchangeSku) {
+        exchangeInfo = {
+          productName: exchangeSku.product_name ?? null,
+          skuCode: exchangeSku.sku_code ?? null,
+          amount: Number(sale.exchange_amount ?? 0),
+        };
+      }
+    }
+
     return {
       saleId: sale.id ?? null,
       saleNo: sale.sale_no ?? null,
@@ -1029,6 +1052,7 @@ export class PosService {
         status: payment.status ?? null,
         paidAt: payment.paid_at ?? null,
       })),
+      exchange: exchangeInfo,
       printedAt: new Date().toISOString(),
     };
   }

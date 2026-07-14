@@ -75,6 +75,11 @@ export type ReceiptPayload = {
     amount?: number;
     status?: string | null;
   }>;
+  exchange?: {
+    productName?: string | null;
+    skuCode?: string | null;
+    amount?: number;
+  };
   printedAt?: string | null;
 };
 
@@ -125,6 +130,11 @@ export function formatReceiptText(receipt: ReceiptPayload) {
       item.skuCode ? `SKU: ${item.skuCode}` : null,
     ]),
     '------------------------------',
+    receipt.exchange ? [
+      `${receipt.exchange.productName || 'Exchange'} (trade-in) -${money(receipt.exchange.amount)}`,
+      receipt.exchange.skuCode ? `SKU: ${receipt.exchange.skuCode}` : null,
+      '------------------------------',
+    ] : [],
     `Subtotal: ${money(receipt.totals?.subtotal)}`,
     `Discount: ${money(receipt.totals?.discount)}`,
     `Tax: ${money(receipt.totals?.tax)}`,
@@ -292,6 +302,12 @@ async function buildEscPosReceipt(receipt: ReceiptPayload) {
   }
 
   pushText('-'.repeat(RECEIPT_COLUMNS));
+  if (receipt.exchange) {
+    pushText(`Exchange: ${sanitizeReceiptText(receipt.exchange.productName || 'Exchange')}`);
+    if (receipt.exchange.skuCode) pushText(`SKU: ${receipt.exchange.skuCode}`);
+    pushText(padLine('Trade-in credit', money(receipt.exchange.amount)));
+    pushText('-'.repeat(RECEIPT_COLUMNS));
+  }
   pushText(padLine('Subtotal', money(receipt.totals?.subtotal)));
   pushText(padLine('Discount', money(receipt.totals?.discount)));
   pushText(padLine('Tax', money(receipt.totals?.tax)));
@@ -437,6 +453,27 @@ export function renderInvoiceHtml(receipt: ReceiptPayload) {
         </table>
       </div>
 
+      ${receipt.exchange ? `
+      <div class="section">
+        <h2>Exchange (Trade-In)</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>SKU</th>
+              <th>Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>${escapeHtml(receipt.exchange.productName || 'Exchange')}</td>
+              <td>${escapeHtml(receipt.exchange.skuCode || '—')}</td>
+              <td style="color:#16a34a;font-weight:600;">-${money(receipt.exchange.amount)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      ` : ''}
       <div class="section totals">
         <div class="totals-row"><span>Subtotal</span><span>${money(receipt.totals?.subtotal)}</span></div>
         <div class="totals-row"><span>Discount</span><span>${money(receipt.totals?.discount)}</span></div>
