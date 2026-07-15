@@ -9,6 +9,7 @@ import {
   openInvoicePrintWindow,
   printLabel,
   printReceipt,
+  renderInvoiceHtml,
   type PrintAgentHealth,
   type ReceiptPayload,
 } from '../../lib/print-agent';
