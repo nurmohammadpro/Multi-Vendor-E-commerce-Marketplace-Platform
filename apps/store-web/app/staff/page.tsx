@@ -1,21 +1,26 @@
 import { getStoreConsoleAccess } from '../../lib/access';
 import { pageShellStyle, pageTitleStyle, sectionLabelStyle, tokenMutedStyle } from '../marketone-theme';
+import { TeamWorkspace } from './team-workspace';
 
-import { StaffWorkspace } from './staff-workspace';
-
-export default async function StoreStaffPage() {
+export default async function StoreStaffPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ tab?: string }>;
+}) {
   const access = await getStoreConsoleAccess();
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const initialTab = resolvedSearchParams?.tab === 'payroll' ? 'payroll' : 'users';
 
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
       <div style={{ maxWidth: 900 }}>
-        <div style={sectionLabelStyle}>Staff</div>
-        <h2 style={{ ...pageTitleStyle, margin: '8px 0' }}>Staff management</h2>
+        <div style={sectionLabelStyle}>Team</div>
+        <h2 style={{ ...pageTitleStyle, margin: '8px 0' }}>Users, employees, and payroll</h2>
         <p style={tokenMutedStyle}>
-          Invite staff, assign roles, and monitor membership state through the live store APIs.
+          Manage console users, employee records, and payroll workflow from one focused team workspace.
         </p>
       </div>
-      <StaffWorkspace canManageStaff={access.canManageStaff} />
+      <TeamWorkspace canManageStaff={access.canManageStaff} canUsePayroll={access.canUsePayroll} initialTab={initialTab} />
     </section>
   );
 }

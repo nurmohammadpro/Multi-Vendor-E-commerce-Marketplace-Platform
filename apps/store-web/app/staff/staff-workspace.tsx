@@ -80,7 +80,7 @@ const defaultForm = {
   note: '',
 };
 
-export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) {
+export function StaffWorkspace({ canManageStaff, embedded = false }: { canManageStaff: boolean; embedded?: boolean }) {
   const compact = useCompactLayout();
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [capabilities, setCapabilities] = useState<StaffCapabilities | null>(null);
@@ -181,7 +181,7 @@ export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) 
 
   if (!canManageStaff) {
     return (
-      <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
+      <section style={embedded ? { display: 'grid', gap: 16 } : { ...pageShellStyle, display: 'grid', gap: 16 }}>
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>User access limited</h3>
           <p style={tokenMutedStyle}>Only owners and managers can create or manage store users.</p>
@@ -193,7 +193,7 @@ export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) 
   const totalPages = totalPagesFor(pagination);
 
   return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
+    <section style={embedded ? { display: 'grid', gap: 16 } : { ...pageShellStyle, display: 'grid', gap: 16 }}>
       {compact ? (
         <WorkspaceTabs
           active={activeTab}

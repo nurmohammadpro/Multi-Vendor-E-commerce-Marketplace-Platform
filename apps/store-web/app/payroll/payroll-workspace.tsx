@@ -85,7 +85,7 @@ const defaultEmployeeForm = {
   note: '',
 };
 
-export function PayrollWorkspace() {
+export function PayrollWorkspace({ embedded = false }: { embedded?: boolean }) {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [runs, setRuns] = useState<PayrollRun[]>([]);
   const [message, setMessage] = useState('Payroll workflow is ready.');
@@ -251,7 +251,7 @@ export function PayrollWorkspace() {
   const totalRunPages = totalPagesFor(runPagination);
 
   return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
+    <section style={embedded ? { display: 'grid', gap: 16 } : { ...pageShellStyle, display: 'grid', gap: 16 }}>
       <section style={{ ...sectionPanelStyle, gridTemplateColumns: 'minmax(340px, 1fr) minmax(420px, 1fr)' }}>
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Employee Register</h3>
