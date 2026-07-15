@@ -13,7 +13,9 @@ export default async function StorePurchasesPage() {
       ) : (
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Purchases locked</h3>
-          <div style={emptyStateStyle}>Upgrade to Standard to manage suppliers, purchases, and supplier payables.</div>
+          <div style={emptyStateStyle}>
+            Purchases are unavailable for this account right now. Check the user role permissions and store subscription settings.
+          </div>
         </article>
       )}
     </section>
