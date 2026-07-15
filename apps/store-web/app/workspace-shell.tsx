@@ -24,6 +24,7 @@ import {
   Users,
   Wallet,
   Wrench,
+  MapPin,
 } from 'lucide-react';
 import { ThemeToggle } from '@mvp/theme';
 
@@ -79,6 +80,7 @@ const iconMap: Record<string, typeof LayoutDashboard> = {
   '/': LayoutDashboard,
   '/catalog': Package,
   '/inventory': Boxes,
+  '/locations': MapPin,
   '/purchases': Package,
   '/approvals': ClipboardCheck,
   '/pos': ShoppingCart,

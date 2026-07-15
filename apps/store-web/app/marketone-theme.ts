@@ -77,7 +77,7 @@ export const sectionLabelStyle: CSSProperties = {
   fontSize: 10,
   letterSpacing: '0.16em',
   textTransform: 'uppercase',
-  fontWeight: 600,
+  fontWeight: 700,
   color: marketoneColors.muted,
 };
 
@@ -86,7 +86,7 @@ export const pageTitleStyle: CSSProperties = {
   fontSize: 'clamp(24px, 2.2vw, 32px)',
   lineHeight: 1.1,
   letterSpacing: '-0.03em',
-  fontWeight: 500,
+  fontWeight: 600,
 };
 
 export const pageLeadStyle: CSSProperties = {
@@ -123,7 +123,7 @@ export const metricLabelStyle: CSSProperties = {
   opacity: 1,
   marginBottom: 2,
   fontSize: 10,
-  fontWeight: 600,
+  fontWeight: 700,
   letterSpacing: '0.08em',
   textTransform: 'uppercase',
   color: marketoneColors.muted,
@@ -132,7 +132,7 @@ export const metricLabelStyle: CSSProperties = {
 export const metricValueStyle: CSSProperties = {
   fontSize: 22,
   lineHeight: 1.05,
-  fontWeight: 500,
+  fontWeight: 700,
   letterSpacing: '-0.02em',
   color: marketoneColors.ink,
 };
@@ -148,6 +148,7 @@ export const tokenMutedStyle: CSSProperties = {
   marginBottom: 0,
   lineHeight: 1.4,
   fontSize: 13,
+  fontWeight: 400,
   color: marketoneColors.muted,
 };
 
@@ -293,6 +294,7 @@ export const tableHeaderCellStyle: CSSProperties = {
   fontSize: 10,
   letterSpacing: '0.1em',
   textTransform: 'uppercase',
+  fontWeight: 700,
   color: marketoneColors.muted,
   borderBottom: `1px solid ${marketoneColors.border}`,
   background: marketoneColors.backgroundAlt,

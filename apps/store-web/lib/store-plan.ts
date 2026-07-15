@@ -9,6 +9,7 @@ export type StoreConsoleFeature =
   | 'receivables'
   | 'customers'
   | 'reports'
+  | 'shipping'
   | 'disputes'
   | 'support'
   | 'staff'
@@ -36,6 +37,7 @@ const featurePlanRequirements: Record<StoreConsoleFeature, StoreSubscriptionPlan
   receivables: 'basic',
   customers: 'basic',
   reports: 'basic',
+  shipping: 'basic',
   disputes: 'basic',
   support: 'basic',
   staff: 'standard',

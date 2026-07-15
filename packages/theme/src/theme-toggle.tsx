@@ -10,13 +10,6 @@ const THEMES: Array<{ id: ThemeName; label: string }> = [
   { id: 'ocean-sand', label: 'Ocean & Sand' },
 ];
 
-const THEME_ICONS: Record<string, string> = {
-  'slate-pro': '◐',
-  'stone-sky': '✦',
-  'emerald-cream': '🌿',
-  'ocean-sand': '🌊',
-};
-
 const MODE_LABELS: Record<string, string> = {
   light: 'Light',
   dark: 'Dark',
@@ -27,6 +20,7 @@ export function ThemeToggle() {
   const { theme, setTheme, mode, setMode, resolvedMode } = useTheme();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const activeThemeLabel = THEMES.find((item) => item.id === theme)?.label ?? 'Theme';
 
   // Close on outside click
   useEffect(() => {
@@ -50,14 +44,14 @@ export function ThemeToggle() {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex items-center justify-center rounded-md border border-border bg-background px-2 py-1 text-[11px] font-medium uppercase tracking-[0.1em] text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+        className="inline-flex items-center justify-center whitespace-nowrap rounded-md border border-border bg-background px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         aria-label="Switch theme"
       >
-        {resolvedMode === 'dark' ? '🌙' : '☀️'}
+        {activeThemeLabel} · {mode === 'system' ? `System (${MODE_LABELS[resolvedMode]})` : MODE_LABELS[mode]}
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-1.5 w-72 rounded-lg border border-border bg-popover p-1.5 shadow-lg">
+        <div className="absolute right-0 top-full z-50 mt-1.5 w-64 rounded-lg border border-border bg-popover p-1.5 shadow-lg">
           {/* Theme selector */}
           <div className="px-2.5 pb-1 pt-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
             Theme
@@ -72,16 +66,14 @@ export function ThemeToggle() {
                   setTheme(t.id);
                   setOpen(false);
                 }}
-                className={`flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-xs transition-colors ${
+                className={`flex w-full items-center justify-between gap-3 whitespace-nowrap rounded-md px-2.5 py-1.5 text-xs transition-colors ${
                   active
                     ? 'bg-accent text-accent-foreground font-medium'
                     : 'text-foreground hover:bg-muted'
                 }`}
               >
-                <span className="text-[11px]">
-                  {THEME_ICONS[t.id]}
-                </span>
-                {t.label}
+                <span>{t.label}</span>
+                {active ? <span className="text-[10px] uppercase tracking-[0.08em]">Active</span> : null}
               </button>
             );
           })}
@@ -103,25 +95,16 @@ export function ThemeToggle() {
                   setMode(value);
                   setOpen(false);
                 }}
-                className={`flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-xs transition-colors ${
+                className={`flex w-full items-center justify-between gap-3 whitespace-nowrap rounded-md px-2.5 py-1.5 text-xs transition-colors ${
                   active
                     ? 'bg-accent text-accent-foreground font-medium'
                     : 'text-foreground hover:bg-muted'
                 }`}
               >
-                <span className="text-[10px]">
-                  {value === 'light'
-                    ? '☀️'
-                    : value === 'dark'
-                      ? '🌙'
-                      : '💻'}
+                <span>{MODE_LABELS[value]}</span>
+                <span className={`text-[10px] ${active ? 'text-accent-foreground/80' : 'text-muted-foreground'}`}>
+                  {value === 'system' ? `Using ${MODE_LABELS[resolvedMode]}` : active ? 'Active' : ''}
                 </span>
-                {MODE_LABELS[value]}
-                {value === 'system' && (
-                  <span className="ml-auto text-[10px] text-muted-foreground">
-                    {resolvedMode === 'dark' ? '🌙' : '☀️'}
-                  </span>
-                )}
               </button>
             );
           })}

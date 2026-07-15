@@ -10,6 +10,7 @@ import {
   metricValueStyle,
   marketoneColors,
   pageShellStyle,
+  pageTitleStyle,
   sectionPanelStyle,
   sectionLabelStyle,
   surfaceCardStyle,
@@ -86,7 +87,7 @@ export default async function StoreDashboard() {
   return (
     <div style={pageShellStyle}>
       <div style={{ marginBottom: 32 }}>
-        <h1 style={{ margin: '0 0 6px', fontSize: 'clamp(24px, 2.2vw, 32px)', lineHeight: 1.1, letterSpacing: '-0.03em', fontWeight: 500 }}>
+        <h1 style={{ ...pageTitleStyle, marginBottom: 6 }}>
           {access.storeName || 'Store Dashboard'}
         </h1>
         <p style={{ ...tokenMutedStyle, margin: 0 }}>{access.planName} plan · {access.role} access</p>

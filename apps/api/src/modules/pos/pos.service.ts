@@ -1008,9 +1008,19 @@ export class PosService {
       }
     }
 
+    const saleType = exchangeInfo && exchangeAmount > 0
+      ? 'exchange'
+      : dueAmount > 0
+        ? 'due'
+        : 'paid';
+
     return {
       saleId: sale.id ?? null,
       saleNo: sale.sale_no ?? null,
+      saleType,
+      paymentStatus: sale.payment_status ?? null,
+      dueDate: sale.due_date ?? null,
+      note: sale.note ?? null,
       store: {
         name: store.name ?? null,
         logoUrl: store.logo_url ?? null,
