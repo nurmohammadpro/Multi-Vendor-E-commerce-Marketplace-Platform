@@ -10,11 +10,11 @@ export default async function HardwarePage() {
       <div style={{ maxWidth: 900 }}>
         <div style={sectionLabelStyle}>Hardware</div>
         <h2 style={{ ...pageTitleStyle, margin: '8px 0' }}>
-          Cashier workstation setup for printers, scanners, and drawer control.
+          Standard cashier workstation setup for printing and scanning.
         </h2>
         <p style={tokenMutedStyle}>
-          This page mirrors the local workstation setup pattern we verified from AxiomPos: the web app stays on the VPS,
-          while receipt and label printing run through the cashier PC&apos;s local agent.
+          We now support two standard hardware setups only: a POS counter setup with receipt printer and drawer support,
+          or a laser counter setup with A4 printing. In both cases, the web app stays on the VPS while local printing runs through the cashier PC&apos;s agent.
         </p>
       </div>
 

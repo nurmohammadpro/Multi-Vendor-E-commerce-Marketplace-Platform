@@ -50,6 +50,43 @@ type HardwareProfilePayload = {
   };
 };
 
+type StandardBundle = {
+  id: 'pos-counter' | 'laser-counter';
+  name: string;
+  description: string;
+  receiptPrinterModel: string | null;
+  labelPrinterModel: string;
+  barcodeScannerModel: string;
+  cashDrawerModel: string | null;
+  silentPrintingEnabled: boolean;
+  recommendedFor: string;
+};
+
+const standardBundles: StandardBundle[] = [
+  {
+    id: 'pos-counter',
+    name: 'POS Counter Setup',
+    description: 'POS printer, label printer, barcode scanner, and cash drawer for fast cashier counters.',
+    receiptPrinterModel: 'Xprinter XP-Q80A',
+    labelPrinterModel: 'Xprinter XP-420B',
+    barcodeScannerModel: 'Zebra DS2208',
+    cashDrawerModel: 'Standard RJ11 cash drawer (ESC/POS trigger)',
+    silentPrintingEnabled: true,
+    recommendedFor: 'Most retail stores with frequent walk-in sales',
+  },
+  {
+    id: 'laser-counter',
+    name: 'Laser Counter Setup',
+    description: 'Laser printer, label printer, and barcode scanner for stores that print on A4 instead of POS rolls.',
+    receiptPrinterModel: 'HP LaserJet Pro / Canon imageCLASS (A4)',
+    labelPrinterModel: 'Xprinter XP-420B',
+    barcodeScannerModel: 'Zebra DS2208',
+    cashDrawerModel: null,
+    silentPrintingEnabled: false,
+    recommendedFor: 'Low-volume counters and office-style billing desks',
+  },
+];
+
 const windowsSteps = [
   'Install the receipt printer driver in Windows.',
   'Confirm the printer works from the OS test page.',
@@ -67,10 +104,11 @@ const macSteps = [
 ];
 
 const hardwareNotes = [
-  'Use ESC/POS-compatible receipt printers for silent receipt printing.',
+  'Keep the store on one standard workstation type: POS Counter Setup or Laser Counter Setup.',
+  'Use ESC/POS-compatible receipt printers only for the POS Counter Setup.',
   'Use USB HID barcode scanners so the POS receives scans in the focused field.',
   'Keep the print agent on the cashier workstation, not on the VPS.',
-  'Save both the hardware preset and the local printer names for consistent counter behavior.',
+  'Save both the selected setup and the local printer names for consistent counter behavior.',
 ];
 
 async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
@@ -172,39 +210,17 @@ export function HardwareWorkspace({ canManageSettings }: { canManageSettings: bo
     }
   };
 
-  const applyBundle = (bundleName: string) => {
-    if (bundleName.includes('XP-Q80A')) {
-      setRemoteProfile((current) => ({
-        ...current,
-        bundlePreset: bundleName,
-        receiptPrinterModel: 'Xprinter XP-Q80A',
-        labelPrinterModel: 'Xprinter XP-420B',
-        barcodeScannerModel: 'Zebra DS2208',
-        cashDrawerModel: 'Any ESC/POS RJ11 cash drawer',
-        silentPrintingEnabled: true,
-      }));
-      return;
-    }
-    if (bundleName.includes('XP80T')) {
-      setRemoteProfile((current) => ({
-        ...current,
-        bundlePreset: bundleName,
-        receiptPrinterModel: 'Xprinter XP80T',
-        labelPrinterModel: 'Xprinter XP-420B',
-        barcodeScannerModel: 'Zebra LS2208',
-        cashDrawerModel: 'Any ESC/POS RJ11 cash drawer',
-        silentPrintingEnabled: true,
-      }));
-      return;
-    }
+  const applyBundle = (bundleId: string) => {
+    const bundle = standardBundles.find((item) => item.id === bundleId);
+    if (!bundle) return;
     setRemoteProfile((current) => ({
       ...current,
-      bundlePreset: bundleName,
-      receiptPrinterModel: 'Xprinter XP-E200L',
-      labelPrinterModel: 'TSC TE244',
-      barcodeScannerModel: 'Zebra DS9308',
-      cashDrawerModel: 'Any ESC/POS RJ11 cash drawer',
-      silentPrintingEnabled: true,
+      bundlePreset: bundle.name,
+      receiptPrinterModel: bundle.receiptPrinterModel,
+      labelPrinterModel: bundle.labelPrinterModel,
+      barcodeScannerModel: bundle.barcodeScannerModel,
+      cashDrawerModel: bundle.cashDrawerModel,
+      silentPrintingEnabled: bundle.silentPrintingEnabled,
     }));
   };
 
@@ -262,16 +278,36 @@ export function HardwareWorkspace({ canManageSettings }: { canManageSettings: bo
         <Card>
           <CardHeader>
             <CardTitle>Store hardware profile</CardTitle>
-            <CardDescription>Save the supported printer, scanner, drawer, and auto-start choices for this store.</CardDescription>
+            <CardDescription>Choose one standard hardware setup for this store, then save the workstation details below.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4">
+            <div className="grid gap-3">
+              {standardBundles.map((bundle) => {
+                const active = (remoteProfile?.bundlePreset || '') === bundle.name;
+                return (
+                  <button
+                    key={bundle.id}
+                    type="button"
+                    onClick={() => applyBundle(bundle.id)}
+                    className={`rounded-xl border p-4 text-left transition-colors ${active ? 'border-foreground bg-muted' : 'border-border bg-background hover:bg-muted/60'}`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-sm font-semibold text-foreground">{bundle.name}</div>
+                      <Badge variant={active ? 'secondary' : 'outline'}>{active ? 'Selected' : 'Standard'}</Badge>
+                    </div>
+                    <div className="mt-1 text-sm text-muted-foreground">{bundle.description}</div>
+                    <div className="mt-3 grid gap-1 text-xs text-muted-foreground">
+                      <div>Receipt / invoice printer: {bundle.receiptPrinterModel || 'A4 laser printer via browser print'}</div>
+                      <div>Label printer: {bundle.labelPrinterModel}</div>
+                      <div>Barcode scanner: {bundle.barcodeScannerModel}</div>
+                      {bundle.cashDrawerModel ? <div>Cash drawer: {bundle.cashDrawerModel}</div> : null}
+                      <div>Best for: {bundle.recommendedFor}</div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <select value={remoteProfile?.bundlePreset || ''} onChange={(event) => applyBundle(event.target.value)} style={fieldStyle}>
-                <option value="">Select recommended bundle</option>
-                {(catalog?.bundles ?? []).map((bundle) => (
-                  <option key={bundle.name} value={bundle.name}>{bundle.name} {bundle.recommended ? '· Recommended' : ''}</option>
-                ))}
-              </select>
               <select value={remoteProfile?.printAgentAutostart || 'manual'} onChange={(event) => setRemoteProfile((current) => ({ ...current, printAgentAutostart: event.target.value as 'windows_task' | 'mac_launchagent' | 'manual' }))} style={fieldStyle}>
                 <option value="windows_task">Windows Task Scheduler</option>
                 <option value="mac_launchagent">macOS LaunchAgent</option>
@@ -285,7 +321,7 @@ export function HardwareWorkspace({ canManageSettings }: { canManageSettings: bo
             <textarea value={remoteProfile?.notes || ''} onChange={(event) => setRemoteProfile((current) => ({ ...current, notes: event.target.value }))} style={{ ...fieldStyle, minHeight: 88 }} placeholder="Hardware notes, driver quirks, or installer notes" />
             <label className="flex items-center gap-2 text-sm text-muted-foreground">
               <input type="checkbox" checked={Boolean(remoteProfile?.silentPrintingEnabled)} onChange={(event) => setRemoteProfile((current) => ({ ...current, silentPrintingEnabled: event.target.checked }))} />
-              Silent printing enabled
+              Silent receipt printing enabled
             </label>
           </CardContent>
         </Card>
@@ -349,7 +385,7 @@ export function HardwareWorkspace({ canManageSettings }: { canManageSettings: bo
         <Card>
           <CardHeader>
             <CardTitle>Live hardware status</CardTitle>
-            <CardDescription>Shows whether the workstation print agent is reachable and ready.</CardDescription>
+            <CardDescription>Shows whether the local workstation is ready for the selected standard setup.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3">
             <div className="flex flex-wrap gap-2">
@@ -381,21 +417,29 @@ export function HardwareWorkspace({ canManageSettings }: { canManageSettings: bo
             <div className="flex flex-wrap gap-2">
               <Button onClick={() => void testReceipt()} disabled={!effectiveAgentUrl}>Test receipt</Button>
               <Button variant="outline" onClick={() => void testLabel()} disabled={!effectiveAgentUrl}>Test label</Button>
-              <Button variant="outline" onClick={() => void testDrawer()} disabled={!effectiveAgentUrl}>Test drawer</Button>
+              {remoteProfile?.cashDrawerModel ? (
+                <Button variant="outline" onClick={() => void testDrawer()} disabled={!effectiveAgentUrl}>Test drawer</Button>
+              ) : null}
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Recommended models</CardTitle>
-            <CardDescription>Imported from the AxiomPOS compatibility shortlist for Bangladeshi retail counters.</CardDescription>
+            <CardTitle>Standard hardware list</CardTitle>
+            <CardDescription>Recommended standard models for the two supported workstation types.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3">
-            {[...(catalog?.receiptPrinters ?? []), ...(catalog?.labelPrinters ?? []), ...(catalog?.barcodeScanners ?? [])].map((item) => (
-              <div key={`${item.model}-${item.tier}`} className="rounded-xl border border-border p-3 text-sm">
-                <div className="font-medium">{item.model} {item.recommended ? '· Recommended' : ''}</div>
-                <div className="text-muted-foreground">{item.useCase} · {item.connectivity} · ৳{item.priceBdt}</div>
+            {standardBundles.map((bundle) => (
+              <div key={bundle.id} className="rounded-xl border border-border p-3 text-sm">
+                <div className="font-medium">{bundle.name}</div>
+                <div className="mt-1 text-muted-foreground">{bundle.description}</div>
+                <div className="mt-2 grid gap-1 text-xs text-muted-foreground">
+                  <div>Printer: {bundle.receiptPrinterModel || 'HP / Canon office laser printer'}</div>
+                  <div>Label printer: {bundle.labelPrinterModel}</div>
+                  <div>Barcode scanner: {bundle.barcodeScannerModel}</div>
+                  {bundle.cashDrawerModel ? <div>Cash drawer: {bundle.cashDrawerModel}</div> : null}
+                </div>
               </div>
             ))}
           </CardContent>
