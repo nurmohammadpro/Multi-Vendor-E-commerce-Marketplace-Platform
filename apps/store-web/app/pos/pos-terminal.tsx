@@ -9,7 +9,6 @@ import {
   openInvoicePrintWindow,
   printLabel,
   printReceipt,
-  renderInvoiceHtml,
   type PrintAgentHealth,
   type ReceiptPayload,
 } from '../../lib/print-agent';
@@ -832,10 +831,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
 
   const handlePrintInvoice = () => {
     if (!lastInvoice) return;
-    const opened = openInvoicePrintWindow(lastInvoice);
-    if (opened) {
-      setMessage(`Invoice ${lastInvoice.saleNo ?? ''} opened for printing.`);
-    }
+    openInvoicePrintWindow(lastInvoice);
   };
 
   if (!canUsePos) {
@@ -1274,7 +1270,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                 ) : null
               ) : paymentMethod === 'cash' ? (
                 <>
-                  <input value={cashReceived} onChange={(event) => setCashReceived(event.target.value)} style={inputStyle} placeholder={`Amount paid by customer (${currency(paymentRequired)} required)`} />
+                  <input type="number" min="0" step="0.01" value={cashReceived} onChange={(event) => setCashReceived(event.target.value)} style={inputStyle} placeholder={`Amount paid by customer (${currency(paymentRequired)} required)`} />
                   {changeAmount > 0 ? (
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <span>Change due</span>
@@ -1415,14 +1411,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
             <button
               onClick={() => {
                 if (lastInvoice) {
-                  const w = window.open('', '_blank', 'noopener,noreferrer');
-                  if (w) {
-                    w.document.open();
-                    w.document.write(renderInvoiceHtml(lastInvoice));
-                    w.document.close();
-                    w.focus();
-                    w.print();
-                  }
+                  openInvoicePrintWindow(lastInvoice);
                 }
               }}
               style={primaryButtonStyle}

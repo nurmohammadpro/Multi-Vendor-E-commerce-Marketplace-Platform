@@ -145,7 +145,7 @@ export function deriveStoreConsoleAccess(
       && canAccessStoreFeature({ planCode, planFeatures }, 'purchases'),
     canUseReceivables: permissionSet.has('sales.report.view') && canAccessStoreFeature({ planCode, planFeatures }, 'receivables'),
     canViewReports: permissionSet.has('sales.report.view') && canAccessStoreFeature({ planCode, planFeatures }, 'reports'),
-    canManageShipping: permissionSet.has('sales.pos.create'),
+    canManageShipping: permissionSet.has('sales.pos.create') && canAccessStoreFeature({ planCode, planFeatures }, 'shipping'),
     canManageBilling: permissionSet.has('billing.subscription.manage') && canAccessStoreFeature({ planCode, planFeatures }, 'billing'),
     canManageSettings: permissionSet.has('store.settings.manage') && canAccessStoreFeature({ planCode, planFeatures }, 'settings'),
     canManageStaff: permissionSet.has('store.staff.manage') && canAccessStoreFeature({ planCode, planFeatures }, 'staff'),

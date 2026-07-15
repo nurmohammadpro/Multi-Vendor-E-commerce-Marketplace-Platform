@@ -6,6 +6,8 @@ import {
   emptyStateStyle,
   fieldStyle,
   gray800ButtonStyle,
+  metricLabelStyle,
+  metricValueStyle,
   pageShellStyle,
   searchButtonStyle,
   secondaryButtonStyle,
@@ -175,28 +177,28 @@ export function CustomersWorkspace() {
       {(!compact || activeTab === 'aging') ? (
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
         <article style={surfaceCardStyle}>
-          <div style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>Today</div>
-          <div style={{ fontSize: 22, fontWeight: 600 }}>{aging?.today_amount ?? '—'}</div>
+          <div style={metricLabelStyle}>Today</div>
+          <div style={metricValueStyle}>{aging?.today_amount ?? '—'}</div>
           <div style={{ color: 'var(--muted-foreground)' }}>{aging?.today_count ?? 0} sale(s)</div>
         </article>
         <article style={surfaceCardStyle}>
-          <div style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>1-7 days</div>
-          <div style={{ fontSize: 22, fontWeight: 600 }}>{aging?.days_7_amount ?? '—'}</div>
+          <div style={metricLabelStyle}>1-7 days</div>
+          <div style={metricValueStyle}>{aging?.days_7_amount ?? '—'}</div>
           <div style={{ color: 'var(--muted-foreground)' }}>{aging?.days_7_count ?? 0} sale(s)</div>
         </article>
         <article style={surfaceCardStyle}>
-          <div style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>8-30 days</div>
-          <div style={{ fontSize: 22, fontWeight: 600 }}>{aging?.days_30_amount ?? '—'}</div>
+          <div style={metricLabelStyle}>8-30 days</div>
+          <div style={metricValueStyle}>{aging?.days_30_amount ?? '—'}</div>
           <div style={{ color: 'var(--muted-foreground)' }}>{aging?.days_30_count ?? 0} sale(s)</div>
         </article>
         <article style={surfaceCardStyle}>
-          <div style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>31-90 days</div>
-          <div style={{ fontSize: 22, fontWeight: 600 }}>{aging?.days_90_amount ?? '—'}</div>
+          <div style={metricLabelStyle}>31-90 days</div>
+          <div style={metricValueStyle}>{aging?.days_90_amount ?? '—'}</div>
           <div style={{ color: 'var(--muted-foreground)' }}>{aging?.days_90_count ?? 0} sale(s)</div>
         </article>
         <article style={surfaceCardStyle}>
-          <div style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>90+ days</div>
-          <div style={{ fontSize: 22, fontWeight: 600 }}>{aging?.days_90_plus_amount ?? '—'}</div>
+          <div style={metricLabelStyle}>90+ days</div>
+          <div style={metricValueStyle}>{aging?.days_90_plus_amount ?? '—'}</div>
           <div style={{ color: 'var(--muted-foreground)' }}>{aging?.days_90_plus_count ?? 0} sale(s)</div>
         </article>
       </section>

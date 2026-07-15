@@ -6,6 +6,8 @@ import {
   accentButtonStyle,
   emptyStateStyle,
   fieldStyle,
+  metricLabelStyle,
+  metricValueStyle,
   pageShellStyle,
   secondaryButtonStyle,
   surfaceCardStyle,
@@ -211,8 +213,8 @@ export function ApprovalsWorkspace({ canApproveInventory }: { canApproveInventor
     <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
       <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
         <article style={surfaceCardStyle}>
-          <div style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>Cash variance</div>
-          <div style={{ fontSize: 22, fontWeight: 600 }}>{overview?.cashVarianceAmount ?? '—'}</div>
+          <div style={metricLabelStyle}>Cash variance</div>
+          <div style={metricValueStyle}>{overview?.cashVarianceAmount ?? '—'}</div>
           <div style={{ color: 'var(--muted-foreground)' }}>
             Expected {overview?.expectedCashAmount ?? 0} · Counted {overview?.countedCashAmount ?? 'Not counted yet'}
           </div>
@@ -221,18 +223,18 @@ export function ApprovalsWorkspace({ canApproveInventory }: { canApproveInventor
           </div>
         </article>
         <article style={surfaceCardStyle}>
-          <div style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>Today&apos;s due collections</div>
-          <div style={{ fontSize: 22, fontWeight: 600 }}>{overview?.todayDueCollectionsAmount ?? '—'}</div>
+          <div style={metricLabelStyle}>Today&apos;s due collections</div>
+          <div style={metricValueStyle}>{overview?.todayDueCollectionsAmount ?? '—'}</div>
           <div style={{ color: 'var(--muted-foreground)' }}>{overview?.todayDueCollectionsCount ?? 0} collection(s)</div>
         </article>
         <article style={surfaceCardStyle}>
-          <div style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>Pending stock approvals</div>
-          <div style={{ fontSize: 22, fontWeight: 600 }}>{overview?.pendingStockApprovals ?? '—'}</div>
+          <div style={metricLabelStyle}>Pending stock approvals</div>
+          <div style={metricValueStyle}>{overview?.pendingStockApprovals ?? '—'}</div>
           <div style={{ color: 'var(--muted-foreground)' }}>Quantity updates waiting on owner action.</div>
         </article>
         <article style={surfaceCardStyle}>
-          <div style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>Pending price approvals</div>
-          <div style={{ fontSize: 22, fontWeight: 600 }}>{overview?.pendingPriceApprovals ?? '—'}</div>
+          <div style={metricLabelStyle}>Pending price approvals</div>
+          <div style={metricValueStyle}>{overview?.pendingPriceApprovals ?? '—'}</div>
           <div style={{ color: 'var(--muted-foreground)' }}>Pricing changes waiting on owner action.</div>
         </article>
       </section>
