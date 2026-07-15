@@ -32,9 +32,8 @@ const quickActions = [
   { href: '/reports', group: 'Product & Stock', title: 'Reports', detail: 'Daily sales, stock snapshots, and exportable business reports.', icon: BarChart3, permission: 'sales.report.view', feature: 'reports' },
   { href: '/locations', group: 'Product & Stock', title: 'Locations', detail: 'Manage inventory locations, addresses, and contact details.', icon: MapPin, feature: 'inventory' },
   // Management
-  { href: '/staff', group: 'Management', title: 'Staff Management', detail: 'Manage store owner, manager, and salesman access and roles.', icon: Users, permission: 'store.staff.manage', feature: 'staff' },
+  { href: '/staff', group: 'Management', title: 'Team', detail: 'Manage users, employee records, and payroll workflow from one place.', icon: Users, permission: 'store.staff.manage', feature: 'staff' },
   { href: '/expenses', group: 'Management', title: 'Daily Expenses', detail: 'Track day-level store expenses and spending.', icon: ReceiptText, feature: 'expenses' },
-  { href: '/payroll', group: 'Management', title: 'Payroll', detail: 'Manage payroll runs and employee compensation.', icon: Wallet, feature: 'payroll' },
   { href: '/banking', group: 'Management', title: 'Banking', detail: 'Reconcile banking activity, deposits, and withdrawals.', icon: Landmark, feature: 'banking' },
   { href: '/billing', group: 'Management', title: 'Subscription', detail: 'Check plan health, invoices, and payment status.', icon: CreditCard, permission: 'billing.subscription.manage', feature: 'billing' },
 ] satisfies Array<{
