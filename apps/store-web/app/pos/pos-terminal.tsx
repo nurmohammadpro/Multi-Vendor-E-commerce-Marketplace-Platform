@@ -1046,8 +1046,8 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                             style={{ ...inputStyle, width: 70, fontSize: 11, padding: '2px 4px' }}
                           >
                             <option value="none">—</option>
-                            <option value="fixed" selected={item.discountType === 'fixed'}>TK</option>
-                            <option value="percentage" selected={item.discountType === 'percentage'}>%</option>
+                            <option value="fixed">TK</option>
+                            <option value="percentage">%</option>
                           </select>
                           {item.discountType !== 'none' && item.discountType ? (
                             <input
