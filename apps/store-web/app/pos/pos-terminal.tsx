@@ -198,6 +198,9 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
   const [closingCash, setClosingCash] = useState('0');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('POS ready for barcode-first checkout.');
+  const [salesHistory, setSalesHistory] = useState<Array<{id:string;sale_no:string;total_amount:number;payment_status:string;created_at:string}>>([]);
+  const [salesPage, setSalesPage] = useState(1);
+  const [loadingHistory, setLoadingHistory] = useState(false);
   const [printHealth, setPrintHealth] = useState<PrintAgentHealth | null>(null);
   const [printError, setPrintError] = useState<string | null>(null);
   const [lastReceiptText, setLastReceiptText] = useState('');
@@ -209,7 +212,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [searching, setSearching] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [activeTab, setActiveTab] = useState<'search' | 'cart' | 'checkout'>('search');
+  const [activeTab, setActiveTab] = useState<'search' | 'cart' | 'checkout' | 'history'>('search');
 
   useEffect(() => {
     void Promise.all([
@@ -380,7 +383,26 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
     return Array.from(groups.values());
   }, [results]);
 
-  const clearSearchState = () => {
+  const loadSalesHistory = async (page = 1) => {
+    setLoadingHistory(true);
+    try {
+      const payload = await readJson<{sales:Array<{id:string;sale_no:string;total_amount:number;payment_status:string;created_at:string}>}>(`/api/pos/sales?page=${page}&limit=15`);
+      setSalesHistory(payload.sales??[]); setSalesPage(page);
+    } catch (error) { setMessage((error as Error).message); }
+    finally { setLoadingHistory(false); }
+  };
+  const reprintSale = async (saleId: string) => {
+    try {
+      const payload = await readJson<ReprintResponse>(`/api/pos/sales/${saleId}/reprint`, { method: 'POST' });
+      if (payload.receipt) {
+        setLastInvoice(payload.receipt); setLastReceiptText(JSON.stringify(payload.receipt,null,2));
+        openInvoicePrintWindow(payload.receipt); setInvoiceModalOpen(true);
+        setMessage(`Receipt ${payload.receipt.saleNo||''} opened for printing.`);
+      }
+    } catch (error) { setMessage((error as Error).message); }
+  };
+
+const clearSearchState = () => {
     setSearch('');
     setResults([]);
     setSearching(false);
@@ -856,6 +878,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
             { key: 'search', label: 'Search' },
             { key: 'cart', label: `Cart (${cart.length})` },
             { key: 'checkout', label: 'Checkout' },
+            { key: 'history', label: 'History' },
           ]}
         />
       ) : null}
@@ -1490,7 +1513,42 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
         </article>
       </section>
 
+      {(!compact || activeTab === 'history') ? (
       <article style={cardStyle}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <h3 style={{ margin: 0 }}>Sales History</h3>
+          <button onClick={() => loadSalesHistory(1)} style={searchButtonStyle} disabled={loadingHistory}>
+            {loadingHistory ? 'Loading...' : 'Load Recent Sales'}
+          </button>
+        </div>
+        {salesHistory.length ? (
+          <>
+            <div style={tableWrapStyle}>
+              <table style={tableStyle}>
+                <thead><tr><th style={tableHeaderCellStyle}>Sale No</th><th style={tableHeaderCellStyle}>Total</th><th style={tableHeaderCellStyle}>Status</th><th style={tableHeaderCellStyle}>Date</th><th style={tableHeaderCellStyle}></th></tr></thead>
+                <tbody>
+                  {salesHistory.map((sale) => (
+                    <tr key={sale.id}>
+                      <td style={tableCellStyle}><strong>{sale.sale_no}</strong></td>
+                      <td style={tableCellStyle}>{currency(Number(sale.total_amount))}</td>
+                      <td style={tableCellStyle}>{sale.payment_status}</td>
+                      <td style={tableCellStyle}>{new Date(sale.created_at).toLocaleDateString('en-BD',{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</td>
+                      <td style={tableCellStyle}><button onClick={() => reprintSale(sale.id)} style={secondaryButtonStyle}>Print</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+              <button onClick={() => loadSalesHistory(Math.max(1, salesPage - 1))} style={secondaryButtonStyle} disabled={loadingHistory || salesPage <= 1}>← Prev</button>
+              {salesHistory.length >= 15 ? <button onClick={() => loadSalesHistory(salesPage + 1)} style={secondaryButtonStyle} disabled={loadingHistory}>Next →</button> : null}
+            </div>
+          </>
+        ) : null}
+      </article>
+      ) : null}
+
+<article style={cardStyle}>
         <h3 style={{ marginTop: 0 }}>Operator Notes</h3>
         <p style={{ marginTop: 0, color: 'var(--muted-foreground)' }}>{message}</p>
         {lastInvoice ? (
