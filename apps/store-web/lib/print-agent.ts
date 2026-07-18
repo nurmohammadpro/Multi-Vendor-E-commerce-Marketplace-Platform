@@ -1,3 +1,4 @@
+import { renderReceipt } from "./receipt-template.js";
 export const DEFAULT_PRINT_AGENT_URL =
   process.env.NEXT_PUBLIC_PRINT_AGENT_URL || 'http://127.0.0.1:17668';
 
@@ -59,6 +60,7 @@ export type ReceiptPayload = {
   items?: Array<{
     name?: string | null;
     skuCode?: string | null;
+    barcode?: string | null;
     qty?: number;
     unitPrice?: number;
     discountAmount?: number;
@@ -348,167 +350,7 @@ function bytesToBase64(bytes: Uint8Array) {
 }
 
 export function renderInvoiceHtml(receipt: ReceiptPayload) {
-  const invoiceTitle =
-    receipt.saleType === 'exchange'
-      ? 'Exchange Invoice'
-      : receipt.saleType === 'due'
-        ? 'Due Invoice'
-        : 'Sales Invoice';
-  const saleTypeLabel =
-    receipt.saleType === 'exchange'
-      ? 'Exchange / Trade-in'
-      : receipt.saleType === 'due'
-        ? 'Due Sale'
-        : 'Cash Sale';
-  const paymentStatusLabel = receipt.paymentStatus
-    ? receipt.paymentStatus.charAt(0).toUpperCase() + receipt.paymentStatus.slice(1)
-    : 'Paid';
-  const storeMeta = [
-    receipt.store?.phone,
-    receipt.store?.email,
-    receipt.store?.address,
-  ].filter(Boolean) as string[];
-
-  const itemRows = (receipt.items ?? [])
-    .map((item, index) => {
-      const isExchange = item.isExchangeItem;
-      const lineTotal = Number(item.lineTotal ?? 0);
-      return `
-      <tr${isExchange ? ' style="color:#16a34a;"' : ''}>
-        <td style="text-align:center;width:40px;">${index + 1}.</td>
-        <td>
-          <div>${escapeHtml(item.name || 'Item')}</div>
-          ${item.skuCode ? `<div style="font-size:11px;color:#64748b;">${escapeHtml(item.skuCode)}</div>` : ''}
-        </td>
-        <td style="text-align:center;">${item.isExchangeItem ? '—' : Number(item.qty ?? 0)}</td>
-        <td style="text-align:right;">${money(item.unitPrice)}</td>
-        <td style="text-align:right;font-weight:600;${lineTotal < 0 ? 'color:#16a34a;' : ''}">${lineTotal < 0 ? '-' : ''}${money(Math.abs(lineTotal))}</td>
-      </tr>`;
-    })
-    .join('');
-
-  const payments = (receipt.payments ?? [])
-    .map((payment) => `
-      <li>
-        ${escapeHtml(payment.paymentMethod || 'payment')}${payment.status ? ` (${escapeHtml(payment.status)})` : ''}: ${money(payment.amount)}
-        ${payment.referenceNo ? `<span style="color:#64748b;"> · Ref ${escapeHtml(payment.referenceNo)}</span>` : ''}
-      </li>
-    `)
-    .join('');
-
-  return `<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <title>${escapeHtml(receipt.saleNo || 'Invoice')}</title>
-    <style>
-      @page { size: A4; margin: 12mm; }
-      body { font-family: Arial, sans-serif; margin: 0; background: #f8fafc; color: #0f172a; }
-      .page { max-width: 820px; margin: 0 auto; background: #fff; padding: 28px; }
-      .header { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; border-bottom: 2px solid #e2e8f0; padding-bottom: 18px; }
-      .brand { display: flex; gap: 16px; align-items: center; }
-      .brand-logo { width: 76px; height: 76px; object-fit: contain; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; padding: 6px; }
-      .brand-name { font-size: 24px; font-weight: 700; margin: 0 0 6px; }
-      .brand-meta { margin: 0; color: #475569; font-size: 13px; line-height: 1.5; }
-      .invoice-meta { text-align: right; }
-      .invoice-title { margin: 0 0 8px; font-size: 28px; font-weight: 700; }
-      .status-strip { display: flex; flex-wrap: wrap; gap: 10px; padding: 14px 0 4px; }
-      .status-pill { display: inline-flex; align-items: center; border: 1px solid #cbd5e1; border-radius: 999px; padding: 5px 10px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #334155; background: #f8fafc; white-space: nowrap; }
-      .section { margin-top: 24px; }
-      .section h2 { margin: 0 0 12px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.12em; color: #64748b; }
-      table { width: 100%; border-collapse: collapse; }
-      th, td { padding: 12px 10px; border-bottom: 1px solid #e2e8f0; font-size: 14px; text-align: left; }
-      th { color: #475569; font-weight: 600; background: #f8fafc; }
-      .totals { margin-left: auto; width: 320px; }
-      .totals-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0; }
-      .totals-row.total { font-size: 18px; font-weight: 700; border-bottom: 0; padding-top: 14px; }
-      .customer, .payments { color: #334155; font-size: 14px; line-height: 1.6; }
-      .exchange-box, .note-box { border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 10px; padding: 12px 14px; color: #334155; font-size: 14px; line-height: 1.6; }
-      .invoice-footer { margin-top: 28px; padding-top: 16px; border-top: 1px solid #e2e8f0; color: #64748b; font-size: 12px; text-align: center; }
-      @media print {
-        body { background: #fff; }
-        .page { max-width: none; margin: 0; padding: 0; }
-      }
-    </style>
-  </head>
-  <body>
-    <div class="page">
-      <div class="header">
-        <div class="brand">
-          ${receipt.store?.logoUrl ? `<img src="${escapeHtml(receipt.store.logoUrl)}" alt="Store logo" class="brand-logo" />` : ''}
-          <div>
-            <p class="brand-name">${escapeHtml(receipt.store?.name || 'Store')}</p>
-            ${storeMeta.map((line) => `<p class="brand-meta">${escapeHtml(line)}</p>`).join('')}
-          </div>
-        </div>
-        <div class="invoice-meta">
-          <p class="invoice-title">${invoiceTitle}</p>
-          <p class="brand-meta">No: ${escapeHtml(receipt.saleNo || '—')}</p>
-          <p class="brand-meta">Printed: ${escapeHtml(receipt.printedAt ? new Date(receipt.printedAt).toLocaleString() : new Date().toLocaleString())}</p>
-        </div>
-      </div>
-
-      <div class="status-strip">
-        <div class="status-pill">${escapeHtml(saleTypeLabel)}</div>
-        <div class="status-pill">${escapeHtml(paymentStatusLabel)}</div>
-        ${receipt.dueDate ? `<div class="status-pill">Due ${escapeHtml(new Date(receipt.dueDate).toLocaleDateString())}</div>` : ''}
-      </div>
-
-      <div class="section">
-        <h2>Customer</h2>
-        <div class="customer">
-          <div>${escapeHtml(receipt.customer?.name || 'Walk-in customer')}</div>
-          ${receipt.customer?.phone ? `<div>${escapeHtml(receipt.customer.phone)}</div>` : ''}
-          ${receipt.customer?.email ? `<div>${escapeHtml(receipt.customer.email)}</div>` : ''}
-          ${receipt.customer?.shopName ? `<div>${escapeHtml(receipt.customer.shopName)}</div>` : ''}
-          ${receipt.customer?.address ? `<div>${escapeHtml(receipt.customer.address)}</div>` : ''}
-        </div>
-      </div>
-
-      <div class="section">
-        <h2>Items</h2>
-        <table>
-          <thead>
-            <tr>
-              <th style="text-align:center;width:40px;">SL</th>
-              <th>Description</th>
-              <th style="text-align:center;">Qty</th>
-              <th style="text-align:right;">Unit Price</th>
-              <th style="text-align:right;">Amount</th>
-            </tr>
-          </thead>
-          <tbody>${itemRows}</tbody>
-        </table>
-      </div>
-
-      ${receipt.exchange ? `
-        <div class="section">
-          <h2>Exchange</h2>
-          <div class="exchange-box">
-            <div><strong>Trade-in product:</strong> ${escapeHtml(receipt.exchange.productName || 'Exchange item')}</div>
-            ${receipt.exchange.skuCode ? `<div><strong>SKU:</strong> ${escapeHtml(receipt.exchange.skuCode)}</div>` : ''}
-            <div><strong>Exchange value:</strong> ${money(receipt.exchange.amount)}</div>
-          </div>
-        </div>
-      ` : ''}
-
-      <div class="section totals">
-        <div class="totals-row"><span>Subtotal</span><span>${money(receipt.totals?.subtotal)}</span></div>
-        <div class="totals-row"><span>Discount</span><span>${money(receipt.totals?.discount)}</span></div>
-        <div class="totals-row"><span>Tax</span><span>${money(receipt.totals?.tax)}</span></div>
-        <div class="totals-row total"><span>Total</span><span>${money(receipt.totals?.total)}</span></div>
-        <div class="totals-row"><span>Paid</span><span>${money(receipt.totals?.paid)}</span></div>
-        ${(receipt.totals?.change ?? 0) > 0 ? `<div class="totals-row"><span>Change</span><span>${money(receipt.totals?.change)}</span></div>` : ''}
-        ${(receipt.totals?.due ?? 0) > 0 ? `<div class="totals-row"><span>Due</span><span>${money(receipt.totals?.due)}</span></div>` : ''}
-      </div>
-
-      ${payments ? `<div class="section"><h2>Payments</h2><ul class="payments">${payments}</ul></div>` : ''}
-      ${receipt.note ? `<div class="section"><h2>Note</h2><div class="note-box">${escapeHtml(receipt.note)}</div></div>` : ''}
-      ${receipt.store?.footer ? `<div class="section"><h2>Footer</h2><div class="customer">${escapeHtml(receipt.store.footer)}</div></div>` : ''}
-      <div class="invoice-footer">Developed and maintained by Market One BD · Your One Stop Marketplace</div>
-    </div>
-  </body>
-</html>`;
+  return renderReceipt(receipt as any, 'laser_a5');
 }
 
 export function openInvoicePrintWindow(receipt: ReceiptPayload) {
