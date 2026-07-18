@@ -23,11 +23,11 @@ export function renderReceipt(receipt, mode) {
 
   var fs = isA5 ? {
     body:'13px', sn:'21px', sm:'14px', it:'17px', ino:'20px', cn:'16px', cd:'14px',
-    table:'14px', th:'10px', td:'12px', totals:'16px', gt:'20px', pay:'14px',
+    table:'14px', th:'10px', td:'12px', totals:'16px', gt:'20px',
     bt:'10px', qc:'60px', tc:'105px'
   } : {
     body:'10px', sn:'17px', sm:'13px', it:'14px', ino:'16px', cn:'13px', cd:'12px',
-    table:'12px', th:'10px', td:'10px', totals:'13px', gt:'16px', pay:'12px',
+    table:'12px', th:'10px', td:'10px', totals:'13px', gt:'16px',
     bt:'10px', qc:'48px', tc:'85px'
   };
 
@@ -42,7 +42,7 @@ export function renderReceipt(receipt, mode) {
   }).filter(Boolean).join('');
 
   var payRows = (receipt.payments || []).map(function(p) {
-    return '<div class="pr"><span>'+esc(p.paymentMethod||'payment')+'</span><span>'+money(p.amount)+'</span></div>';
+    return '<div class="tr"><span>'+esc(p.paymentMethod||'payment')+'</span><span>'+money(p.amount)+'</span></div>';
   }).join('');
 
   var custSec = receipt.customer && receipt.customer.name
@@ -86,7 +86,6 @@ export function renderReceipt(receipt, mode) {
     '.tr .lb{color:#64748b}.tr .vl{font-family:monospace;font-weight:600}',
     '.tr.gt{font-size:'+fs.gt+';font-weight:700;border-bottom:3px double #1e293b;border-top:1px solid #1e293b;padding:6px 0;margin-top:3px}',
     '.due{color:#b45309}',
-    '.pr{display:flex;justify-content:space-between;padding:2px 0;font-size:'+fs.pay+'}',
     '.ft{text-align:center;margin-top:8px;padding-top:4px;border-top:1px solid #f1f5f9;color:#94a3b8;font-size:10px}',
     '.iw{margin-top:8px;padding:6px 8px;background:#f8fafc;font-size:11px;font-weight:600;color:#1e293b;border-radius:4px}',
     '.pb{margin-top:6px;font-size:11px;color:#475569}',
@@ -107,9 +106,9 @@ export function renderReceipt(receipt, mode) {
     (Number(totals.vat||0)>0?'<div class="tr"><span class="lb">VAT (Optional)</span><span class="vl">'+money(totals.vat)+'</span></div>':'')+
     (Number(totals.tax||0)>0?'<div class="tr"><span class="lb">Tax (Optional)</span><span class="vl">'+money(totals.tax)+'</span></div>':'')+
     '<div class="tr gt"><span>Net Payable</span><span>'+money(total)+'</span></div>'+
-    '</div>'+
-    (payRows?'<h2>Payment:</h2>'+payRows:'')+
+    (payRows?'<div class="tr"><span class="lb">Payment:</span><span></span></div>'+payRows:'')+
     '<div class="tr gt"><span class="lb">Due</span><span class="vl due">'+money(due)+'</span></div>'+
+    '</div>'+
     (receipt.amountInWords?'<div class="iw">'+esc(receipt.amountInWords)+'</div>':'')+
     (receipt.preparedBy?'<div class="pb">Seller: '+esc(receipt.preparedBy)+'</div>':'')+
     (store.footer?'<div class="ft">'+esc(store.footer)+'</div>':'')+
