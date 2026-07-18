@@ -175,7 +175,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
   const [customerEmail, setCustomerEmail] = useState('');
   const [customerShopName, setCustomerShopName] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
-  const [dueDate, setDueDate] = useState('');
+  const [dueDate, setDueDate] = useState(new Date().toISOString().slice(0, 10));
   const [saleMode, setSaleMode] = useState<'paid' | 'due'>('paid');
   const [exchangeEnabled, setExchangeEnabled] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'mfs' | 'bank_transfer'>('cash');
@@ -779,7 +779,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
       setCustomerEmail('');
       setCustomerShopName('');
       setCustomerAddress('');
-      setDueDate('');
+      setDueDate(new Date().toISOString().slice(0, 10));
       setSaleMode('paid');
       setExchangeEnabled(false);
       setPaymentMethod('cash');

@@ -371,9 +371,9 @@ export class PosService {
             ? 'due'
             : pendingAmount > 0 && paidAmount === 0
               ? 'due'
-              : pendingAmount > 0
+              : paidAmount > 0
                 ? 'partial'
-                : 'unpaid';
+                : 'pending';
 
       const skuIds = payload.items.map((item) => item.skuId);
       const skuProductResult = await client.query<{ sku_id: string; is_trackable: boolean }>(
