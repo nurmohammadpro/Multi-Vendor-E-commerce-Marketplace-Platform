@@ -23,11 +23,11 @@ export function renderReceipt(receipt, mode) {
 
   var fs = isA5 ? {
     body:'13px', sn:'21px', sm:'14px', it:'17px', ino:'20px', cn:'16px', cd:'14px',
-    table:'14px', th:'10px', td:'12px', totals:'16px', gt:'20px',
+    th:'10px', totals:'13px',
     bt:'10px', qc:'60px', tc:'105px'
   } : {
     body:'10px', sn:'17px', sm:'13px', it:'14px', ino:'16px', cn:'13px', cd:'12px',
-    table:'12px', th:'10px', td:'10px', totals:'13px', gt:'16px',
+    th:'10px', totals:'10px',
     bt:'10px', qc:'48px', tc:'85px'
   };
 
@@ -35,7 +35,7 @@ export function renderReceipt(receipt, mode) {
     if (item.isExchangeItem) return '';
     var lt = Number(item.lineTotal || 0);
     var details = [];
-    if (item.variantLabel) details.push('<span class="vl">'+esc(item.variantLabel)+'</span>');
+    if (item.variantLabel) details.push('<span style="font-size:11px;color:#64748b">'+esc(item.variantLabel)+'</span>');
     if (item.skuCode) details.push('<span class="sku">'+esc(item.skuCode)+'</span>');
     var detHtml = details.length ? '<br>'+details.join('<br>') : '';
     return '<tr><td class="ic">'+esc(item.name||'Item')+detHtml+'</td><td class="qc">'+Number(item.qty||0)+'</td><td class="tc">'+money(lt)+'</td></tr>';
@@ -66,7 +66,7 @@ export function renderReceipt(receipt, mode) {
     '.header{display:flex;justify-content:space-between;border-bottom:3px double #1e293b;padding-bottom:8px;margin-bottom:8px;'+(isA5?'':'flex-direction:column;gap:4px;')+'}',
     '.hl{flex:1}',
     '.hr{text-align:'+(isA5?'right':'left')+';border-left:1px dashed #cbd5e1;padding-left:12px;min-width:160px;}',
-    '.vl{font-size:11px;color:#64748b;font-weight:400}',
+    '.vl{color:#64748b;font-weight:400}',
     '.sn{font-size:'+fs.sn+';font-weight:700;margin-bottom:1px}',
     '.sm{font-size:'+fs.sm+';color:#475569;line-height:1.5}',
     '.it{font-size:'+fs.it+';font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-bottom:1px}',
@@ -75,7 +75,7 @@ export function renderReceipt(receipt, mode) {
     '.cn{font-size:'+fs.cn+';font-weight:600}',
     '.cd{font-size:'+fs.cd+';color:#475569;line-height:1.4}',
     'h2{font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:#64748b;margin:8px 0 3px}',
-    'table{width:100%;border-collapse:collapse;font-size:'+fs.table+'}',
+    'table{width:100%;border-collapse:collapse;font-size:'+fs.totals+'}',
     'th{background:#f1f5f9;color:#475569;font-weight:600;font-size:'+fs.th+';text-transform:uppercase;letter-spacing:.06em;padding:'+(isA5?'8px 6px':'4px 3px')+';border-bottom:2px solid #e2e8f0;text-align:left}',
     'td{padding:'+(isA5?'7px 6px':'4px 3px')+';border-bottom:1px solid #f1f5f9}',
     '.ic{font-weight:500}.qc{text-align:center;width:'+fs.qc+'}',
@@ -83,12 +83,12 @@ export function renderReceipt(receipt, mode) {
     '.sku{font-size:10px;color:#94a3b8}',
     '.totals{margin-top:8px;margin-left:auto;width:'+(isA5?'240px':'100%')+'}',
     '.tr{display:flex;justify-content:space-between;padding:3px 0;font-size:'+fs.totals+';border-bottom:1px dotted #e2e8f0}',
-    '.tr .lb{color:#64748b}.tr .vl{font-family:monospace;font-weight:600}',
-    '.tr.gt{font-size:'+fs.gt+';font-weight:700;border-bottom:3px double #1e293b;border-top:1px solid #1e293b;padding:6px 0;margin-top:3px}',
+    '.tr .lb{color:#64748b}.tr .vl{font-family:monospace;font-weight:600;font-size:inherit}',
+    '.tr.gt{font-weight:700;border-bottom:3px double #1e293b;border-top:1px solid #1e293b;padding:6px 0;margin-top:3px}',
     '.due{color:#b45309}',
     '.ft{text-align:center;margin-top:8px;padding-top:4px;border-top:1px solid #f1f5f9;color:#94a3b8;font-size:10px}',
-    '.iw{margin-top:8px;padding:6px 8px;background:#f8fafc;font-size:11px;font-weight:600;color:#1e293b;border-radius:4px}',
-    '.pb{margin-top:6px;font-size:11px;color:#475569}',
+    '.iw{margin-top:8px;padding:6px 8px;background:#f8fafc;font-weight:600;color:#1e293b;border-radius:4px}',
+    '.pb{margin-top:6px;color:#475569}',
     '.bt{font-family:monospace;font-size:'+fs.bt+';letter-spacing:.1em;color:#64748b;margin-top:1px}',
     '@media print{@page{margin:0;size:'+(isA5?'A5':'80mm')+' auto}}'
   ].join('\n');
@@ -107,7 +107,7 @@ export function renderReceipt(receipt, mode) {
     (Number(totals.tax||0)>0?'<div class="tr"><span class="lb">Tax (Optional)</span><span class="vl">'+money(totals.tax)+'</span></div>':'')+
     '<div class="tr gt"><span>Net Payable</span><span>'+money(total)+'</span></div>'+
     (payRows?'<div class="tr"><span class="lb">Payment:</span><span></span></div>'+payRows:'')+
-    '<div class="tr gt"><span class="lb">Due</span><span class="vl due">'+money(due)+'</span></div>'+
+    '<div class="tr"><span class="lb">Due</span><span class="vl due">'+money(due)+'</span></div>'+
     '</div>'+
     (receipt.amountInWords?'<div class="iw">'+esc(receipt.amountInWords)+'</div>':'')+
     (receipt.preparedBy?'<div class="pb">Seller: '+esc(receipt.preparedBy)+'</div>':'')+
