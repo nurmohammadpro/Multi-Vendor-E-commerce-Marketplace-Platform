@@ -1,5 +1,5 @@
 import { ForbiddenException, Inject, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
-import type { Pool } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 
 import type { AuthSession, StoreAuthContext } from '../auth/auth.types.js';
 import { normalizePageQuery, stripPaginationTotal } from '../common/pagination.js';
@@ -2258,6 +2258,10 @@ export class StoreOpsService {
       const categoryId = payload.categoryId || null;
       const brandId = payload.brandId || null;
 
+      // Resolve brand and category codes for SKU generation
+      const brandCode = await this.resolveBrandCode(client, brandId);
+      const categoryCode = await this.resolveCategoryCode(client, categoryId);
+
       // Generate purchase number (use same logic as createPurchase)
       const today = new Date().toISOString().slice(0, 10);
       const purchaseNo = await this.generatePurchaseNumber(storeId, today);
@@ -2286,7 +2290,8 @@ export class StoreOpsService {
           const cost = payload.variantCosts?.[i] ?? payload.unitCost;
           const vTs = Date.now() + i;
           const vBarcode = '2' + String(vTs).slice(-9) + String(Math.floor(Math.random() * 1000)).padStart(3, '0');
-          const skuCode = `${productCode}-${label.replace(/[^A-Za-z0-9]/g, '-').toUpperCase()}`.slice(0, 80);
+          const spec = this.encodeSkuSpec(label, productName);
+          const skuCode = await this.findUniqueSkuCode(client, storeId, brandCode, categoryCode, spec);
           const skuResult = await client.query<{ id: string }>(
             `insert into catalog.skus (id, tenant_id, store_id, product_id, sku_code, variant_label, barcode, status, created_at, updated_at)
              values (gen_random_uuid(), $1, $2, $3, $4, $5, 'active', now(), now()) returning id`,
@@ -2302,8 +2307,9 @@ export class StoreOpsService {
         }
       } else {
         const ts = Date.now();
-        const skuCode = productCode.slice(0, 40);
         const barcode = '2' + String(ts).slice(-9) + String(Math.floor(Math.random() * 1000)).padStart(3, '0');
+        const spec = this.encodeSkuSpec(null, productName);
+        const skuCode = await this.findUniqueSkuCode(client, storeId, brandCode, categoryCode, spec);
         const skuResult = await client.query<{ id: string }>(
           `insert into catalog.skus (id, tenant_id, store_id, product_id, sku_code, barcode, status, created_at, updated_at)
            values (gen_random_uuid(), $1, $2, $3, $4, $5, 'active', now(), now()) returning id`,
@@ -2415,6 +2421,10 @@ export class StoreOpsService {
       const categoryId = payload.categoryId || null;
       const brandId = payload.brandId || null;
 
+      // Resolve brand and category codes for SKU generation
+      const brandCode = await this.resolveBrandCode(client, brandId);
+      const categoryCode = await this.resolveCategoryCode(client, categoryId);
+
       // 1. Create exchange product
       const productResult = await client.query<{ id: string }>(
         `insert into catalog.products (id, tenant_id, store_id, product_code, name, category_id, brand_id, has_variants, variant_mode, is_trackable, product_type, status, created_at, updated_at)
@@ -2433,7 +2443,8 @@ export class StoreOpsService {
           const cost = payload.variantCosts?.[i] ?? payload.unitCost;
           const vTs = Date.now() + i;
           const vBarcode = '2' + String(vTs).slice(-9) + String(Math.floor(Math.random() * 1000)).padStart(3, '0');
-          const skuCode = `${productCode}-${label.replace(/[^A-Za-z0-9]/g, '-').toUpperCase()}`.slice(0, 80);
+          const spec = this.encodeSkuSpec(label, productName);
+          const skuCode = await this.findUniqueSkuCode(client, storeId, brandCode, categoryCode, spec);
           const skuResult = await client.query<{ id: string }>(
             `insert into catalog.skus (id, tenant_id, store_id, product_id, sku_code, variant_label, barcode, status, created_at, updated_at)
              values (gen_random_uuid(), $1, $2, $3, $4, $5, 'active', now(), now()) returning id`,
@@ -2448,7 +2459,8 @@ export class StoreOpsService {
         }
       } else {
         const ts = Date.now();
-        const skuCode = productCode.slice(0, 40);
+        const spec = this.encodeSkuSpec(null, productName);
+        const skuCode = await this.findUniqueSkuCode(client, storeId, brandCode, categoryCode, spec);
         const barcode = '2' + String(ts).slice(-9) + String(Math.floor(Math.random() * 1000)).padStart(3, '0');
         const skuResult = await client.query<{ id: string }>(
           `insert into catalog.skus (id, tenant_id, store_id, product_id, sku_code, barcode, status, created_at, updated_at)
@@ -2563,5 +2575,66 @@ export class StoreOpsService {
     return Number(cashSalesResult.rows[0]?.today_cash_sales_amount ?? 0)
       + Number(cashDueCollectionsResult.rows[0]?.today_cash_due_collection_amount ?? 0)
       - Number(cashExpensesResult.rows[0]?.today_cash_expense_amount ?? 0);
+  }
+
+  private async resolveBrandCode(client: PoolClient, brandId: string | null): Promise<string> {
+    if (!brandId) return 'GEN';
+    const result = await client.query<{ name: string }>('select name from catalog.brands where id = $1 limit 1', [brandId]);
+    if (!result.rows[0]) return 'GEN';
+    return result.rows[0].name.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 3).padEnd(3, 'X');
+  }
+
+  private async resolveCategoryCode(client: PoolClient, categoryId: string | null): Promise<string> {
+    if (!categoryId) return 'GN';
+    const result = await client.query<{ code: string }>('select code from catalog.categories where id = $1 limit 1', [categoryId]);
+    if (!result.rows[0]) return 'GN';
+    return result.rows[0].code.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 2).padEnd(2, 'X');
+  }
+
+  private encodeSkuSpec(variantLabel: string | null, productName: string): string {
+    if (variantLabel) {
+      const upper = variantLabel.toUpperCase();
+      let position = '';
+      if (/^FRONT\b/.test(upper) || /\bFRONT\b/.test(upper)) position = 'F';
+      else if (/^REAR\b/.test(upper) || /\bREAR\b/.test(upper)) position = 'R';
+      const widthMatch = upper.match(/(\d{2,3})/);
+      if (widthMatch) {
+        const width = widthMatch[1];
+        const widthCode = width.length >= 3 ? width.slice(0, 2) : width.padStart(2, '0');
+        if (position) return `${position}${widthCode}`;
+      }
+      return upper.replace(/[^A-Z0-9]/g, '').slice(0, 3).padEnd(3, 'X');
+    }
+    const upper = productName.toUpperCase();
+    const words = upper.split(/[^A-Z0-9]+/).filter(w => w.length > 0);
+    if (words.length > 1 && /^[A-Z]{2,6}$/.test(words[0])) {
+      const rest = words.slice(1).join('');
+      return rest.slice(0, 3).padEnd(3, 'X');
+    }
+    return upper.replace(/[^A-Z0-9]/g, '').slice(0, 3).padEnd(3, 'X');
+  }
+
+  private async findUniqueSkuCode(
+    client: PoolClient,
+    storeId: string,
+    brandCode: string,
+    categoryCode: string,
+    spec: string,
+  ): Promise<string> {
+    const base = `${brandCode}-${categoryCode}-${spec}`.slice(0, 80);
+    const result = await client.query(
+      'select 1 from catalog.skus where store_id = $1 and sku_code = $2 limit 1',
+      [storeId, base],
+    );
+    if (!result.rows.length) return base;
+    for (let i = 2; i <= 99; i++) {
+      const candidate = `${brandCode}-${categoryCode}-${spec.slice(0, 2)}${i}`.slice(0, 80);
+      const r = await client.query(
+        'select 1 from catalog.skus where store_id = $1 and sku_code = $2 limit 1',
+        [storeId, candidate],
+      );
+      if (!r.rows.length) return candidate;
+    }
+    return `${brandCode}-${categoryCode}-${spec.slice(0, 1)}${Date.now().toString(36).slice(-2).toUpperCase()}`.slice(0, 80);
   }
 }
