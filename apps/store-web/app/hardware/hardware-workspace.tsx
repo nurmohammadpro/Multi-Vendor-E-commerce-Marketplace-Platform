@@ -30,6 +30,7 @@ type CatalogItem = {
 type HardwareProfilePayload = {
   profile?: {
     bundlePreset?: string | null;
+    printerMode?: "pos_thermal" | "laser_a5";
     receiptPrinterModel?: string | null;
     labelPrinterModel?: string | null;
     barcodeScannerModel?: string | null;
@@ -277,7 +278,21 @@ export function HardwareWorkspace({ canManageSettings }: { canManageSettings: bo
                 <option value="mac_launchagent">macOS LaunchAgent</option>
                 <option value="manual">Manual start</option>
               </select>
-              <input value={remoteProfile?.receiptPrinterModel || ''} onChange={(event) => setRemoteProfile((current) => ({ ...current, receiptPrinterModel: event.target.value }))} style={fieldStyle} placeholder="Receipt printer model" />
+              <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 6 }}>Printer Mode</div>
+              <select 
+                value={remoteProfile?.printerMode || 'pos_thermal'} 
+                onChange={(event) => setRemoteProfile((current) => ({ ...current, printerMode: event.target.value as 'pos_thermal' | 'laser_a5' }))} 
+                style={fieldStyle}
+              >
+                <option value="pos_thermal">POS Thermal Printer (80mm receipt)</option>
+                <option value="laser_a5">Laser Printer (A5 paper)</option>
+              </select>
+              <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+                POS mode prints ESC/POS to thermal. Laser mode prints A5 invoice PDF through browser.
+              </div>
+            </div>
+            <input value={remoteProfile?.receiptPrinterModel || ''} onChange={(event) => setRemoteProfile((current) => ({ ...current, receiptPrinterModel: event.target.value }))} style={fieldStyle} placeholder="Receipt printer model" />
               <input value={remoteProfile?.labelPrinterModel || ''} onChange={(event) => setRemoteProfile((current) => ({ ...current, labelPrinterModel: event.target.value }))} style={fieldStyle} placeholder="Label printer model" />
               <input value={remoteProfile?.barcodeScannerModel || ''} onChange={(event) => setRemoteProfile((current) => ({ ...current, barcodeScannerModel: event.target.value }))} style={fieldStyle} placeholder="Barcode scanner model" />
               <input value={remoteProfile?.cashDrawerModel || ''} onChange={(event) => setRemoteProfile((current) => ({ ...current, cashDrawerModel: event.target.value }))} style={fieldStyle} placeholder="Cash drawer model" />
