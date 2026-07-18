@@ -719,7 +719,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                     paymentMethod: method,
                     amount: Number(entry.amount),
                     referenceNo: entry.reference || undefined,
-                    status: saleIsDue ? 'pending' : 'paid',
+                    status: 'paid',
                   }));
                 return paid;
               })()

@@ -367,11 +367,13 @@ export class PosService {
       const paymentStatus =
         paidAmount >= totalAmount
           ? 'paid'
-          : pendingAmount > 0 && paidAmount === 0
+          : payload.dueDate
             ? 'due'
-            : pendingAmount > 0
-              ? 'partial'
-              : 'unpaid';
+            : pendingAmount > 0 && paidAmount === 0
+              ? 'due'
+              : pendingAmount > 0
+                ? 'partial'
+                : 'unpaid';
 
       const skuIds = payload.items.map((item) => item.skuId);
       const skuProductResult = await client.query<{ sku_id: string; is_trackable: boolean }>(
