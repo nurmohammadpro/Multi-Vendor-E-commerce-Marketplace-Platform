@@ -2284,6 +2284,8 @@ export class StoreOpsService {
           const label = payload.variantLabels[i].trim();
           const price = payload.variantPrices?.[i] ?? payload.salePrice;
           const cost = payload.variantCosts?.[i] ?? payload.unitCost;
+          const vTs = Date.now() + i;
+          const vBarcode = '2' + String(vTs).slice(-9) + String(Math.floor(Math.random() * 1000)).padStart(3, '0');
           const skuCode = `${productCode}-${label.replace(/[^A-Za-z0-9]/g, '-').toUpperCase()}`.slice(0, 80);
           const skuResult = await client.query<{ id: string }>(
             `insert into catalog.skus (id, tenant_id, store_id, product_id, sku_code, variant_label, status, created_at, updated_at)
@@ -2427,6 +2429,8 @@ export class StoreOpsService {
           const label = payload.variantLabels[i].trim();
           const price = payload.variantPrices?.[i] ?? payload.salePrice;
           const cost = payload.variantCosts?.[i] ?? payload.unitCost;
+          const vTs = Date.now() + i;
+          const vBarcode = '2' + String(vTs).slice(-9) + String(Math.floor(Math.random() * 1000)).padStart(3, '0');
           const skuCode = `${productCode}-${label.replace(/[^A-Za-z0-9]/g, '-').toUpperCase()}`.slice(0, 80);
           const skuResult = await client.query<{ id: string }>(
             `insert into catalog.skus (id, tenant_id, store_id, product_id, sku_code, variant_label, status, created_at, updated_at)
