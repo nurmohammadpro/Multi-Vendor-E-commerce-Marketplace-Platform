@@ -97,6 +97,14 @@ export type ReceiptPayload = {
 };
 
 const money = (value: number | undefined | null) => Number(value ?? 0).toFixed(2);
+
+function grossSubtotal(items: ReceiptPayload['items']) {
+  return (items ?? []).reduce((sum, item) => sum + (item.isExchangeItem ? 0 : Number(item.lineTotal ?? 0)), 0);
+}
+
+function exAmount(exchange: ReceiptPayload['exchange']) {
+  return exchange ? Number(exchange.amount ?? 0) : 0;
+}
 const RECEIPT_COLUMNS = 32;
 const ESC = 0x1b;
 const GS = 0x1d;
@@ -127,6 +135,21 @@ export async function fetchPrintAgentPrinters(baseUrl = DEFAULT_PRINT_AGENT_URL)
 }
 
 export function formatReceiptText(receipt: ReceiptPayload) {
+  const t = receipt.totals ?? {};
+  const total = Number(t.total ?? 0);
+  const discount = Number(t.discount ?? 0);
+  const vat = Number(t.vat ?? 0);
+  const tax = Number(t.tax ?? 0);
+  const paid = Number(t.paid ?? 0);
+  const due = Number(t.due ?? 0);
+  const items = receipt.items ?? [];
+  const gst = grossSubtotal(items);
+  const exa = exAmount(receipt.exchange);
+  const payments = receipt.payments ?? [];
+
+  const columns = RECEIPT_COLUMNS;
+  const sep = '-'.repeat(columns);
+
   const lines = [
     receipt.store?.name || 'Store',
     'Sales Receipt',
@@ -135,33 +158,37 @@ export function formatReceiptText(receipt: ReceiptPayload) {
     receipt.customer?.name ? `Customer: ${receipt.customer.name}` : null,
     receipt.customer?.phone ? `Phone: ${receipt.customer.phone}` : null,
     receipt.customer?.shopName ? `Shop: ${receipt.customer.shopName}` : null,
-    '------------------------------',
-    ...(receipt.items ?? []).flatMap((item) => [
-      item.name || 'Item',
-      item.variantLabel ? `  ${item.variantLabel}` : null,
-      `${item.qty ?? 0} x ${money(item.unitPrice)} = ${money(item.lineTotal)}`,
-      item.skuCode ? `SKU: ${item.skuCode}` : null,
-    ]),
-    '------------------------------',
-    `Subtotal: ${money(receipt.totals?.subtotal)}`,
-    `Discount: ${money(receipt.totals?.discount)}`,
-    (receipt.totals?.vat ?? 0) > 0 ? `VAT: ${money(receipt.totals?.vat)}` : null,
-    (receipt.totals?.tax ?? 0) > 0 ? `Tax: ${money(receipt.totals?.tax)}` : null,
-    `Net Payable: ${money(receipt.totals?.total)}`,
-    `Paid: ${money(receipt.totals?.paid)}`,
-    `Due: ${money(receipt.totals?.due)}`,
-    `Change: ${money(receipt.totals?.change)}`,
-    ...(receipt.payments?.length
-      ? [
-          '------------------------------',
-          ...receipt.payments.map(
-            (payment) =>
-              `${payment.paymentMethod || 'payment'}${payment.status ? ` (${payment.status})` : ''}: ${money(payment.amount)}${payment.referenceNo ? ` · ${payment.referenceNo}` : ''}`,
-          ),
-        ]
-      : []),
-    receipt.amountInWords || null,
-    receipt.preparedBy ? `Seller: ${receipt.preparedBy}` : null,
+    sep,
+    'Item                     Qty     Total',
+    sep,
+    ...items.flatMap((item) => {
+      if (item.isExchangeItem) return [];
+      const rows: (string | null)[] = [item.name || 'Item'];
+      const right = `${item.qty ?? 0}  ${money(item.lineTotal)}`;
+      if (item.variantLabel) {
+        rows.push(padLine(`  ${item.variantLabel}`, right));
+      } else {
+        rows.push(padLine('', right));
+      }
+      if (item.skuCode) rows.push(`  SKU: ${item.skuCode}`);
+      return rows;
+    }),
+    sep,
+    padLine('Sub Total', money(gst)),
+    '',
+    ...(exa > 0 ? [padLine('Exchange (Optional)', `-${money(exa)}`)] : []),
+    ...(discount > 0 ? [padLine('Discount (Optional)', `-${money(discount)}`)] : []),
+    ...(vat > 0 ? [padLine('VAT (Optional)', money(vat))] : []),
+    ...(tax > 0 ? [padLine('Tax (Optional)', money(tax))] : []),
+    sep,
+    padLine('Net Payable', money(total)),
+    '',
+    ...(payments.length ? ['Payment:', ...payments.map((p) => padLine(p.paymentMethod || 'payment', money(p.amount)))] : []),
+    sep,
+    padLine('Due', money(due)),
+    sep,
+    ...(receipt.amountInWords ? [receipt.amountInWords] : []),
+    ...(receipt.preparedBy ? [`Seller: ${receipt.preparedBy}`] : []),
     receipt.note ? `Note: ${receipt.note}` : null,
     receipt.store?.footer || 'Thank you',
   ];
@@ -277,6 +304,17 @@ async function buildEscPosReceipt(receipt: ReceiptPayload) {
     chunks.push(...encoder.encode(`${sanitizeReceiptText(value)}\n`));
   };
 
+  const t = receipt.totals ?? {};
+  const total = Number(t.total ?? 0);
+  const discount = Number(t.discount ?? 0);
+  const vat = Number(t.vat ?? 0);
+  const tax = Number(t.tax ?? 0);
+  const due = Number(t.due ?? 0);
+  const gst = grossSubtotal(receipt.items);
+  const exa = exAmount(receipt.exchange);
+  const payments = receipt.payments ?? [];
+  const sep = '-'.repeat(RECEIPT_COLUMNS);
+
   if (receipt.store?.logoUrl) {
     try {
       chunks.push(ESC, 0x61, 1);
@@ -293,7 +331,7 @@ async function buildEscPosReceipt(receipt: ReceiptPayload) {
       pushText(centerText(wrapped), 1);
     }
   }
-  pushText('-'.repeat(RECEIPT_COLUMNS));
+  pushText(sep);
   pushText(centerText('Sales Receipt'), 1);
   pushText(receipt.saleNo ? padLine('Invoice No', receipt.saleNo) : '');
   pushText(`Date: ${sanitizeReceiptText(receipt.printedAt ? new Date(receipt.printedAt).toLocaleString() : new Date().toLocaleString())}`);
@@ -305,46 +343,51 @@ async function buildEscPosReceipt(receipt: ReceiptPayload) {
       pushText(wrapped);
     }
   }
-  pushText('-'.repeat(RECEIPT_COLUMNS));
+  pushText(sep);
+  pushText(padLine('Item', 'Qty  Total'));
+  pushText(sep);
 
   for (const item of receipt.items ?? []) {
+    if (item.isExchangeItem) continue;
     pushText(sanitizeReceiptText(item.name || 'Item'));
-    if (item.variantLabel) pushText(sanitizeReceiptText(`  ${item.variantLabel}`));
-    pushText(padLine(`${Number(item.qty ?? 0)} x ${money(item.unitPrice)}`, money(item.lineTotal)));
-    if (item.skuCode) pushText(`SKU: ${item.skuCode}`);
+    const right = `${item.qty ?? 0}  ${money(item.lineTotal)}`;
+    if (item.variantLabel) {
+      pushText(padLine(`  ${item.variantLabel}`, right));
+    } else {
+      pushText(padLine('', right));
+    }
+    if (item.skuCode) pushText(`  SKU: ${item.skuCode}`);
   }
 
-  pushText('-'.repeat(RECEIPT_COLUMNS));
-  pushText(padLine('Subtotal', money(receipt.totals?.subtotal)));
-  pushText(padLine('Discount', money(receipt.totals?.discount)));
-  if ((receipt.totals?.vat ?? 0) > 0) pushText(padLine('VAT', money(receipt.totals?.vat)));
-  if ((receipt.totals?.tax ?? 0) > 0) pushText(padLine('Tax', money(receipt.totals?.tax)));
-  pushText(padLine('Net Payable', money(receipt.totals?.total)));
-  pushText(padLine('Paid', money(receipt.totals?.paid)));
-  pushText(padLine('Due', money(receipt.totals?.due)));
-  if ((receipt.totals?.change ?? 0) > 0) {
-    pushText(padLine('Change', money(receipt.totals?.change)));
-  }
-  if (receipt.payments?.length) {
-    pushText('-'.repeat(RECEIPT_COLUMNS));
-    for (const payment of receipt.payments) {
-      pushText(
-        padLine(
-          `${payment.paymentMethod || 'payment'}${payment.status ? ` (${payment.status})` : ''}`,
-          money(payment.amount),
-        ),
-      );
+  pushText(sep);
+  pushText(padLine('Sub Total', money(gst)));
+  pushText('');
+  if (exa > 0) pushText(padLine('Exchange (Optional)', `-${money(exa)}`));
+  if (discount > 0) pushText(padLine('Discount (Optional)', `-${money(discount)}`));
+  if (vat > 0) pushText(padLine('VAT (Optional)', money(vat)));
+  if (tax > 0) pushText(padLine('Tax (Optional)', money(tax)));
+  pushText(sep);
+  pushText(padLine('Net Payable', money(total)));
+  pushText('');
+
+  if (payments.length) {
+    pushText('Payment:');
+    for (const p of payments) {
+      pushText(padLine(p.paymentMethod || 'payment', money(p.amount)));
     }
   }
+
+  pushText(sep);
+  pushText(padLine('Due', money(due)));
+  pushText(sep);
+
   if (receipt.amountInWords) {
-    pushText('-'.repeat(RECEIPT_COLUMNS));
-    pushText(centerText(sanitizeReceiptText(receipt.amountInWords)), 1);
+    pushText(sanitizeReceiptText(receipt.amountInWords));
   }
   if (receipt.preparedBy) {
-    pushText(centerText(`Seller: ${sanitizeReceiptText(receipt.preparedBy)}`), 1);
+    pushText(`Seller: ${sanitizeReceiptText(receipt.preparedBy)}`);
   }
   if (receipt.store?.footer) {
-    pushText('-'.repeat(RECEIPT_COLUMNS));
     for (const wrapped of wrapText(receipt.store.footer)) {
       pushText(centerText(wrapped), 1);
     }
