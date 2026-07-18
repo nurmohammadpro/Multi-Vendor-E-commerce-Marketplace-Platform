@@ -173,10 +173,15 @@ export class PosController {
   listSales(
     @Headers('x-store-id') headerStoreId: string | undefined,
     @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @Query('query') query?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
-    return this.posService.listSales(headerStoreId, authContext, Number(page) || 1, Number(limit) || 15);
+    return this.posService.listSales(headerStoreId, authContext, {
+      query,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
   }
 
   @Get('sales/:saleId')
