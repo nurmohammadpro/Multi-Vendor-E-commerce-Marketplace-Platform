@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   accentButtonStyle,
   dangerButtonStyle,
   emptyStateStyle,
   fieldStyle,
+  gray800ButtonStyle,
   pageShellStyle,
   searchButtonStyle,
   secondaryButtonStyle,
@@ -33,19 +34,32 @@ const formatMoney = (v: string | number | null | undefined) => Number(Number(v ?
 
 async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
   const response = await fetch(input, init);
-  const payload = (await response.json().catch(() => null)) as T | { error?: string } | null;
+  const payload = (await response.json().catch(() => null)) as T | { error?: string; message?: string | string[] } | null;
+
   if (!response.ok) {
-    throw new Error(payload && typeof payload === 'object' && ((payload as any).error || (payload as any).message) ? ((payload as any).error || (payload as any).message) : `Request failed with ${response.status}`);
+    let message = `Request failed with ${response.status}`;
+    if (payload && typeof payload === 'object') {
+      const err = payload as { error?: string; message?: string | string[] };
+      if (typeof err.message === 'string') {
+        message = err.message;
+      } else if (Array.isArray(err.message) && err.message.length > 0) {
+        message = err.message[0];
+      } else if (typeof err.error === 'string') {
+        message = err.error;
+      }
+    }
+    throw new Error(message);
   }
+
   return payload as T;
 }
 
 function MetricTile({ label, amount, count }: { label: string; amount?: string | number; count?: string | number }) {
   return (
     <article style={{ ...surfaceCardStyle, padding: '10px 14px' }}>
-      <div style={{ fontSize: 10, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>{label}</div>
+      <div style={{ fontSize: 10, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>{label}</div>
       <div style={{ fontSize: 18, fontWeight: 600, marginTop: 4 }}>BDT {formatMoney(amount)}</div>
-      <div style={{ fontSize: 11, color: '#94a3b8' }}>{count ?? '—'} invoices</div>
+      <div style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>{count ?? '—'} invoices</div>
     </article>
   );
 }
@@ -72,6 +86,9 @@ export function PurchasesWorkspace() {
   const [purchaseSearch, setPurchaseSearch] = useState('');
   const [purchaseStatus, setPurchaseStatus] = useState('');
   const [skuSearch, setSkuSearch] = useState('');
+  const [showSkuSuggestions, setShowSkuSuggestions] = useState(false);
+  const [skuSearching, setSkuSearching] = useState(false);
+  const skuDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Quick Add + Receive
   const [quickName, setQuickName] = useState('');
@@ -84,8 +101,26 @@ export function PurchasesWorkspace() {
   const [quickBrandId, setQuickBrandId] = useState('');
   const [quickNewCategory, setQuickNewCategory] = useState('');
   const [quickNewBrand, setQuickNewBrand] = useState('');
+  // Exchange product form
+  const [exCustomerName, setExCustomerName] = useState('');
+  const [exCustomerPhone, setExCustomerPhone] = useState('');
+  const [exCustomerEmail, setExCustomerEmail] = useState('');
+  const [exName, setExName] = useState('');
+  const [exCategoryId, setExCategoryId] = useState('');
+  const [exBrandId, setExBrandId] = useState('');
+  const [exHasVariants, setExHasVariants] = useState(false);
+  const [exIsTrackable, setExIsTrackable] = useState(false);
+  const [exSalePrice, setExSalePrice] = useState('');
+  const [exUnitCost, setExUnitCost] = useState('');
+  const [exQty, setExQty] = useState('1');
+  const [exVariantRows, setExVariantRows] = useState<Array<{ key: string; label: string; price: string; cost: string }>>([]);
+  const [exVariantInput, setExVariantInput] = useState('');
+  const [exVariantPrice, setExVariantPrice] = useState('');
+  const [exVariantCost, setExVariantCost] = useState('');
+  const [exSaving, setExSaving] = useState(false);
   // Variants with individual pricing
   const [quickHasVariants, setQuickHasVariants] = useState(false);
+  const [quickIsTrackable, setQuickIsTrackable] = useState(true);
   const [quickVariantRows, setQuickVariantRows] = useState<Array<{ key: string; label: string; price: string; cost: string; qty: string }>>([]);
   const [quickVariantInput, setQuickVariantInput] = useState('');
   const [quickVariantPrice, setQuickVariantPrice] = useState('');
@@ -164,14 +199,29 @@ export function PurchasesWorkspace() {
 
   const searchSkus = async () => {
     if (!skuSearch.trim()) { setSkuResults([]); return; }
-    setLoading(true);
+    setSkuSearching(true);
     try {
       const payload = await readJson<{ skus: SkuResult[] }>(`/api/catalog/skus/search?q=${encodeURIComponent(skuSearch.trim())}&limit=12`);
       setSkuResults(payload.skus ?? []);
+      setShowSkuSuggestions((payload.skus?.length ?? 0) > 0);
       setMessage(`Found ${payload.skus?.length ?? 0} SKU(s).`);
     } catch (error) { setMessage((error as Error).message); }
-    finally { setLoading(false); }
+    finally { setSkuSearching(false); }
   };
+
+  // Debounce auto-search for SKU lookup (like POS)
+  useEffect(() => {
+    if (skuDebounceRef.current) clearTimeout(skuDebounceRef.current);
+    if (!skuSearch.trim()) {
+      setSkuResults([]);
+      setShowSkuSuggestions(false);
+      setSkuSearching(false);
+      return;
+    }
+    setSkuSearching(true);
+    skuDebounceRef.current = setTimeout(() => { void searchSkus(); }, 150);
+    return () => { if (skuDebounceRef.current) clearTimeout(skuDebounceRef.current); };
+  }, [skuSearch]);
 
   const addSkuItem = (sku: SkuResult) => {
     setItems((cur) => {
@@ -210,7 +260,7 @@ export function PurchasesWorkspace() {
         categoryId: quickCategoryId || undefined, brandId: quickBrandId || undefined,
         salePrice: Number(row.price || 0), purchaseQty: Number(row.qty || 1),
         unitCost: Number(row.cost || 0), paidAmount: Number(quickPaid || 0),
-        hasVariants: false, variantLabels: undefined, note: '',
+        hasVariants: false, variantLabels: undefined, isTrackable: quickIsTrackable, note: '',
       })) : [{
         productName: quickName.trim(),
         supplierId: quickSupplierId, locationId: quickLocationId,
@@ -219,7 +269,7 @@ export function PurchasesWorkspace() {
         purchaseQty: Number(quickVariantRows[0]?.qty || 1),
         unitCost: Number(quickVariantRows[0]?.cost || 0),
         paidAmount: Number(quickPaid || 0),
-        hasVariants: false, variantLabels: undefined, note: '',
+        hasVariants: false, variantLabels: undefined, isTrackable: quickIsTrackable, note: '',
       }];
 
       let lastResult: any = null;
@@ -261,6 +311,54 @@ export function PurchasesWorkspace() {
     finally { setLoading(false); }
   };
 
+  // ── Exchange Product ──
+
+  const addExVariantRow = () => {
+    const label = exVariantInput.trim();
+    if (!label) return;
+    setExVariantRows((cur) => [...cur, {
+      key: String(Date.now()),
+      label,
+      price: exVariantPrice || exVariantRows[exVariantRows.length - 1]?.price || '',
+      cost: exVariantCost || exVariantRows[exVariantRows.length - 1]?.cost || '',
+    }]);
+    setExVariantInput(''); setExVariantPrice(''); setExVariantCost('');
+  };
+
+  const createExchangeProduct = async () => {
+    if (!exCustomerName.trim() || !exCustomerPhone.trim()) { setMessage('Customer name and phone are required.'); return; }
+    if (!exName.trim()) { setMessage('Product name is required.'); return; }
+    const hasRows = exHasVariants && exVariantRows.length > 0;
+    if (!hasRows && exHasVariants) { setMessage('Add at least one variant row.'); return; }
+    setExSaving(true);
+    try {
+      const bodies = hasRows ? exVariantRows.map((row) => ({
+        productName: `${exName.trim()} · ${row.label}`,
+        customerName: exCustomerName.trim(), customerPhone: exCustomerPhone.trim(), customerEmail: exCustomerEmail.trim() || undefined,
+        categoryId: exCategoryId || undefined, brandId: exBrandId || undefined,
+        salePrice: Number(row.price || 0), unitCost: Number(row.cost || 0),
+        hasVariants: false, isTrackable: exIsTrackable, note: '',
+      })) : [{
+        productName: exName.trim(),
+        customerName: exCustomerName.trim(), customerPhone: exCustomerPhone.trim(), customerEmail: exCustomerEmail.trim() || undefined,
+        categoryId: exCategoryId || undefined, brandId: exBrandId || undefined,
+        salePrice: Number(exSalePrice || 0) * Number(exQty || 1), unitCost: Number(exUnitCost || 0) * Number(exQty || 1),
+        hasVariants: false, isTrackable: exIsTrackable, note: '',
+      }];
+
+      let lastResult: any = null;
+      for (const body of bodies) {
+        lastResult = await readJson<any>('/api/store-ops/quick-exchange', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      }
+      const count = bodies.length;
+      setMessage(`✓ Exchange product "${lastResult?.product?.name}" created for ${exCustomerName}.`);
+      setExName(''); setExCustomerName(''); setExCustomerPhone(''); setExCustomerEmail('');
+      setExSalePrice(''); setExUnitCost(''); setExQty('1'); setExVariantRows([]); setExHasVariants(false);
+      setExCategoryId(''); setExBrandId('');
+    } catch (error) { const msg = (error as Error).message; setMessage(msg); toast.error(msg); }
+    finally { setExSaving(false); }
+  };
+
 
   // ── Regular Purchase ──
 
@@ -269,8 +367,8 @@ export function PurchasesWorkspace() {
     if (!items.length) { setMessage('Add at least one SKU line to receive stock.'); return; }
     setLoading(true);
     try {
-      const payload = await readJson<{ purchase: { id: string; purchaseNo: string } }>('/api/store-ops/purchases', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ supplierId: purchaseForm.supplierId, locationId: purchaseForm.locationId, purchaseDate: purchaseForm.purchaseDate, invoiceNo: purchaseForm.invoiceNo.trim() || undefined, discountAmount: Number(purchaseForm.discountAmount || 0), taxAmount: Number(purchaseForm.taxAmount || 0), shippingAmount: Number(purchaseForm.shippingAmount || 0), paidAmount: Number(purchaseForm.paidAmount || 0), paymentMethod: purchaseForm.paymentMethod, paymentReference: purchaseForm.paymentReference || undefined, note: purchaseForm.note || undefined, items: items.map((i) => ({ skuId: i.skuId, qty: Number(i.qty), unitCost: Number(i.unitCost), batchNo: i.batchNo || undefined, expiryDate: i.expiryDate || undefined })) }) });
-      setMessage(`✓ Purchase ${payload.purchase.purchaseNo} received. Stock updated.`);
+      const payload = await readJson<{ purchaseId: string; purchaseNo: string; totalAmount: number; paidAmount: number; paymentStatus: string }>('/api/store-ops/purchases', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ supplierId: purchaseForm.supplierId, locationId: purchaseForm.locationId, purchaseDate: purchaseForm.purchaseDate, invoiceNo: purchaseForm.invoiceNo.trim() || undefined, discountAmount: Number(purchaseForm.discountAmount || 0), taxAmount: Number(purchaseForm.taxAmount || 0), shippingAmount: Number(purchaseForm.shippingAmount || 0), paidAmount: Number(purchaseForm.paidAmount || 0), paymentMethod: purchaseForm.paymentMethod, paymentReferenceNo: purchaseForm.paymentReference || undefined, note: purchaseForm.note || undefined, items: items.map((i) => ({ skuId: i.skuId, qty: Number(i.qty), unitCost: Number(i.unitCost), batchNo: i.batchNo || undefined, expiryDate: i.expiryDate || undefined })) }) });
+      setMessage(`✓ Purchase ${payload.purchaseNo} received. Stock updated.`);
       setItems([]); setSkuSearch(''); setSkuResults([]);
       setPurchaseForm((c) => ({ ...c, invoiceNo: '', discountAmount: '0', taxAmount: '0', shippingAmount: '0', paidAmount: '0', paymentReference: '', note: '' }));
       await refresh();
@@ -311,7 +409,7 @@ export function PurchasesWorkspace() {
     <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
       {/* ── Navigation pager ── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-        <p style={{ margin: 0, color: '#475569', fontSize: 13 }}>{message}</p>
+        <p style={{ margin: 0, color: 'var(--muted-foreground)', fontSize: 13 }}>{message}</p>
         <WorkspaceTabs active={activeTab} onChange={(key) => setActiveTab(key as any)} tabs={[{ key: 'receive', label: 'Receive Stock' }, { key: 'purchases', label: 'Purchases' }, { key: 'payables', label: 'Payables' }]} />
       </div>
 
@@ -321,7 +419,7 @@ export function PurchasesWorkspace() {
         {/* ── Quick Add Product + Receive Stock ── */}
         <article style={{ ...surfaceCardStyle, border: '2px solid #1e293b', padding: 14 }}>
           <h3 style={{ marginTop: 0, marginBottom: 4, fontSize: 15 }}>New Product + Receive Stock</h3>
-          <p style={{ margin: '0 0 14px', color: '#64748b', fontSize: 12 }}>Name the product, choose category/brand, add variants, set prices, receive stock — all in one form.</p>
+          <p style={{ margin: '0 0 14px', color: 'var(--muted-foreground)', fontSize: 12 }}>Name the product, choose category/brand, add variants, set prices, receive stock — all in one form.</p>
 
           {/* Product name */}
           <input value={quickName} onChange={(e) => setQuickName(e.target.value)} style={{ ...fieldStyle, marginBottom: 10 }} placeholder="Product name (required)" />
@@ -361,7 +459,13 @@ export function PurchasesWorkspace() {
           {/* Variants toggle */}
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, cursor: 'pointer' }}>
             <input type="checkbox" checked={quickHasVariants} onChange={(e) => { setQuickHasVariants(e.target.checked); if (!e.target.checked) setQuickVariantRows([]); }} style={{ accentColor: '#0f172a' }} />
-            <span style={{ fontSize: 13, color: '#334155' }}>Has variants (sizes, colors, etc.)</span>
+            <span style={{ fontSize: 13, color: 'var(--muted-foreground)' }}>Has variants (sizes, colors, etc.)</span>
+          </label>
+
+          {/* Trackable toggle */}
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, cursor: 'pointer' }}>
+            <input type="checkbox" checked={quickIsTrackable} onChange={(e) => setQuickIsTrackable(e.target.checked)} style={{ accentColor: '#0f172a' }} />
+            <span style={{ fontSize: 13, color: 'var(--muted-foreground)' }}>Track inventory (stock levels)</span>
           </label>
 
           {/* Variant input row */}
@@ -372,7 +476,7 @@ export function PurchasesWorkspace() {
                 <input value={quickVariantPrice} onChange={(e) => setQuickVariantPrice(e.target.value)} style={{ ...fieldStyle, width: 90 }} placeholder="Price" />
                 <input value={quickVariantCost} onChange={(e) => setQuickVariantCost(e.target.value)} style={{ ...fieldStyle, width: 90 }} placeholder="Cost" />
                 <input value={quickVariantQty} onChange={(e) => setQuickVariantQty(e.target.value)} style={{ ...fieldStyle, width: 70 }} placeholder="Qty" />
-                <button onClick={addVariantRow} style={{ ...accentButtonStyle, minWidth: 60, fontSize: 11 }} disabled={loading || !quickVariantInput.trim()}>Add</button>
+                <button onClick={addVariantRow} style={{ ...gray800ButtonStyle, minWidth: 60, fontSize: 11 }} disabled={loading || !quickVariantInput.trim()}>Add</button>
               </div>
 
               {quickVariantRows.length ? (
@@ -416,7 +520,7 @@ export function PurchasesWorkspace() {
             <input type="number" min="0" step="0.01" value={quickPaid} onChange={(e) => setQuickPaid(e.target.value)} style={fieldStyle} placeholder="Paid amount (BDT)" />
           </div>
 
-          <button onClick={quickReceive} style={{ ...accentButtonStyle, width: '100%', minHeight: 36 }} disabled={loading || quickSaving || !quickName.trim()}>
+          <button onClick={quickReceive} style={{ ...gray800ButtonStyle, width: '100%', minHeight: 36 }} disabled={loading || quickSaving || !quickName.trim()}>
             {quickSaving ? 'Saving...' : `Create & Receive Stock (${quickHasVariants && quickVariantRows.length ? quickVariantRows.length : 1} item${quickHasVariants && quickVariantRows.length > 1 ? 's' : ''})`}
           </button>
         </article>
@@ -424,22 +528,22 @@ export function PurchasesWorkspace() {
         {/* ── Regular Purchase (existing products) ── */}
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0, marginBottom: 4, fontSize: 15 }}>Receive Existing Products</h3>
-          <p style={{ margin: '0 0 12px', color: '#64748b', fontSize: 12 }}>Add products already in your catalog. Use Quick Add above for new products.</p>
+          <p style={{ margin: '0 0 12px', color: 'var(--muted-foreground)', fontSize: 12 }}>Add products already in your catalog. Use Quick Add above for new products.</p>
 
           <details style={{ marginBottom: 12 }}>
-            <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#475569' }}>+ Add supplier or location</summary>
+            <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 600, color: 'var(--muted-foreground)' }}>+ Add supplier or location</summary>
             <div style={{ display: 'grid', gap: 10, marginTop: 10 }}>
               {/* Supplier mini-form */}
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <input value={supplierForm.companyName} onChange={(e) => setSupplierForm((c) => ({ ...c, companyName: e.target.value }))} style={{ ...fieldStyle, flex: 1, minWidth: 160 }} placeholder="Company name" />
                 <input value={supplierForm.phone} onChange={(e) => setSupplierForm((c) => ({ ...c, phone: e.target.value }))} style={{ ...fieldStyle, width: 160 }} placeholder="Phone (optional)" />
-                <button onClick={createSupplier} style={accentButtonStyle} disabled={loading}>Add Supplier</button>
+                <button onClick={createSupplier} style={gray800ButtonStyle} disabled={loading}>Add Supplier</button>
               </div>
               {/* Location mini-form */}
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <input value={newLocationCode} onChange={(e) => setNewLocationCode(e.target.value)} style={{ ...fieldStyle, width: 120 }} placeholder="Code (WH-01)" />
                 <input value={newLocationName} onChange={(e) => setNewLocationName(e.target.value)} style={{ ...fieldStyle, flex: 1, minWidth: 160 }} placeholder="Name (Main Warehouse)" />
-                <button onClick={createLocation} style={accentButtonStyle} disabled={loading}>Add Location</button>
+                <button onClick={createLocation} style={gray800ButtonStyle} disabled={loading}>Add Location</button>
               </div>
             </div>
           </details>
@@ -458,29 +562,28 @@ export function PurchasesWorkspace() {
           </div>
 
           {/* SKU search */}
-          <div style={{ ...searchRowStyle, marginBottom: 10 }}>
-            <input value={skuSearch} onChange={(e) => setSkuSearch(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); searchSkus(); } }} style={{ ...fieldStyle, flex: 1, width: 'auto' }} placeholder="Search existing product or SKU to add" />
-            <button onClick={searchSkus} style={searchButtonStyle} disabled={loading}>Find</button>
-          </div>
-
-          {skuResults.length ? (
-            <div style={{ ...tableWrapStyle, marginBottom: 10 }}>
-              <table style={tableStyle}>
-                <thead><tr><th style={tableHeaderCellStyle}>Product</th><th style={tableHeaderCellStyle}>SKU</th><th style={tableHeaderCellStyle}>Price</th><th style={tableHeaderCellStyle}>Stock</th><th style={tableHeaderCellStyle}></th></tr></thead>
-                <tbody>
-                  {skuResults.map((sku) => (
-                    <tr key={sku.id}>
-                      <td style={tableCellStyle}><div style={{ fontWeight: 600 }}>{sku.product_name}</div>{sku.variant_label ? <div style={{ fontSize: 11, color: '#64748b' }}>{sku.variant_label}</div> : null}</td>
-                      <td style={tableCellStyle}>{sku.sku_code}</td>
-                      <td style={tableCellStyle}>{formatMoney(sku.sale_price)}</td>
-                      <td style={tableCellStyle}>{Number(sku.available_qty ?? 0)}</td>
-                      <td style={tableCellStyle}><button onClick={() => addSkuItem(sku)} style={secondaryButtonStyle}>+ Add</button></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          <div style={{ position: 'relative' }}>
+            <div style={{ ...searchRowStyle, marginBottom: 10 }}>
+              <div style={{ position: 'relative', flex: 1 }}>
+                <input value={skuSearch} onChange={(e) => { setSkuSearch(e.target.value); if (e.target.value) setShowSkuSuggestions(true); }} onFocus={() => { if (skuResults.length > 0) setShowSkuSuggestions(true); }} onBlur={() => setTimeout(() => setShowSkuSuggestions(false), 200)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); setShowSkuSuggestions(false); void searchSkus(); } }} style={{ ...fieldStyle, width: '100%' }} placeholder="Search existing product or SKU to add" />
+                {skuSearching ? <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted-foreground)', fontSize: 12 }}>searching...</span> : null}
+              </div>
+              <button onClick={() => { setShowSkuSuggestions(false); searchSkus(); }} style={searchButtonStyle} disabled={skuSearching}>Find</button>
             </div>
-          ) : null}
+
+            {showSkuSuggestions && skuResults.length > 0 ? (
+              <div style={{ position: 'absolute', left: 0, right: 0, top: '100%', zIndex: 50, marginTop: -6, background: 'var(--card)', borderRadius: 10, border: '1px solid var(--border)', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', maxHeight: 340, overflowY: 'auto', marginBottom: 10 }}>
+                {skuResults.map((sku) => (
+                  <div key={sku.id} onMouseDown={(e) => e.preventDefault()} onClick={() => { addSkuItem(sku); }} style={{ display: 'flex', alignItems: 'center', padding: '10px 12px', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>{sku.product_name}</div>
+                      <div style={{ color: 'var(--muted-foreground)', fontSize: 12, marginTop: 2 }}>{sku.sku_code}{sku.variant_label ? ` · ${sku.variant_label}` : ''} · Stock: {Number(sku.available_qty ?? 0)} · BDT {formatMoney(sku.sale_price)}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
 
           {items.length ? (
             <div style={{ ...tableWrapStyle, marginBottom: 10 }}>
@@ -505,7 +608,7 @@ export function PurchasesWorkspace() {
 
           {/* Totals + Receive */}
           <details style={{ marginBottom: 10 }}>
-            <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#475569' }}>Payment details</summary>
+            <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 600, color: 'var(--muted-foreground)' }}>Payment details</summary>
             <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8, marginTop: 8 }}>
               <input type="number" min="0" step="0.01" value={purchaseForm.discountAmount} onChange={(e) => setPurchaseForm((c) => ({ ...c, discountAmount: e.target.value }))} style={fieldStyle} placeholder="Discount" />
               <input type="number" min="0" step="0.01" value={purchaseForm.taxAmount} onChange={(e) => setPurchaseForm((c) => ({ ...c, taxAmount: e.target.value }))} style={fieldStyle} placeholder="Tax" />
@@ -521,14 +624,108 @@ export function PurchasesWorkspace() {
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
             <div style={{ fontSize: 13 }}>
-              <span style={{ color: '#475569' }}>Subtotal: </span><strong>BDT {formatMoney(lineTotal.subtotal)}</strong>
-              <span style={{ color: '#475569', marginLeft: 12 }}>Total: </span><strong style={{ fontSize: 16 }}>BDT {formatMoney(lineTotal.total)}</strong>
+              <span style={{ color: 'var(--muted-foreground)' }}>Subtotal: </span><strong>BDT {formatMoney(lineTotal.subtotal)}</strong>
+              <span style={{ color: 'var(--muted-foreground)', marginLeft: 12 }}>Total: </span><strong style={{ fontSize: 16 }}>BDT {formatMoney(lineTotal.total)}</strong>
               {lineTotal.outstanding > 0 ? <span style={{ color: '#b45309', marginLeft: 8, fontSize: 12 }}>(BDT {formatMoney(lineTotal.outstanding)} unpaid)</span> : null}
             </div>
-            <button onClick={createPurchase} style={{ ...accentButtonStyle, minHeight: 36, minWidth: 180 }} disabled={loading || !items.length}>
+            <button onClick={createPurchase} style={{ ...gray800ButtonStyle, minHeight: 36, minWidth: 180 }} disabled={loading || !items.length}>
               {loading ? 'Saving...' : 'Receive Stock'}
             </button>
           </div>
+        </article>
+
+        {/* ── Add Exchange Product ── */}
+        <article style={{ ...surfaceCardStyle, border: '2px solid #1e293b', padding: 14 }}>
+          <h3 style={{ marginTop: 0, marginBottom: 4, fontSize: 15 }}>Add Exchange Product</h3>
+          <p style={{ margin: '0 0 14px', color: 'var(--muted-foreground)', fontSize: 12 }}>Record a product accepted as a trade-in/exchange from a customer.</p>
+
+          {/* Customer fields */}
+          <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : '1fr 1fr 1fr', gap: 8, marginBottom: 10 }}>
+            <input value={exCustomerName} onChange={(e) => setExCustomerName(e.target.value)} style={fieldStyle} placeholder="Customer name (required)" />
+            <input value={exCustomerPhone} onChange={(e) => setExCustomerPhone(e.target.value)} style={fieldStyle} placeholder="Customer phone (required)" />
+            <input value={exCustomerEmail} onChange={(e) => setExCustomerEmail(e.target.value)} style={fieldStyle} placeholder="Customer email (optional)" />
+          </div>
+
+          {/* Product name */}
+          <input value={exName} onChange={(e) => setExName(e.target.value)} style={{ ...fieldStyle, marginBottom: 10 }} placeholder="Product name (required)" />
+
+          {/* Category + Brand */}
+          <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : '1fr 1fr', gap: 8, marginBottom: 10 }}>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <select value={exCategoryId} onChange={(e) => setExCategoryId(e.target.value)} style={{ ...fieldStyle, flex: 1 }}>
+                <option value="">No category</option>
+                {categoryTree.map((parent) => (
+                  <React.Fragment key={parent.id}>
+                    <option value={parent.id} style={{ fontWeight: 600 }}>{parent.name}</option>
+                    {parent.children.map((child) => (
+                      <option key={child.id} value={child.id} style={{ paddingLeft: 16 }}>&nbsp;&nbsp;&nbsp;↳ {child.name}</option>
+                    ))}
+                  </React.Fragment>
+                ))}
+              </select>
+              <input value={quickNewCategory} onChange={(e) => setQuickNewCategory(e.target.value)} style={{ ...fieldStyle, width: 130 }} placeholder={exCategoryId ? "New subcategory" : "New category"} />
+              <button onClick={createCategoryQuick} style={{ ...secondaryButtonStyle, minWidth: 50, fontSize: 11 }} disabled={loading || !quickNewCategory.trim()}>+</button>
+            </div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <select value={exBrandId} onChange={(e) => setExBrandId(e.target.value)} style={{ ...fieldStyle, flex: 1 }}>
+                <option value="">No brand</option>
+                {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+              <input value={quickNewBrand} onChange={(e) => setQuickNewBrand(e.target.value)} style={{ ...fieldStyle, width: 120 }} placeholder="New brand" />
+              <button onClick={createBrandQuick} style={{ ...secondaryButtonStyle, minWidth: 50, fontSize: 11 }} disabled={loading || !quickNewBrand.trim()}>+</button>
+            </div>
+          </div>
+
+          {/* Variants toggle */}
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, cursor: 'pointer' }}>
+            <input type="checkbox" checked={exHasVariants} onChange={(e) => { setExHasVariants(e.target.checked); if (!e.target.checked) setExVariantRows([]); }} style={{ accentColor: '#0f172a' }} />
+            <span style={{ fontSize: 13, color: 'var(--muted-foreground)' }}>Has variants (sizes, colors, etc.)</span>
+          </label>
+
+          {/* Trackable toggle */}
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, cursor: 'pointer' }}>
+            <input type="checkbox" checked={exIsTrackable} onChange={(e) => setExIsTrackable(e.target.checked)} style={{ accentColor: '#0f172a' }} />
+            <span style={{ fontSize: 13, color: 'var(--muted-foreground)' }}>Track inventory (stock levels)</span>
+          </label>
+
+          {/* Variant rows */}
+          {exHasVariants ? (
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+                <input value={exVariantInput} onChange={(e) => setExVariantInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addExVariantRow(); } }} style={{ ...fieldStyle, flex: 1, minWidth: 100 }} placeholder="Variant label" />
+                <input value={exVariantPrice} onChange={(e) => setExVariantPrice(e.target.value)} style={{ ...fieldStyle, width: 90 }} placeholder="Price" />
+                <input value={exVariantCost} onChange={(e) => setExVariantCost(e.target.value)} style={{ ...fieldStyle, width: 90 }} placeholder="Cost" />
+                <button onClick={addExVariantRow} style={{ ...gray800ButtonStyle, minWidth: 60, fontSize: 11 }} disabled={!exVariantInput.trim()}>Add</button>
+              </div>
+              {exVariantRows.length ? (
+                <div style={tableWrapStyle}>
+                  <table style={tableStyle}>
+                    <thead><tr><th style={tableHeaderCellStyle}>Variant</th><th style={tableHeaderCellStyle}>Price</th><th style={tableHeaderCellStyle}>Cost</th><th style={tableHeaderCellStyle}></th></tr></thead>
+                    <tbody>
+                      {exVariantRows.map((row) => (
+                        <tr key={row.key}>
+                          <td style={tableCellStyle}><strong>{row.label}</strong></td>
+                          <td style={tableCellStyle}>{row.price ? `BDT ${Number(row.price).toFixed(2)}` : '—'}</td>
+                          <td style={tableCellStyle}>{row.cost ? `BDT ${Number(row.cost).toFixed(2)}` : '—'}</td>
+                          <td style={tableCellStyle}><button onClick={() => setExVariantRows((cur) => cur.filter((r) => r.key !== row.key))} style={dangerButtonStyle}>✕</button></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr 1fr' : 'repeat(3, 1fr)', gap: 8, marginBottom: 10 }}>
+              <input type="number" min="0" step="0.01" value={exSalePrice} onChange={(e) => setExSalePrice(e.target.value)} style={fieldStyle} placeholder="Sale price (BDT)" />
+              <input type="number" min="0" step="0.01" value={exUnitCost} onChange={(e) => setExUnitCost(e.target.value)} style={fieldStyle} placeholder="Unit cost (BDT)" />
+              <input type="number" min="1" step="1" value={exQty} onChange={(e) => setExQty(e.target.value)} style={fieldStyle} placeholder="Quantity" />
+            </div>
+          )}
+
+          <button onClick={createExchangeProduct} style={{ ...gray800ButtonStyle, width: '100%', minHeight: 36 }} disabled={exSaving || !exCustomerName.trim() || !exCustomerPhone.trim() || !exName.trim()}>
+            {exSaving ? 'Saving...' : `Create Exchange Product (${exHasVariants && exVariantRows.length ? exVariantRows.length : 1} item${exHasVariants && exVariantRows.length > 1 ? 's' : ''})`}
+          </button>
         </article>
       </section>
       ) : null}
@@ -603,7 +800,7 @@ export function PurchasesWorkspace() {
                     {payables.map((p) => (
                       <tr key={p.id}>
                         <td style={tableCellStyle}>{p.purchase_no}</td>
-                        <td style={tableCellStyle}><div style={{ fontWeight: 600 }}>{p.supplier_name}</div>{p.supplier_phone ? <div style={{ fontSize: 11, color: '#64748b' }}>{p.supplier_phone}</div> : null}</td>
+                        <td style={tableCellStyle}><div style={{ fontWeight: 600 }}>{p.supplier_name}</div>{p.supplier_phone ? <div style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>{p.supplier_phone}</div> : null}</td>
                         <td style={tableCellStyle}>{p.purchase_date}</td>
                         <td style={tableCellStyle}>{formatMoney(p.total_amount)}</td>
                         <td style={tableCellStyle}><strong style={{ color: Number(p.outstanding_amount) > 0 ? '#b45309' : '#16a34a' }}>{formatMoney(p.outstanding_amount)}</strong></td>

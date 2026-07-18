@@ -287,7 +287,7 @@ export function ShippingWorkspace({
                       </td>
                       <td style={tableCellStyle}>
                         {shipment.customer_name}
-                        <div style={{ color: '#64748b', marginTop: 4 }}>{shipment.customer_phone}</div>
+                        <div style={{ color: 'var(--muted-foreground)', marginTop: 4 }}>{shipment.customer_phone}</div>
                       </td>
                       <td style={tableCellStyle}>{shipment.courier_name || 'No courier'}</td>
                       <td style={tableCellStyle}>{shipment.delivery_fee}</td>
@@ -334,8 +334,8 @@ export function ShippingWorkspace({
             <section style={{ display: 'grid', gap: 10 }}>
               <div>
                 <div style={{ fontWeight: 600 }}>{selectedShipment.shipment.shipment_no}</div>
-                <div style={{ color: '#475569' }}>{selectedShipment.shipment.customer_name} · {selectedShipment.shipment.status}</div>
-                <div style={{ color: '#64748b' }}>{selectedShipment.shipment.delivery_address}</div>
+                <div style={{ color: 'var(--muted-foreground)' }}>{selectedShipment.shipment.customer_name} · {selectedShipment.shipment.status}</div>
+                <div style={{ color: 'var(--muted-foreground)' }}>{selectedShipment.shipment.delivery_address}</div>
               </div>
               {selectedShipment.events.length ? (
                 <div style={tableWrapStyle}>
@@ -369,7 +369,7 @@ export function ShippingWorkspace({
 
       <article style={cardStyle}>
         <h3 style={{ marginTop: 0 }}>Operator Notes</h3>
-        <p style={{ marginBottom: 0, color: '#475569' }}>{message}</p>
+        <p style={{ marginBottom: 0, color: 'var(--muted-foreground)' }}>{message}</p>
       </article>
     </section>
   );

@@ -24,7 +24,9 @@ import {
   Users,
   Wallet,
   Wrench,
+  MapPin,
 } from 'lucide-react';
+import { ThemeToggle } from '@mvp/theme';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -78,6 +80,7 @@ const iconMap: Record<string, typeof LayoutDashboard> = {
   '/': LayoutDashboard,
   '/catalog': Package,
   '/inventory': Boxes,
+  '/locations': MapPin,
   '/purchases': Package,
   '/approvals': ClipboardCheck,
   '/pos': ShoppingCart,
@@ -114,7 +117,7 @@ export function WorkspaceShell({ navItems, title, badge, children, access }: Wor
                 : `This store is currently marked as ${access.storeStatus}. Review settings and subscription state before daily operations.`}
             </div>
           ) : null}
-          <main className="flex-1 overflow-auto bg-slate-50/80 p-4 sm:p-6 lg:p-8">
+          <main className="flex-1 overflow-auto bg-muted p-4 sm:p-6 lg:p-8">
             <div className="w-full">{children}</div>
           </main>
         </div>
@@ -146,29 +149,6 @@ function AppSidebar({
   return (
     <Sidebar collapsible="icon" variant="sidebar" className="bg-sidebar border-r border-sidebar-border">
       <SidebarHeader>
-        <div className="flex items-center justify-between gap-1.5 px-1.5 py-1.5">
-          <div className="flex items-center gap-1.5">
-            <div className="flex items-center justify-center size-8 rounded-md border bg-white p-1">
-              {access.storeLogoUrl ? (
-                <img
-                  src={access.storeLogoUrl}
-                  alt={`${access.storeName || 'Store'} logo`}
-                  className="h-full w-full object-contain"
-                />
-              ) : (
-                <img
-                  src="/marketone-logo.svg"
-                  alt="MarketOne logo"
-                  className="h-full w-full object-contain"
-                />
-              )}
-            </div>
-            <div className="flex flex-col group-data-[collapsible=icon]:hidden">
-              <span className="font-semibold text-sm leading-tight">{title}</span>
-              <span className="text-[10px] text-muted-foreground">{badge}</span>
-            </div>
-          </div>
-        </div>
         <div className="px-2 pb-2 group-data-[collapsible=icon]:hidden">
           <div className="rounded-md border bg-muted/40 px-2.5 py-2 text-[11px] text-muted-foreground">
             <div className="font-medium text-foreground">{access.planName} plan</div>
@@ -260,6 +240,7 @@ function Header({ access }: { access: StoreConsoleAccess }) {
       </div>
 
       <div className="flex items-center gap-1.5 sm:gap-2">
+        <ThemeToggle />
         <RuntimeStatus />
         <PwaClient />
         <span className="hidden sm:inline-flex items-center rounded-md border bg-muted px-2 py-1 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
@@ -273,7 +254,11 @@ function Header({ access }: { access: StoreConsoleAccess }) {
             <Button variant="ghost" size="icon" className="rounded-md size-8 sm:size-9">
               <Avatar className="size-7 sm:size-8">
                 <AvatarFallback className="bg-primary/10 text-primary text-xs border">
-                  ST
+                  {access.userName
+                    ? access.userName.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
+                    : access.userEmail
+                      ? access.userEmail[0].toUpperCase()
+                      : 'U'}
                 </AvatarFallback>
               </Avatar>
             </Button>
@@ -281,8 +266,8 @@ function Header({ access }: { access: StoreConsoleAccess }) {
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuLabel>
               <div className="flex flex-col space-y-1">
-                <p className="text-sm font-medium">Store Operator</p>
-                <p className="text-xs text-muted-foreground">operator@store.dev</p>
+                <p className="text-sm font-medium">{access.userName || 'Store User'}</p>
+                <p className="text-xs text-muted-foreground">{access.userEmail || ''}</p>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />

@@ -1,6 +1,7 @@
 'use client';
 
 import { type ChangeEvent, useEffect, useMemo, useState } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -148,6 +149,8 @@ export function StoresWorkspace() {
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [ownerPasswordTarget, setOwnerPasswordTarget] = useState<StoreRow | null>(null);
   const [ownerPassword, setOwnerPassword] = useState('');
+  const [showPasswordOwner, setShowPasswordOwner] = useState(false);
+  const [showPasswordReset, setShowPasswordReset] = useState(false);
 
   const refresh = async () => {
     const payload = await readJson<{ stores: StoreRow[] }>('/api/stores');
@@ -452,7 +455,7 @@ export function StoresWorkspace() {
               <Input id="storeLogoFile" type="file" accept="image/*" onChange={(event) => void handleLogoFileChange(event)} />
               {form.logoUrl ? (
                 <div className="flex items-center gap-3 rounded-md border border-border/60 bg-muted/30 p-3">
-                  <img src={form.logoUrl} alt="Store logo preview" className="h-14 w-14 rounded-md object-contain bg-white p-1" />
+                  <img src={form.logoUrl} alt="Store logo preview" className="h-14 w-14 rounded-md object-contain bg-card p-1" />
                   <Button
                     variant="outline"
                     type="button"
@@ -531,13 +534,18 @@ export function StoresWorkspace() {
               </div>
                 <div className="space-y-2">
                   <Label htmlFor="ownerPassword">Initial password</Label>
-                <Input
-                  id="ownerPassword"
-                  type="password"
-                  value={form.ownerPassword}
-                  onChange={(event) => setForm((current) => ({ ...current, ownerPassword: event.target.value }))}
-                  placeholder="Create a strong password"
-                />
+                <div className="relative">
+                  <Input
+                    id="ownerPassword"
+                    type={showPasswordOwner ? 'text' : 'password'}
+                    value={form.ownerPassword}
+                    onChange={(event) => setForm((current) => ({ ...current, ownerPassword: event.target.value }))}
+                    placeholder="Create a strong password"
+                  />
+                  <button type="button" onClick={() => setShowPasswordOwner((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" tabIndex={-1} aria-label={showPasswordOwner ? 'Hide password' : 'Show password'}>
+                    {showPasswordOwner ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
                 {formErrors.ownerPassword ? <p className="text-xs text-destructive">{formErrors.ownerPassword}</p> : null}
               </div>
             </div>
@@ -832,13 +840,18 @@ export function StoresWorkspace() {
               </DialogHeader>
               <div className="space-y-2">
                 <Label htmlFor="ownerPasswordReset">New password</Label>
-                <Input
-                  id="ownerPasswordReset"
-                  type="password"
-                  value={ownerPassword}
-                  onChange={(event) => setOwnerPassword(event.target.value)}
-                  placeholder="Create a new password"
-                />
+                <div className="relative">
+                  <Input
+                    id="ownerPasswordReset"
+                    type={showPasswordReset ? 'text' : 'password'}
+                    value={ownerPassword}
+                    onChange={(event) => setOwnerPassword(event.target.value)}
+                    placeholder="Create a new password"
+                  />
+                  <button type="button" onClick={() => setShowPasswordReset((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" tabIndex={-1} aria-label={showPasswordReset ? 'Hide password' : 'Show password'}>
+                    {showPasswordReset ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setOwnerPasswordTarget(null)}>Cancel</Button>

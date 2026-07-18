@@ -1,0 +1,157 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Demo Receipt — Split Payment with Due</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; background: #f1f5f9; color: #0f172a; padding: 40px; }
+    .page { max-width: 820px; margin: 0 auto; background: #fff; padding: 32px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+    .header { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; }
+    .brand { display: flex; gap: 16px; align-items: center; }
+    .brand-logo { width: 72px; height: 72px; object-fit: contain; border: 1px solid #e2e8f0; border-radius: 12px; background: #2563eb; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 700; }
+    .brand-name { font-size: 24px; font-weight: 700; margin: 0 0 6px; }
+    .brand-meta { margin: 0; color: #475569; font-size: 13px; line-height: 1.5; }
+    .invoice-meta { text-align: right; }
+    .invoice-title { margin: 0 0 8px; font-size: 28px; font-weight: 700; }
+    .section { margin-top: 24px; }
+    .section h2 { margin: 0 0 12px; font-size: 14px; text-transform: uppercase; letter-spacing: .12em; color: #64748b; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 12px 10px; border-bottom: 1px solid #e2e8f0; font-size: 14px; text-align: left; }
+    th { color: #475569; font-weight: 600; background: #f8fafc; }
+    .totals { margin-left: auto; width: 320px; }
+    .totals-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0; font-size: 14px; }
+    .totals-row.total { font-size: 18px; font-weight: 700; border-bottom: 0; padding-top: 14px; }
+    .customer { color: #334155; font-size: 14px; line-height: 1.6; }
+    .payments { color: #334155; font-size: 14px; line-height: 1.6; padding-left: 20px; }
+    .tag { display: inline-block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; padding: 2px 8px; border-radius: 4px; }
+    .tag-exchange { background: #dcfce7; color: #16a34a; }
+    .tag-pending { background: #fef3c7; color: #b45309; }
+    @media print {
+      body { background: #fff; padding: 0; }
+      .page { max-width: none; margin: 0; padding: 20px; box-shadow: none; border-radius: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="header">
+      <div class="brand">
+        <div class="brand-logo">M</div>
+        <div>
+          <p class="brand-name">Market One BD</p>
+          <p class="brand-meta">+880 1700-000000</p>
+          <p class="brand-meta">info@marketonebd.com</p>
+          <p class="brand-meta">123 Gulshan Avenue, Dhaka 1212</p>
+        </div>
+      </div>
+      <div class="invoice-meta">
+        <p class="invoice-title">Invoice</p>
+        <p class="brand-meta">No: SALE-000003</p>
+        <p class="brand-meta">Store: Store 3</p>
+        <p class="brand-meta">Printed: 7/15/2026, 4:10:00 PM</p>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Customer</h2>
+      <div class="customer">
+        <div>Abdur Rahman</div>
+        <div>+880 1711-223344</div>
+        <div>Rahman Electronics, Mirpur 10, Dhaka</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Items</h2>
+      <table>
+        <thead>
+          <tr>
+            <th style="text-align:center;width:40px;">SL</th>
+            <th>Description</th>
+            <th style="text-align:center;width:60px;">Qty</th>
+            <th style="text-align:right;width:100px;">Unit Price</th>
+            <th style="text-align:right;width:100px;">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="text-align:center;">1</td>
+            <td>
+              <div>Sony WH-1000XM5 Wireless Headphones</div>
+              <div style="font-size:12px;color:#64748b;">SNY-WH1000XM5-BLK</div>
+            </td>
+            <td style="text-align:center;">1</td>
+            <td style="text-align:right;">5,000.00</td>
+            <td style="text-align:right;font-weight:600;">5,000.00</td>
+          </tr>
+          <tr>
+            <td style="text-align:center;">2</td>
+            <td>
+              <div>Anker PowerCore 20000mAh Power Bank</div>
+              <div style="font-size:12px;color:#64748b;">ANK-PC20000-BLK</div>
+            </td>
+            <td style="text-align:center;">2</td>
+            <td style="text-align:right;">400.00</td>
+            <td style="text-align:right;font-weight:600;">800.00</td>
+          </tr>
+          <tr style="color:#16a34a;">
+            <td style="text-align:center;">3</td>
+            <td>
+              <div>Xiaomi Redmi Note 12 (Trade-in)</div>
+              <div style="font-size:12px;color:#86d99b;">XIAO-RN12-128-BLU <span class="tag tag-exchange">trade-in</span></div>
+            </td>
+            <td style="text-align:center;">&mdash;</td>
+            <td style="text-align:right;">2,000.00</td>
+            <td style="text-align:right;font-weight:600;color:#16a34a;">-2,000.00</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <div class="totals">
+        <div class="totals-row">
+          <span>Subtotal</span>
+          <span>5,800.00</span>
+        </div>
+        <div class="totals-row" style="color:#b45309;">
+          <span>Discount</span>
+          <span>-300.00</span>
+        </div>
+        <div class="totals-row">
+          <span>Tax</span>
+          <span>0.00</span>
+        </div>
+        <div class="totals-row total">
+          <span>Total</span>
+          <span>3,500.00</span>
+        </div>
+        <div class="totals-row">
+          <span>Paid</span>
+          <span>3,400.00</span>
+        </div>
+        <div class="totals-row" style="color:#b45309;">
+          <span>Due</span>
+          <span>100.00</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Payments</h2>
+      <ul class="payments">
+        <li><strong>Cash</strong>: 2,000.00</li>
+        <li><strong>MFS</strong>: 1,400.00</li>
+        <li><strong>Due</strong>: 100.00 <span class="tag tag-pending">pending</span></li>
+      </ul>
+    </div>
+
+    <div class="section" style="margin-top:28px; padding-top:16px; border-top:1px solid #e2e8f0; color:#64748b; font-size:12px; text-align:center;">
+      Thank you for your business! Returns accepted within 7 days with original receipt.
+    </div>
+    <div style="margin-top:8px; color:#94a3b8; font-size:11px; text-align:center;">
+      Developed and maintained by Market One BD &middot; Your One Stop Marketplace
+    </div>
+  </div>
+</body>
+</html>

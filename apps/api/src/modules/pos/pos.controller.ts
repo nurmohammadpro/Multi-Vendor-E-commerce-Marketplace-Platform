@@ -12,6 +12,7 @@ const searchCatalogSchema = z.object({
   q: z.string().max(120).optional(),
   locationId: z.string().uuid().optional(),
   limit: z.coerce.number().int().positive().max(100).default(25),
+  productType: z.string().optional(),
 }).refine((value) => Boolean(value.barcode || value.q), {
   message: 'barcode or q is required',
 });
@@ -40,6 +41,8 @@ const createSaleSchema = z.object({
   taxAmount: z.number().nonnegative().default(0),
   shippingAmount: z.number().nonnegative().default(0),
   note: z.string().optional(),
+  exchangeSkuId: z.string().uuid().optional(),
+  exchangeAmount: z.number().nonnegative().default(0),
   items: z.array(
     z.object({
       skuId: z.string().uuid(),
@@ -98,12 +101,14 @@ export class PosController {
     @Query('q') query: string | undefined,
     @Query('locationId') locationId: string | undefined,
     @Query('limit') limit: string | undefined,
+    @Query('productType') productType: string | undefined,
   ) {
     const payload = searchCatalogSchema.parse({
       barcode,
       q: query,
       locationId,
       limit,
+      productType,
     });
 
     return this.posService.searchCatalog(headerStoreId, authContext, payload);

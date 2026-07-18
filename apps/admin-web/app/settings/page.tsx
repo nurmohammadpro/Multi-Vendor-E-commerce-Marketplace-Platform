@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -80,6 +81,8 @@ export default function AdminSettingsPage() {
     membershipId: '',
     password: '',
   });
+  const [showPasswordCreate, setShowPasswordCreate] = useState(false);
+  const [showPasswordReset, setShowPasswordReset] = useState(false);
 
   const refresh = async () => {
     const payload = await readJson<{ admins: PlatformAdminRow[] }>('/api/admins');
@@ -222,7 +225,12 @@ export default function AdminSettingsPage() {
               <Input value={form.fullName} onChange={(e) => setForm((v) => ({ ...v, fullName: e.target.value }))} placeholder="Full name" />
               <Input value={form.email} onChange={(e) => setForm((v) => ({ ...v, email: e.target.value }))} placeholder="Email" />
               <Input value={form.phone} onChange={(e) => setForm((v) => ({ ...v, phone: e.target.value }))} placeholder="Phone (optional)" />
-              <Input value={form.password} onChange={(e) => setForm((v) => ({ ...v, password: e.target.value }))} type="password" placeholder="Temporary password" />
+              <div className="relative">
+                <Input value={form.password} onChange={(e) => setForm((v) => ({ ...v, password: e.target.value }))} type={showPasswordCreate ? 'text' : 'password'} placeholder="Temporary password" />
+                <button type="button" onClick={() => setShowPasswordCreate((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" tabIndex={-1} aria-label={showPasswordCreate ? 'Hide password' : 'Show password'}>
+                  {showPasswordCreate ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
               <Button onClick={createAdmin} disabled={!canCreateAdmin}>Create Admin</Button>
             </div>
             <p className="mt-2.5 text-xs text-muted-foreground leading-relaxed">
@@ -280,7 +288,12 @@ export default function AdminSettingsPage() {
                   </option>
                 ))}
               </select>
-              <Input value={passwordForm.password} onChange={(e) => setPasswordForm((v) => ({ ...v, password: e.target.value }))} type="password" placeholder="New password" />
+              <div className="relative">
+                <Input value={passwordForm.password} onChange={(e) => setPasswordForm((v) => ({ ...v, password: e.target.value }))} type={showPasswordReset ? 'text' : 'password'} placeholder="New password" />
+                <button type="button" onClick={() => setShowPasswordReset((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" tabIndex={-1} aria-label={showPasswordReset ? 'Hide password' : 'Show password'}>
+                  {showPasswordReset ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
               <Button onClick={resetPassword} disabled={!canResetPassword} variant="outline">
                 Update Password
               </Button>

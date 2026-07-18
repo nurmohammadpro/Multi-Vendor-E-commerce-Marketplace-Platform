@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import type { Metadata, Viewport } from 'next';
+import { ThemeProvider } from '@mvp/theme';
 
 import { Toaster } from '@/components/ui/sonner';
 import './globals.css';
@@ -38,16 +39,20 @@ export const viewport: Viewport = {
 const navItems = [
   { href: '/', label: 'Dashboard', feature: 'dashboard' },
   { href: '/pos', label: 'Sales', permission: 'sales.pos.create', feature: 'pos' },
-  { href: '/catalog', label: 'Products', permission: 'catalog.manage', feature: 'catalog' },
   { href: '/inventory', label: 'Stock', permission: 'inventory.view', feature: 'inventory' },
+  { href: '/locations', label: 'Locations', permission: 'inventory.view', feature: 'inventory' },
   { href: '/purchases', label: 'Purchases', feature: 'purchases' },
+  { href: '/receivables', label: 'Receivables', permission: 'sales.report.view', feature: 'receivables' },
   { href: '/customers', label: 'Customers', permission: 'sales.report.view', feature: 'customers' },
+  { href: '/shipping', label: 'Shipping', permission: 'sales.pos.create', feature: 'shipping' },
   { href: '/reports', label: 'Reports', permission: 'sales.report.view', feature: 'reports' },
-  { href: '/staff', label: 'Staff', permission: 'store.staff.manage', feature: 'staff' },
+  { href: '/activity', label: 'Activity', permission: 'sales.report.view', feature: 'reports' },
+  { href: '/approvals', label: 'Approvals', permission: 'inventory.adjust.approve', feature: 'inventory' },
+  { href: '/staff', label: 'Team', permission: 'store.staff.manage', feature: 'staff' },
   { href: '/expenses', label: 'Expenses', feature: 'expenses' },
-  { href: '/payroll', label: 'Payroll', feature: 'payroll' },
   { href: '/banking', label: 'Banking', feature: 'banking' },
   { href: '/billing', label: 'Subscription', permission: 'billing.subscription.manage', feature: 'billing' },
+  { href: '/disputes', label: 'Disputes', permission: 'sales.report.view', feature: 'disputes' },
   { href: '/support', label: 'Support', permission: 'sales.report.view', feature: 'support' },
   { href: '/settings', label: 'Settings', permission: 'store.settings.manage', feature: 'settings' },
   { href: '/hardware', label: 'Hardware', permission: 'store.settings.manage', feature: 'hardware' },
@@ -64,6 +69,7 @@ export default async function StoreLayout({ children }: { children: ReactNode })
   return (
     <html lang="en">
       <body>
+        <ThemeProvider>
         <WorkspaceShell
           access={access}
           badge="Market One BD"
@@ -73,6 +79,7 @@ export default async function StoreLayout({ children }: { children: ReactNode })
           {children}
         </WorkspaceShell>
         <Toaster />
+        </ThemeProvider>
       </body>
     </html>
   );

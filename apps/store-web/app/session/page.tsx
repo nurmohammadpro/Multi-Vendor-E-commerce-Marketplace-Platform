@@ -9,7 +9,7 @@ import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
 
 import { fetchStoreApi, isStoreApiConfigured } from '../../lib/api';
-import { pageShellStyle, sectionLabelStyle, tokenMutedStyle } from '../marketone-theme';
+import { pageShellStyle, pageTitleStyle, sectionLabelStyle, tokenMutedStyle } from '../marketone-theme';
 import { LogoutButton } from './logout-button';
 
 type SessionProfile = {
@@ -41,7 +41,7 @@ export default async function StoreSessionPage() {
     <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
       <div style={{ maxWidth: 900 }}>
         <div style={sectionLabelStyle}>Session status</div>
-        <h2 style={{ margin: '8px 0 8px', fontSize: 'clamp(20px, 2vw, 28px)', fontWeight: 500, letterSpacing: '-0.02em' }}>
+        <h2 style={{ ...pageTitleStyle, margin: '8px 0' }}>
           See exactly which identity and permissions are active.
         </h2>
         <p style={tokenMutedStyle}>

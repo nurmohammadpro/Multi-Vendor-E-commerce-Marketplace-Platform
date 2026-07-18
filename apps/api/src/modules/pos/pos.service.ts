@@ -81,7 +81,7 @@ export class PosService {
   async searchCatalog(
     headerStoreId: string | undefined,
     authContext: StoreAuthContext | null,
-    payload: { barcode?: string; q?: string; locationId?: string; limit: number },
+    payload: { barcode?: string; q?: string; locationId?: string; limit: number; productType?: string },
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
 
@@ -135,6 +135,7 @@ export class PosService {
         left join stock_totals st on st.sku_id = sku.id
         where sku.store_id = $1
           and sku.status = 'active'
+          and ($6::text is null or p.product_type = $6::text)
           and (
             $2::varchar is null
             or sku.barcode = $2::varchar
@@ -154,7 +155,7 @@ export class PosService {
           sku.created_at asc
         limit $5
       `,
-      [storeId, payload.barcode ?? null, payload.q ?? null, payload.locationId ?? null, payload.limit],
+      [storeId, payload.barcode ?? null, payload.q ?? null, payload.locationId ?? null, payload.limit, payload.productType ?? null],
     );
 
     return {
@@ -278,6 +279,8 @@ export class PosService {
       discountAmount: number;
       taxAmount: number;
       shippingAmount: number;
+      exchangeSkuId?: string;
+      exchangeAmount: number;
       note?: string;
       items: Array<{
         skuId: string;
@@ -351,7 +354,7 @@ export class PosService {
       const itemTaxTotal = payload.items.reduce((sum, item) => sum + item.taxAmount, 0);
       const discountAmount = payload.discountAmount + itemDiscountTotal;
       const taxAmount = payload.taxAmount + itemTaxTotal;
-      const totalAmount = subtotalAmount - discountAmount + taxAmount + payload.shippingAmount;
+      const totalAmount = subtotalAmount - discountAmount + taxAmount + payload.shippingAmount - (payload.exchangeAmount || 0);
       const paidAmount = payload.payments
         .filter((payment) => payment.status === 'paid')
         .reduce((sum, payment) => sum + payment.amount, 0);
@@ -413,6 +416,8 @@ export class PosService {
             customer_shop_name,
             customer_address,
             due_date,
+            exchange_sku_id,
+            exchange_amount,
             subtotal_amount,
             discount_amount,
             tax_amount,
@@ -448,9 +453,11 @@ export class PosService {
             $18,
             $19,
             $20,
-            case when coalesce($18::numeric, 0) > 0 then 'delivery_pending' else 'completed' end,
-            'completed',
             $21,
+            $22,
+            case when coalesce($20::numeric, 0) > 0 then 'delivery_pending' else 'completed' end,
+            'completed',
+            $23,
             now(),
             now()
           from store.stores s
@@ -472,6 +479,8 @@ export class PosService {
           payload.customerShopName ?? null,
           payload.customerAddress ?? null,
           payload.dueDate ?? null,
+          (payload as any).exchangeSkuId ?? null,
+          (payload as any).exchangeAmount || 0,
           subtotalAmount,
           discountAmount,
           taxAmount,
@@ -975,9 +984,43 @@ export class PosService {
     );
     const dueAmount = Math.max(Number(sale.total_amount ?? 0) - paidAmount, 0);
 
+    // Look up exchange product name if this is an exchange sale
+    const exchangeAmount = Number(sale.exchange_amount ?? 0);
+    let exchangeInfo: Record<string, unknown> | null = null;
+    if (sale.exchange_sku_id && exchangeAmount > 0) {
+      const exchangeSkuResult = await this.pool.query(
+        `
+          select p.name as product_name, s.sku_code
+          from catalog.skus s
+          join catalog.products p on p.id = s.product_id
+          where s.id = $1
+          limit 1
+        `,
+        [sale.exchange_sku_id],
+      );
+      const exchangeSku = exchangeSkuResult.rows[0];
+      if (exchangeSku) {
+        exchangeInfo = {
+          productName: exchangeSku.product_name ?? null,
+          skuCode: exchangeSku.sku_code ?? null,
+          amount: exchangeAmount,
+        };
+      }
+    }
+
+    const saleType = exchangeInfo && exchangeAmount > 0
+      ? 'exchange'
+      : dueAmount > 0
+        ? 'due'
+        : 'paid';
+
     return {
       saleId: sale.id ?? null,
       saleNo: sale.sale_no ?? null,
+      saleType,
+      paymentStatus: sale.payment_status ?? null,
+      dueDate: sale.due_date ?? null,
+      note: sale.note ?? null,
       store: {
         name: store.name ?? null,
         logoUrl: store.logo_url ?? null,
@@ -993,17 +1036,32 @@ export class PosService {
         shopName: sale.customer_shop_name ?? null,
         address: sale.customer_address ?? null,
       },
-      items: items.map((item) => ({
-        name: item.product_name_snapshot ?? null,
-        skuCode: item.sku_code_snapshot ?? null,
-        qty: Number(item.qty ?? 0),
-        unitPrice: Number(item.unit_price ?? 0),
-        discountAmount: Number(item.discount_amount ?? 0),
-        taxAmount: Number(item.tax_amount ?? 0),
-        lineTotal: Number(item.line_total ?? 0),
-      })),
+      items: (() => {
+        const mapped = items.map((item) => ({
+          name: item.product_name_snapshot ?? null,
+          skuCode: item.sku_code_snapshot ?? null,
+          qty: Number(item.qty ?? 0),
+          unitPrice: Number(item.unit_price ?? 0),
+          discountAmount: Number(item.discount_amount ?? 0),
+          taxAmount: Number(item.tax_amount ?? 0),
+          lineTotal: Number(item.line_total ?? 0),
+        }));
+        if (exchangeInfo && exchangeAmount > 0) {
+          (mapped as any[]).push({
+            name: (exchangeInfo.productName ?? 'Exchange') + ' (Trade-in)',
+            skuCode: exchangeInfo.skuCode ?? null,
+            qty: 1,
+            unitPrice: exchangeAmount,
+            discountAmount: 0,
+            taxAmount: 0,
+            lineTotal: -exchangeAmount,
+            isExchangeItem: true,
+          });
+        }
+        return mapped;
+      })(),
       totals: {
-        subtotal: Number(sale.subtotal_amount ?? 0),
+        subtotal: Number(sale.subtotal_amount ?? 0) - (exchangeInfo && exchangeAmount > 0 ? exchangeAmount : 0),
         discount: Number(sale.discount_amount ?? 0),
         tax: Number(sale.tax_amount ?? 0),
         shipping: Number(sale.shipping_amount ?? 0),
@@ -1020,6 +1078,7 @@ export class PosService {
         status: payment.status ?? null,
         paidAt: payment.paid_at ?? null,
       })),
+      exchange: exchangeInfo,
       printedAt: new Date().toISOString(),
     };
   }

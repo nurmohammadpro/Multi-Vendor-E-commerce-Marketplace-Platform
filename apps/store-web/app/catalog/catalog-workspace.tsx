@@ -952,7 +952,7 @@ export function CatalogWorkspace({
             <div style={{ display: 'grid', gap: 14 }}>
               <div>
                 <h3 style={{ marginTop: 0, marginBottom: 4 }}>New Product</h3>
-                <p style={{ margin: 0, color: '#64748b', fontSize: 13 }}>Name the product, choose type, add variants. SKU auto-generates from name.</p>
+                <p style={{ margin: 0, color: 'var(--muted-foreground)', fontSize: 13 }}>Name the product, choose type, add variants. SKU auto-generates from name.</p>
               </div>
 
               {/* Product name */}
@@ -980,14 +980,14 @@ export function CatalogWorkspace({
               <div style={{ display: 'flex', gap: 8 }}>
                 <button
                   onClick={() => setProductForm((v) => ({ ...v, hasVariants: false, variantMode: 'none' }))}
-                  style={{ ...neutralActionStyle, background: !productForm.hasVariants ? 'rgba(15,23,42,0.06)' : '#fff', borderColor: !productForm.hasVariants ? '#0f172a' : undefined }}
+                  style={{ ...neutralActionStyle, background: !productForm.hasVariants ? 'var(--muted)' : 'var(--card)', borderColor: !productForm.hasVariants ? 'var(--foreground)' : undefined }}
                   disabled={loading}
                 >
                   Simple Product
                 </button>
                 <button
                   onClick={() => setProductForm((v) => ({ ...v, hasVariants: true, variantMode: v.variantMode === 'none' ? 'single' : v.variantMode }))}
-                  style={{ ...neutralActionStyle, background: productForm.hasVariants ? 'rgba(15,23,42,0.06)' : '#fff', borderColor: productForm.hasVariants ? '#0f172a' : undefined }}
+                  style={{ ...neutralActionStyle, background: productForm.hasVariants ? 'var(--muted)' : 'var(--card)', borderColor: productForm.hasVariants ? 'var(--foreground)' : undefined }}
                   disabled={loading}
                 >
                   With Variants
@@ -1008,7 +1008,7 @@ export function CatalogWorkspace({
               {productForm.hasVariants ? (
                 <div style={{ display: 'grid', gap: 10 }}>
                   <div style={{ ...surfaceCardStyle, padding: 12 }}>
-                    <div style={{ fontSize: 12, color: '#475569', marginBottom: 8 }}>Add variants — one per line</div>
+                    <div style={{ fontSize: 12, color: 'var(--muted-foreground)', marginBottom: 8 }}>Add variants — one per line</div>
                     <textarea
                       value={quickVariantLabels}
                       onChange={(e) => setQuickVariantLabels(e.target.value)}
@@ -1041,7 +1041,7 @@ export function CatalogWorkspace({
                               <td style={tableCellStyle}>
                                 <input value={row.label} onChange={(e) => setProductVariantRows((cur) => cur.map((r) => r.key === row.key ? { ...r, label: e.target.value, skuCode: e.target.value ? buildManualVariantSkuCode(productForm.productCode || productForm.name || 'SKU', e.target.value) : r.skuCode } : r))} style={{ ...inputStyle, width: '100%' }} placeholder="e.g. 90/90-12" />
                               </td>
-                              <td style={{ ...tableCellStyle, fontSize: 11, color: '#64748b', fontFamily: 'monospace' }}>{row.skuCode}</td>
+                              <td style={{ ...tableCellStyle, fontSize: 11, color: 'var(--muted-foreground)', fontFamily: 'monospace' }}>{row.skuCode}</td>
                               <td style={tableCellStyle}>
                                 <input value={row.price} onChange={(e) => setProductVariantRows((cur) => cur.map((r) => r.key === row.key ? { ...r, price: e.target.value } : r))} style={{ ...inputStyle, width: 90 }} placeholder="0.00" />
                               </td>
@@ -1073,7 +1073,7 @@ export function CatalogWorkspace({
           {/* Review panel — recent products */}
           <article style={{ ...cardStyle, padding: 14 }}>
             <h4 style={{ marginTop: 0 }}>Recent Products</h4>
-            <p style={{ color: '#64748b', fontSize: 13 }}>Recently created products and their SKU codes.</p>
+            <p style={{ color: 'var(--muted-foreground)', fontSize: 13 }}>Recently created products and their SKU codes.</p>
             {products.length ? (
               <div style={{ ...tableWrapStyle, marginTop: 10 }}>
                 <table style={tableStyle}>
@@ -1089,7 +1089,7 @@ export function CatalogWorkspace({
                       <tr key={product.id}>
                         <td style={tableCellStyle}>
                           <div style={{ fontWeight: 600 }}>{product.name}</div>
-                          {product.category_name ? <div style={{ fontSize: 11, color: '#64748b' }}>{product.category_name}</div> : null}
+                          {product.category_name ? <div style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>{product.category_name}</div> : null}
                         </td>
                         <td style={tableCellStyle}>{product.sku_count}</td>
                         <td style={tableCellStyle}>{product.status}</td>
@@ -1145,7 +1145,7 @@ export function CatalogWorkspace({
                           setSelectedProductId(product.id);
                           if (canManageCatalog) setCatalogTab('products');
                         }}
-                        style={{ cursor: 'pointer', background: selectedProductId === product.id ? 'rgba(241,245,249,0.9)' : '#fff' }}
+                        style={{ cursor: 'pointer', background: selectedProductId === product.id ? 'var(--muted)' : 'var(--card)' }}
                       >
                         <td style={tableCellStyle}><strong>{product.name}</strong></td>
                         <td style={tableCellStyle}>{product.product_code}</td>
@@ -1223,12 +1223,12 @@ export function CatalogWorkspace({
         <article style={cardStyle}>
           <h3 style={{ marginTop: 0 }}>Advanced Variant Builder</h3>
           {!productDetail ? (
-            <p style={{ marginBottom: 0, color: '#475569' }}>Select a product only if you need deeper group, option, matrix, or manual SKU control.</p>
+            <p style={{ marginBottom: 0, color: 'var(--muted-foreground)' }}>Select a product only if you need deeper group, option, matrix, or manual SKU control.</p>
           ) : (
             <section style={{ display: 'grid', gap: 16 }}>
               <div>
                 <div style={{ fontSize: 20, fontWeight: 600 }}>{productDetail.product.name}</div>
-                <div style={{ color: '#475569' }}>
+                <div style={{ color: 'var(--muted-foreground)' }}>
                   {productDetail.product.product_code} · {productDetail.product.variant_mode} · {productDetail.product.status}
                 </div>
               </div>
@@ -1373,7 +1373,7 @@ export function CatalogWorkspace({
               {canManageCatalog ? (
                 <article style={{ ...cardStyle, padding: 14 }}>
                   <h4 style={{ marginTop: 0 }}>Variant Matrix</h4>
-                  <p style={{ marginTop: 0, color: '#475569' }}>
+                  <p style={{ marginTop: 0, color: 'var(--muted-foreground)' }}>
                     Pick the options that should form variant combinations, then generate SKU rows with variant-specific prices.
                   </p>
 
@@ -1420,8 +1420,8 @@ export function CatalogWorkspace({
                                   gap: 8,
                                   padding: '6px 10px',
                                   borderRadius: 8,
-                                  border: checked ? '1px solid #2563eb' : '1px solid rgba(148, 163, 184, 0.22)',
-                                  background: checked ? 'rgba(37, 99, 235, 0.06)' : '#fff',
+                                  border: checked ? '1px solid var(--accent)' : '1px solid var(--border)',
+                                  background: checked ? 'var(--accent-soft)' : 'var(--card)',
                                 }}
                               >
                                 <input
@@ -1484,7 +1484,7 @@ export function CatalogWorkspace({
                             <tr key={row.key}>
                               <td style={tableCellStyle}>
                                 <div style={{ fontWeight: 600 }}>{row.variantLabel}</div>
-                                <div style={{ color: '#64748b', marginTop: 4 }}>{row.variantOptionIds.length} option(s)</div>
+                                <div style={{ color: 'var(--muted-foreground)', marginTop: 4 }}>{row.variantOptionIds.length} option(s)</div>
                               </td>
                               <td style={tableCellStyle}><input value={row.skuCode} onChange={(event) => updateVariantRow(row.key, 'skuCode', event.target.value)} style={inputStyle} placeholder="SKU code" /></td>
                               <td style={tableCellStyle}><input value={row.barcode} onChange={(event) => updateVariantRow(row.key, 'barcode', event.target.value)} style={inputStyle} placeholder="Barcode" /></td>
@@ -1542,7 +1542,7 @@ export function CatalogWorkspace({
                       {productDetail.skus.map((sku) => <option key={sku.id} value={sku.id}>{sku.sku_code}</option>)}
                     </select>
                     {selectedPriceSku ? (
-                      <div style={{ marginBottom: 10, color: '#475569', fontSize: 14 }}>
+                      <div style={{ marginBottom: 10, color: 'var(--muted-foreground)', fontSize: 14 }}>
                         Current price: {selectedSkuHasCurrentPrice ? String(selectedPriceSku.sale_price) : 'No price yet'}
                         {selectedPriceSku.variant_label ? ` · ${selectedPriceSku.variant_label}` : ''}
                       </div>
@@ -1668,7 +1668,7 @@ export function CatalogWorkspace({
                     />
                   </>
                 ) : (
-                  <p style={{ marginBottom: 0, color: '#64748b' }}>No price requests yet.</p>
+                  <p style={{ marginBottom: 0, color: 'var(--muted-foreground)' }}>No price requests yet.</p>
                 )}
               </article>
             </section>
@@ -1680,7 +1680,7 @@ export function CatalogWorkspace({
 
       <article style={cardStyle}>
         <h3 style={{ marginTop: 0 }}>Operator Notes</h3>
-        <p style={{ marginBottom: 0, color: '#475569' }}>{message}</p>
+        <p style={{ marginBottom: 0, color: 'var(--muted-foreground)' }}>{message}</p>
       </article>
 
       <ConfirmDialog

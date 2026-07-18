@@ -108,11 +108,13 @@ const createStaffMemberSchema = z.object({
   password: z.string().min(10),
   address: z.string().min(1).max(1000),
   roleCode: z.enum(['store_manager', 'store_salesman']),
+  locationId: z.string().uuid().optional(),
 }).extend(employeeAccessProfileSchema.shape);
 
 const updateMembershipSchema = z.object({
   status: z.enum(['active', 'suspended', 'removed']).optional(),
   roleCode: z.enum(['store_owner', 'store_manager', 'store_salesman']).optional(),
+  locationId: z.string().uuid().nullable().optional(),
   fullName: z.string().min(1).max(200).optional(),
   phone: z.string().min(8).max(30).nullable().optional(),
   email: z.string().email().nullable().optional(),
@@ -121,6 +123,7 @@ const updateMembershipSchema = z.object({
 }).extend(employeeAccessProfileSchema.partial().shape).refine((value) => Boolean(
   value.status
   || value.roleCode
+  || value.locationId !== undefined
   || value.fullName
   || value.phone !== undefined
   || value.email !== undefined

@@ -1,11 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 
 import {
   accentButtonStyle,
   emptyStateStyle,
   fieldStyle,
+  gray800ButtonStyle,
   pageShellStyle,
   searchButtonStyle,
   secondaryButtonStyle,
@@ -34,6 +36,8 @@ type StaffMember = {
   department?: string | null;
   employment_status?: string | null;
   monthly_salary?: string | number | null;
+  location_id?: string | null;
+  location_name?: string | null;
 };
 
 type StaffCapabilities = {
@@ -61,6 +65,7 @@ const defaultForm = {
   password: '',
   address: '',
   roleCode: 'store_salesman',
+  locationId: '',
   joinDate: new Date().toISOString().slice(0, 10),
   monthlySalary: '',
   employmentType: 'permanent',
@@ -75,7 +80,7 @@ const defaultForm = {
   note: '',
 };
 
-export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) {
+export function StaffWorkspace({ canManageStaff, embedded = false }: { canManageStaff: boolean; embedded?: boolean }) {
   const compact = useCompactLayout();
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [capabilities, setCapabilities] = useState<StaffCapabilities | null>(null);
@@ -87,6 +92,12 @@ export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) 
   const [pagination, setPagination] = useState<PaginationState>({ page: 1, limit: 12, total: 0 });
   const [activeTab, setActiveTab] = useState<'create' | 'users'>('users');
   const [subscriptionPlan, setSubscriptionPlan] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [locations, setLocations] = useState<Array<{ id: string; name: string; code: string }>>([]);
+  const [promotingId, setPromotingId] = useState<string | null>(null);
+  const [promoteLocationId, setPromoteLocationId] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ fullName: '', phone: '', email: '', password: '', address: '' });
 
   const isPro = subscriptionPlan === 'pro';
 
@@ -104,6 +115,7 @@ export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) 
     void Promise.all([
       refresh(),
       readJson<{ subscription?: { plan_code: string } }>('/api/billing/subscription').then((data) => setSubscriptionPlan(data.subscription?.plan_code ?? null)).catch(() => {}),
+      readJson<{ locations: Array<{ id: string; name: string; code: string }> }>('/api/inventory/locations').then((data) => setLocations(data.locations ?? [])).catch(() => {}),
     ]).catch((error: Error) => setMessage(error.message));
   }, []);
 
@@ -116,6 +128,10 @@ export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) 
       setMessage('Name, phone, email, password, and address are required.');
       return;
     }
+    if (form.roleCode === 'store_manager' && !form.locationId) {
+      setMessage('A location must be assigned when creating a manager.');
+      return;
+    }
 
     setLoading(true);
     try {
@@ -124,6 +140,7 @@ export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...form,
+          locationId: form.locationId || undefined,
           monthlySalary: Number(form.monthlySalary || 0),
           designation: form.designation || undefined,
           department: form.department || undefined,
@@ -164,7 +181,7 @@ export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) 
 
   if (!canManageStaff) {
     return (
-      <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
+      <section style={embedded ? { display: 'grid', gap: 16 } : { ...pageShellStyle, display: 'grid', gap: 16 }}>
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>User access limited</h3>
           <p style={tokenMutedStyle}>Only owners and managers can create or manage store users.</p>
@@ -176,7 +193,7 @@ export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) 
   const totalPages = totalPagesFor(pagination);
 
   return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
+    <section style={embedded ? { display: 'grid', gap: 16 } : { ...pageShellStyle, display: 'grid', gap: 16 }}>
       {compact ? (
         <WorkspaceTabs
           active={activeTab}
@@ -197,12 +214,25 @@ export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) 
           <input value={form.fullName} onChange={(e) => setForm((v) => ({ ...v, fullName: e.target.value }))} style={fieldStyle} placeholder="Full name*" />
           <input value={form.phone} onChange={(e) => setForm((v) => ({ ...v, phone: e.target.value }))} style={fieldStyle} placeholder="Phone*" />
           <input value={form.email} onChange={(e) => setForm((v) => ({ ...v, email: e.target.value }))} style={fieldStyle} placeholder="Email*" />
-          <input type="password" value={form.password} onChange={(e) => setForm((v) => ({ ...v, password: e.target.value }))} style={fieldStyle} placeholder="Password*" />
+          <div style={{ position: 'relative' }}>
+            <input type={showPassword ? 'text' : 'password'} value={form.password} onChange={(e) => setForm((v) => ({ ...v, password: e.target.value }))} style={{ ...fieldStyle, paddingRight: 30 }} placeholder="Password*" />
+            <button type="button" onClick={() => setShowPassword((v) => !v)} style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted-foreground)', padding: 0, lineHeight: 0 }} tabIndex={-1} aria-label={showPassword ? 'Hide password' : 'Show password'}>
+              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
+          </div>
           <input value={form.address} onChange={(e) => setForm((v) => ({ ...v, address: e.target.value }))} style={fieldStyle} placeholder="Address*" />
           <select value={form.roleCode} onChange={(e) => setForm((v) => ({ ...v, roleCode: e.target.value }))} style={fieldStyle}>
             {capabilities?.canInviteManager ? <option value="store_manager">Manager</option> : null}
             <option value="store_salesman">Salesman</option>
           </select>
+          {form.roleCode === 'store_manager' ? (
+            <select value={form.locationId} onChange={(e) => setForm((v) => ({ ...v, locationId: e.target.value }))} style={{ ...fieldStyle, borderColor: !form.locationId ? '#f59e0b' : undefined }} required>
+              <option value="">Select location*</option>
+              {locations.map((loc) => (
+                <option key={loc.id} value={loc.id}>{loc.name} ({loc.code})</option>
+              ))}
+            </select>
+          ) : null}
           <input type="date" value={form.joinDate} onChange={(e) => setForm((v) => ({ ...v, joinDate: e.target.value }))} style={fieldStyle} />
           {isPro ? <input value={form.monthlySalary} onChange={(e) => setForm((v) => ({ ...v, monthlySalary: e.target.value }))} style={fieldStyle} placeholder="Monthly salary" /> : null}
           {isPro ? <input value={form.designation} onChange={(e) => setForm((v) => ({ ...v, designation: e.target.value }))} style={fieldStyle} placeholder="Designation" /> : null}
@@ -217,7 +247,7 @@ export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) 
           <textarea value={form.note} onChange={(e) => setForm((v) => ({ ...v, note: e.target.value }))} style={{ ...fieldStyle, minHeight: 74 }} placeholder="Internal note" />
         </div>
         <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-          <button onClick={createUser} style={accentButtonStyle} disabled={loading || !canCreateRole}>Create user</button>
+          <button onClick={createUser} style={gray800ButtonStyle} disabled={loading || !canCreateRole}>Create user</button>
           <span style={tokenMutedStyle}>
             {capabilities?.canInviteManager ? 'Owners can create managers and salesmen.' : 'Managers can create salesmen only.'}
           </span>
@@ -243,6 +273,7 @@ export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) 
                     <th style={tableHeaderCellStyle}>Status</th>
                     <th style={tableHeaderCellStyle}>Employee ID</th>
                     <th style={tableHeaderCellStyle}>Contact</th>
+                    <th style={tableHeaderCellStyle}>Location</th>
                     {isPro ? <th style={tableHeaderCellStyle}>Designation</th> : null}
                     {isPro ? <th style={tableHeaderCellStyle}>Department</th> : null}
                     {isPro ? <th style={tableHeaderCellStyle}>Salary</th> : null}
@@ -254,22 +285,41 @@ export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) 
                     <tr key={member.id}>
                       <td style={tableCellStyle}>
                         <div style={{ fontWeight: 600 }}>{member.full_name || member.email || member.phone || member.user_id}</div>
-                        <div style={{ color: '#64748b', marginTop: 4 }}>{member.address_text || 'No address'}</div>
+                        <div style={{ color: 'var(--muted-foreground)', marginTop: 4 }}>{member.address_text || 'No address'}</div>
                       </td>
                       <td style={tableCellStyle}>{member.role_code}</td>
                       <td style={tableCellStyle}>{member.status}</td>
                       <td style={tableCellStyle}>{member.employee_number || '—'}</td>
                       <td style={tableCellStyle}>
                         {member.email || '—'}
-                        <div style={{ color: '#64748b', marginTop: 4 }}>{member.phone || '—'}</div>
+                        <div style={{ color: 'var(--muted-foreground)', marginTop: 4 }}>{member.phone || '—'}</div>
                       </td>
+                      <td style={tableCellStyle}>{member.location_name || '—'}</td>
                       {isPro ? <td style={tableCellStyle}>{member.designation || '—'}</td> : null}
                       {isPro ? <td style={tableCellStyle}>{member.department || '—'}</td> : null}
                       {isPro ? <td style={tableCellStyle}>{member.monthly_salary || 0}</td> : null}
                       <td style={tableCellStyle}>
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                           {capabilities?.canUpdateManager && member.role_code === 'store_salesman' ? (
-                            <button onClick={() => updateMembership(member.id, { roleCode: 'store_manager' })} style={secondaryButtonStyle} disabled={loading}>Make Manager</button>
+                            promotingId === member.id ? (
+                              <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
+                                <select value={promoteLocationId} onChange={(e) => setPromoteLocationId(e.target.value)} style={{ ...fieldStyle, width: 140, fontSize: 12 }}>
+                                  <option value="">Select location*</option>
+                                  {locations.map((loc) => (
+                                    <option key={loc.id} value={loc.id}>{loc.name}</option>
+                                  ))}
+                                </select>
+                                <button onClick={() => {
+                                  if (!promoteLocationId) { setMessage('Select a location first.'); return; }
+                                  updateMembership(member.id, { roleCode: 'store_manager', locationId: promoteLocationId });
+                                  setPromotingId(null);
+                                  setPromoteLocationId('');
+                                }} style={secondaryButtonStyle} disabled={loading}>Confirm</button>
+                                <button onClick={() => { setPromotingId(null); setPromoteLocationId(''); }} style={secondaryButtonStyle} disabled={loading}>Cancel</button>
+                              </div>
+                            ) : (
+                              <button onClick={() => { setPromotingId(member.id); setPromoteLocationId(member.location_id ?? ''); }} style={secondaryButtonStyle} disabled={loading}>Make Manager</button>
+                            )
                           ) : null}
                           {capabilities?.canUpdateManager && member.role_code === 'store_manager' ? (
                             <button onClick={() => updateMembership(member.id, { roleCode: 'store_salesman' })} style={secondaryButtonStyle} disabled={loading}>Make Salesman</button>
@@ -278,6 +328,42 @@ export function StaffWorkspace({ canManageStaff }: { canManageStaff: boolean }) 
                             <button onClick={() => updateMembership(member.id, { status: member.status === 'suspended' ? 'active' : 'suspended' })} style={secondaryButtonStyle} disabled={loading}>
                               {member.status === 'suspended' ? 'Activate' : 'Suspend'}
                             </button>
+                          ) : null}
+                          {editingId !== member.id && member.role_code !== 'store_owner' ? (
+                            <button onClick={() => {
+                              setEditForm({
+                                fullName: member.full_name || '',
+                                phone: member.phone || '',
+                                email: member.email || '',
+                                password: '',
+                                address: member.address_text || '',
+                              });
+                              setEditingId(member.id);
+                            }} style={secondaryButtonStyle} disabled={loading}>Edit</button>
+                          ) : null}
+                          {editingId === member.id ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: 8, background: 'var(--background)', borderRadius: 8, border: '1px solid var(--border)', width: '100%' }}>
+                              <input value={editForm.fullName} onChange={(e) => setEditForm((v) => ({ ...v, fullName: e.target.value }))} style={{ ...fieldStyle, fontSize: 12 }} placeholder="Full name" />
+                              <input value={editForm.phone} onChange={(e) => setEditForm((v) => ({ ...v, phone: e.target.value }))} style={{ ...fieldStyle, fontSize: 12 }} placeholder="Phone" />
+                              <input value={editForm.email} onChange={(e) => setEditForm((v) => ({ ...v, email: e.target.value }))} style={{ ...fieldStyle, fontSize: 12 }} placeholder="Email" />
+                              <input type="password" value={editForm.password} onChange={(e) => setEditForm((v) => ({ ...v, password: e.target.value }))} style={{ ...fieldStyle, fontSize: 12 }} placeholder="New password (leave blank to keep)" />
+                              <textarea value={editForm.address} onChange={(e) => setEditForm((v) => ({ ...v, address: e.target.value }))} style={{ ...fieldStyle, fontSize: 12, minHeight: 48 }} placeholder="Address" />
+                              <div style={{ display: 'flex', gap: 4 }}>
+                                <button onClick={() => {
+                                  const update: Record<string, unknown> = {};
+                                  if (editForm.fullName.trim()) update.fullName = editForm.fullName.trim();
+                                  if (editForm.phone.trim()) update.phone = editForm.phone.trim();
+                                  if (editForm.email.trim()) update.email = editForm.email.trim();
+                                  if (editForm.password.trim()) update.password = editForm.password.trim();
+                                  if (editForm.address.trim()) update.address = editForm.address.trim();
+                                  if (!Object.keys(update).length) { setMessage('No changes to save.'); return; }
+                                  updateMembership(member.id, update);
+                                  setEditingId(null);
+                                  setEditForm({ fullName: '', phone: '', email: '', password: '', address: '' });
+                                }} style={accentButtonStyle} disabled={loading}>Save</button>
+                                <button onClick={() => { setEditingId(null); setEditForm({ fullName: '', phone: '', email: '', password: '', address: '' }); }} style={secondaryButtonStyle} disabled={loading}>Cancel</button>
+                              </div>
+                            </div>
                           ) : null}
                           {member.role_code === 'store_manager' && capabilities?.canRemoveManager ? (
                             <button onClick={() => updateMembership(member.id, { status: 'removed' })} style={secondaryButtonStyle} disabled={loading}>Remove</button>

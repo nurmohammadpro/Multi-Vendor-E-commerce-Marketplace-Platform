@@ -3,8 +3,8 @@
 import { useEffect, useState } from 'react';
 
 import {
-  accentButtonStyle,
   emptyStateStyle,
+  gray800ButtonStyle,
   metricLabelStyle,
   metricValueStyle,
   pageShellStyle,
@@ -190,7 +190,7 @@ export function ReportsWorkspace({ canViewReports }: { canViewReports: boolean }
         <article style={surfaceCardStyle}>
           <div style={metricLabelStyle}>Due Sales</div>
           <div style={metricValueStyle}>{sales?.summary.due_sales_count ?? '—'}</div>
-          <div style={{ color: '#64748b', fontSize: 12, marginTop: 4 }}>
+          <div style={{ color: 'var(--muted-foreground)', fontSize: 12, marginTop: 4 }}>
             Amount: {sales?.summary.due_sales_amount ?? '—'}
           </div>
         </article>
@@ -307,10 +307,10 @@ export function ReportsWorkspace({ canViewReports }: { canViewReports: boolean }
       <article style={surfaceCardStyle}>
         <h3 style={{ marginTop: 0 }}>Exports</h3>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button onClick={() => createExport('sales')} style={accentButtonStyle} disabled={loading}>Export Sales</button>
-          <button onClick={() => createExport('inventory')} style={accentButtonStyle} disabled={loading}>Export Inventory</button>
-          <button onClick={() => createExport('billing')} style={accentButtonStyle} disabled={loading}>Export Billing</button>
-          <button onClick={() => createExport('support')} style={accentButtonStyle} disabled={loading}>Export Support</button>
+          <button onClick={() => createExport('sales')} style={gray800ButtonStyle} disabled={loading}>Export Sales</button>
+          <button onClick={() => createExport('inventory')} style={gray800ButtonStyle} disabled={loading}>Export Inventory</button>
+          <button onClick={() => createExport('billing')} style={gray800ButtonStyle} disabled={loading}>Export Billing</button>
+          <button onClick={() => createExport('support')} style={gray800ButtonStyle} disabled={loading}>Export Support</button>
         </div>
       </article>
       ) : null}

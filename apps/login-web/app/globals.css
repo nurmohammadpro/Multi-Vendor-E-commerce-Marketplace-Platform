@@ -34,50 +34,8 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
-:root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --radius: 0.25rem;
-}
-
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.145 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.145 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.985 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.396 0.141 25.723);
-  --destructive-foreground: oklch(0.637 0.237 25.331);
-  --border: oklch(0.269 0 0);
-  --input: oklch(0.269 0 0);
-  --ring: oklch(0.439 0 0);
-}
+/* Theme variables — imported from shared package */
+@import "../../../packages/theme/themes.css";
 
 @layer base {
   * {
@@ -95,7 +53,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(248, 250, 252, 0.98);
+  background: color-mix(in oklch, var(--background), transparent 2%);
   animation: intro-splash-fade 2.4s ease forwards;
   pointer-events: none;
 }
@@ -105,7 +63,7 @@
   height: 18rem;
   width: 18rem;
   border-radius: 9999px;
-  background: rgba(15, 23, 42, 0.06);
+  background: color-mix(in oklch, var(--foreground), transparent 94%);
   filter: blur(28px);
   animation: intro-glow-pulse 2.4s ease forwards;
 }
@@ -137,20 +95,20 @@
   font-weight: 700;
   letter-spacing: 0.32em;
   text-transform: uppercase;
-  color: rgba(71, 85, 105, 0.92);
+  color: var(--muted-foreground);
 }
 
 .intro-splash__title {
   max-width: 18rem;
   font-size: 1rem;
   font-weight: 600;
-  color: rgba(17, 17, 17, 0.92);
+  color: var(--foreground);
 }
 
 .login-shell {
   position: relative;
   overflow: hidden;
-  background: #f8fafc;
+  background: var(--background);
   opacity: 0;
   transition: opacity 360ms ease;
 }
@@ -167,7 +125,7 @@
   height: 30rem;
   width: 30rem;
   border-radius: 9999px;
-  background: radial-gradient(circle, rgba(15, 23, 42, 0.06) 0%, rgba(15, 23, 42, 0.03) 34%, rgba(15, 23, 42, 0) 72%);
+  background: radial-gradient(circle, color-mix(in oklch, var(--foreground), transparent 94%) 0%, color-mix(in oklch, var(--foreground), transparent 97%) 34%, transparent 72%);
   filter: blur(42px);
   opacity: 0;
   transform: translate(-50%, -46%) scale(0.88);
@@ -199,8 +157,8 @@
 
 .login-panel > div {
   border-radius: 0.5rem;
-  border-color: rgba(148, 163, 184, 0.22);
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  border-color: color-mix(in oklch, var(--border), transparent 78%);
+  box-shadow: 0 1px 2px var(--shadow);
 }
 
 .login-brand-logo {

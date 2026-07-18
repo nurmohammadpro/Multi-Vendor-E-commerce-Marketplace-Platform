@@ -17,6 +17,7 @@ import {
   BookOpen,
   LogOut,
 } from 'lucide-react';
+import { ThemeToggle } from '@mvp/theme';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -108,7 +109,7 @@ function AppSidebar({
       <SidebarHeader>
         <div className="flex items-center justify-between gap-1.5 px-1.5 py-1.5">
           <div className="flex items-center gap-1.5">
-            <div className="flex items-center justify-center size-8 rounded-md bg-white text-primary border p-1">
+            <div className="flex items-center justify-center size-8 rounded-md bg-card text-primary border p-1">
               <img
                 src="/marketone-logo.svg"
                 alt="Market One logo"
@@ -209,9 +210,8 @@ function Header() {
         <h1 className="text-sm sm:text-base font-medium truncate">
           {getPageTitle()}
         </h1>
-      </div>
-
-      <div className="flex items-center gap-1.5 sm:gap-2">
+      </div>          <div className="flex items-center gap-1.5 sm:gap-2">
+        <ThemeToggle />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="rounded-md size-8 sm:size-9">

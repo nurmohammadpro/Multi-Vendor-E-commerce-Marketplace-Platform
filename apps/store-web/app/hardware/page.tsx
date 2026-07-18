@@ -1,5 +1,5 @@
 import { getStoreConsoleAccess } from '../../lib/access';
-import { pageShellStyle, sectionLabelStyle, tokenMutedStyle } from '../marketone-theme';
+import { pageShellStyle, pageTitleStyle, sectionLabelStyle, tokenMutedStyle } from '../marketone-theme';
 import { HardwareWorkspace } from './hardware-workspace';
 
 export default async function HardwarePage() {
@@ -9,12 +9,12 @@ export default async function HardwarePage() {
     <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
       <div style={{ maxWidth: 900 }}>
         <div style={sectionLabelStyle}>Hardware</div>
-        <h2 style={{ margin: '8px 0 8px', fontSize: 'clamp(20px, 2vw, 28px)', fontWeight: 500, letterSpacing: '-0.02em' }}>
-          Cashier workstation setup for printers, scanners, and drawer control.
+        <h2 style={{ ...pageTitleStyle, margin: '8px 0' }}>
+          Standard cashier workstation setup for printing and scanning.
         </h2>
         <p style={tokenMutedStyle}>
-          This page mirrors the local workstation setup pattern we verified from AxiomPos: the web app stays on the VPS,
-          while receipt and label printing run through the cashier PC&apos;s local agent.
+          We now support two standard hardware setups only: a POS counter setup with receipt printer and drawer support,
+          or a laser counter setup with A4 printing. In both cases, the web app stays on the VPS while local printing runs through the cashier PC&apos;s agent.
         </p>
       </div>
 

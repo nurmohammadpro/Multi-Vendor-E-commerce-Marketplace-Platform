@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 
 import { CurrentAuthContext, CurrentAuthSession } from '../auth/current-auth.decorator.js';
@@ -11,6 +11,18 @@ const createLocationSchema = z.object({
   code: z.string().min(1).max(50),
   name: z.string().min(1).max(150),
   locationType: z.enum(['store', 'warehouse', 'popup']).default('store'),
+  address: z.string().max(500).optional(),
+  phone: z.string().max(30).optional(),
+  email: z.string().email().optional(),
+});
+
+const updateLocationSchema = z.object({
+  name: z.string().min(1).max(150).optional(),
+  code: z.string().min(1).max(50).optional(),
+  address: z.string().max(500).optional(),
+  phone: z.string().max(30).optional(),
+  email: z.string().email().optional(),
+  status: z.enum(['active', 'inactive']).optional(),
 });
 
 const requestAdjustmentSchema = z.object({
@@ -29,6 +41,42 @@ const decisionSchema = z.object({
 export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
 
+
+  @Patch('locations/:locationId')
+  @RequireContext('store')
+  @RequirePermissions('inventory.adjust.direct')
+  updateLocation(
+    @Param('locationId') locationId: string,
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @CurrentAuthSession() session: AuthSession | null,
+    @Body() payload: unknown,
+  ) {
+    return this.inventoryService.updateLocation(
+      locationId,
+      headerStoreId,
+      authContext,
+      session,
+      updateLocationSchema.parse(payload),
+    );
+  }
+
+  @Delete('locations/:locationId')
+  @RequireContext('store')
+  @RequirePermissions('inventory.adjust.direct')
+  deleteLocation(
+    @Param('locationId') locationId: string,
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @CurrentAuthSession() session: AuthSession | null,
+  ) {
+    return this.inventoryService.deleteLocation(
+      locationId,
+      headerStoreId,
+      authContext,
+      session,
+    );
+  }
 
   @Get('locations')
   @RequireContext('store')
