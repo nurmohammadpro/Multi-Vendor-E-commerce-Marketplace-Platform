@@ -46,7 +46,7 @@ export function renderReceipt(receipt, mode) {
   var css = [
     '*{margin:0;padding:0;box-sizing:border-box}',
     'body{font-family:"Segoe UI",system-ui,sans-serif;background:#fff;color:#1e293b}',
-    '.page{max-width:' + (isA5?'148mm':'80mm') + ';margin:0 auto;padding:' + (isA5?'8mm 10mm':'12px 8px') + '}',
+    '.page{max-width:' + (isA5?'100%':'80mm') + ';margin:0 auto;padding:' + (isA5?'8mm 10mm':'12px 8px') + '}',
     '.header{display:flex;justify-content:space-between;border-bottom:3px double #1e293b;padding-bottom:8px;margin-bottom:8px;' + (!isA5?'flex-direction:column;gap:4px;':'') + '}',
     '.hl{flex:1}',
     '.hr{text-align:' + (isA5?'right':'left') + ';' + (isA5?'border-left:1px dashed #cbd5e1;padding-left:12px;min-width:160px;':'') + '}',
@@ -82,7 +82,7 @@ export function renderReceipt(receipt, mode) {
 
   var html = '<!doctype html><html><head><meta charset="utf-8"><title>' + esc(receipt.saleNo||'Invoice') + '</title><style>' + css + '</style></head><body><div class="page">' +
     '<div class="header"><div class="hl"><div class="sn">' + esc(store.name||'Store') + '</div>' + storeMetaHtml + logoHtml + '</div>' +
-    '<div class="hr"><div class="it">Invoice</div><div class="ino">' + esc(receipt.saleNo||'—') + '</div><div class="sm">' + esc(dateStr) + '</div>' + custSec + '</div></div>' +
+    '<div class="hr"><div class="it">Invoice</div><div class="ino">' + esc(receipt.saleNo||'—') + '</div><div class="sm">' + esc(dateStr) + '</div>' + (barcode ? '<div style="margin-top:6px"><img src="https://barcode.tec-it.com/barcode.ashx?data=' + encodeURIComponent(barcode) + '&code=Code128&translate-esc=true&dpi=96&imagetype=png" style="max-width:180px;height:35px" alt="Barcode"><div class="bt">' + esc(barcode) + '</div></div>' : '') + custSec + '</div></div>' +
     '<h2>Items</h2><table><thead><tr><th class="ic">Item</th><th class="qc">Qty</th><th class="pc">Price</th><th class="dc">Disc</th><th class="tc">Total</th></tr></thead><tbody>' + itemRows + '</tbody></table>' +
     '<div class="totals">' +
     (discount > 0 ? '<div class="tr"><span class="lb">Discount</span><span class="vl" style="color:#b45309">-' + money(discount) + '</span></div>' : '') +

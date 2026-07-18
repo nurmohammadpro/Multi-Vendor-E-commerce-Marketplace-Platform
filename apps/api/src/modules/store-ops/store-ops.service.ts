@@ -2419,7 +2419,7 @@ export class StoreOpsService {
       const productResult = await client.query<{ id: string }>(
         `insert into catalog.products (id, tenant_id, store_id, product_code, name, category_id, brand_id, has_variants, variant_mode, is_trackable, product_type, status, created_at, updated_at)
          values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, 'exchange', 'active', now(), now()) returning id`,
-        [tenantId, storeId, productCode, productName, categoryId, brandId, payload.hasVariants, payload.hasVariants ? 'single' : 'none', payload.isTrackable ?? false],
+        [tenantId, storeId, productCode, productName, categoryId, brandId, payload.hasVariants, payload.hasVariants ? 'single' : 'none', payload.isTrackable ?? true],
       );
       const productId = productResult.rows[0].id;
 
