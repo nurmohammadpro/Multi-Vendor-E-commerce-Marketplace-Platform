@@ -1066,7 +1066,7 @@ export class PosService {
     let preparedBy: string | null = null;
     if (sale.sold_by) {
       const userResult = await this.pool.query<{ full_name: string }>(
-        'select full_name from identity.users where id = $1 limit 1',
+        'select up.full_name from identity.users u left join identity.user_profiles up on up.user_id = u.id where u.id = $1 limit 1',
         [sale.sold_by],
       );
       if (userResult.rows[0]) {
