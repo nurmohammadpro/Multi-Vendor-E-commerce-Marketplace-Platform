@@ -22,6 +22,9 @@
       "@mvp/rbac": [
         "packages/rbac/src/index.ts"
       ],
+      "@mvp/theme": [
+        "packages/theme/src/index.ts"
+      ],
       "@mvp/database": [
         "packages/database/src/index.ts"
       ]

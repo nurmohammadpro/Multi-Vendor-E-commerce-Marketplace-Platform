@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Package, ClipboardList, ShoppingCart, Truck, BarChart3, CreditCard, Users, Wallet, ReceiptText, Landmark } from 'lucide-react';
+import { Package, ClipboardList, ShoppingCart, Truck, BarChart3, CreditCard, Users, Wallet, ReceiptText, Landmark, MapPin } from 'lucide-react';
 
 import { fetchStoreApi, isStoreApiConfigured } from '../lib/api';
 import { getStoreConsoleAccess } from '../lib/access';
@@ -10,6 +10,7 @@ import {
   metricValueStyle,
   marketoneColors,
   pageShellStyle,
+  pageTitleStyle,
   sectionPanelStyle,
   sectionLabelStyle,
   surfaceCardStyle,
@@ -29,10 +30,10 @@ const quickActions = [
   // Product & Stock
   { href: '/purchases', group: 'Product & Stock', title: 'Products & Stock', detail: 'Quick add new products, receive supplier stock, manage categories and suppliers.', icon: Package, feature: 'purchases' },
   { href: '/reports', group: 'Product & Stock', title: 'Reports', detail: 'Daily sales, stock snapshots, and exportable business reports.', icon: BarChart3, permission: 'sales.report.view', feature: 'reports' },
+  { href: '/locations', group: 'Product & Stock', title: 'Locations', detail: 'Manage inventory locations, addresses, and contact details.', icon: MapPin, feature: 'inventory' },
   // Management
-  { href: '/staff', group: 'Management', title: 'Staff Management', detail: 'Manage store owner, manager, and salesman access and roles.', icon: Users, permission: 'store.staff.manage', feature: 'staff' },
+  { href: '/staff', group: 'Management', title: 'Team', detail: 'Manage users, employee records, and payroll workflow from one place.', icon: Users, permission: 'store.staff.manage', feature: 'staff' },
   { href: '/expenses', group: 'Management', title: 'Daily Expenses', detail: 'Track day-level store expenses and spending.', icon: ReceiptText, feature: 'expenses' },
-  { href: '/payroll', group: 'Management', title: 'Payroll', detail: 'Manage payroll runs and employee compensation.', icon: Wallet, feature: 'payroll' },
   { href: '/banking', group: 'Management', title: 'Banking', detail: 'Reconcile banking activity, deposits, and withdrawals.', icon: Landmark, feature: 'banking' },
   { href: '/billing', group: 'Management', title: 'Subscription', detail: 'Check plan health, invoices, and payment status.', icon: CreditCard, permission: 'billing.subscription.manage', feature: 'billing' },
 ] satisfies Array<{
@@ -85,7 +86,7 @@ export default async function StoreDashboard() {
   return (
     <div style={pageShellStyle}>
       <div style={{ marginBottom: 32 }}>
-        <h1 style={{ margin: '0 0 6px', fontSize: 'clamp(24px, 2.2vw, 32px)', lineHeight: 1.1, letterSpacing: '-0.03em', fontWeight: 500 }}>
+        <h1 style={{ ...pageTitleStyle, marginBottom: 6 }}>
           {access.storeName || 'Store Dashboard'}
         </h1>
         <p style={{ ...tokenMutedStyle, margin: 0 }}>{access.planName} plan · {access.role} access</p>

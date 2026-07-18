@@ -14,7 +14,7 @@ export default function OfflinePage() {
   return (
     <section style={{ ...pageShellStyle, minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24 }}>
       <article style={{ ...surfaceCardStyle, width: 'min(520px, 100%)', display: 'grid', gap: 12 }}>
-        <div style={{ fontSize: 12, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#64748b' }}>
+        <div style={{ fontSize: 12, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--muted-foreground)' }}>
           Offline Mode
         </div>
         <h1 style={{ margin: 0, fontSize: 28, lineHeight: 1.1 }}>Market One BD is temporarily offline.</h1>

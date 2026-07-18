@@ -37,6 +37,10 @@ export type PrintAgentPrinterList = {
 export type ReceiptPayload = {
   saleId?: string | null;
   saleNo?: string | null;
+  saleType?: 'paid' | 'due' | 'exchange' | null;
+  paymentStatus?: string | null;
+  dueDate?: string | null;
+  note?: string | null;
   store?: {
     name?: string | null;
     logoUrl?: string | null;
@@ -59,6 +63,7 @@ export type ReceiptPayload = {
     unitPrice?: number;
     discountAmount?: number;
     lineTotal?: number;
+    isExchangeItem?: boolean;
   }>;
   totals?: {
     subtotal?: number;
@@ -74,7 +79,14 @@ export type ReceiptPayload = {
     paymentMethod?: string | null;
     amount?: number;
     status?: string | null;
+    referenceNo?: string | null;
+    paidAt?: string | null;
   }>;
+  exchange?: {
+    productName?: string | null;
+    skuCode?: string | null;
+    amount?: number;
+  };
   printedAt?: string | null;
 };
 
@@ -112,7 +124,10 @@ export function formatReceiptText(receipt: ReceiptPayload) {
   const lines = [
     receipt.store?.name || 'Store',
     receipt.saleNo ? `Receipt: ${receipt.saleNo}` : 'Receipt',
+    receipt.saleType ? `Type: ${receipt.saleType.replace('_', ' ')}` : null,
+    receipt.paymentStatus ? `Status: ${receipt.paymentStatus}` : null,
     receipt.printedAt ? `Printed: ${new Date(receipt.printedAt).toLocaleString()}` : null,
+    receipt.dueDate ? `Due date: ${new Date(receipt.dueDate).toLocaleDateString()}` : null,
     receipt.customer?.name ? `Customer: ${receipt.customer.name}` : null,
     receipt.customer?.phone ? `Phone: ${receipt.customer.phone}` : null,
     receipt.customer?.email ? `Email: ${receipt.customer.email}` : null,
@@ -128,7 +143,6 @@ export function formatReceiptText(receipt: ReceiptPayload) {
     `Subtotal: ${money(receipt.totals?.subtotal)}`,
     `Discount: ${money(receipt.totals?.discount)}`,
     `Tax: ${money(receipt.totals?.tax)}`,
-    `Shipping: ${money(receipt.totals?.shipping)}`,
     `Total: ${money(receipt.totals?.total)}`,
     `Paid: ${money(receipt.totals?.paid)}`,
     `Due: ${money(receipt.totals?.due)}`,
@@ -138,10 +152,11 @@ export function formatReceiptText(receipt: ReceiptPayload) {
           '------------------------------',
           ...receipt.payments.map(
             (payment) =>
-              `${payment.paymentMethod || 'payment'}${payment.status ? ` (${payment.status})` : ''}: ${money(payment.amount)}`,
+              `${payment.paymentMethod || 'payment'}${payment.status ? ` (${payment.status})` : ''}: ${money(payment.amount)}${payment.referenceNo ? ` · ${payment.referenceNo}` : ''}`,
           ),
         ]
       : []),
+    receipt.note ? `Note: ${receipt.note}` : null,
     receipt.store?.footer || 'Thank you',
   ];
 
@@ -295,7 +310,6 @@ async function buildEscPosReceipt(receipt: ReceiptPayload) {
   pushText(padLine('Subtotal', money(receipt.totals?.subtotal)));
   pushText(padLine('Discount', money(receipt.totals?.discount)));
   pushText(padLine('Tax', money(receipt.totals?.tax)));
-  pushText(padLine('Shipping', money(receipt.totals?.shipping)));
   pushText(padLine('Total', money(receipt.totals?.total)));
   pushText(padLine('Paid', money(receipt.totals?.paid)));
   pushText(padLine('Due', money(receipt.totals?.due)));
@@ -334,6 +348,21 @@ function bytesToBase64(bytes: Uint8Array) {
 }
 
 export function renderInvoiceHtml(receipt: ReceiptPayload) {
+  const invoiceTitle =
+    receipt.saleType === 'exchange'
+      ? 'Exchange Invoice'
+      : receipt.saleType === 'due'
+        ? 'Due Invoice'
+        : 'Sales Invoice';
+  const saleTypeLabel =
+    receipt.saleType === 'exchange'
+      ? 'Exchange / Trade-in'
+      : receipt.saleType === 'due'
+        ? 'Due Sale'
+        : 'Cash Sale';
+  const paymentStatusLabel = receipt.paymentStatus
+    ? receipt.paymentStatus.charAt(0).toUpperCase() + receipt.paymentStatus.slice(1)
+    : 'Paid';
   const storeMeta = [
     receipt.store?.phone,
     receipt.store?.email,
@@ -341,23 +370,29 @@ export function renderInvoiceHtml(receipt: ReceiptPayload) {
   ].filter(Boolean) as string[];
 
   const itemRows = (receipt.items ?? [])
-    .map((item) => {
-      const discount = Number(item.discountAmount ?? 0);
+    .map((item, index) => {
+      const isExchange = item.isExchangeItem;
+      const lineTotal = Number(item.lineTotal ?? 0);
       return `
-      <tr>
-        <td>${escapeHtml(item.name || 'Item')}</td>
-        <td>${escapeHtml(item.skuCode || '—')}</td>
-        <td>${Number(item.qty ?? 0)}</td>
-        <td>${money(item.unitPrice)}</td>
-        ${discount > 0 ? `<td style="color:#b45309;font-size:12px;">-${money(discount)}</td>` : ''}
-        <td>${money(item.lineTotal)}</td>
+      <tr${isExchange ? ' style="color:#16a34a;"' : ''}>
+        <td style="text-align:center;width:40px;">${index + 1}.</td>
+        <td>
+          <div>${escapeHtml(item.name || 'Item')}</div>
+          ${item.skuCode ? `<div style="font-size:11px;color:#64748b;">${escapeHtml(item.skuCode)}</div>` : ''}
+        </td>
+        <td style="text-align:center;">${item.isExchangeItem ? '—' : Number(item.qty ?? 0)}</td>
+        <td style="text-align:right;">${money(item.unitPrice)}</td>
+        <td style="text-align:right;font-weight:600;${lineTotal < 0 ? 'color:#16a34a;' : ''}">${lineTotal < 0 ? '-' : ''}${money(Math.abs(lineTotal))}</td>
       </tr>`;
     })
     .join('');
 
   const payments = (receipt.payments ?? [])
     .map((payment) => `
-      <li>${escapeHtml(payment.paymentMethod || 'payment')}${payment.status ? ` (${escapeHtml(payment.status)})` : ''}: ${money(payment.amount)}</li>
+      <li>
+        ${escapeHtml(payment.paymentMethod || 'payment')}${payment.status ? ` (${escapeHtml(payment.status)})` : ''}: ${money(payment.amount)}
+        ${payment.referenceNo ? `<span style="color:#64748b;"> · Ref ${escapeHtml(payment.referenceNo)}</span>` : ''}
+      </li>
     `)
     .join('');
 
@@ -367,15 +402,18 @@ export function renderInvoiceHtml(receipt: ReceiptPayload) {
     <meta charset="utf-8" />
     <title>${escapeHtml(receipt.saleNo || 'Invoice')}</title>
     <style>
+      @page { size: A4; margin: 12mm; }
       body { font-family: Arial, sans-serif; margin: 0; background: #f8fafc; color: #0f172a; }
-      .page { max-width: 820px; margin: 0 auto; background: #fff; padding: 32px; }
-      .header { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; }
+      .page { max-width: 820px; margin: 0 auto; background: #fff; padding: 28px; }
+      .header { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; border-bottom: 2px solid #e2e8f0; padding-bottom: 18px; }
       .brand { display: flex; gap: 16px; align-items: center; }
-      .brand-logo { width: 72px; height: 72px; object-fit: contain; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; padding: 6px; }
+      .brand-logo { width: 76px; height: 76px; object-fit: contain; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; padding: 6px; }
       .brand-name { font-size: 24px; font-weight: 700; margin: 0 0 6px; }
       .brand-meta { margin: 0; color: #475569; font-size: 13px; line-height: 1.5; }
       .invoice-meta { text-align: right; }
       .invoice-title { margin: 0 0 8px; font-size: 28px; font-weight: 700; }
+      .status-strip { display: flex; flex-wrap: wrap; gap: 10px; padding: 14px 0 4px; }
+      .status-pill { display: inline-flex; align-items: center; border: 1px solid #cbd5e1; border-radius: 999px; padding: 5px 10px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #334155; background: #f8fafc; white-space: nowrap; }
       .section { margin-top: 24px; }
       .section h2 { margin: 0 0 12px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.12em; color: #64748b; }
       table { width: 100%; border-collapse: collapse; }
@@ -385,10 +423,11 @@ export function renderInvoiceHtml(receipt: ReceiptPayload) {
       .totals-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0; }
       .totals-row.total { font-size: 18px; font-weight: 700; border-bottom: 0; padding-top: 14px; }
       .customer, .payments { color: #334155; font-size: 14px; line-height: 1.6; }
+      .exchange-box, .note-box { border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 10px; padding: 12px 14px; color: #334155; font-size: 14px; line-height: 1.6; }
       .invoice-footer { margin-top: 28px; padding-top: 16px; border-top: 1px solid #e2e8f0; color: #64748b; font-size: 12px; text-align: center; }
       @media print {
         body { background: #fff; }
-        .page { max-width: none; margin: 0; padding: 20px; }
+        .page { max-width: none; margin: 0; padding: 0; }
       }
     </style>
   </head>
@@ -403,10 +442,16 @@ export function renderInvoiceHtml(receipt: ReceiptPayload) {
           </div>
         </div>
         <div class="invoice-meta">
-          <p class="invoice-title">Invoice</p>
+          <p class="invoice-title">${invoiceTitle}</p>
           <p class="brand-meta">No: ${escapeHtml(receipt.saleNo || '—')}</p>
           <p class="brand-meta">Printed: ${escapeHtml(receipt.printedAt ? new Date(receipt.printedAt).toLocaleString() : new Date().toLocaleString())}</p>
         </div>
+      </div>
+
+      <div class="status-strip">
+        <div class="status-pill">${escapeHtml(saleTypeLabel)}</div>
+        <div class="status-pill">${escapeHtml(paymentStatusLabel)}</div>
+        ${receipt.dueDate ? `<div class="status-pill">Due ${escapeHtml(new Date(receipt.dueDate).toLocaleDateString())}</div>` : ''}
       </div>
 
       <div class="section">
@@ -425,23 +470,32 @@ export function renderInvoiceHtml(receipt: ReceiptPayload) {
         <table>
           <thead>
             <tr>
-              <th>Item</th>
-              <th>SKU</th>
-              <th>Qty</th>
-              <th>Unit</th>
-              ${receipt.items?.some((item) => Number(item.discountAmount ?? 0) > 0) ? '<th>Disc</th>' : ''}
-              <th>Total</th>
+              <th style="text-align:center;width:40px;">SL</th>
+              <th>Description</th>
+              <th style="text-align:center;">Qty</th>
+              <th style="text-align:right;">Unit Price</th>
+              <th style="text-align:right;">Amount</th>
             </tr>
           </thead>
           <tbody>${itemRows}</tbody>
         </table>
       </div>
 
+      ${receipt.exchange ? `
+        <div class="section">
+          <h2>Exchange</h2>
+          <div class="exchange-box">
+            <div><strong>Trade-in product:</strong> ${escapeHtml(receipt.exchange.productName || 'Exchange item')}</div>
+            ${receipt.exchange.skuCode ? `<div><strong>SKU:</strong> ${escapeHtml(receipt.exchange.skuCode)}</div>` : ''}
+            <div><strong>Exchange value:</strong> ${money(receipt.exchange.amount)}</div>
+          </div>
+        </div>
+      ` : ''}
+
       <div class="section totals">
         <div class="totals-row"><span>Subtotal</span><span>${money(receipt.totals?.subtotal)}</span></div>
         <div class="totals-row"><span>Discount</span><span>${money(receipt.totals?.discount)}</span></div>
         <div class="totals-row"><span>Tax</span><span>${money(receipt.totals?.tax)}</span></div>
-        <div class="totals-row"><span>Shipping</span><span>${money(receipt.totals?.shipping)}</span></div>
         <div class="totals-row total"><span>Total</span><span>${money(receipt.totals?.total)}</span></div>
         <div class="totals-row"><span>Paid</span><span>${money(receipt.totals?.paid)}</span></div>
         ${(receipt.totals?.change ?? 0) > 0 ? `<div class="totals-row"><span>Change</span><span>${money(receipt.totals?.change)}</span></div>` : ''}
@@ -449,6 +503,7 @@ export function renderInvoiceHtml(receipt: ReceiptPayload) {
       </div>
 
       ${payments ? `<div class="section"><h2>Payments</h2><ul class="payments">${payments}</ul></div>` : ''}
+      ${receipt.note ? `<div class="section"><h2>Note</h2><div class="note-box">${escapeHtml(receipt.note)}</div></div>` : ''}
       ${receipt.store?.footer ? `<div class="section"><h2>Footer</h2><div class="customer">${escapeHtml(receipt.store.footer)}</div></div>` : ''}
       <div class="invoice-footer">Developed and maintained by Market One BD · Your One Stop Marketplace</div>
     </div>
@@ -457,16 +512,36 @@ export function renderInvoiceHtml(receipt: ReceiptPayload) {
 }
 
 export function openInvoicePrintWindow(receipt: ReceiptPayload) {
-  const printWindow = window.open('', '_blank', 'noopener,noreferrer');
-  if (!printWindow) {
+  if (typeof document === 'undefined') {
     return false;
   }
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = '0';
+  iframe.setAttribute('aria-hidden', 'true');
+  iframe.srcdoc = renderInvoiceHtml(receipt);
+  document.body.appendChild(iframe);
 
-  printWindow.document.open();
-  printWindow.document.write(renderInvoiceHtml(receipt));
-  printWindow.document.close();
-  printWindow.focus();
-  printWindow.print();
+  const cleanup = () => {
+    window.setTimeout(() => {
+      iframe.remove();
+    }, 1200);
+  };
+
+  iframe.onload = () => {
+    const frameWindow = iframe.contentWindow;
+    if (!frameWindow) {
+      cleanup();
+      return;
+    }
+    frameWindow.focus();
+    frameWindow.print();
+    cleanup();
+  };
   return true;
 }
 

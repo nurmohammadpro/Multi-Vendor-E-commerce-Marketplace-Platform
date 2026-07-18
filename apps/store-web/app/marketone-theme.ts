@@ -1,22 +1,27 @@
 import type { CSSProperties } from 'react';
 
+/**
+ * Theme-aware color tokens.
+ * Every value is a CSS variable reference so that inline styles
+ * automatically react to theme/mode switches.
+ */
 export const marketoneColors = {
-  background: '#f8fafc',
-  backgroundAlt: '#f1f5f9',
-  backgroundRaised: '#eef2f7',
-  ink: '#0f172a',
-  muted: '#475569',
-  surface: '#ffffff',
-  surfaceAlt: '#ffffff',
-  surfaceSoft: '#f8fafc',
-  border: 'rgba(148, 163, 184, 0.22)',
-  borderStrong: 'rgba(100, 116, 139, 0.28)',
-  accent: '#2563eb',
-  accentSoft: 'rgba(37, 99, 235, 0.12)',
-  accentDeep: '#1d4ed8',
-  shadow: 'rgba(15, 23, 42, 0.04)',
-  shadowStrong: 'rgba(15, 23, 42, 0.08)',
-};
+  background: 'var(--background)',
+  backgroundAlt: 'var(--muted)',
+  backgroundRaised: 'var(--secondary)',
+  ink: 'var(--foreground)',
+  muted: 'var(--muted-foreground)',
+  surface: 'var(--card)',
+  surfaceAlt: 'var(--card)',
+  surfaceSoft: 'var(--background)',
+  border: 'var(--border)',
+  borderStrong: 'var(--border-strong)',
+  accent: 'var(--accent)',
+  accentSoft: 'var(--accent-soft)',
+  accentDeep: 'var(--accent-deep)',
+  shadow: 'var(--shadow)',
+  shadowStrong: 'var(--shadow-strong)',
+} as const;
 
 export const pageShellStyle: CSSProperties = {
   minHeight: 'auto',
@@ -72,7 +77,7 @@ export const sectionLabelStyle: CSSProperties = {
   fontSize: 10,
   letterSpacing: '0.16em',
   textTransform: 'uppercase',
-  fontWeight: 600,
+  fontWeight: 700,
   color: marketoneColors.muted,
 };
 
@@ -81,7 +86,7 @@ export const pageTitleStyle: CSSProperties = {
   fontSize: 'clamp(24px, 2.2vw, 32px)',
   lineHeight: 1.1,
   letterSpacing: '-0.03em',
-  fontWeight: 500,
+  fontWeight: 600,
 };
 
 export const pageLeadStyle: CSSProperties = {
@@ -118,7 +123,7 @@ export const metricLabelStyle: CSSProperties = {
   opacity: 1,
   marginBottom: 2,
   fontSize: 10,
-  fontWeight: 600,
+  fontWeight: 700,
   letterSpacing: '0.08em',
   textTransform: 'uppercase',
   color: marketoneColors.muted,
@@ -127,7 +132,7 @@ export const metricLabelStyle: CSSProperties = {
 export const metricValueStyle: CSSProperties = {
   fontSize: 22,
   lineHeight: 1.05,
-  fontWeight: 500,
+  fontWeight: 700,
   letterSpacing: '-0.02em',
   color: marketoneColors.ink,
 };
@@ -143,6 +148,7 @@ export const tokenMutedStyle: CSSProperties = {
   marginBottom: 0,
   lineHeight: 1.4,
   fontSize: 13,
+  fontWeight: 400,
   color: marketoneColors.muted,
 };
 
@@ -150,8 +156,8 @@ export const fieldStyle: CSSProperties = {
   width: '100%',
   padding: '5px 9px',
   borderRadius: 6,
-  border: `1px solid ${marketoneColors.border}`,
-  background: '#ffffff',
+  border: `1px solid ${marketoneColors.borderStrong}`,
+  background: 'var(--card)',
   color: marketoneColors.ink,
   font: 'inherit',
   fontSize: 12,
@@ -179,27 +185,27 @@ export const solidButtonStyle: CSSProperties = {
   ...buttonBaseStyle,
   border: `1px solid ${marketoneColors.ink}`,
   background: marketoneColors.ink,
-  color: '#f8fafc',
+  color: 'var(--background)',
 };
 
 export const neutralButtonStyle: CSSProperties = {
   ...buttonBaseStyle,
   border: `1px solid ${marketoneColors.borderStrong}`,
-  background: '#ffffff',
+  background: 'var(--card)',
   color: marketoneColors.ink,
 };
 
 export const accentButtonStyle: CSSProperties = {
   ...buttonBaseStyle,
-  border: `1px solid #0f172a`,
-  background: '#0f172a',
-  color: '#ffffff',
+  border: '1px solid var(--foreground)',
+  background: 'var(--foreground)',
+  color: 'var(--background)',
 };
 
 export const dangerButtonStyle: CSSProperties = {
   ...buttonBaseStyle,
-  border: '1px solid #b91c1c',
-  background: '#b91c1c',
+  border: '1px solid var(--destructive)',
+  background: 'var(--destructive)',
   color: '#ffffff',
 };
 
@@ -228,9 +234,9 @@ export const tableActionButtonStyle: CSSProperties = {
 
 export const gray800ButtonStyle: CSSProperties = {
   ...buttonBaseStyle,
-  border: '1px solid #1e293b',
-  background: '#1e293b',
-  color: '#ffffff',
+  border: '1px solid var(--primary)',
+  background: 'var(--primary)',
+  color: 'var(--primary-foreground)',
 };
 
 export const searchButtonStyle: CSSProperties = {
@@ -250,7 +256,7 @@ export const pillStyle: CSSProperties = {
   padding: '3px 7px',
   borderRadius: 6,
   border: `1px solid ${marketoneColors.border}`,
-  background: '#ffffff',
+  background: 'var(--card)',
   fontSize: 11,
   fontWeight: 500,
   color: marketoneColors.ink,
@@ -272,7 +278,7 @@ export const tableWrapStyle: CSSProperties = {
   overflowX: 'auto',
   border: `1px solid ${marketoneColors.borderStrong}`,
   borderRadius: 8,
-  background: '#ffffff',
+  background: 'var(--card)',
   boxShadow: `inset 0 1px 0 rgba(255,255,255,0.75)`,
 };
 
@@ -288,6 +294,7 @@ export const tableHeaderCellStyle: CSSProperties = {
   fontSize: 10,
   letterSpacing: '0.1em',
   textTransform: 'uppercase',
+  fontWeight: 700,
   color: marketoneColors.muted,
   borderBottom: `1px solid ${marketoneColors.border}`,
   background: marketoneColors.backgroundAlt,

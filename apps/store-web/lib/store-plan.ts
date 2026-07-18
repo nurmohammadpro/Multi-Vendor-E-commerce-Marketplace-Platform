@@ -1,4 +1,4 @@
-export type StoreSubscriptionPlan = 'basic' | 'standard' | 'pro';
+export type StoreSubscriptionPlan = 'basic' | 'standard' | 'pro' | 'custom';
 
 export type StoreConsoleFeature =
   | 'dashboard'
@@ -9,6 +9,7 @@ export type StoreConsoleFeature =
   | 'receivables'
   | 'customers'
   | 'reports'
+  | 'shipping'
   | 'disputes'
   | 'support'
   | 'staff'
@@ -24,6 +25,7 @@ const planPriority: Record<StoreSubscriptionPlan, number> = {
   basic: 1,
   standard: 2,
   pro: 3,
+  custom: 4,
 };
 
 const featurePlanRequirements: Record<StoreConsoleFeature, StoreSubscriptionPlan> = {
@@ -31,10 +33,11 @@ const featurePlanRequirements: Record<StoreConsoleFeature, StoreSubscriptionPlan
   catalog: 'basic',
   inventory: 'basic',
   pos: 'basic',
-  purchases: 'standard',
+  purchases: 'basic',
   receivables: 'basic',
   customers: 'basic',
   reports: 'basic',
+  shipping: 'basic',
   disputes: 'basic',
   support: 'basic',
   staff: 'standard',
@@ -52,15 +55,20 @@ export function hasRequiredPlan(planCode: StoreSubscriptionPlan, feature: StoreC
 }
 
 export function canAccessStoreFeature(
-  access: { planCode: StoreSubscriptionPlan },
+  access: { planCode: StoreSubscriptionPlan; planFeatures?: string[] },
   feature: StoreConsoleFeature | undefined,
 ) {
   if (!feature) return true;
+  // For custom plans, check the features_json array from the backend
+  if (access.planCode === 'custom' && access.planFeatures) {
+    return access.planFeatures.includes(feature);
+  }
   return hasRequiredPlan(access.planCode, feature);
 }
 
 export function formatPlanName(planCode: StoreSubscriptionPlan) {
   if (planCode === 'pro') return 'Pro';
   if (planCode === 'standard') return 'Standard';
+  if (planCode === 'custom') return 'Custom';
   return 'Basic';
 }

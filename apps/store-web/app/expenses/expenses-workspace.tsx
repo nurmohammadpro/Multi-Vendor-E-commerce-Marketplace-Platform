@@ -3,9 +3,9 @@
 import { useEffect, useState } from 'react';
 
 import {
-  accentButtonStyle,
   emptyStateStyle,
   fieldStyle,
+  gray800ButtonStyle,
   sectionPanelStyle,
   pageShellStyle,
   searchButtonStyle,
@@ -186,7 +186,7 @@ export function ExpensesWorkspace() {
               <option value="void">Void</option>
             </select>
             <textarea value={form.note} onChange={(event) => setForm((current) => ({ ...current, note: event.target.value }))} style={{ ...fieldStyle, minHeight: 90 }} placeholder="Note" />
-            <button onClick={saveExpense} style={accentButtonStyle} disabled={loading}>{selectedExpenseId ? 'Update Expense' : 'Save Expense'}</button>
+            <button onClick={saveExpense} style={gray800ButtonStyle} disabled={loading}>{selectedExpenseId ? 'Update Expense' : 'Save Expense'}</button>
           </div>
         </article>
 
@@ -200,7 +200,7 @@ export function ExpensesWorkspace() {
               style={{ ...fieldStyle, flex: 1 }}
               placeholder="New category name"
             />
-            <button onClick={() => void addCategory()} style={accentButtonStyle}>Add</button>
+            <button onClick={() => void addCategory()} style={gray800ButtonStyle}>Add</button>
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {categories.length === 0 && (
@@ -215,11 +215,11 @@ export function ExpensesWorkspace() {
                   gap: 6,
                   padding: '4px 8px',
                   borderRadius: 6,
-                  border: `1px solid ${cat.status === 'active' ? 'rgba(37, 99, 235, 0.2)' : 'rgba(148, 163, 184, 0.22)'}`,
-                  background: cat.status === 'active' ? 'rgba(37, 99, 235, 0.06)' : '#ffffff',
+                  border: `1px solid ${cat.status === 'active' ? 'var(--accent)' : 'var(--border)'}`,
+                  background: cat.status === 'active' ? 'var(--accent-soft)' : 'var(--card)',
                   fontSize: 12,
                   fontWeight: 500,
-                  color: cat.status === 'active' ? '#1d4ed8' : '#475569',
+                  color: cat.status === 'active' ? 'var(--accent-deep)' : 'var(--muted-foreground)',
                   opacity: cat.status === 'archived' ? 0.6 : 1,
                 }}
               >
@@ -227,7 +227,7 @@ export function ExpensesWorkspace() {
                 {cat.status === 'active' ? (
                   <button
                     onClick={() => void toggleCategoryStatus(cat)}
-                    style={{ ...subtleButtonStyle, minHeight: 18, padding: '0 4px', fontSize: 11, lineHeight: '18px', color: '#475569' }}
+                    style={{ ...subtleButtonStyle, minHeight: 18, padding: '0 4px', fontSize: 11, lineHeight: '18px', color: 'var(--muted-foreground)' }}
                     title="Archive"
                   >
                     ✕

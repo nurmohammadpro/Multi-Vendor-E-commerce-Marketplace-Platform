@@ -3,6 +3,7 @@ import type { Pool, PoolClient } from 'pg';
 
 import type { AuthSession, StoreAuthContext } from '../auth/auth.types.js';
 import { AuditService } from '../audit/audit.service.js';
+import { BillingService } from '../billing/billing.service.js';
 import { normalizePageQuery, stripPaginationTotal } from '../common/pagination.js';
 import { DATABASE_POOL } from '../database/database.constants.js';
 
@@ -11,6 +12,7 @@ export class InventoryService {
   constructor(
     @Inject(DATABASE_POOL) private readonly pool: Pool,
     private readonly auditService: AuditService,
+    private readonly billingService: BillingService,
   ) {}
 
   private async ensureDefaultLocation(storeId: string) {
@@ -54,10 +56,12 @@ export class InventoryService {
     headerStoreId: string | undefined,
     authContext: StoreAuthContext | null,
     session: AuthSession | null,
-    payload: { code: string; name: string; locationType: string },
+    payload: { code: string; name: string; locationType: string; address?: string; phone?: string; email?: string },
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
     const userId = this.requireUserId(session);
+
+    await this.billingService.checkLocationLimit(storeId);
 
     const tenantResult = await this.pool.query<{ tenant_id: string }>(
       `select tenant_id from store.stores where id = $1 limit 1`, [storeId],
@@ -65,9 +69,9 @@ export class InventoryService {
     const tenantId = tenantResult.rows[0].tenant_id;
 
     const result = await this.pool.query<{ id: string; code: string; name: string; location_type: string; status: string }>(
-      `insert into inventory.locations (id, tenant_id, store_id, code, name, location_type, status, created_at, updated_at)
-       values (gen_random_uuid(), $1, $2, $3, $4, $5, 'active', now(), now()) returning id, code, name, location_type, status`,
-      [tenantId, storeId, payload.code, payload.name, payload.locationType],
+      `insert into inventory.locations (id, tenant_id, store_id, code, name, location_type, address, phone, email, status, created_at, updated_at)
+       values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, 'active', now(), now()) returning id, code, name, address, phone, email, location_type, status`,
+      [tenantId, storeId, payload.code, payload.name, payload.locationType, payload.address ?? null, payload.phone ?? null, payload.email ?? null],
     );
 
     await this.auditService.recordStoreAction({
@@ -78,13 +82,84 @@ export class InventoryService {
     return { location: result.rows[0] };
   }
 
+  async updateLocation(
+    locationId: string,
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    session: AuthSession | null,
+    payload: { name?: string; code?: string; address?: string; phone?: string; email?: string; status?: string },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const userId = this.requireUserId(session);
+
+    const location = await this.pool.query<{ id: string }>(
+      `select id from inventory.locations where id = $1 and store_id = $2 limit 1`,
+      [locationId, storeId],
+    );
+    if (!location.rows[0]) throw new NotFoundException('Location not found');
+
+    const sets: string[] = [];
+    const values: unknown[] = [];
+    let idx = 1;
+
+    if (payload.name !== undefined) { sets.push(`name = $${idx++}`); values.push(payload.name); }
+    if (payload.code !== undefined) { sets.push(`code = $${idx++}`); values.push(payload.code); }
+    if (payload.address !== undefined) { sets.push(`address = $${idx++}`); values.push(payload.address); }
+    if (payload.phone !== undefined) { sets.push(`phone = $${idx++}`); values.push(payload.phone); }
+    if (payload.email !== undefined) { sets.push(`email = $${idx++}`); values.push(payload.email); }
+    if (payload.status !== undefined) { sets.push(`status = $${idx++}`); values.push(payload.status); }
+
+    if (!sets.length) return { location: location.rows[0] };
+
+    sets.push(`updated_at = now()`);
+
+    const result = await this.pool.query(
+      `update inventory.locations set ${sets.join(', ')} where id = $${idx} and store_id = $${idx + 1} returning id, code, name, address, phone, email, location_type, status`,
+      [...values, locationId, storeId],
+    );
+
+    await this.auditService.recordStoreAction({
+      storeId, actorUserId: userId, actionCode: 'location.update',
+      resourceType: 'location', resourceId: locationId, after: result.rows[0],
+    });
+
+    return { location: result.rows[0] };
+  }
+
+  async deleteLocation(
+    locationId: string,
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    session: AuthSession | null,
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const userId = this.requireUserId(session);
+
+    const location = await this.pool.query<{ id: string }>(
+      `select id from inventory.locations where id = $1 and store_id = $2 limit 1`,
+      [locationId, storeId],
+    );
+    if (!location.rows[0]) throw new NotFoundException('Location not found');
+
+    await this.pool.query(
+      `update inventory.locations set status = 'inactive', updated_at = now() where id = $1`,
+      [locationId],
+    );
+
+    await this.auditService.recordStoreAction({
+      storeId, actorUserId: userId, actionCode: 'location.delete',
+      resourceType: 'location', resourceId: locationId,
+    });
+
+    return { ok: true };
+  }
 
   async listLocations(headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
     await this.ensureDefaultLocation(storeId);
     const result = await this.pool.query(
       `
-        select id, code, name, location_type, status, created_at
+        select id, code, name, address, phone, email, location_type, status, created_at, updated_at
         from inventory.locations
         where store_id = $1
         order by created_at asc

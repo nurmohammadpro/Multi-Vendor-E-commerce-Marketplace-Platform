@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { ThemeProvider } from '@mvp/theme';
 
 import './globals.css';
 import { WorkspaceShell } from './workspace-shell';
@@ -11,6 +12,7 @@ export const metadata = {
 const navItems = [
   { href: '/', label: 'Dashboard' },
   { href: '/stores', label: 'Store Ops' },
+  { href: '/billing', label: 'Billing Plans' },
   { href: '/payments', label: 'Payments' },
   { href: '/reports', label: 'Reports' },
   { href: '/notifications', label: 'Notifications' },
@@ -23,6 +25,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body>
+        <ThemeProvider>
         <WorkspaceShell
           badge="Platform Admin"
           navItems={navItems}
@@ -30,6 +33,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         >
           {children}
         </WorkspaceShell>
+        </ThemeProvider>
       </body>
     </html>
   );

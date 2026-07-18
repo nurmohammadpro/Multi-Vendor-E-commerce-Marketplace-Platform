@@ -3,9 +3,9 @@
 import { useEffect, useState } from 'react';
 
 import {
-  accentButtonStyle,
   emptyStateStyle,
   fieldStyle,
+  gray800ButtonStyle,
   neutralButtonStyle,
   pageShellStyle,
   searchButtonStyle,
@@ -224,7 +224,7 @@ export function SupportWorkspace({
               style={{ ...fieldStyle, minHeight: 120 }}
               placeholder={kind === 'dispute' ? 'Describe the refund, returned items, and customer context.' : 'Describe the support issue clearly.'}
             />
-            <button onClick={createTicket} style={accentButtonStyle} disabled={loading}>
+            <button onClick={createTicket} style={gray800ButtonStyle} disabled={loading}>
               {kind === 'dispute' ? 'Create dispute case' : 'Create support ticket'}
             </button>
           </div>
@@ -260,7 +260,7 @@ export function SupportWorkspace({
                 </thead>
                 <tbody>
                   {tickets.map((ticket) => (
-                    <tr key={ticket.id} style={{ background: selectedTicket?.ticket.id === ticket.id ? 'rgba(241,245,249,0.9)' : '#fff' }}>
+                    <tr key={ticket.id} style={{ background: selectedTicket?.ticket.id === ticket.id ? 'var(--muted)' : 'var(--card)' }}>
                       <td style={tableCellStyle}>{ticket.ticket_no}</td>
                       <td style={tableCellStyle}>{ticket.subject}</td>
                       <td style={tableCellStyle}>{ticket.priority}</td>
@@ -297,7 +297,7 @@ export function SupportWorkspace({
           <div style={{ display: 'grid', gap: 12 }}>
             <div>
               <div style={{ fontWeight: 600 }}>{selectedTicket.ticket.subject}</div>
-              <div style={{ color: '#64748b' }}>
+              <div style={{ color: 'var(--muted-foreground)' }}>
                 {selectedTicket.ticket.ticket_no} · {selectedTicket.ticket.priority} · {selectedTicket.ticket.status}
               </div>
             </div>
@@ -333,7 +333,7 @@ export function SupportWorkspace({
               style={{ ...fieldStyle, minHeight: 100 }}
               placeholder="Reply to this ticket"
             />
-            <button onClick={sendReply} style={accentButtonStyle} disabled={loading}>
+            <button onClick={sendReply} style={gray800ButtonStyle} disabled={loading}>
               Send reply
             </button>
           </div>

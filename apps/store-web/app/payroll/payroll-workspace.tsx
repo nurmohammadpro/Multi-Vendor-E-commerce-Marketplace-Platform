@@ -85,7 +85,7 @@ const defaultEmployeeForm = {
   note: '',
 };
 
-export function PayrollWorkspace() {
+export function PayrollWorkspace({ embedded = false }: { embedded?: boolean }) {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [runs, setRuns] = useState<PayrollRun[]>([]);
   const [message, setMessage] = useState('Payroll workflow is ready.');
@@ -251,7 +251,7 @@ export function PayrollWorkspace() {
   const totalRunPages = totalPagesFor(runPagination);
 
   return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
+    <section style={embedded ? { display: 'grid', gap: 16 } : { ...pageShellStyle, display: 'grid', gap: 16 }}>
       <section style={{ ...sectionPanelStyle, gridTemplateColumns: 'minmax(340px, 1fr) minmax(420px, 1fr)' }}>
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Employee Register</h3>
@@ -279,7 +279,7 @@ export function PayrollWorkspace() {
             <textarea value={employeeForm.trainingSummary} onChange={(event) => setEmployeeForm((current) => ({ ...current, trainingSummary: event.target.value }))} style={{ ...fieldStyle, minHeight: 74 }} placeholder="Training and certifications" />
             <textarea value={employeeForm.note} onChange={(event) => setEmployeeForm((current) => ({ ...current, note: event.target.value }))} style={{ ...fieldStyle, minHeight: 74 }} placeholder="Internal note" />
           </div>
-          <button onClick={saveEmployee} style={{ ...accentButtonStyle, marginTop: 10 }} disabled={loading}>Save Employee</button>
+          <button onClick={saveEmployee} style={{ ...searchButtonStyle, marginTop: 10 }} disabled={loading}>Save Employee</button>
         </article>
 
         <article style={surfaceCardStyle}>
@@ -307,7 +307,7 @@ export function PayrollWorkspace() {
                       <tr key={employee.id}>
                         <td style={tableCellStyle}>
                           {employee.full_name}
-                          <div style={{ color: '#64748b', marginTop: 4 }}>{employee.employee_number || 'Pending ID'}</div>
+                          <div style={{ color: 'var(--muted-foreground)', marginTop: 4 }}>{employee.employee_number || 'Pending ID'}</div>
                         </td>
                         <td style={tableCellStyle}>{employee.role_code}</td>
                         {isPro ? <td style={tableCellStyle}>{employee.designation || '—'}</td> : null}
@@ -344,10 +344,10 @@ export function PayrollWorkspace() {
               <option value="paid">Paid</option>
             </select>
             <textarea value={runForm.note} onChange={(event) => setRunForm((current) => ({ ...current, note: event.target.value }))} style={{ ...fieldStyle, minHeight: 88 }} placeholder="Payroll note" />
-            <div style={{ color: '#64748b', fontSize: 13 }}>
+            <div style={{ color: 'var(--muted-foreground)', fontSize: 13 }}>
               Gross: {previewTotals.gross.toFixed(2)} · Bonus: {previewTotals.bonus.toFixed(2)} · Deduction: {previewTotals.deduction.toFixed(2)} · Net: {previewTotals.net.toFixed(2)}
             </div>
-            <button onClick={createRun} style={accentButtonStyle} disabled={loading}>Create Payroll Run</button>
+            <button onClick={createRun} style={searchButtonStyle} disabled={loading}>Create Payroll Run</button>
           </div>
         </article>
 
@@ -424,7 +424,7 @@ export function PayrollWorkspace() {
                       <td style={tableCellStyle}>{run.status}</td>
                       <td style={tableCellStyle}>
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                          <button onClick={() => void updateRunStatus(run.id, 'approved')} style={accentButtonStyle} disabled={loading}>Approve</button>
+                          <button onClick={() => void updateRunStatus(run.id, 'approved')} style={searchButtonStyle} disabled={loading}>Approve</button>
                           <button onClick={() => void updateRunStatus(run.id, 'paid')} style={subtleButtonStyle} disabled={loading}>Mark Paid</button>
                         </div>
                       </td>

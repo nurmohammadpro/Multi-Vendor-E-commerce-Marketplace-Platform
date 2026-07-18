@@ -7,6 +7,7 @@ import {
   dangerButtonStyle,
   emptyStateStyle,
   fieldStyle,
+  gray800ButtonStyle,
   pageShellStyle,
   searchButtonStyle,
   secondaryButtonStyle,
@@ -328,13 +329,13 @@ export function InventoryWorkspace({
             </p>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <div style={{ padding: '8px 12px', borderRadius: 10, border: '1px solid rgba(148,163,184,0.22)', background: '#fff', fontSize: 13 }}>
+            <div style={{ padding: '8px 12px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--card)', fontSize: 13 }}>
               Rows: <strong>{balanceSummary.visibleRows}</strong>
             </div>
-            <div style={{ padding: '8px 12px', borderRadius: 10, border: '1px solid rgba(148,163,184,0.22)', background: '#fff', fontSize: 13 }}>
+            <div style={{ padding: '8px 12px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--card)', fontSize: 13 }}>
               On hand: <strong>{formatQty(balanceSummary.onHand)}</strong>
             </div>
-            <div style={{ padding: '8px 12px', borderRadius: 10, border: '1px solid rgba(148,163,184,0.22)', background: '#fff', fontSize: 13 }}>
+            <div style={{ padding: '8px 12px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--card)', fontSize: 13 }}>
               Available: <strong>{formatQty(balanceSummary.available)}</strong>
             </div>
           </div>
@@ -468,12 +469,12 @@ export function InventoryWorkspace({
           <input value={quantity} onChange={(event) => setQuantity(event.target.value)} style={{ ...fieldStyle, marginBottom: 12 }} placeholder="Quantity or requested final qty" />
           <textarea value={reason} onChange={(event) => setReason(event.target.value)} style={{ ...fieldStyle, minHeight: 88, marginBottom: 12 }} placeholder="Reason / note" />
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button onClick={requestAdjustment} style={accentButtonStyle} disabled={!canRequestAdjustment || !canRequestAdjustInventory}>
+            <button onClick={requestAdjustment} style={gray800ButtonStyle} disabled={!canRequestAdjustment || !canRequestAdjustInventory}>
               Request Change
             </button>
           </div>
           {selectedSku ? (
-            <p style={{ marginTop: 12, marginBottom: 0, color: '#475569' }}>
+            <p style={{ marginTop: 12, marginBottom: 0, color: 'var(--muted-foreground)' }}>
               Selected: {selectedSku.product_name} · {selectedSku.sku_code}
             </p>
           ) : null}

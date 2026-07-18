@@ -195,6 +195,26 @@ const quickReceiveSchema = z.object({
   variantLabels: z.array(z.string().max(100)).optional(),
   variantPrices: z.array(z.number().nonnegative()).optional(),
   variantCosts: z.array(z.number().nonnegative()).optional(),
+  isTrackable: z.boolean().default(true),
+  note: z.string().max(500).optional(),
+});
+
+// ── Quick Exchange: create exchange/trade-in product ──
+
+const quickExchangeSchema = z.object({
+  productName: z.string().min(1).max(200),
+  customerName: z.string().min(1).max(200),
+  customerPhone: z.string().min(1).max(30),
+  customerEmail: z.string().email().optional(),
+  categoryId: z.string().uuid().optional(),
+  brandId: z.string().uuid().optional(),
+  salePrice: z.number().nonnegative(),
+  unitCost: z.number().nonnegative().default(0),
+  hasVariants: z.boolean().default(false),
+  variantLabels: z.array(z.string().max(100)).optional(),
+  variantPrices: z.array(z.number().nonnegative()).optional(),
+  variantCosts: z.array(z.number().nonnegative()).optional(),
+  isTrackable: z.boolean().default(false),
   note: z.string().max(500).optional(),
 });
 
@@ -388,6 +408,17 @@ export class StoreOpsController {
     @Body() payload: unknown,
   ) {
     return this.storeOpsService.quickReceive(headerStoreId, authContext, session, quickReceiveSchema.parse(payload));
+  }
+
+  @Post('quick-exchange')
+  @RequireContext('store')
+  quickExchange(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @CurrentAuthSession() session: AuthSession | null,
+    @Body() payload: unknown,
+  ) {
+    return this.storeOpsService.quickExchange(headerStoreId, authContext, session, quickExchangeSchema.parse(payload));
   }
 
   @Post('purchases')
