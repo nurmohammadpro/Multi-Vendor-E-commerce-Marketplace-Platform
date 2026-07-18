@@ -2288,9 +2288,9 @@ export class StoreOpsService {
           const vBarcode = '2' + String(vTs).slice(-9) + String(Math.floor(Math.random() * 1000)).padStart(3, '0');
           const skuCode = `${productCode}-${label.replace(/[^A-Za-z0-9]/g, '-').toUpperCase()}`.slice(0, 80);
           const skuResult = await client.query<{ id: string }>(
-            `insert into catalog.skus (id, tenant_id, store_id, product_id, sku_code, variant_label, status, created_at, updated_at)
+            `insert into catalog.skus (id, tenant_id, store_id, product_id, sku_code, variant_label, barcode, status, created_at, updated_at)
              values (gen_random_uuid(), $1, $2, $3, $4, $5, 'active', now(), now()) returning id`,
-            [tenantId, storeId, productId, skuCode, label],
+            [tenantId, storeId, productId, skuCode, label, vBarcode],
           );
           // Insert price record
           await client.query(
@@ -2301,11 +2301,13 @@ export class StoreOpsService {
           skus.push({ id: skuResult.rows[0].id, skuCode, label, price, cost, qty: 1 });
         }
       } else {
+        const ts = Date.now();
         const skuCode = productCode.slice(0, 40);
+        const barcode = '2' + String(ts).slice(-9) + String(Math.floor(Math.random() * 1000)).padStart(3, '0');
         const skuResult = await client.query<{ id: string }>(
-          `insert into catalog.skus (id, tenant_id, store_id, product_id, sku_code, status, created_at, updated_at)
-           values (gen_random_uuid(), $1, $2, $3, $4, 'active', now(), now()) returning id`,
-          [tenantId, storeId, productId, skuCode],
+          `insert into catalog.skus (id, tenant_id, store_id, product_id, sku_code, barcode, status, created_at, updated_at)
+           values (gen_random_uuid(), $1, $2, $3, $4, $5, 'active', now(), now()) returning id`,
+          [tenantId, storeId, productId, skuCode, barcode],
         );
         // Insert price record
         await client.query(
@@ -2433,9 +2435,9 @@ export class StoreOpsService {
           const vBarcode = '2' + String(vTs).slice(-9) + String(Math.floor(Math.random() * 1000)).padStart(3, '0');
           const skuCode = `${productCode}-${label.replace(/[^A-Za-z0-9]/g, '-').toUpperCase()}`.slice(0, 80);
           const skuResult = await client.query<{ id: string }>(
-            `insert into catalog.skus (id, tenant_id, store_id, product_id, sku_code, variant_label, status, created_at, updated_at)
+            `insert into catalog.skus (id, tenant_id, store_id, product_id, sku_code, variant_label, barcode, status, created_at, updated_at)
              values (gen_random_uuid(), $1, $2, $3, $4, $5, 'active', now(), now()) returning id`,
-            [tenantId, storeId, productId, skuCode, label],
+            [tenantId, storeId, productId, skuCode, label, vBarcode],
           );
           await client.query(
             `insert into catalog.prices (id, tenant_id, store_id, sku_id, sale_price, cost_price, effective_from, created_at)
@@ -2445,11 +2447,13 @@ export class StoreOpsService {
           skus.push({ id: skuResult.rows[0].id, skuCode, label, price, cost });
         }
       } else {
+        const ts = Date.now();
         const skuCode = productCode.slice(0, 40);
+        const barcode = '2' + String(ts).slice(-9) + String(Math.floor(Math.random() * 1000)).padStart(3, '0');
         const skuResult = await client.query<{ id: string }>(
-          `insert into catalog.skus (id, tenant_id, store_id, product_id, sku_code, status, created_at, updated_at)
-           values (gen_random_uuid(), $1, $2, $3, $4, 'active', now(), now()) returning id`,
-          [tenantId, storeId, productId, skuCode],
+          `insert into catalog.skus (id, tenant_id, store_id, product_id, sku_code, barcode, status, created_at, updated_at)
+           values (gen_random_uuid(), $1, $2, $3, $4, $5, 'active', now(), now()) returning id`,
+          [tenantId, storeId, productId, skuCode, barcode],
         );
         await client.query(
           `insert into catalog.prices (id, tenant_id, store_id, sku_id, sale_price, cost_price, effective_from, created_at)
