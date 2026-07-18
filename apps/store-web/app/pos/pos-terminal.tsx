@@ -721,13 +721,6 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                     referenceNo: entry.reference || undefined,
                     status: saleIsDue ? 'pending' : 'paid',
                   }));
-                if (saleIsDue) {
-                  const totalPaid = paid.reduce((s, p) => s + p.amount, 0);
-                  const remaining = paymentRequired - totalPaid;
-                  if (remaining > 0) {
-                    paid.push({ paymentMethod: 'due', amount: remaining, referenceNo: undefined, status: 'pending' });
-                  }
-                }
                 return paid;
               })()
             : [
