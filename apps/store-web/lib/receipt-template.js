@@ -30,8 +30,9 @@ export function renderReceipt(receipt, mode) {
     var disc = Number(item.discountAmount || 0);
     var lt = Number(item.lineTotal || 0);
     var discCell = disc > 0 ? '<td class="dc">-' + money(disc) + '</td>' : '<td class="dc">—</td>';
+    var variantHtml = item.variantLabel ? '<br><span class="vl">' + esc(item.variantLabel) + '</span>' : '';
     var skuHtml = item.skuCode ? '<br><span class="sku">' + esc(item.skuCode) + '</span>' : '';
-    return '<tr><td class="ic">'+(idx+1)+'. '+esc(item.name||'Item')+skuHtml+'</td><td class="qc">'+Number(item.qty||0)+'</td><td class="pc">'+money(item.unitPrice)+'</td>'+discCell+'<td class="tc">'+money(lt)+'</td></tr>';
+    return '<tr><td class="ic">'+(idx+1)+'. '+esc(item.name||'Item')+variantHtml+skuHtml+'</td><td class="qc">'+Number(item.qty||0)+'</td><td class="pc">'+money(item.unitPrice)+'</td>'+discCell+'<td class="tc">'+money(lt)+'</td></tr>';
   }).join('');
 
   var payRows = (receipt.payments || []).map(function(p) {
@@ -59,7 +60,8 @@ export function renderReceipt(receipt, mode) {
     '.page{max-width:'+(isA5?'100%':'80mm')+';margin:0 auto;padding:'+(isA5?'8mm 10mm':'12px 8px')+'}',
     '.header{display:flex;justify-content:space-between;border-bottom:3px double #1e293b;padding-bottom:8px;margin-bottom:8px;'+(isA5?'':'flex-direction:column;gap:4px;')+'}',
     '.hl{flex:1}',
-    '.hr{text-align:'+(isA5?'right':'left')+';'+'border-left:1px dashed #cbd5e1;padding-left:12px;min-width:160px;'+'}',
+    '.hr{text-align:'+(isA5?'right':'left')+';border-left:1px dashed #cbd5e1;padding-left:12px;min-width:160px;}',
+    '.vl{font-size:11px;color:#64748b;font-weight:400}',
     '.sn{font-size:'+fs.sn+';font-weight:700;margin-bottom:1px}',
     '.sm{font-size:'+fs.sm+';color:#475569;line-height:1.5}',
     '.it{font-size:'+fs.it+';font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-bottom:1px}',
@@ -83,6 +85,8 @@ export function renderReceipt(receipt, mode) {
     '.due{color:#b45309}.change{color:#16a34a}',
     '.pr{display:flex;justify-content:space-between;padding:2px 0;font-size:'+fs.pay+'}',
     '.ft{text-align:center;margin-top:8px;padding-top:4px;border-top:1px solid #f1f5f9;color:#94a3b8;font-size:10px}',
+    '.iw{text-align:center;margin-top:8px;padding:6px 8px;background:#f8fafc;font-size:11px;font-weight:600;color:#1e293b;border-radius:4px}',
+    '.pb{text-align:center;margin-top:6px;font-size:11px;color:#475569}',
     '.bt{font-family:monospace;font-size:'+fs.bt+';letter-spacing:.1em;color:#64748b;margin-top:1px}',
     '@media print{@page{margin:0;size:'+(isA5?'A5':'80mm')+' auto}}'
   ].join('\n');
@@ -91,16 +95,20 @@ export function renderReceipt(receipt, mode) {
 
   return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc(receipt.saleNo||'Invoice')+'</title><style>'+css+'</style></head><body><div class="page">'+
     '<div class="header"><div class="hl"><div class="sn">'+esc(store.name||'Store')+'</div>'+storeMetaHtml+logoHtml+barcodeHtml+'</div>'+
-    '<div class="hr"><div class="it">Invoice</div><div class="ino">'+esc(receipt.saleNo||'—')+'</div><div class="sm">'+esc(dateStr)+'</div>'+custSec+'</div></div>'+
+    '<div class="hr"><div class="it">Sales Receipt</div><div class="ino">'+esc(receipt.saleNo||'—')+'</div><div class="sm">'+esc(dateStr)+'</div>'+custSec+'</div></div>'+
     '<h2>Items</h2><table><thead><tr><th class="ic">Item</th><th class="qc">Qty</th><th class="pc">Price</th><th class="dc">Disc</th><th class="tc">Total</th></tr></thead><tbody>'+itemRows+'</tbody></table>'+
     '<div class="totals">'+
     (discount>0?'<div class="tr"><span class="lb">Discount</span><span class="vl" style="color:#b45309">-'+money(discount)+'</span></div>':'')+
-    '<div class="tr gt"><span>Total</span><span>'+money(total)+'</span></div>'+
+    (Number(totals.vat||0)>0?'<div class="tr"><span class="lb">VAT</span><span class="vl">'+money(totals.vat)+'</span></div>':'')+
+    (Number(totals.tax||0)>0?'<div class="tr"><span class="lb">Tax</span><span class="vl">'+money(totals.tax)+'</span></div>':'')+
+    '<div class="tr gt"><span>Net Payable</span><span>'+money(total)+'</span></div>'+
     '<div class="tr"><span class="lb">Paid</span><span class="vl">'+money(paid)+'</span></div>'+
     (due>0?'<div class="tr"><span class="lb">Due</span><span class="vl due">'+money(due)+'</span></div>':'')+
     (change>0?'<div class="tr"><span class="lb">Change</span><span class="vl change">'+money(change)+'</span></div>':'')+
     '</div>'+
     (payRows?'<h2>Payments</h2>'+payRows:'')+
+    (receipt.amountInWords?'<div class="iw">'+esc(receipt.amountInWords)+'</div>':'')+
+    (receipt.preparedBy?'<div class="pb">Seller: '+esc(receipt.preparedBy)+'</div>':'')+
     (store.footer?'<div class="ft">'+esc(store.footer)+'</div>':'')+
     '</div></body></html>';
 }

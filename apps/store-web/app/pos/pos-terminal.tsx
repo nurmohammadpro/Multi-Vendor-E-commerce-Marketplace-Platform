@@ -181,6 +181,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'mfs' | 'bank_transfer'>('cash');
   const [paymentReference, setPaymentReference] = useState('');
   const [orderDiscount, setOrderDiscount] = useState('');
+  const [vatAmount, setVatAmount] = useState('');
   const [cashReceived, setCashReceived] = useState('');
   const [usePartialPayments, setUsePartialPayments] = useState(false);
   const [partialPayments, setPartialPayments] = useState<Record<'cash' | 'card' | 'mfs' | 'bank_transfer', { amount: string; reference: string }>>({
@@ -313,10 +314,11 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
   );
 
   const orderDiscountAmount = useMemo(() => Math.max(Number(orderDiscount || 0), 0), [orderDiscount]);
+  const vatAmountValue = useMemo(() => Math.max(Number(vatAmount || 0), 0), [vatAmount]);
 
   const grandTotal = useMemo(
-    () => Math.max(total - totalDiscount - orderDiscountAmount, 0),
-    [total, totalDiscount, orderDiscountAmount],
+    () => Math.max(total - totalDiscount - orderDiscountAmount + vatAmountValue, 0),
+    [total, totalDiscount, orderDiscountAmount, vatAmountValue],
   );
 
   const exchangeAmount = exchangeItem?.exchangeAmount ?? 0;
@@ -700,6 +702,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
           exchangeAmount: saleIsExchange ? exchangeItem!.exchangeAmount : 0,
           discountAmount: orderDiscountAmount,
           taxAmount: 0,
+          vatAmount: vatAmountValue,
           shippingAmount: 0,
           items: cart.map((item) => ({
             skuId: item.skuId,
@@ -792,6 +795,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
       setExchangeSearch('');
       setExchangeResults([]);
       setOrderDiscount('');
+      setVatAmount('');
       setCashReceived('');
       setUsePartialPayments(false);
       setPartialPayments({ cash: { amount: '', reference: '' }, card: { amount: '', reference: '' }, mfs: { amount: '', reference: '' }, bank_transfer: { amount: '', reference: '' } });
@@ -1240,6 +1244,18 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                 step="0.01"
                 value={orderDiscount}
                 onChange={(e) => setOrderDiscount(e.target.value)}
+                style={{ ...inputStyle, width: 100, fontSize: 12, textAlign: 'right', padding: '4px 8px' }}
+                placeholder="0.00"
+              />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 13 }}>VAT</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={vatAmount}
+                onChange={(e) => setVatAmount(e.target.value)}
                 style={{ ...inputStyle, width: 100, fontSize: 12, textAlign: 'right', padding: '4px 8px' }}
                 placeholder="0.00"
               />
