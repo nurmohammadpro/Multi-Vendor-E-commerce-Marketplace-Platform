@@ -39,6 +39,7 @@ export const viewport: Viewport = {
 const navItems = [
   { href: '/', label: 'Dashboard', feature: 'dashboard' },
   { href: '/pos', label: 'Sales', permission: 'sales.pos.create', feature: 'pos' },
+  { href: '/sales-history', label: 'Sales History', permission: 'sales.report.view', feature: 'reports' },
   { href: '/inventory', label: 'Stock', permission: 'inventory.view', feature: 'inventory' },
   { href: '/locations', label: 'Locations', permission: 'inventory.view', feature: 'inventory' },
   { href: '/purchases', label: 'Purchases', feature: 'purchases' },
