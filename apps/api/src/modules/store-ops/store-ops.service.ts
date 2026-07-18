@@ -1089,12 +1089,15 @@ export class StoreOpsService {
   async listPayables(
     headerStoreId: string | undefined,
     authContext: StoreAuthContext | null,
-    filters: { search?: string; page?: number; limit?: number } = {},
+    filters: { search?: string; page?: number; limit?: number; sortBy?: string; sortDir?: string } = {},
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
     this.assertAllowedRoles(authContext, ['store_owner', 'store_manager']);
     const { page, limit, offset } = normalizePageQuery(filters);
     const search = filters.search?.trim() || null;
+
+    const sortBy = ['supplier_name', 'purchase_date', 'outstanding_amount', 'aging_days'].includes(filters.sortBy ?? '') ? filters.sortBy! : 'purchase_date';
+    const sortDir = filters.sortDir === 'asc' ? 'asc' : 'desc';
 
     const result = await this.pool.query(
       `
@@ -1125,7 +1128,7 @@ export class StoreOpsService {
               or s.company_name ilike '%' || $2::text || '%'
               or coalesce(s.phone, '') ilike '%' || $2::text || '%'
             )
-          order by p.purchase_date asc, p.created_at desc
+          order by ${sortBy} ${sortDir}, p.created_at desc
           limit $3
           offset $4
         ) payables
@@ -1151,6 +1154,14 @@ export class StoreOpsService {
           where store_id = $1
             and status <> 'cancelled'
             and greatest(total_amount - paid_amount, 0) > 0
+          union all
+          select
+            opening_payable_amount as outstanding_amount,
+            0 as aging_days
+          from procurement.suppliers
+          where store_id = $1
+            and status = 'active'
+            and opening_payable_amount > 0
         )
         select
           coalesce(sum(outstanding_amount) filter (where aging_days = 0), 0) as today_amount,
@@ -1169,6 +1180,139 @@ export class StoreOpsService {
     );
 
     return { aging: result.rows[0] ?? null };
+  }
+
+  async getSupplierLedger(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    filters: { supplierId?: string; fromDate?: string; toDate?: string },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    this.assertAllowedRoles(authContext, ['store_owner', 'store_manager']);
+    const { supplierId, fromDate, toDate } = filters;
+
+    if (!supplierId) {
+      throw new Error('supplierId is required');
+    }
+
+    // Supplier info
+    const supplierResult = await this.pool.query(
+      `select id, company_name, phone, email, address, opening_payable_amount
+       from procurement.suppliers where id = $1 and store_id = $2`,
+      [supplierId, storeId],
+    );
+    if (!supplierResult.rows.length) {
+      throw new NotFoundException('Supplier not found');
+    }
+    const supplier = supplierResult.rows[0];
+
+    // Opening balance before the fromDate
+    const openingResult = await this.pool.query(
+      `
+        select
+          coalesce(sum(greatest(total_amount - paid_amount, 0)), 0) as purchase_outstanding
+        from procurement.purchases
+        where supplier_id = $1
+          and store_id = $2
+          and status <> 'cancelled'
+          and purchase_date < $3::date
+      `,
+      [supplierId, storeId, fromDate || '1900-01-01'],
+    );
+    const openingPurchasesOutstanding = Number(openingResult.rows[0]?.purchase_outstanding ?? 0);
+    const openingBalance = Number(supplier.opening_payable_amount ?? 0) + openingPurchasesOutstanding;
+
+    // Transactions within the date range
+    const txResult = await this.pool.query(
+      `
+        select
+          p.purchase_date as tx_date,
+          p.purchase_no as tx_ref,
+          p.invoice_no,
+          p.total_amount as purchase_total,
+          p.paid_amount as purchase_paid,
+          greatest(p.total_amount - p.paid_amount, 0) as purchase_outstanding,
+          p.payment_status,
+          'purchase' as tx_type,
+          p.id as source_id
+        from procurement.purchases p
+        where p.supplier_id = $1
+          and p.store_id = $2
+          and p.status <> 'cancelled'
+          and p.purchase_date between $3::date and $4::date
+        union all
+        select
+          pp.paid_at::date as tx_date,
+          p.purchase_no as tx_ref,
+          null as invoice_no,
+          null as purchase_total,
+          pp.amount as purchase_paid,
+          null as purchase_outstanding,
+          pp.status as payment_status,
+          'payment' as tx_type,
+          pp.id as source_id
+        from procurement.purchase_payments pp
+        join procurement.purchases p on p.id = pp.purchase_id
+        where p.supplier_id = $1
+          and p.store_id = $2
+          and p.status <> 'cancelled'
+          and pp.status = 'paid'
+          and pp.paid_at::date between $3::date and $4::date
+        order by tx_date asc, tx_type, source_id
+      `,
+      [supplierId, storeId, fromDate || '1900-01-01', toDate || '2099-12-31'],
+    );
+
+    // Balance after each transaction
+    let runningBalance = openingBalance;
+    const transactions = (txResult.rows ?? []).map((row: any) => {
+      if (row.tx_type === 'purchase') {
+        const debit = Number(row.purchase_total ?? 0);
+        const credit = Number(row.purchase_paid ?? 0);
+        runningBalance = runningBalance + debit - credit;
+        return {
+          tx_date: row.tx_date,
+          tx_ref: row.tx_ref,
+          invoice_no: row.invoice_no,
+          tx_type: 'purchase',
+          debit,
+          credit,
+          runningBalance: Math.round(runningBalance * 100) / 100,
+        };
+      }
+      // payment
+      const credit = Number(row.purchase_paid ?? 0);
+      runningBalance -= credit;
+      return {
+        tx_date: row.tx_date,
+        tx_ref: row.tx_ref,
+        invoice_no: null,
+        tx_type: 'payment',
+        credit,
+        debit: 0,
+        runningBalance: Math.round(runningBalance * 100) / 100,
+      };
+    });
+
+    // Closing balance = last running balance
+    const closingBalance = transactions.length > 0
+      ? transactions[transactions.length - 1].runningBalance
+      : openingBalance;
+
+    return {
+      supplier: {
+        id: supplier.id,
+        companyName: supplier.company_name,
+        phone: supplier.phone,
+        email: supplier.email,
+        address: supplier.address,
+      },
+      fromDate: fromDate || null,
+      toDate: toDate || null,
+      openingBalance: Math.round(openingBalance * 100) / 100,
+      closingBalance: Math.round(closingBalance * 100) / 100,
+      transactions,
+    };
   }
 
   async listExpenses(

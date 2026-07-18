@@ -26,7 +26,7 @@ import { toast } from 'sonner';
 type Supplier = { id: string; company_name: string; contact_name?: string | null; phone?: string | null; opening_payable_amount?: string | number; current_payable_amount?: string | number };
 type Location = { id: string; code: string; name: string; location_type: string };
 type Purchase = { id: string; purchase_no: string; purchase_date: string; supplier_name: string; location_name: string; total_amount: string | number; paid_amount: string | number; payment_status: string; status: string; created_at: string };
-type PayableRow = { id: string; purchase_no: string; supplier_name: string; supplier_phone?: string | null; invoice_no?: string | null; purchase_date: string; total_amount: string | number; outstanding_amount: string | number; age_days: number };
+type PayableRow = { id: string; purchase_no: string; supplier_name: string; supplier_phone?: string | null; invoice_no?: string | null; purchase_date: string; total_amount: string | number; outstanding_amount: string | number; aging_days: number };
 type SkuResult = { id: string; sku_code: string; product_name: string; product_code?: string | null; variant_label?: string | null; barcode?: string | null; sale_price?: string | number | null; cost_price?: string | number | null; available_qty?: string | number | null };
 type Aging = { today_amount?: string | number; today_count?: number; days_7_amount?: string | number; days_7_count?: number; days_30_amount?: string | number; days_30_count?: number; days_90_amount?: string | number; days_90_count?: number; days_90_plus_amount?: string | number; days_90_plus_count?: number };
 
@@ -83,6 +83,8 @@ export function PurchasesWorkspace() {
   const [purchasePagination, setPurchasePagination] = useState<PaginationState>({ page: 1, limit: 10, total: 0 });
   const [payablePagination, setPayablePagination] = useState<PaginationState>({ page: 1, limit: 10, total: 0 });
   const [payableSearch, setPayableSearch] = useState('');
+  const [payableSortBy, setPayableSortBy] = useState('purchase_date');
+  const [payableSortDir, setPayableSortDir] = useState('desc');
   const [purchaseSearch, setPurchaseSearch] = useState('');
   const [purchaseStatus, setPurchaseStatus] = useState('');
   const [skuSearch, setSkuSearch] = useState('');
@@ -147,6 +149,14 @@ export function PurchasesWorkspace() {
   // Supplier form
   const [supplierForm, setSupplierForm] = useState({ supplierType: 'company', companyName: '', contactName: '', phone: '', email: '', openingPayableAmount: '', address: '', note: '' });
 
+  // Supplier ledger
+  const [ledgerOpen, setLedgerOpen] = useState(false);
+  const [ledgerSupplierId, setLedgerSupplierId] = useState('');
+  const [ledgerFromDate, setLedgerFromDate] = useState('');
+  const [ledgerToDate, setLedgerToDate] = useState(new Date().toISOString().slice(0, 10));
+  const [ledgerData, setLedgerData] = useState<any>(null);
+  const [ledgerLoading, setLedgerLoading] = useState(false);
+
   // Location form
   const [newLocationCode, setNewLocationCode] = useState('');
   const [newLocationName, setNewLocationName] = useState('');
@@ -169,7 +179,7 @@ export function PurchasesWorkspace() {
       const [supplierPayload, purchasePayload, payablePayload, agingPayload, locationPayload] = await Promise.all([
         readJson<{ suppliers: Supplier[] }>(`/api/store-ops/suppliers?limit=100`),
         readJson<{ purchases: Purchase[]; pagination?: PaginationState }>(`/api/store-ops/purchases?page=${pp}&limit=10&search=${encodeURIComponent(purchaseSearch)}&status=${purchaseStatus}`),
-        readJson<{ payables: PayableRow[]; pagination?: PaginationState }>(`/api/store-ops/payables?page=${ppage}&limit=10&search=${encodeURIComponent(payableSearch)}`),
+        readJson<{ payables: PayableRow[]; pagination?: PaginationState }>(`/api/store-ops/payables?page=${ppage}&limit=10&search=${encodeURIComponent(payableSearch)}&sortBy=${payableSortBy}&sortDir=${payableSortDir}`),
         readJson<{ aging: Aging }>('/api/store-ops/payables/aging'),
         readJson<{ locations: Location[] }>('/api/inventory/locations'),
       ]);
@@ -401,6 +411,119 @@ export function PurchasesWorkspace() {
       setLocations(loc.locations ?? []);
     } catch (error) { const msg = (error as Error).message; setMessage(msg); toast.error(msg); }
     finally { setLoading(false); }
+  };
+
+  // ── Payables sort ──
+
+  const handlePayableSort = (column: string) => {
+    const nextSortBy = column;
+    const nextSortDir = payableSortBy === column
+      ? (payableSortDir === 'asc' ? 'desc' : 'asc')
+      : 'desc';
+    setPayableSortBy(nextSortBy);
+    setPayableSortDir(nextSortDir);
+    setPayablePage(1);
+    const qs = `page=1&limit=10&search=${encodeURIComponent(payableSearch)}&sortBy=${nextSortBy}&sortDir=${nextSortDir}`;
+    readJson<{ payables: PayableRow[]; pagination?: PaginationState }>(`/api/store-ops/payables?${qs}`)
+      .then((payload) => { setPayables(payload.payables ?? []); setPayablePagination(payload.pagination ?? { page: 1, limit: 10, total: 0 }); })
+      .catch((error) => setMessage((error as Error).message));
+  };
+
+  const sortIndicator = (column: string) => {
+    if (payableSortBy !== column) return '';
+    return payableSortDir === 'asc' ? ' ▲' : ' ▼';
+  };
+
+  // ── Supplier Ledger ──
+
+  const fetchLedger = async () => {
+    if (!ledgerSupplierId) { setMessage('Select a supplier for the ledger.'); return; }
+    setLedgerLoading(true);
+    try {
+      const payload = await readJson<any>(`/api/store-ops/payables/supplier-ledger?supplierId=${ledgerSupplierId}&fromDate=${ledgerFromDate || ''}&toDate=${ledgerToDate || ''}`);
+      setLedgerData(payload);
+      setMessage(`Ledger for ${payload.supplier.companyName}.`);
+    } catch (error) { const msg = (error as Error).message; setMessage(msg); toast.error(msg); }
+    finally { setLedgerLoading(false); }
+  };
+
+  const exportLedgerCsv = () => {
+    if (!ledgerData) return;
+    const rows: string[] = ['Date,Reference,Invoice No,Type,Debit (BDT),Credit (BDT),Balance (BDT)'];
+    for (const tx of ledgerData.transactions) {
+      rows.push(`${tx.tx_date},"${tx.tx_ref || ''}","${tx.invoice_no || ''}",${tx.tx_type},${tx.debit.toFixed(2)},${tx.credit.toFixed(2)},${tx.runningBalance.toFixed(2)}`);
+    }
+    const csv = rows.join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `supplier-ledger-${ledgerData.supplier.companyName.replace(/\s+/g, '_')}-${ledgerFromDate || 'all'}-${ledgerToDate || 'all'}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportLedgerPdf = () => {
+    if (!ledgerData) return;
+    const supplier = ledgerData.supplier;
+    const rows = ledgerData.transactions.map((tx: any) =>
+      `<tr>
+        <td style="padding:4px 6px;border-bottom:1px solid #e2e8f0;font-size:10px">${tx.tx_date}</td>
+        <td style="padding:4px 6px;border-bottom:1px solid #e2e8f0;font-size:10px">${tx.tx_ref || ''}</td>
+        <td style="padding:4px 6px;border-bottom:1px solid #e2e8f0;font-size:10px">${tx.invoice_no || ''}</td>
+        <td style="padding:4px 6px;border-bottom:1px solid #e2e8f0;font-size:10px;text-transform:capitalize">${tx.tx_type}</td>
+        <td style="padding:4px 6px;border-bottom:1px solid #e2e8f0;font-size:10px;text-align:right;font-family:monospace">${tx.debit.toFixed(2)}</td>
+        <td style="padding:4px 6px;border-bottom:1px solid #e2e8f0;font-size:10px;text-align:right;font-family:monospace">${tx.credit.toFixed(2)}</td>
+        <td style="padding:4px 6px;border-bottom:1px solid #e2e8f0;font-size:10px;text-align:right;font-family:monospace;font-weight:600">${tx.runningBalance.toFixed(2)}</td>
+      </tr>`
+    ).join('');
+
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Supplier Ledger</title><style>
+      *{margin:0;padding:0;box-sizing:border-box}
+      body{font-family:"Segoe UI",system-ui,sans-serif;background:#fff;color:#1e293b;font-size:12px}
+      .page{width:210mm;margin:0 auto;padding:10mm 8mm}
+      h2{font-size:18px;margin-bottom:4px}
+      .meta{color:#475569;font-size:11px;margin-bottom:12px}
+      table{width:100%;border-collapse:collapse}
+      th{background:#f1f5f9;color:#475569;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:.06em;padding:6px;border-bottom:2px solid #e2e8f0;text-align:left}
+      th.right{text-align:right}
+      .bl{font-weight:700;border-top:2px solid #1e293b}
+      .bl td{padding-top:6px}
+      .ob{border-top:1px solid #1e293b}
+      .ob td{padding-top:6px}
+      @media print{@page{margin:0;size:A4}}
+    </style></head><body><div class="page">
+      <h2>Supplier Ledger</h2>
+      <div class="meta">
+        <strong>${supplier.companyName}</strong>${supplier.phone ? ' | ' + supplier.phone : ''}${supplier.address ? ' | ' + supplier.address : ''}<br>
+        Period: ${ledgerFromDate || 'Beginning'} to ${ledgerToDate || 'Present'}
+      </div>
+      <table>
+        <thead><tr>
+          <th>Date</th><th>Reference</th><th>Invoice</th><th>Type</th><th class="right">Debit</th><th class="right">Credit</th><th class="right">Balance</th>
+        </tr></thead>
+        <tbody>
+          <tr class="ob"><td colspan="4" style="font-weight:600">Opening Balance</td><td class="right" style="font-family:monospace;font-weight:600">${ledgerData.openingBalance.toFixed(2)}</td><td></td><td></td></tr>
+          ${rows}
+          <tr class="bl"><td colspan="4" style="font-weight:600">Closing Balance</td><td></td><td></td><td class="right" style="font-family:monospace;font-weight:700">${ledgerData.closingBalance.toFixed(2)}</td></tr>
+        </tbody>
+      </table>
+    </div></body></html>`;
+
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    iframe.srcdoc = html;
+    document.body.appendChild(iframe);
+    iframe.onload = () => {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+      setTimeout(() => iframe.remove(), 1200);
+    };
   };
 
   const supplierOptions2 = useMemo(() => suppliers.map((s) => ({ id: s.id, company_name: s.company_name })), [suppliers]);
@@ -790,21 +913,37 @@ export function PurchasesWorkspace() {
           <div style={{ ...searchRowStyle, marginBottom: 10 }}>
             <input value={payableSearch} onChange={(e) => setPayableSearch(e.target.value)} style={{ ...fieldStyle, flex: 1, width: 'auto' }} placeholder="Search purchase no, invoice, supplier, or phone" />
             <button onClick={() => void refresh(supplierPage, purchasePage, 1)} style={searchButtonStyle} disabled={loading}>Search</button>
+            <button onClick={() => setLedgerOpen(true)} style={secondaryButtonStyle} disabled={loading}>Supplier Ledger</button>
           </div>
           {payables.length ? (
             <>
               <div style={tableWrapStyle}>
                 <table style={tableStyle}>
-                  <thead><tr><th style={tableHeaderCellStyle}>Purchase No</th><th style={tableHeaderCellStyle}>Supplier</th><th style={tableHeaderCellStyle}>Date</th><th style={tableHeaderCellStyle}>Total</th><th style={tableHeaderCellStyle}>Outstanding</th><th style={tableHeaderCellStyle}>Age (days)</th></tr></thead>
+                  <thead><tr>
+                    <th style={tableHeaderCellStyle} onClick={() => handlePayableSort('purchase_date')}>
+                      Date{sortIndicator('purchase_date')}
+                    </th>
+                    <th style={tableHeaderCellStyle} onClick={() => handlePayableSort('supplier_name')}>
+                      Supplier{sortIndicator('supplier_name')}
+                    </th>
+                    <th style={tableHeaderCellStyle}>Purchase No</th>
+                    <th style={tableHeaderCellStyle}>Total</th>
+                    <th style={tableHeaderCellStyle} onClick={() => handlePayableSort('outstanding_amount')}>
+                      Outstanding{sortIndicator('outstanding_amount')}
+                    </th>
+                    <th style={tableHeaderCellStyle} onClick={() => handlePayableSort('aging_days')}>
+                      Age (days){sortIndicator('aging_days')}
+                    </th>
+                  </tr></thead>
                   <tbody>
                     {payables.map((p) => (
                       <tr key={p.id}>
-                        <td style={tableCellStyle}>{p.purchase_no}</td>
-                        <td style={tableCellStyle}><div style={{ fontWeight: 600 }}>{p.supplier_name}</div>{p.supplier_phone ? <div style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>{p.supplier_phone}</div> : null}</td>
                         <td style={tableCellStyle}>{p.purchase_date}</td>
+                        <td style={tableCellStyle}><div style={{ fontWeight: 600 }}>{p.supplier_name}</div>{p.supplier_phone ? <div style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>{p.supplier_phone}</div> : null}</td>
+                        <td style={tableCellStyle}>{p.purchase_no}</td>
                         <td style={tableCellStyle}>{formatMoney(p.total_amount)}</td>
                         <td style={tableCellStyle}><strong style={{ color: Number(p.outstanding_amount) > 0 ? '#b45309' : '#16a34a' }}>{formatMoney(p.outstanding_amount)}</strong></td>
-                        <td style={tableCellStyle}>{p.age_days}</td>
+                        <td style={tableCellStyle}>{p.aging_days}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -818,6 +957,96 @@ export function PurchasesWorkspace() {
             </>
           ) : <div style={emptyStateStyle}>No payables found. Receive a purchase first.</div>}
         </article>
+
+        {/* ── Supplier Ledger Modal ── */}
+        {ledgerOpen ? (
+          <div style={{
+            position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.4)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }} onClick={() => { setLedgerOpen(false); setLedgerData(null); }}>
+            <div style={{
+              background: '#fff', borderRadius: 16, padding: 24, maxWidth: 900, width: '95%',
+              maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+            }} onClick={(e) => e.stopPropagation()}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <h3 style={{ margin: 0, fontSize: 16 }}>Supplier Ledger</h3>
+                <button onClick={() => { setLedgerOpen(false); setLedgerData(null); }} style={{ ...secondaryButtonStyle, minWidth: 40 }}>✕</button>
+              </div>
+
+              {/* Filters */}
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+                <select value={ledgerSupplierId} onChange={(e) => setLedgerSupplierId(e.target.value)} style={{ ...fieldStyle, flex: 1, minWidth: 180 }}>
+                  <option value="">Select supplier</option>
+                  {supplierOptions2.map((s) => <option key={s.id} value={s.id}>{s.company_name}</option>)}
+                </select>
+                <input type="date" value={ledgerFromDate} onChange={(e) => setLedgerFromDate(e.target.value)} style={{ ...fieldStyle, width: 150 }} placeholder="From date" />
+                <input type="date" value={ledgerToDate} onChange={(e) => setLedgerToDate(e.target.value)} style={{ ...fieldStyle, width: 150 }} placeholder="To date" />
+                <button onClick={fetchLedger} style={searchButtonStyle} disabled={ledgerLoading || !ledgerSupplierId}>
+                  {ledgerLoading ? 'Loading...' : 'Load Ledger'}
+                </button>
+              </div>
+
+              {/* Export buttons */}
+              {ledgerData ? (
+                <>
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                    <button onClick={exportLedgerCsv} style={gray800ButtonStyle}>Export CSV</button>
+                    <button onClick={exportLedgerPdf} style={accentButtonStyle}>Export PDF (A4)</button>
+                  </div>
+
+                  {/* Ledger summary */}
+                  <div style={{ display: 'flex', gap: 16, marginBottom: 12, fontSize: 13 }}>
+                    <span><strong>Opening:</strong> BDT {formatMoney(ledgerData.openingBalance)}</span>
+                    <span><strong>Closing:</strong> BDT {formatMoney(ledgerData.closingBalance)}</span>
+                    <span><strong>Transactions:</strong> {ledgerData.transactions.length}</span>
+                  </div>
+
+                  {/* Ledger table preview */}
+                  <div style={tableWrapStyle}>
+                    <table style={tableStyle}>
+                      <thead><tr>
+                        <th style={tableHeaderCellStyle}>Date</th>
+                        <th style={tableHeaderCellStyle}>Reference</th>
+                        <th style={tableHeaderCellStyle}>Invoice</th>
+                        <th style={tableHeaderCellStyle}>Type</th>
+                        <th style={{ ...tableHeaderCellStyle, textAlign: 'right' }}>Debit</th>
+                        <th style={{ ...tableHeaderCellStyle, textAlign: 'right' }}>Credit</th>
+                        <th style={{ ...tableHeaderCellStyle, textAlign: 'right' }}>Balance</th>
+                      </tr></thead>
+                      <tbody>
+                        <tr style={{ background: '#f8fafc' }}>
+                          <td colSpan={4} style={{ ...tableCellStyle, fontWeight: 600 }}>Opening Balance</td>
+                          <td style={{ ...tableCellStyle, textAlign: 'right', fontFamily: 'monospace', fontWeight: 600 }}>{formatMoney(ledgerData.openingBalance)}</td>
+                          <td style={tableCellStyle}></td>
+                          <td style={tableCellStyle}></td>
+                        </tr>
+                        {ledgerData.transactions.map((tx: any, i: number) => (
+                          <tr key={i}>
+                            <td style={tableCellStyle}>{tx.tx_date}</td>
+                            <td style={tableCellStyle}>{tx.tx_ref || ''}</td>
+                            <td style={tableCellStyle}>{tx.invoice_no || ''}</td>
+                            <td style={{ ...tableCellStyle, textTransform: 'capitalize' }}>{tx.tx_type}</td>
+                            <td style={{ ...tableCellStyle, textAlign: 'right', fontFamily: 'monospace' }}>{tx.debit > 0 ? formatMoney(tx.debit) : '—'}</td>
+                            <td style={{ ...tableCellStyle, textAlign: 'right', fontFamily: 'monospace' }}>{tx.credit > 0 ? formatMoney(tx.credit) : '—'}</td>
+                            <td style={{ ...tableCellStyle, textAlign: 'right', fontFamily: 'monospace', fontWeight: 600 }}>{formatMoney(tx.runningBalance)}</td>
+                          </tr>
+                        ))}
+                        <tr style={{ background: '#f8fafc', borderTop: '2px solid #1e293b' }}>
+                          <td colSpan={4} style={{ ...tableCellStyle, fontWeight: 700 }}>Closing Balance</td>
+                          <td style={tableCellStyle}></td>
+                          <td style={tableCellStyle}></td>
+                          <td style={{ ...tableCellStyle, textAlign: 'right', fontFamily: 'monospace', fontWeight: 700 }}>{formatMoney(ledgerData.closingBalance)}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              ) : (
+                <div style={{ ...emptyStateStyle }}>Select a supplier and date range, then click Load Ledger.</div>
+              )}
+            </div>
+          </div>
+        ) : null}
       </>
       ) : null}
     </section>
