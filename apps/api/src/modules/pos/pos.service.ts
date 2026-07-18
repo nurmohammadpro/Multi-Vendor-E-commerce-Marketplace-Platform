@@ -661,11 +661,28 @@ export class PosService {
   async listSales(
     headerStoreId: string | undefined,
     authContext: StoreAuthContext | null,
-    filters: { query?: string; page?: number; limit?: number } = {},
+    filters: {
+      query?: string;
+      page?: number;
+      limit?: number;
+      sortBy?: string;
+      sortDir?: string;
+    } = {},
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
     const { page, limit, offset } = normalizePageQuery(filters);
     const search = filters.query?.trim() || null;
+
+    const safeSortColumns: Record<string, string> = {
+      sale_no: 's.sale_no',
+      customer_name: 's.customer_name',
+      customer_phone: 's.customer_phone',
+      total_amount: 's.total_amount',
+      payment_status: 's.payment_status',
+      created_at: 's.created_at',
+    };
+    const sortColumn = safeSortColumns[filters.sortBy ?? 'created_at'] ?? 's.created_at';
+    const sortDir = filters.sortDir === 'asc' ? 'asc' : 'desc';
 
     const result = await this.pool.query(
       `
@@ -686,6 +703,12 @@ export class PosService {
           s.due_date,
           s.note,
           s.created_at,
+          coalesce(
+            (select string_agg(si.product_name_snapshot, ', ' order by si.created_at)
+             from sales.sale_items si
+             where si.sale_id = s.id),
+            ''
+          ) as items_purchased,
           count(*) over()::int as total_count
         from sales.sales s
         where s.store_id = $1
@@ -697,7 +720,7 @@ export class PosService {
             or coalesce(s.customer_phone, '') ilike '%' || $2::text || '%'
             or coalesce(s.customer_shop_name, '') ilike '%' || $2::text || '%'
           )
-        order by s.created_at desc
+        order by ${sortColumn} ${sortDir}, s.created_at desc
         limit $3
         offset $4
       `,
