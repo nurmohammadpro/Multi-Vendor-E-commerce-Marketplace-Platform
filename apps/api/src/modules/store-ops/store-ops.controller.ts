@@ -461,11 +461,15 @@ export class StoreOpsController {
     @Query('search') search?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('sortBy') sortBy?: string,
+    @Query('sortDir') sortDir?: string,
   ) {
     return this.storeOpsService.listPayables(headerStoreId, authContext, {
       search,
       page: page ? Number(page) : undefined,
       limit: limit ? Number(limit) : undefined,
+      sortBy,
+      sortDir,
     });
   }
 
@@ -477,6 +481,23 @@ export class StoreOpsController {
     @CurrentAuthContext() authContext: StoreAuthContext | null,
   ) {
     return this.storeOpsService.getPayablesAging(headerStoreId, authContext);
+  }
+
+  @Get('payables/supplier-ledger')
+  @RequireContext('store')
+  @RequirePermissions('sales.report.view')
+  getSupplierLedger(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @Query('supplierId') supplierId?: string,
+    @Query('fromDate') fromDate?: string,
+    @Query('toDate') toDate?: string,
+  ) {
+    return this.storeOpsService.getSupplierLedger(headerStoreId, authContext, {
+      supplierId,
+      fromDate,
+      toDate,
+    });
   }
 
   @Get('expenses')
