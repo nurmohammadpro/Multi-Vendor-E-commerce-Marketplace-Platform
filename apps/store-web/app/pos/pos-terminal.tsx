@@ -719,7 +719,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                     paymentMethod: method,
                     amount: Number(entry.amount),
                     referenceNo: entry.reference || undefined,
-                    status: 'paid',
+                    status: saleIsDue ? 'pending' : 'paid',
                   }));
                 if (saleIsDue) {
                   const totalPaid = paid.reduce((s, p) => s + p.amount, 0);
