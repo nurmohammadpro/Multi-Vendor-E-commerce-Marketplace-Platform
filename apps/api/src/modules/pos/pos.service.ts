@@ -657,6 +657,16 @@ export class PosService {
     }
   }
 
+  async listSales(headerStoreId: string | undefined, authContext: StoreAuthContext | null, page: number, limit: number) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const offset = Math.max(0, (page - 1) * limit);
+    const result = await this.pool.query<any>(
+      'select id, sale_no, total_amount, payment_status, created_at from sales.sales where store_id = $1 order by created_at desc limit $2 offset $3',
+      [storeId, limit, offset],
+    );
+    return { sales: result.rows };
+  }
+
   async getSale(saleId: string, headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
     const { sale, items, payments } = await this.getSaleAggregate(saleId, storeId);

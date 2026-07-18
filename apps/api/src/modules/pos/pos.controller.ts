@@ -167,6 +167,18 @@ export class PosController {
     );
   }
 
+  @Get('sales')
+  @RequireContext('store')
+  @RequirePermissions('sales.report.view')
+  listSales(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.posService.listSales(headerStoreId, authContext, Number(page) || 1, Number(limit) || 15);
+  }
+
   @Get('sales/:saleId')
   @RequireContext('store')
   @RequirePermissions('sales.report.view')
