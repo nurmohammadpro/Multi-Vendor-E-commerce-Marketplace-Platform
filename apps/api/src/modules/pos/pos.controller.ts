@@ -176,11 +176,15 @@ export class PosController {
     @Query('query') query?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('sortBy') sortBy?: string,
+    @Query('sortDir') sortDir?: string,
   ) {
     return this.posService.listSales(headerStoreId, authContext, {
       query,
       page: page ? Number(page) : undefined,
       limit: limit ? Number(limit) : undefined,
+      sortBy,
+      sortDir,
     });
   }
 
