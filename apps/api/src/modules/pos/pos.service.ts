@@ -278,6 +278,7 @@ export class PosService {
       customerAddress?: string;
       dueDate?: string;
       discountAmount: number;
+      vatAmount: number;
       taxAmount: number;
       shippingAmount: number;
       exchangeSkuId?: string;
@@ -355,7 +356,8 @@ export class PosService {
       const itemTaxTotal = payload.items.reduce((sum, item) => sum + item.taxAmount, 0);
       const discountAmount = payload.discountAmount + itemDiscountTotal;
       const taxAmount = payload.taxAmount + itemTaxTotal;
-      const totalAmount = subtotalAmount - discountAmount + taxAmount + payload.shippingAmount - (payload.exchangeAmount || 0);
+      const vatAmount = payload.vatAmount || 0;
+      const totalAmount = subtotalAmount - discountAmount + taxAmount + vatAmount + payload.shippingAmount - (payload.exchangeAmount || 0);
       const paidAmount = payload.payments
         .filter((payment) => payment.status === 'paid')
         .reduce((sum, payment) => sum + payment.amount, 0);
@@ -422,6 +424,7 @@ export class PosService {
             subtotal_amount,
             discount_amount,
             tax_amount,
+            vat_amount,
             shipping_amount,
             total_amount,
             payment_status,
@@ -456,9 +459,10 @@ export class PosService {
             $20,
             $21,
             $22,
-            case when coalesce($20::numeric, 0) > 0 then 'delivery_pending' else 'completed' end,
-            'completed',
             $23,
+            case when coalesce($21::numeric, 0) > 0 then 'delivery_pending' else 'completed' end,
+            'completed',
+            $24,
             now(),
             now()
           from store.stores s
@@ -485,6 +489,7 @@ export class PosService {
           subtotalAmount,
           discountAmount,
           taxAmount,
+          vatAmount,
           payload.shippingAmount,
           totalAmount,
           paymentStatus,
@@ -1007,10 +1012,12 @@ export class PosService {
     const [items, payments] = await Promise.all([
       this.pool.query(
         `
-          select id, sku_id, product_name_snapshot, sku_code_snapshot, qty, unit_price, discount_amount, tax_amount, line_total
-          from sales.sale_items
-          where sale_id = $1
-          order by created_at asc
+          select si.id, si.sku_id, si.product_name_snapshot, si.sku_code_snapshot,
+            sk.variant_label, si.qty, si.unit_price, si.discount_amount, si.tax_amount, si.line_total
+          from sales.sale_items si
+          left join catalog.skus sk on sk.id = si.sku_id
+          where si.sale_id = $1
+          order by si.created_at asc
         `,
         [saleId],
       ),
@@ -1052,6 +1059,19 @@ export class PosService {
     );
 
     const store = storeResult.rows[0] ?? {};
+
+    // Fetch seller name for receipt
+    let preparedBy: string | null = null;
+    if (sale.sold_by) {
+      const userResult = await this.pool.query<{ full_name: string }>(
+        'select full_name from identity.users where id = $1 limit 1',
+        [sale.sold_by],
+      );
+      if (userResult.rows[0]) {
+        preparedBy = userResult.rows[0].full_name;
+      }
+    }
+
     const paidAmount = payments.reduce(
       (sum, payment) => sum + (payment.status === 'paid' ? Number(payment.amount ?? 0) : 0),
       0,
@@ -1114,6 +1134,7 @@ export class PosService {
         const mapped = items.map((item) => ({
           name: item.product_name_snapshot ?? null,
           skuCode: item.sku_code_snapshot ?? null,
+          variantLabel: item.variant_label ?? null,
           qty: Number(item.qty ?? 0),
           unitPrice: Number(item.unit_price ?? 0),
           discountAmount: Number(item.discount_amount ?? 0),
@@ -1137,6 +1158,7 @@ export class PosService {
       totals: {
         subtotal: Number(sale.subtotal_amount ?? 0) - (exchangeInfo && exchangeAmount > 0 ? exchangeAmount : 0),
         discount: Number(sale.discount_amount ?? 0),
+        vat: Number(sale.vat_amount ?? 0),
         tax: Number(sale.tax_amount ?? 0),
         shipping: Number(sale.shipping_amount ?? 0),
         total: Number(sale.total_amount ?? 0),
@@ -1153,6 +1175,8 @@ export class PosService {
         paidAt: payment.paid_at ?? null,
       })),
       exchange: exchangeInfo,
+      preparedBy,
+      amountInWords: this.numberToWords(Number(sale.total_amount ?? 0)),
       printedAt: new Date().toISOString(),
     };
   }
@@ -1161,11 +1185,13 @@ export class PosService {
     const result = await client.query<{
       sku_code: string;
       product_name: string;
+      variant_label: string | null;
     }>(
       `
         select
           s.sku_code,
-          p.name as product_name
+          p.name as product_name,
+          s.variant_label
         from catalog.skus s
         join catalog.products p on p.id = s.product_id
         where s.id = $1
@@ -1454,5 +1480,31 @@ export class PosService {
       throw new UnauthorizedException('Missing auth session');
     }
     return session.user.id;
+  }
+
+  private numberToWords(amount: number): string {
+    if (amount <= 0) return 'Zero Taka Only';
+    const units = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+    const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+    const convertBelowThousand = (n: number): string => {
+      if (n === 0) return '';
+      if (n < 20) return units[n];
+      if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 !== 0 ? ' ' + units[n % 10] : '');
+      return units[Math.floor(n / 100)] + ' Hundred' + (n % 100 !== 0 ? ' ' + convertBelowThousand(n % 100) : '');
+    };
+    const whole = Math.floor(amount);
+    const frac = Math.round((amount - whole) * 100);
+    let result = '';
+    const billions = Math.floor(whole / 1000000000);
+    const millions = Math.floor((whole % 1000000000) / 1000000);
+    const thousands = Math.floor((whole % 1000000) / 1000);
+    const remainder = whole % 1000;
+    if (billions) result += convertBelowThousand(billions) + ' Billion ';
+    if (millions) result += convertBelowThousand(millions) + ' Million ';
+    if (thousands) result += convertBelowThousand(thousands) + ' Thousand ';
+    if (remainder) result += convertBelowThousand(remainder);
+    result = result.trim() + ' Taka';
+    if (frac > 0) result += ' ' + convertBelowThousand(frac) + ' Paisa';
+    return result + ' Only';
   }
 }

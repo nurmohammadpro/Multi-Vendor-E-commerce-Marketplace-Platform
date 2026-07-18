@@ -38,6 +38,7 @@ const createSaleSchema = z.object({
   customerAddress: z.string().max(500).optional(),
   dueDate: z.string().date().optional(),
   discountAmount: z.number().nonnegative().default(0),
+  vatAmount: z.number().nonnegative().default(0),
   taxAmount: z.number().nonnegative().default(0),
   shippingAmount: z.number().nonnegative().default(0),
   note: z.string().optional(),

@@ -42,6 +42,8 @@ export type ReceiptPayload = {
   paymentStatus?: string | null;
   dueDate?: string | null;
   note?: string | null;
+  preparedBy?: string | null;
+  amountInWords?: string | null;
   store?: {
     name?: string | null;
     logoUrl?: string | null;
@@ -60,6 +62,7 @@ export type ReceiptPayload = {
   items?: Array<{
     name?: string | null;
     skuCode?: string | null;
+    variantLabel?: string | null;
     barcode?: string | null;
     qty?: number;
     unitPrice?: number;
@@ -70,6 +73,7 @@ export type ReceiptPayload = {
   totals?: {
     subtotal?: number;
     discount?: number;
+    vat?: number;
     tax?: number;
     shipping?: number;
     total?: number;
@@ -125,27 +129,25 @@ export async function fetchPrintAgentPrinters(baseUrl = DEFAULT_PRINT_AGENT_URL)
 export function formatReceiptText(receipt: ReceiptPayload) {
   const lines = [
     receipt.store?.name || 'Store',
-    receipt.saleNo ? `Receipt: ${receipt.saleNo}` : 'Receipt',
-    receipt.saleType ? `Type: ${receipt.saleType.replace('_', ' ')}` : null,
-    receipt.paymentStatus ? `Status: ${receipt.paymentStatus}` : null,
-    receipt.printedAt ? `Printed: ${new Date(receipt.printedAt).toLocaleString()}` : null,
-    receipt.dueDate ? `Due date: ${new Date(receipt.dueDate).toLocaleDateString()}` : null,
+    'Sales Receipt',
+    receipt.saleNo ? `Invoice No: ${receipt.saleNo}` : null,
+    receipt.printedAt ? `Date: ${new Date(receipt.printedAt).toLocaleString()}` : null,
     receipt.customer?.name ? `Customer: ${receipt.customer.name}` : null,
     receipt.customer?.phone ? `Phone: ${receipt.customer.phone}` : null,
-    receipt.customer?.email ? `Email: ${receipt.customer.email}` : null,
     receipt.customer?.shopName ? `Shop: ${receipt.customer.shopName}` : null,
-    receipt.customer?.address ? `Address: ${receipt.customer.address}` : null,
     '------------------------------',
     ...(receipt.items ?? []).flatMap((item) => [
       item.name || 'Item',
+      item.variantLabel ? `  ${item.variantLabel}` : null,
       `${item.qty ?? 0} x ${money(item.unitPrice)} = ${money(item.lineTotal)}`,
       item.skuCode ? `SKU: ${item.skuCode}` : null,
     ]),
     '------------------------------',
     `Subtotal: ${money(receipt.totals?.subtotal)}`,
     `Discount: ${money(receipt.totals?.discount)}`,
-    `Tax: ${money(receipt.totals?.tax)}`,
-    `Total: ${money(receipt.totals?.total)}`,
+    (receipt.totals?.vat ?? 0) > 0 ? `VAT: ${money(receipt.totals?.vat)}` : null,
+    (receipt.totals?.tax ?? 0) > 0 ? `Tax: ${money(receipt.totals?.tax)}` : null,
+    `Net Payable: ${money(receipt.totals?.total)}`,
     `Paid: ${money(receipt.totals?.paid)}`,
     `Due: ${money(receipt.totals?.due)}`,
     `Change: ${money(receipt.totals?.change)}`,
@@ -158,6 +160,8 @@ export function formatReceiptText(receipt: ReceiptPayload) {
           ),
         ]
       : []),
+    receipt.amountInWords || null,
+    receipt.preparedBy ? `Seller: ${receipt.preparedBy}` : null,
     receipt.note ? `Note: ${receipt.note}` : null,
     receipt.store?.footer || 'Thank you',
   ];
@@ -290,8 +294,9 @@ async function buildEscPosReceipt(receipt: ReceiptPayload) {
     }
   }
   pushText('-'.repeat(RECEIPT_COLUMNS));
-  pushText(receipt.saleNo ? padLine('Receipt', receipt.saleNo) : 'Receipt');
-  pushText(`Printed: ${sanitizeReceiptText(receipt.printedAt ? new Date(receipt.printedAt).toLocaleString() : new Date().toLocaleString())}`);
+  pushText(centerText('Sales Receipt'), 1);
+  pushText(receipt.saleNo ? padLine('Invoice No', receipt.saleNo) : '');
+  pushText(`Date: ${sanitizeReceiptText(receipt.printedAt ? new Date(receipt.printedAt).toLocaleString() : new Date().toLocaleString())}`);
   if (receipt.customer?.name) pushText(`Customer: ${receipt.customer.name}`);
   if (receipt.customer?.phone) pushText(`Phone: ${receipt.customer.phone}`);
   if (receipt.customer?.shopName) pushText(`Shop: ${receipt.customer.shopName}`);
@@ -304,6 +309,7 @@ async function buildEscPosReceipt(receipt: ReceiptPayload) {
 
   for (const item of receipt.items ?? []) {
     pushText(sanitizeReceiptText(item.name || 'Item'));
+    if (item.variantLabel) pushText(sanitizeReceiptText(`  ${item.variantLabel}`));
     pushText(padLine(`${Number(item.qty ?? 0)} x ${money(item.unitPrice)}`, money(item.lineTotal)));
     if (item.skuCode) pushText(`SKU: ${item.skuCode}`);
   }
@@ -311,8 +317,9 @@ async function buildEscPosReceipt(receipt: ReceiptPayload) {
   pushText('-'.repeat(RECEIPT_COLUMNS));
   pushText(padLine('Subtotal', money(receipt.totals?.subtotal)));
   pushText(padLine('Discount', money(receipt.totals?.discount)));
-  pushText(padLine('Tax', money(receipt.totals?.tax)));
-  pushText(padLine('Total', money(receipt.totals?.total)));
+  if ((receipt.totals?.vat ?? 0) > 0) pushText(padLine('VAT', money(receipt.totals?.vat)));
+  if ((receipt.totals?.tax ?? 0) > 0) pushText(padLine('Tax', money(receipt.totals?.tax)));
+  pushText(padLine('Net Payable', money(receipt.totals?.total)));
   pushText(padLine('Paid', money(receipt.totals?.paid)));
   pushText(padLine('Due', money(receipt.totals?.due)));
   if ((receipt.totals?.change ?? 0) > 0) {
@@ -328,6 +335,13 @@ async function buildEscPosReceipt(receipt: ReceiptPayload) {
         ),
       );
     }
+  }
+  if (receipt.amountInWords) {
+    pushText('-'.repeat(RECEIPT_COLUMNS));
+    pushText(centerText(sanitizeReceiptText(receipt.amountInWords)), 1);
+  }
+  if (receipt.preparedBy) {
+    pushText(centerText(`Seller: ${sanitizeReceiptText(receipt.preparedBy)}`), 1);
   }
   if (receipt.store?.footer) {
     pushText('-'.repeat(RECEIPT_COLUMNS));
