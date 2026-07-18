@@ -136,6 +136,7 @@ const payrollRunUpdateSchema = z.object({
 
 const hardwareProfileSchema = z.object({
   bundlePreset: z.string().max(120).nullable().optional(),
+  printerMode: z.enum(['pos_thermal', 'laser_a5']).optional().default('pos_thermal'),
   receiptPrinterModel: z.string().max(150).nullable().optional(),
   labelPrinterModel: z.string().max(150).nullable().optional(),
   barcodeScannerModel: z.string().max(150).nullable().optional(),

@@ -2278,20 +2278,24 @@ export class StoreOpsService {
           const label = payload.variantLabels[i].trim();
           const price = payload.variantPrices?.[i] ?? payload.salePrice;
           const cost = payload.variantCosts?.[i] ?? payload.unitCost;
+          const vTs = Date.now() + i;
+          const vBarcode = '2' + String(vTs).slice(-9) + String(Math.floor(Math.random() * 1000)).padStart(3, '0');
           const skuCode = `${productCode}-${label.replace(/[^A-Za-z0-9]/g, '-').toUpperCase()}`.slice(0, 80);
           const skuResult = await client.query<{ id: string }>(
-            `insert into catalog.skus (id, tenant_id, store_id, product_id, sku_code, variant_label, sale_price, cost_price, status, created_at, updated_at)
-             values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, 'active', now(), now()) returning id`,
-            [tenantId, storeId, productId, skuCode, label, String(price), String(cost)],
+            `insert into catalog.skus (id, tenant_id, store_id, product_id, sku_code, variant_label, barcode, sale_price, cost_price, status, created_at, updated_at)
+             values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, 'active', now(), now()) returning id`,
+            [tenantId, storeId, productId, skuCode, label, vBarcode, String(price), String(cost)],
           );
           skus.push({ id: skuResult.rows[0].id, skuCode, label, price, cost, qty: 1 });
         }
       } else {
         const skuCode = productCode.slice(0, 40);
+        const ts = Date.now();
+        const barcode = '2' + String(ts).slice(-9) + String(Math.floor(Math.random() * 1000)).padStart(3, '0');
         const skuResult = await client.query<{ id: string }>(
-          `insert into catalog.skus (id, tenant_id, store_id, product_id, sku_code, sale_price, cost_price, status, created_at, updated_at)
-           values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, 'active', now(), now()) returning id`,
-          [tenantId, storeId, productId, skuCode, String(payload.salePrice), String(payload.unitCost)],
+          `insert into catalog.skus (id, tenant_id, store_id, product_id, sku_code, barcode, sale_price, cost_price, status, created_at, updated_at)
+           values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, 'active', now(), now()) returning id`,
+          [tenantId, storeId, productId, skuCode, barcode, String(payload.salePrice), String(payload.unitCost)],
         );
         skus.push({ id: skuResult.rows[0].id, skuCode, label: null, price: payload.salePrice, cost: payload.unitCost, qty: payload.purchaseQty });
       }
