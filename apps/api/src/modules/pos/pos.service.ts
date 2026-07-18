@@ -1,4 +1,5 @@
 import { ForbiddenException, Inject, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { normalizePageQuery, stripPaginationTotal } from '../common/pagination.js';
 import type { Pool, PoolClient } from 'pg';
 
 import type { AuthSession, StoreAuthContext } from '../auth/auth.types.js';
@@ -657,14 +658,54 @@ export class PosService {
     }
   }
 
-  async listSales(headerStoreId: string | undefined, authContext: StoreAuthContext | null, page: number, limit: number) {
+  async listSales(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    filters: { query?: string; page?: number; limit?: number } = {},
+  ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
-    const offset = Math.max(0, (page - 1) * limit);
-    const result = await this.pool.query<any>(
-      'select id, sale_no, total_amount, payment_status, created_at from sales.sales where store_id = $1 order by created_at desc limit $2 offset $3',
-      [storeId, limit, offset],
+    const { page, limit, offset } = normalizePageQuery(filters);
+    const search = filters.query?.trim() || null;
+
+    const result = await this.pool.query(
+      `
+        select
+          s.id,
+          s.sale_no,
+          s.total_amount,
+          s.subtotal_amount,
+          s.discount_amount,
+          s.tax_amount,
+          s.shipping_amount,
+          s.payment_status,
+          s.fulfillment_status,
+          s.customer_name,
+          s.customer_phone,
+          s.customer_email,
+          s.customer_shop_name,
+          s.due_date,
+          s.note,
+          s.created_at,
+          count(*) over()::int as total_count
+        from sales.sales s
+        where s.store_id = $1
+          and s.status = 'completed'
+          and (
+            $2::text is null
+            or s.sale_no ilike '%' || $2::text || '%'
+            or coalesce(s.customer_name, '') ilike '%' || $2::text || '%'
+            or coalesce(s.customer_phone, '') ilike '%' || $2::text || '%'
+            or coalesce(s.customer_shop_name, '') ilike '%' || $2::text || '%'
+          )
+        order by s.created_at desc
+        limit $3
+        offset $4
+      `,
+      [storeId, search, limit, offset],
     );
-    return { sales: result.rows };
+
+    const { items, total } = stripPaginationTotal(result.rows);
+    return { sales: items, pagination: { page, limit, total } };
   }
 
   async getSale(saleId: string, headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
