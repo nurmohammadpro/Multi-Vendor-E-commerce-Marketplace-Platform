@@ -22,13 +22,13 @@ export function renderReceipt(receipt, mode) {
   }, 0);
 
   var fs = isA5 ? {
-    body:'13px', sn:'21px', sm:'14px', it:'17px', ino:'20px', cn:'16px', cd:'14px',
-    th:'10px', totals:'13px',
-    bt:'10px', qc:'60px', tc:'105px'
+    body:'17px', sn:'27px', sm:'18px', it:'22px', ino:'26px', cn:'21px', cd:'18px',
+    th:'13px', totals:'17px',
+    bt:'13px', qc:'78px', tc:'137px'
   } : {
-    body:'10px', sn:'17px', sm:'13px', it:'14px', ino:'16px', cn:'13px', cd:'12px',
-    th:'10px', totals:'10px',
-    bt:'10px', qc:'48px', tc:'85px'
+    body:'13px', sn:'22px', sm:'17px', it:'18px', ino:'21px', cn:'17px', cd:'16px',
+    th:'13px', totals:'13px',
+    bt:'13px', qc:'62px', tc:'110px'
   };
 
   var itemRows = (receipt.items || []).map(function(item, idx) {
