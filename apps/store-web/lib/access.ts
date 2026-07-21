@@ -115,7 +115,8 @@ export function deriveStoreConsoleAccess(
   const planFeatures = options?.planFeatures ?? [];
   const isOwner = role === 'owner';
   const isOwnerOrManager = role === 'owner' || role === 'manager';
-  const canDirectAdjustInventory = permissionSet.has('inventory.adjust.direct') && canAccessStoreFeature({ planCode, planFeatures }, 'inventory');
+  // Store owners always have direct adjustment access, others need the permission
+  const canDirectAdjustInventory = (isOwner || permissionSet.has('inventory.adjust.direct')) && canAccessStoreFeature({ planCode, planFeatures }, 'inventory');
   const canRequestAdjustInventory =
     permissionSet.has('inventory.adjust.request')
     && canAccessStoreFeature({ planCode, planFeatures }, 'inventory');
