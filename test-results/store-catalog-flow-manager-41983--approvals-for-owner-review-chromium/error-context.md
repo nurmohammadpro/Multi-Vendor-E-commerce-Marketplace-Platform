@@ -1,0 +1,183 @@
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: store-catalog-flow.spec.ts >> manager can build catalog variants and submit stock + price approvals for owner review
+- Location: tests/e2e/store-catalog-flow.spec.ts:5:5
+
+# Error details
+
+```
+Test timeout of 120000ms exceeded.
+```
+
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - generic [ref=e6]:
+      - generic [ref=e9]:
+        - generic [ref=e10]: Pro plan
+        - generic [ref=e11]: Demo Store
+      - generic [ref=e12]:
+        - generic [ref=e13]:
+          - generic [ref=e14]: Navigation
+          - list [ref=e16]:
+            - listitem [ref=e17]:
+              - link "Dashboard" [ref=e18] [cursor=pointer]:
+                - /url: /
+                - img [ref=e19]
+                - generic [ref=e24]: Dashboard
+            - listitem [ref=e25]:
+              - link "Sales" [ref=e26] [cursor=pointer]:
+                - /url: /pos
+                - img [ref=e27]
+                - generic [ref=e31]: Sales
+            - listitem [ref=e32]:
+              - link "Sales History" [ref=e33] [cursor=pointer]:
+                - /url: /sales-history
+                - img [ref=e34]
+                - generic [ref=e39]: Sales History
+            - listitem [ref=e40]:
+              - link "Stock" [ref=e41] [cursor=pointer]:
+                - /url: /inventory
+                - img [ref=e42]
+                - generic [ref=e52]: Stock
+            - listitem [ref=e53]:
+              - link "Locations" [ref=e54] [cursor=pointer]:
+                - /url: /locations
+                - img [ref=e55]
+                - generic [ref=e58]: Locations
+            - listitem [ref=e59]:
+              - link "Purchases" [ref=e60] [cursor=pointer]:
+                - /url: /purchases
+                - img [ref=e61]
+                - generic [ref=e65]: Purchases
+            - listitem [ref=e66]:
+              - link "Receivables" [ref=e67] [cursor=pointer]:
+                - /url: /receivables
+                - img [ref=e68]
+                - generic [ref=e71]: Receivables
+            - listitem [ref=e72]:
+              - link "Customers" [ref=e73] [cursor=pointer]:
+                - /url: /customers
+                - img [ref=e74]
+                - generic [ref=e79]: Customers
+            - listitem [ref=e80]:
+              - link "Shipping" [ref=e81] [cursor=pointer]:
+                - /url: /shipping
+                - img [ref=e82]
+                - generic [ref=e87]: Shipping
+            - listitem [ref=e88]:
+              - link "Reports" [ref=e89] [cursor=pointer]:
+                - /url: /reports
+                - img [ref=e90]
+                - generic [ref=e92]: Reports
+            - listitem [ref=e93]:
+              - link "Activity" [ref=e94] [cursor=pointer]:
+                - /url: /activity
+                - img [ref=e95]
+                - generic [ref=e97]: Activity
+            - listitem [ref=e98]:
+              - link "Expenses" [ref=e99] [cursor=pointer]:
+                - /url: /expenses
+                - img [ref=e100]
+                - generic [ref=e103]: Expenses
+            - listitem [ref=e104]:
+              - link "Banking" [ref=e105] [cursor=pointer]:
+                - /url: /banking
+                - img [ref=e106]
+                - generic [ref=e108]: Banking
+            - listitem [ref=e109]:
+              - link "Disputes" [ref=e110] [cursor=pointer]:
+                - /url: /disputes
+                - img [ref=e111]
+                - generic [ref=e113]: Disputes
+            - listitem [ref=e114]:
+              - link "Support" [ref=e115] [cursor=pointer]:
+                - /url: /support
+                - img [ref=e116]
+                - generic [ref=e123]: Support
+        - generic [ref=e124]:
+          - generic [ref=e125]: Support
+          - list [ref=e127]:
+            - listitem [ref=e128]:
+              - link "Help & Reference" [ref=e129] [cursor=pointer]:
+                - /url: /help
+                - img [ref=e130]
+                - generic [ref=e137]: Help & Reference
+    - generic [ref=e139]:
+      - banner [ref=e140]:
+        - button "Toggle Sidebar" [ref=e141]:
+          - img
+          - generic [ref=e142]: Toggle Sidebar
+        - heading "Catalog" [level=1] [ref=e144]
+        - generic [ref=e145]:
+          - button "Switch theme" [ref=e147]: Slate Pro · System (Light)
+          - generic [ref=e148]: manager access
+          - generic [ref=e149]: Pro
+          - button "M" [ref=e150]:
+            - generic [ref=e152]: M
+      - main [ref=e153]:
+        - main [ref=e155]:
+          - generic [ref=e156]:
+            - generic [ref=e157]: Catalog
+            - heading "Catalog workspace" [level=2] [ref=e158]
+            - paragraph [ref=e159]: Manage products, variants, SKUs, and pricing through the live catalog APIs.
+          - generic [ref=e160]:
+            - generic [ref=e161]:
+              - button "Quick Entry" [ref=e162] [cursor=pointer]
+              - button "Products" [ref=e163] [cursor=pointer]
+              - button "Categories & Brands" [ref=e164] [cursor=pointer]
+            - generic [ref=e165]:
+              - article [ref=e166]:
+                - generic [ref=e167]:
+                  - generic [ref=e168]:
+                    - heading "New Product" [level=3] [ref=e169]
+                    - paragraph [ref=e170]: Name the product, choose type, add variants. SKU auto-generates from name.
+                  - textbox "Product name" [ref=e171]
+                  - generic [ref=e172]:
+                    - combobox [ref=e173]:
+                      - option "No category" [selected]
+                      - option "Apparel"
+                    - combobox [ref=e174]:
+                      - option "No brand" [selected]
+                      - option "Market One"
+                  - generic [ref=e175]:
+                    - button "Simple Product" [ref=e176] [cursor=pointer]
+                    - button "With Variants" [ref=e177] [cursor=pointer]
+                  - generic [ref=e178]:
+                    - textbox "SKU" [ref=e179]
+                    - textbox "Barcode (optional)" [ref=e180]
+                    - textbox "Sale price" [ref=e181]
+                    - textbox "Cost price" [ref=e182]
+                  - button "Create Product" [disabled] [ref=e183] [cursor=pointer]
+              - article [ref=e184]:
+                - heading "Recent Products" [level=4] [ref=e185]
+                - paragraph [ref=e186]: Recently created products and their SKU codes.
+                - table [ref=e188]:
+                  - rowgroup [ref=e189]:
+                    - row "Product SKUs Price" [ref=e190]:
+                      - columnheader "Product" [ref=e191]
+                      - columnheader "SKUs" [ref=e192]
+                      - columnheader "Price" [ref=e193]
+                  - rowgroup [ref=e194]:
+                    - row "T-Shirt Apparel 1 active" [ref=e195]:
+                      - cell "T-Shirt Apparel" [ref=e196]:
+                        - generic [ref=e197]: T-Shirt
+                        - generic [ref=e198]: Apparel
+                      - cell "1" [ref=e199]
+                      - cell "active" [ref=e200]
+            - article [ref=e201]:
+              - heading "Operator Notes" [level=3] [ref=e202]
+              - paragraph [ref=e203]: Catalog workspace is ready.
+  - region "Notifications alt+T"
+  - button "Open Next.js Dev Tools" [ref=e209] [cursor=pointer]:
+    - img [ref=e210]
+  - alert [ref=e213]
+```

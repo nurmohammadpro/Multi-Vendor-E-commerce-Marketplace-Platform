@@ -10,7 +10,7 @@ import { InventoryService } from './inventory.service.js';
 const createLocationSchema = z.object({
   code: z.string().min(1).max(50),
   name: z.string().min(1).max(150),
-  locationType: z.enum(['store', 'warehouse', 'popup']).default('store'),
+  locationType: z.enum(['storefront', 'warehouse', 'backroom']).default('storefront'),
   address: z.string().max(500).optional(),
   phone: z.string().max(30).optional(),
   email: z.string().email().optional(),
