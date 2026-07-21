@@ -111,7 +111,6 @@ export function PurchasesWorkspace() {
   const [exCategoryId, setExCategoryId] = useState('');
   const [exBrandId, setExBrandId] = useState('');
   const [exHasVariants, setExHasVariants] = useState(false);
-  const [exIsTrackable, setExIsTrackable] = useState(false);
   const [exSalePrice, setExSalePrice] = useState('');
   const [exUnitCost, setExUnitCost] = useState('');
   const [exQty, setExQty] = useState('1');
@@ -122,7 +121,7 @@ export function PurchasesWorkspace() {
   const [exSaving, setExSaving] = useState(false);
   // Variants with individual pricing
   const [quickHasVariants, setQuickHasVariants] = useState(false);
-  const [quickIsTrackable, setQuickIsTrackable] = useState(true);
+  // Track inventory is always enabled
   const [quickVariantRows, setQuickVariantRows] = useState<Array<{ key: string; label: string; price: string; cost: string; qty: string }>>([]);
   const [quickVariantInput, setQuickVariantInput] = useState('');
   const [quickVariantPrice, setQuickVariantPrice] = useState('');
@@ -270,7 +269,7 @@ export function PurchasesWorkspace() {
         categoryId: quickCategoryId || undefined, brandId: quickBrandId || undefined,
         salePrice: Number(row.price || 0), purchaseQty: Number(row.qty || 1),
         unitCost: Number(row.cost || 0), paidAmount: Number(quickPaid || 0),
-        hasVariants: false, variantLabels: undefined, isTrackable: quickIsTrackable, note: '',
+        hasVariants: false, variantLabels: undefined, isTrackable: true, note: '',
       })) : [{
         productName: quickName.trim(),
         supplierId: quickSupplierId, locationId: quickLocationId,
@@ -279,7 +278,7 @@ export function PurchasesWorkspace() {
         purchaseQty: Number(quickVariantRows[0]?.qty || 1),
         unitCost: Number(quickVariantRows[0]?.cost || 0),
         paidAmount: Number(quickPaid || 0),
-        hasVariants: false, variantLabels: undefined, isTrackable: quickIsTrackable, note: '',
+        hasVariants: false, variantLabels: undefined, isTrackable: true, note: '',
       }];
 
       let lastResult: any = null;
@@ -347,13 +346,13 @@ export function PurchasesWorkspace() {
         customerName: exCustomerName.trim(), customerPhone: exCustomerPhone.trim(), customerEmail: exCustomerEmail.trim() || undefined,
         categoryId: exCategoryId || undefined, brandId: exBrandId || undefined,
         salePrice: Number(row.price || 0), unitCost: Number(row.cost || 0),
-        hasVariants: false, isTrackable: exIsTrackable, note: '',
+        hasVariants: false, isTrackable: true, note: '',
       })) : [{
         productName: exName.trim(),
         customerName: exCustomerName.trim(), customerPhone: exCustomerPhone.trim(), customerEmail: exCustomerEmail.trim() || undefined,
         categoryId: exCategoryId || undefined, brandId: exBrandId || undefined,
         salePrice: Number(exSalePrice || 0) * Number(exQty || 1), unitCost: Number(exUnitCost || 0) * Number(exQty || 1),
-        hasVariants: false, isTrackable: exIsTrackable, note: '',
+        hasVariants: false, isTrackable: true, note: '',
       }];
 
       let lastResult: any = null;
@@ -585,11 +584,7 @@ export function PurchasesWorkspace() {
             <span style={{ fontSize: 13, color: 'var(--muted-foreground)' }}>Has variants (sizes, colors, etc.)</span>
           </label>
 
-          {/* Trackable toggle */}
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, cursor: 'pointer' }}>
-            <input type="checkbox" checked={quickIsTrackable} onChange={(e) => setQuickIsTrackable(e.target.checked)} style={{ accentColor: '#0f172a' }} />
-            <span style={{ fontSize: 13, color: 'var(--muted-foreground)' }}>Track inventory (stock levels)</span>
-          </label>
+
 
           {/* Variant input row */}
           {quickHasVariants ? (
@@ -805,11 +800,7 @@ export function PurchasesWorkspace() {
             <span style={{ fontSize: 13, color: 'var(--muted-foreground)' }}>Has variants (sizes, colors, etc.)</span>
           </label>
 
-          {/* Trackable toggle */}
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, cursor: 'pointer' }}>
-            <input type="checkbox" checked={exIsTrackable} onChange={(e) => setExIsTrackable(e.target.checked)} style={{ accentColor: '#0f172a' }} />
-            <span style={{ fontSize: 13, color: 'var(--muted-foreground)' }}>Track inventory (stock levels)</span>
-          </label>
+
 
           {/* Variant rows */}
           {exHasVariants ? (

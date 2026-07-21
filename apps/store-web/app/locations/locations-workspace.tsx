@@ -49,6 +49,7 @@ export function LocationsWorkspace({ canViewInventory, canManageLocations }: Wor
   const [loading, setLoading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<Location | null>(null);
 
   const [form, setForm] = useState({
     code: '',
@@ -86,7 +87,7 @@ export function LocationsWorkspace({ canViewInventory, canManageLocations }: Wor
         body: JSON.stringify({
           code: form.code.trim(),
           name: form.name.trim(),
-          locationType: 'store',
+          locationType: 'storefront',
           address: form.address.trim() || undefined,
           phone: form.phone.trim() || undefined,
           email: form.email.trim() || undefined,
@@ -143,12 +144,13 @@ export function LocationsWorkspace({ canViewInventory, canManageLocations }: Wor
     }
   };
 
-  const deactivateLocation = async (location: Location) => {
+  const deleteLocation = async (location: Location) => {
     setLoading(true);
+    setDeleteConfirm(null);
     try {
       await fetch(`/api/inventory/locations/${location.id}`, { method: 'DELETE' });
       await refresh();
-      setMessage(`Location "${location.name}" deactivated.`);
+      setMessage(`Location "${location.name}" deleted.`);
     } catch (error) {
       setMessage((error as Error).message);
     } finally {
@@ -262,7 +264,7 @@ export function LocationsWorkspace({ canViewInventory, canManageLocations }: Wor
                         <div style={{ display: 'flex', gap: 8 }}>
                           <button onClick={() => startEdit(loc)} style={secondaryButtonStyle} disabled={loading}>Edit</button>
                           {loc.status === 'active' ? (
-                            <button onClick={() => deactivateLocation(loc)} style={{ ...secondaryButtonStyle, color: '#dc2626' }} disabled={loading}>Deactivate</button>
+                            <button onClick={() => setDeleteConfirm(loc)} style={{ ...secondaryButtonStyle, color: '#dc2626' }} disabled={loading}>Delete</button>
                           ) : null}
                         </div>
                       </td>
@@ -276,6 +278,50 @@ export function LocationsWorkspace({ canViewInventory, canManageLocations }: Wor
           <div style={emptyStateStyle}>No locations configured yet. Add one to get started.</div>
         )}
       </article>
+
+      {/* Delete confirmation dialog */}
+      {deleteConfirm ? (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0,0,0,0.4)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+        }} onClick={() => setDeleteConfirm(null)}>
+          <div style={{
+            background: 'var(--card)',
+            borderRadius: 12,
+            padding: 24,
+            maxWidth: 420,
+            width: '90%',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+          }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ margin: '0 0 8px', fontSize: 16 }}>Delete location?</h3>
+            <p style={{ margin: '0 0 20px', color: 'var(--muted-foreground)', fontSize: 13, lineHeight: 1.5 }}>
+              Are you sure you want to delete <strong>{deleteConfirm.name}</strong> ({deleteConfirm.code})?
+              This will set the location to inactive. Products assigned to this location will no longer be available.
+            </p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                style={{ ...secondaryButtonStyle, minWidth: 80 }}
+                disabled={loading}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => deleteLocation(deleteConfirm)}
+                style={{ ...secondaryButtonStyle, background: '#dc2626', color: '#fff', minWidth: 80 }}
+                disabled={loading}
+              >
+                {loading ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <article style={surfaceCardStyle}>
         <h3 style={{ marginTop: 0 }}>Operator Notes</h3>
