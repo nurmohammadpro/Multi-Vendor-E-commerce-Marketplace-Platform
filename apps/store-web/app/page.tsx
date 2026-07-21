@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Package, ClipboardList, ShoppingCart, Truck, BarChart3, CreditCard, Users, Wallet, ReceiptText, Landmark, MapPin } from 'lucide-react';
+import { Building2, Package, ClipboardList, ShoppingCart, Truck, BarChart3, CreditCard, Users, Wallet, ReceiptText, Landmark, MapPin } from 'lucide-react';
 
 import { fetchStoreApi, isStoreApiConfigured } from '../lib/api';
 import { getStoreConsoleAccess } from '../lib/access';
@@ -31,6 +31,7 @@ const quickActions = [
   { href: '/purchases', group: 'Product & Stock', title: 'Products & Stock', detail: 'Quick add new products, receive supplier stock, manage categories and suppliers.', icon: Package, feature: 'purchases' },
   { href: '/reports', group: 'Product & Stock', title: 'Reports', detail: 'Daily sales, stock snapshots, and exportable business reports.', icon: BarChart3, permission: 'sales.report.view', feature: 'reports' },
   { href: '/locations', group: 'Product & Stock', title: 'Locations', detail: 'Manage inventory locations, addresses, and contact details.', icon: MapPin, feature: 'inventory' },
+  { href: '/suppliers', group: 'Product & Stock', title: 'Suppliers', detail: 'Manage suppliers, track payables, and view the supplier ledger.', icon: Building2, feature: 'purchases' },
   // Management
   { href: '/staff', group: 'Management', title: 'Team', detail: 'Manage users, employee records, and payroll workflow from one place.', icon: Users, permission: 'store.staff.manage', feature: 'staff' },
   { href: '/expenses', group: 'Management', title: 'Daily Expenses', detail: 'Track day-level store expenses and spending.', icon: ReceiptText, feature: 'expenses' },
@@ -48,18 +49,41 @@ const quickActions = [
 
 type StoreSalesReport = { summary?: { total_sales_amount?: string | number; total_orders_count?: number } };
 type PendingAdjustmentsPayload = { adjustmentRequests?: Array<unknown> };
+type SupplierListItem = { id: string; company_name: string; current_payable_amount?: string | number; status: string };
+type PayablesAgingResult = {
+  aging?: {
+    today_amount?: string | number;
+    today_count?: number;
+    days_7_amount?: string | number;
+    days_7_count?: number;
+    days_30_amount?: string | number;
+    days_30_count?: number;
+    days_90_amount?: string | number;
+    days_90_count?: number;
+    days_90_plus_amount?: string | number;
+    days_90_plus_count?: number;
+  };
+};
 
 function metricNumber(value: string | number | undefined) {
   return Number(Number(value ?? 0).toFixed(2));
 }
 
+function formatMoney(v: string | number | null | undefined) {
+  return Number(Number(v ?? 0).toFixed(2)).toLocaleString('en-IN', { minimumFractionDigits: 2 });
+}
+
 export default async function StoreDashboard() {
   const access = await getStoreConsoleAccess();
   const apiAvailable = await isStoreApiConfigured();
+  const canViewSuppliers = access.canUsePurchases;
 
   let todaySales = '—';
   let todayOrders = '—';
   let pendingApprovals = '—';
+  let totalSuppliers = '—';
+  let totalPayables = '—';
+  let payableAging: PayablesAgingResult['aging'] | undefined;
 
   if (apiAvailable) {
     try {
@@ -73,6 +97,28 @@ export default async function StoreDashboard() {
         pendingApprovals = String(approvalsPayload.adjustmentRequests.length);
       }
     } catch {}
+
+    if (canViewSuppliers) {
+      try {
+        const [suppliersPayload, agingPayload] = await Promise.all([
+          fetchStoreApi<{ suppliers: SupplierListItem[]; pagination?: { total: number } }>('/store-ops/suppliers?limit=1&status=active'),
+          fetchStoreApi<PayablesAgingResult>('/store-ops/payables/aging'),
+        ]);
+        if (suppliersPayload?.pagination) {
+          totalSuppliers = String(suppliersPayload.pagination.total);
+        }
+        if (agingPayload?.aging) {
+          payableAging = agingPayload.aging;
+          const totalPayableAmount =
+            metricNumber(agingPayload.aging.today_amount)
+            + metricNumber(agingPayload.aging.days_7_amount)
+            + metricNumber(agingPayload.aging.days_30_amount)
+            + metricNumber(agingPayload.aging.days_90_amount)
+            + metricNumber(agingPayload.aging.days_90_plus_amount);
+          totalPayables = `BDT ${formatMoney(totalPayableAmount)}`;
+        }
+      } catch {}
+    }
   }
 
   const allowedActions = quickActions.filter(
@@ -92,7 +138,7 @@ export default async function StoreDashboard() {
         <p style={{ ...tokenMutedStyle, margin: 0 }}>{access.planName} plan · {access.role} access</p>
       </div>
 
-      <section style={{ ...sectionPanelStyle, gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', marginBottom: 32 }}>
+      <section style={{ ...sectionPanelStyle, gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', marginBottom: 24 }}>
         <article style={surfaceCardStyle}>
           <div style={metricLabelStyle}>Today's Sales</div>
           <div style={metricValueStyle}>{todaySales}</div>
@@ -109,6 +155,55 @@ export default async function StoreDashboard() {
           <div style={metricNoteStyle}>Market One BD</div>
         </article>
       </section>
+
+      {canViewSuppliers && totalSuppliers !== '—' ? (
+      <section style={{ marginBottom: 32 }}>
+        <div style={{ ...sectionLabelStyle, marginBottom: 10 }}>Suppliers &amp; Payables</div>
+        <section style={{ ...sectionPanelStyle, gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
+          <article style={surfaceCardStyle}>
+            <div style={metricLabelStyle}>Total Suppliers</div>
+            <div style={metricValueStyle}>{totalSuppliers}</div>
+            <div style={metricNoteStyle}>active suppliers</div>
+          </article>
+          <article style={surfaceCardStyle}>
+            <div style={metricLabelStyle}>Total Payables</div>
+            <div style={metricValueStyle}>{totalPayables}</div>
+            <div style={metricNoteStyle}>outstanding balance</div>
+          </article>
+          {payableAging ? (
+            <article style={{ ...surfaceCardStyle, gridColumn: 'span 2' }}>
+              <div style={metricLabelStyle}>Payable Aging</div>
+              <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 8 }}>
+                <div style={{ textAlign: 'center', minWidth: 56 }}>
+                  <div style={{ fontSize: 15, fontWeight: 700 }}>BDT {formatMoney(payableAging.today_amount)}</div>
+                  <div style={{ fontSize: 10, color: 'var(--muted-foreground)', marginTop: 2 }}>Today</div>
+                </div>
+                <div style={{ width: 1, background: 'var(--border)' }} />
+                <div style={{ textAlign: 'center', minWidth: 56 }}>
+                  <div style={{ fontSize: 15, fontWeight: 700 }}>BDT {formatMoney(payableAging.days_7_amount)}</div>
+                  <div style={{ fontSize: 10, color: 'var(--muted-foreground)', marginTop: 2 }}>1-7 days</div>
+                </div>
+                <div style={{ width: 1, background: 'var(--border)' }} />
+                <div style={{ textAlign: 'center', minWidth: 56 }}>
+                  <div style={{ fontSize: 15, fontWeight: 700 }}>BDT {formatMoney(payableAging.days_30_amount)}</div>
+                  <div style={{ fontSize: 10, color: 'var(--muted-foreground)', marginTop: 2 }}>8-30 days</div>
+                </div>
+                <div style={{ width: 1, background: 'var(--border)' }} />
+                <div style={{ textAlign: 'center', minWidth: 56 }}>
+                  <div style={{ fontSize: 15, fontWeight: 700 }}>BDT {formatMoney(payableAging.days_90_amount)}</div>
+                  <div style={{ fontSize: 10, color: 'var(--muted-foreground)', marginTop: 2 }}>31-90 days</div>
+                </div>
+                <div style={{ width: 1, background: 'var(--border)' }} />
+                <div style={{ textAlign: 'center', minWidth: 56 }}>
+                  <div style={{ fontSize: 15, fontWeight: 700 }}>BDT {formatMoney(payableAging.days_90_plus_amount)}</div>
+                  <div style={{ fontSize: 10, color: 'var(--muted-foreground)', marginTop: 2 }}>90+ days</div>
+                </div>
+              </div>
+            </article>
+          ) : null}
+        </section>
+      </section>
+      ) : null}
 
       {groups.map((group) => {
         const groupItems = allowedActions.filter((a) => a.group === group);
