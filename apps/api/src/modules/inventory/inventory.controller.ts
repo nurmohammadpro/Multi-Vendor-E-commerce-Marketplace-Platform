@@ -32,6 +32,16 @@ const requestAdjustmentSchema = z.object({
   reason: z.string().min(3),
 });
 
+const directAdjustSchema = z.object({
+  locationId: z.string().uuid(),
+  skuId: z.string().uuid(),
+  onHandQty: z.number().nonnegative(),
+  reservedQty: z.number().nonnegative().default(0),
+  damagedQty: z.number().nonnegative().default(0),
+  returnedQty: z.number().nonnegative().default(0),
+  reason: z.string().min(3),
+});
+
 const decisionSchema = z.object({
   decisionNote: z.string().optional(),
 });
@@ -117,6 +127,23 @@ export class InventoryController {
       page: page ? Number(page) : undefined,
       limit: limit ? Number(limit) : undefined,
     });
+  }
+
+  @Post('balances/direct-adjust')
+  @RequireContext('store')
+  @RequirePermissions('inventory.adjust.direct')
+  directAdjustBalance(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @CurrentAuthSession() session: AuthSession | null,
+    @Body() payload: unknown,
+  ) {
+    return this.inventoryService.directAdjustBalance(
+      headerStoreId,
+      authContext,
+      session,
+      directAdjustSchema.parse(payload),
+    );
   }
 
   @Post('adjustments/request')

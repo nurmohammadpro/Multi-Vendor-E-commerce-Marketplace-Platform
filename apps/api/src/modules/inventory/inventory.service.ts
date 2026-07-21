@@ -248,6 +248,131 @@ export class InventoryService {
     return { balances: items, pagination: { page, limit, total } };
   }
 
+  async directAdjustBalance(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    session: AuthSession | null,
+    payload: {
+      locationId: string;
+      skuId: string;
+      onHandQty: number;
+      reservedQty: number;
+      damagedQty: number;
+      returnedQty: number;
+      reason: string;
+    },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const userId = this.requireUserId(session);
+
+    const balance = await this.findBalance(storeId, payload.locationId, payload.skuId);
+    if (!balance) {
+      throw new NotFoundException('Inventory balance not found');
+    }
+
+    const currentOnHand = Number(balance.on_hand_qty ?? 0);
+    const newOnHand = payload.onHandQty;
+    const qtyDelta = newOnHand - currentOnHand;
+
+    await this.pool.query(
+      `
+        insert into inventory.balances (
+          id,
+          tenant_id,
+          store_id,
+          location_id,
+          sku_id,
+          on_hand_qty,
+          reserved_qty,
+          damaged_qty,
+          returned_qty,
+          updated_at
+        )
+        values (
+          $1,
+          $2,
+          $3,
+          $4,
+          $5,
+          $6,
+          $7,
+          $8,
+          $9,
+          now()
+        )
+        on conflict (location_id, sku_id) do update set
+          on_hand_qty = EXCLUDED.on_hand_qty,
+          reserved_qty = EXCLUDED.reserved_qty,
+          damaged_qty = EXCLUDED.damaged_qty,
+          returned_qty = EXCLUDED.returned_qty,
+          updated_at = EXCLUDED.updated_at
+      `,
+      [
+        balance.id,
+        balance.tenant_id,
+        storeId,
+        payload.locationId,
+        payload.skuId,
+        payload.onHandQty,
+        payload.reservedQty,
+        payload.damagedQty,
+        payload.returnedQty,
+      ],
+    );
+
+    // Log the adjustment in ledger
+    await this.pool.query(
+      `
+        insert into inventory.ledger (
+          id,
+          tenant_id,
+          store_id,
+          location_id,
+          sku_id,
+          transaction_type,
+          quantity_delta,
+          balance_after,
+          reference_type,
+          reference_id,
+          notes,
+          created_by,
+          created_at
+        )
+        values (
+          gen_random_uuid(),
+          $1,
+          $2,
+          $3,
+          $4,
+          'adjustment',
+          $5,
+          $6,
+          'direct_adjust',
+          gen_random_uuid(),
+          $7,
+          $8,
+          now()
+        )
+      `,
+      [
+        balance.tenant_id,
+        storeId,
+        payload.locationId,
+        payload.skuId,
+        qtyDelta,
+        payload.onHandQty,
+        payload.reason,
+        userId,
+      ],
+    );
+
+    return {
+      success: true,
+      message: 'Stock adjusted successfully',
+      newBalance: payload.onHandQty,
+    };
+  }
+
 
   async requestAdjustment(
     headerStoreId: string | undefined,
@@ -538,11 +663,9 @@ export class InventoryService {
   }
 
   private async findBalance(storeId: string, locationId: string, skuId: string) {
-    const result = await this.pool.query<{
-      on_hand_qty: string;
-    }>(
+    const result = await this.pool.query(
       `
-        select on_hand_qty
+        select id, tenant_id, store_id, location_id, sku_id, on_hand_qty, reserved_qty, damaged_qty, returned_qty
         from inventory.balances
         where store_id = $1
           and location_id = $2

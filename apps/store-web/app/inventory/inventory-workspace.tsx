@@ -251,6 +251,44 @@ export function InventoryWorkspace({
     }
   };
 
+  const directAdjustStock = async () => {
+    if (!selectedLocationId || !selectedSkuId || quantity === '') {
+      setMessage('Select a location, select a SKU, and enter the new stock quantity.');
+      return;
+    }
+    if (!reason.trim()) {
+      setMessage('Enter a reason for the stock adjustment.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await readJson('/api/inventory/balances/direct-adjust', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          locationId: selectedLocationId,
+          skuId: selectedSkuId,
+          onHandQty: Number(quantity),
+          reservedQty: 0,
+          damagedQty: 0,
+          returnedQty: 0,
+          reason,
+        }),
+      });
+      await refreshInventory(balancePage, 1, ledgerPage, selectedLocationId);
+      setMessage('Stock updated successfully.');
+      setQuantity('');
+      setReason('');
+    } catch (error) {
+      setMessage((error as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const decideAdjustment = async (requestId: string, decision: 'approve' | 'reject') => {
     setLoading(true);
     try {
@@ -433,7 +471,9 @@ export function InventoryWorkspace({
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Stock Control</h3>
           <p style={{ ...tokenMutedStyle, marginBottom: 12 }}>
-            Search an existing SKU, then initialize opening quantity or send an approval request for changes.
+            {canDirectAdjustInventory
+              ? 'Search an existing SKU, then update stock quantities directly.'
+              : 'Search an existing SKU, then initialize opening quantity or send an approval request for changes.'}
           </p>
           {!canAdjustInventory ? (
             <div style={{ ...emptyStateStyle, marginBottom: 12 }}>Your role can review inventory, but stock changes are restricted.</div>
@@ -469,9 +509,15 @@ export function InventoryWorkspace({
           <input value={quantity} onChange={(event) => setQuantity(event.target.value)} style={{ ...fieldStyle, marginBottom: 12 }} placeholder="Quantity or requested final qty" />
           <textarea value={reason} onChange={(event) => setReason(event.target.value)} style={{ ...fieldStyle, minHeight: 88, marginBottom: 12 }} placeholder="Reason / note" />
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button onClick={requestAdjustment} style={gray800ButtonStyle} disabled={!canRequestAdjustment || !canRequestAdjustInventory}>
-              Request Change
-            </button>
+            {canDirectAdjustInventory ? (
+              <button onClick={directAdjustStock} style={accentButtonStyle} disabled={loading}>
+                Update Stock
+              </button>
+            ) : (
+              <button onClick={requestAdjustment} style={gray800ButtonStyle} disabled={!canRequestAdjustInventory || loading}>
+                Request Change
+              </button>
+            )}
           </div>
           {selectedSku ? (
             <p style={{ marginTop: 12, marginBottom: 0, color: 'var(--muted-foreground)' }}>
