@@ -3,7 +3,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
-  accentButtonStyle,
   dangerButtonStyle,
   emptyStateStyle,
   fieldStyle,
@@ -98,11 +97,9 @@ export function PurchasesWorkspace() {
   const [quickLocationId, setQuickLocationId] = useState('');
   const [quickPaid, setQuickPaid] = useState('');
   const [quickSaving, setQuickSaving] = useState(false);
-  // Category & Brand inline creation
+  // Category & Brand selection
   const [quickCategoryId, setQuickCategoryId] = useState('');
   const [quickBrandId, setQuickBrandId] = useState('');
-  const [quickNewCategory, setQuickNewCategory] = useState('');
-  const [quickNewBrand, setQuickNewBrand] = useState('');
   // Exchange product form
   const [exCustomerName, setExCustomerName] = useState('');
   const [exCustomerPhone, setExCustomerPhone] = useState('');
@@ -144,21 +141,6 @@ export function PurchasesWorkspace() {
   const [purchaseForm, setPurchaseForm] = useState({ supplierId: '', locationId: '', purchaseDate: new Date().toISOString().slice(0, 10), invoiceNo: '', discountAmount: '0', taxAmount: '0', shippingAmount: '0', paidAmount: '0', paymentMethod: 'cash' as 'cash' | 'card' | 'mfs' | 'bank_transfer', paymentReference: '', note: '' });
   const [items, setItems] = useState<Array<{ skuId: string; label: string; qty: string; unitCost: string; batchNo: string; expiryDate: string }>>([]);
   const [lineDefaults, setLineDefaults] = useState({ qty: '1', unitCost: '' });
-
-  // Supplier form
-  const [supplierForm, setSupplierForm] = useState({ supplierType: 'company', companyName: '', contactName: '', phone: '', email: '', openingPayableAmount: '', address: '', note: '' });
-
-  // Supplier ledger
-  const [ledgerOpen, setLedgerOpen] = useState(false);
-  const [ledgerSupplierId, setLedgerSupplierId] = useState('');
-  const [ledgerFromDate, setLedgerFromDate] = useState('');
-  const [ledgerToDate, setLedgerToDate] = useState(new Date().toISOString().slice(0, 10));
-  const [ledgerData, setLedgerData] = useState<any>(null);
-  const [ledgerLoading, setLedgerLoading] = useState(false);
-
-  // Location form
-  const [newLocationCode, setNewLocationCode] = useState('');
-  const [newLocationName, setNewLocationName] = useState('');
 
   const supplierOptions = useMemo(() => suppliers.map((s) => ({ id: s.id, company_name: s.company_name })), [suppliers]);
 
@@ -293,32 +275,7 @@ export function PurchasesWorkspace() {
     } catch (error) { const msg = (error as Error).message; setMessage(msg); toast.error(msg); }
     finally { setQuickSaving(false); }
   };
-  // Create category inline
-  const createCategoryQuick = async () => {
-    if (!quickNewCategory.trim()) return;
-    setLoading(true);
-    try {
-      const payload = await readJson<{ category: { id: string; name: string } }>('/api/catalog/categories', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: quickNewCategory.trim(), code: quickNewCategory.trim().replace(/\s+/g, '-').toUpperCase().slice(0, 20) }) });
-      setMessage(`Category "${payload.category.name}" created.`);
-      setCategories((cur) => [...cur, payload.category]);
-      setQuickCategoryId(payload.category.id);
-      setQuickNewCategory('');
-    } catch (error) { const msg = (error as Error).message; setMessage(msg); toast.error(msg); }
-    finally { setLoading(false); }
-  };
-  // Create brand inline
-  const createBrandQuick = async () => {
-    if (!quickNewBrand.trim()) return;
-    setLoading(true);
-    try {
-      const payload = await readJson<{ brand: { id: string; name: string } }>('/api/catalog/brands', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: quickNewBrand.trim() }) });
-      setMessage(`Brand "${payload.brand.name}" created.`);
-      setBrands((cur) => [...cur, payload.brand]);
-      setQuickBrandId(payload.brand.id);
-      setQuickNewBrand('');
-    } catch (error) { const msg = (error as Error).message; setMessage(msg); toast.error(msg); }
-    finally { setLoading(false); }
-  };
+
 
   // ── Exchange Product ──
 
@@ -385,32 +342,6 @@ export function PurchasesWorkspace() {
     finally { setLoading(false); }
   };
 
-  // ── Supplier ──
-
-  const createSupplier = async () => {
-    if (!supplierForm.companyName.trim()) { setMessage('Company name is required.'); return; }
-    setLoading(true);
-    try {
-      await readJson('/api/store-ops/suppliers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ supplierType: supplierForm.supplierType, companyName: supplierForm.companyName.trim(), contactName: supplierForm.contactName.trim() || undefined, phone: supplierForm.phone.trim() || undefined, email: supplierForm.email.trim() || undefined, openingPayableAmount: Number(supplierForm.openingPayableAmount || 0), address: supplierForm.address.trim() || undefined, note: supplierForm.note.trim() || undefined }) });
-      setMessage('Supplier created.');
-      setSupplierForm({ supplierType: 'company', companyName: '', contactName: '', phone: '', email: '', openingPayableAmount: '', address: '', note: '' });
-      await refresh();
-    } catch (error) { const msg = (error as Error).message; setMessage(msg); toast.error(msg); }
-    finally { setLoading(false); }
-  };
-
-  const createLocation = async () => {
-    if (!newLocationCode.trim() || !newLocationName.trim()) { setMessage('Location code and name are required.'); return; }
-    setLoading(true);
-    try {
-      await readJson('/api/inventory/locations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: newLocationCode.trim(), name: newLocationName.trim() }) });
-      setMessage(`Location "${newLocationName}" created.`);
-      setNewLocationCode(''); setNewLocationName('');
-      const loc = await readJson<{ locations: Location[] }>('/api/inventory/locations');
-      setLocations(loc.locations ?? []);
-    } catch (error) { const msg = (error as Error).message; setMessage(msg); toast.error(msg); }
-    finally { setLoading(false); }
-  };
 
   // ── Payables sort ──
 
@@ -433,100 +364,6 @@ export function PurchasesWorkspace() {
     return payableSortDir === 'asc' ? ' ▲' : ' ▼';
   };
 
-  // ── Supplier Ledger ──
-
-  const fetchLedger = async () => {
-    if (!ledgerSupplierId) { setMessage('Select a supplier for the ledger.'); return; }
-    setLedgerLoading(true);
-    try {
-      const payload = await readJson<any>(`/api/store-ops/payables/supplier-ledger?supplierId=${ledgerSupplierId}&fromDate=${ledgerFromDate || ''}&toDate=${ledgerToDate || ''}`);
-      setLedgerData(payload);
-      setMessage(`Ledger for ${payload.supplier.companyName}.`);
-    } catch (error) { const msg = (error as Error).message; setMessage(msg); toast.error(msg); }
-    finally { setLedgerLoading(false); }
-  };
-
-  const exportLedgerCsv = () => {
-    if (!ledgerData) return;
-    const rows: string[] = ['Date,Reference,Invoice No,Type,Debit (BDT),Credit (BDT),Balance (BDT)'];
-    for (const tx of ledgerData.transactions) {
-      rows.push(`${tx.tx_date},"${tx.tx_ref || ''}","${tx.invoice_no || ''}",${tx.tx_type},${tx.debit.toFixed(2)},${tx.credit.toFixed(2)},${tx.runningBalance.toFixed(2)}`);
-    }
-    const csv = rows.join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `supplier-ledger-${ledgerData.supplier.companyName.replace(/\s+/g, '_')}-${ledgerFromDate || 'all'}-${ledgerToDate || 'all'}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const exportLedgerPdf = () => {
-    if (!ledgerData) return;
-    const supplier = ledgerData.supplier;
-    const rows = ledgerData.transactions.map((tx: any) =>
-      `<tr>
-        <td style="padding:4px 6px;border-bottom:1px solid #e2e8f0;font-size:10px">${tx.tx_date}</td>
-        <td style="padding:4px 6px;border-bottom:1px solid #e2e8f0;font-size:10px">${tx.tx_ref || ''}</td>
-        <td style="padding:4px 6px;border-bottom:1px solid #e2e8f0;font-size:10px">${tx.invoice_no || ''}</td>
-        <td style="padding:4px 6px;border-bottom:1px solid #e2e8f0;font-size:10px;text-transform:capitalize">${tx.tx_type}</td>
-        <td style="padding:4px 6px;border-bottom:1px solid #e2e8f0;font-size:10px;text-align:right;font-family:monospace">${tx.debit.toFixed(2)}</td>
-        <td style="padding:4px 6px;border-bottom:1px solid #e2e8f0;font-size:10px;text-align:right;font-family:monospace">${tx.credit.toFixed(2)}</td>
-        <td style="padding:4px 6px;border-bottom:1px solid #e2e8f0;font-size:10px;text-align:right;font-family:monospace;font-weight:600">${tx.runningBalance.toFixed(2)}</td>
-      </tr>`
-    ).join('');
-
-    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Supplier Ledger</title><style>
-      *{margin:0;padding:0;box-sizing:border-box}
-      body{font-family:"Segoe UI",system-ui,sans-serif;background:#fff;color:#1e293b;font-size:12px}
-      .page{width:210mm;margin:0 auto;padding:10mm 8mm}
-      h2{font-size:18px;margin-bottom:4px}
-      .meta{color:#475569;font-size:11px;margin-bottom:12px}
-      table{width:100%;border-collapse:collapse}
-      th{background:#f1f5f9;color:#475569;font-weight:600;font-size:9px;text-transform:uppercase;letter-spacing:.06em;padding:6px;border-bottom:2px solid #e2e8f0;text-align:left}
-      th.right{text-align:right}
-      .bl{font-weight:700;border-top:2px solid #1e293b}
-      .bl td{padding-top:6px}
-      .ob{border-top:1px solid #1e293b}
-      .ob td{padding-top:6px}
-      @media print{@page{margin:0;size:A4}}
-    </style></head><body><div class="page">
-      <h2>Supplier Ledger</h2>
-      <div class="meta">
-        <strong>${supplier.companyName}</strong>${supplier.phone ? ' | ' + supplier.phone : ''}${supplier.address ? ' | ' + supplier.address : ''}<br>
-        Period: ${ledgerFromDate || 'Beginning'} to ${ledgerToDate || 'Present'}
-      </div>
-      <table>
-        <thead><tr>
-          <th>Date</th><th>Reference</th><th>Invoice</th><th>Type</th><th class="right">Debit</th><th class="right">Credit</th><th class="right">Balance</th>
-        </tr></thead>
-        <tbody>
-          <tr class="ob"><td colspan="4" style="font-weight:600">Opening Balance</td><td class="right" style="font-family:monospace;font-weight:600">${ledgerData.openingBalance.toFixed(2)}</td><td></td><td></td></tr>
-          ${rows}
-          <tr class="bl"><td colspan="4" style="font-weight:600">Closing Balance</td><td></td><td></td><td class="right" style="font-family:monospace;font-weight:700">${ledgerData.closingBalance.toFixed(2)}</td></tr>
-        </tbody>
-      </table>
-    </div></body></html>`;
-
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
-    iframe.srcdoc = html;
-    document.body.appendChild(iframe);
-    iframe.onload = () => {
-      iframe.contentWindow?.focus();
-      iframe.contentWindow?.print();
-      setTimeout(() => iframe.remove(), 1200);
-    };
-  };
-
-  const supplierOptions2 = useMemo(() => suppliers.map((s) => ({ id: s.id, company_name: s.company_name })), [suppliers]);
-
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
       {/* ── Navigation pager ── */}
@@ -548,34 +385,26 @@ export function PurchasesWorkspace() {
 
           {/* Category + Brand */}
           <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : '1fr 1fr', gap: 8, marginBottom: 10 }}>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <select value={quickCategoryId} onChange={(e) => setQuickCategoryId(e.target.value)} style={{ ...fieldStyle, flex: 1 }}>
-                <option value="">No category</option>
-                {categoryTree.map((parent) => (
-                  <React.Fragment key={parent.id}>
-                    <option value={parent.id} style={{ fontWeight: 600 }}>{parent.name}</option>
-                    {parent.children.map((child) => (
-                      <option key={child.id} value={child.id} style={{ paddingLeft: 16 }}>&nbsp;&nbsp;&nbsp;↳ {child.name}</option>
-                    ))}
-                  </React.Fragment>
-                ))}
-                {categories.filter((c) => !c.parent_id && !categoryTree.find((t) => t.id === c.id)).length ? (
-                  categories.filter((c) => !c.parent_id && !categoryTree.find((t) => t.id === c.id)).map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))
-                ) : null}
-              </select>
-              <input value={quickNewCategory} onChange={(e) => setQuickNewCategory(e.target.value)} style={{ ...fieldStyle, width: 130 }} placeholder={quickCategoryId ? "New subcategory" : "New category"} />
-              <button onClick={createCategoryQuick} style={{ ...secondaryButtonStyle, minWidth: 50, fontSize: 11 }} disabled={loading || !quickNewCategory.trim()}>+</button>
-            </div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <select value={quickBrandId} onChange={(e) => setQuickBrandId(e.target.value)} style={{ ...fieldStyle, flex: 1 }}>
-                <option value="">No brand</option>
-                {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-              </select>
-              <input value={quickNewBrand} onChange={(e) => setQuickNewBrand(e.target.value)} style={{ ...fieldStyle, width: 120 }} placeholder="New brand" />
-              <button onClick={createBrandQuick} style={{ ...secondaryButtonStyle, minWidth: 50, fontSize: 11 }} disabled={loading || !quickNewBrand.trim()}>+</button>
-            </div>
+            <select value={quickCategoryId} onChange={(e) => setQuickCategoryId(e.target.value)} style={fieldStyle}>
+              <option value="">No category</option>
+              {categoryTree.map((parent) => (
+                <React.Fragment key={parent.id}>
+                  <option value={parent.id} style={{ fontWeight: 600 }}>{parent.name}</option>
+                  {parent.children.map((child) => (
+                    <option key={child.id} value={child.id} style={{ paddingLeft: 16 }}>&nbsp;&nbsp;&nbsp;↳ {child.name}</option>
+                  ))}
+                </React.Fragment>
+              ))}
+              {categories.filter((c) => !c.parent_id && !categoryTree.find((t) => t.id === c.id)).length ? (
+                categories.filter((c) => !c.parent_id && !categoryTree.find((t) => t.id === c.id)).map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))
+              ) : null}
+            </select>
+            <select value={quickBrandId} onChange={(e) => setQuickBrandId(e.target.value)} style={fieldStyle}>
+              <option value="">No brand</option>
+              {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
           </div>
 
           {/* Variants toggle */}
@@ -629,7 +458,7 @@ export function PurchasesWorkspace() {
           <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(3, minmax(0, 1fr))', gap: 8, marginBottom: 10 }}>
             <select value={quickSupplierId} onChange={(e) => setQuickSupplierId(e.target.value)} style={fieldStyle}>
               <option value="">Supplier (required)</option>
-              {supplierOptions2.map((s) => <option key={s.id} value={s.id}>{s.company_name}</option>)}
+              {supplierOptions.map((s) => <option key={s.id} value={s.id}>{s.company_name}</option>)}
             </select>
             <select value={quickLocationId} onChange={(e) => setQuickLocationId(e.target.value)} style={fieldStyle}>
               <option value="">Location (required)</option>
@@ -648,28 +477,12 @@ export function PurchasesWorkspace() {
           <h3 style={{ marginTop: 0, marginBottom: 4, fontSize: 15 }}>Receive Existing Products</h3>
           <p style={{ margin: '0 0 12px', color: 'var(--muted-foreground)', fontSize: 12 }}>Add products already in your catalog. Use Quick Add above for new products.</p>
 
-          <details style={{ marginBottom: 12 }}>
-            <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 600, color: 'var(--muted-foreground)' }}>+ Add supplier or location</summary>
-            <div style={{ display: 'grid', gap: 10, marginTop: 10 }}>
-              {/* Supplier mini-form */}
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <input value={supplierForm.companyName} onChange={(e) => setSupplierForm((c) => ({ ...c, companyName: e.target.value }))} style={{ ...fieldStyle, flex: 1, minWidth: 160 }} placeholder="Company name" />
-                <input value={supplierForm.phone} onChange={(e) => setSupplierForm((c) => ({ ...c, phone: e.target.value }))} style={{ ...fieldStyle, width: 160 }} placeholder="Phone (optional)" />
-                <button onClick={createSupplier} style={gray800ButtonStyle} disabled={loading}>Add Supplier</button>
-              </div>
-              {/* Location mini-form */}
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <input value={newLocationCode} onChange={(e) => setNewLocationCode(e.target.value)} style={{ ...fieldStyle, width: 120 }} placeholder="Code (WH-01)" />
-                <input value={newLocationName} onChange={(e) => setNewLocationName(e.target.value)} style={{ ...fieldStyle, flex: 1, minWidth: 160 }} placeholder="Name (Main Warehouse)" />
-                <button onClick={createLocation} style={gray800ButtonStyle} disabled={loading}>Add Location</button>
-              </div>
-            </div>
-          </details>
+
 
           <div style={{ ...stackedFilterGridStyle, marginBottom: 10 }}>
             <select value={purchaseForm.supplierId} onChange={(e) => setPurchaseForm((c) => ({ ...c, supplierId: e.target.value }))} style={fieldStyle}>
               <option value="">Select supplier</option>
-              {supplierOptions2.map((s) => <option key={s.id} value={s.id}>{s.company_name}</option>)}
+              {supplierOptions.map((s) => <option key={s.id} value={s.id}>{s.company_name}</option>)}
             </select>
             <select value={purchaseForm.locationId} onChange={(e) => setPurchaseForm((c) => ({ ...c, locationId: e.target.value }))} style={fieldStyle}>
               <option value="">Select location</option>
@@ -769,29 +582,21 @@ export function PurchasesWorkspace() {
 
           {/* Category + Brand */}
           <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : '1fr 1fr', gap: 8, marginBottom: 10 }}>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <select value={exCategoryId} onChange={(e) => setExCategoryId(e.target.value)} style={{ ...fieldStyle, flex: 1 }}>
-                <option value="">No category</option>
-                {categoryTree.map((parent) => (
-                  <React.Fragment key={parent.id}>
-                    <option value={parent.id} style={{ fontWeight: 600 }}>{parent.name}</option>
-                    {parent.children.map((child) => (
-                      <option key={child.id} value={child.id} style={{ paddingLeft: 16 }}>&nbsp;&nbsp;&nbsp;↳ {child.name}</option>
-                    ))}
-                  </React.Fragment>
-                ))}
-              </select>
-              <input value={quickNewCategory} onChange={(e) => setQuickNewCategory(e.target.value)} style={{ ...fieldStyle, width: 130 }} placeholder={exCategoryId ? "New subcategory" : "New category"} />
-              <button onClick={createCategoryQuick} style={{ ...secondaryButtonStyle, minWidth: 50, fontSize: 11 }} disabled={loading || !quickNewCategory.trim()}>+</button>
-            </div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <select value={exBrandId} onChange={(e) => setExBrandId(e.target.value)} style={{ ...fieldStyle, flex: 1 }}>
-                <option value="">No brand</option>
-                {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-              </select>
-              <input value={quickNewBrand} onChange={(e) => setQuickNewBrand(e.target.value)} style={{ ...fieldStyle, width: 120 }} placeholder="New brand" />
-              <button onClick={createBrandQuick} style={{ ...secondaryButtonStyle, minWidth: 50, fontSize: 11 }} disabled={loading || !quickNewBrand.trim()}>+</button>
-            </div>
+            <select value={exCategoryId} onChange={(e) => setExCategoryId(e.target.value)} style={fieldStyle}>
+              <option value="">No category</option>
+              {categoryTree.map((parent) => (
+                <React.Fragment key={parent.id}>
+                  <option value={parent.id} style={{ fontWeight: 600 }}>{parent.name}</option>
+                  {parent.children.map((child) => (
+                    <option key={child.id} value={child.id} style={{ paddingLeft: 16 }}>&nbsp;&nbsp;&nbsp;↳ {child.name}</option>
+                  ))}
+                </React.Fragment>
+              ))}
+            </select>
+            <select value={exBrandId} onChange={(e) => setExBrandId(e.target.value)} style={fieldStyle}>
+              <option value="">No brand</option>
+              {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
           </div>
 
           {/* Variants toggle */}
@@ -904,7 +709,7 @@ export function PurchasesWorkspace() {
           <div style={{ ...searchRowStyle, marginBottom: 10 }}>
             <input value={payableSearch} onChange={(e) => setPayableSearch(e.target.value)} style={{ ...fieldStyle, flex: 1, width: 'auto' }} placeholder="Search purchase no, invoice, supplier, or phone" />
             <button onClick={() => void refresh(supplierPage, purchasePage, 1)} style={searchButtonStyle} disabled={loading}>Search</button>
-            <button onClick={() => setLedgerOpen(true)} style={secondaryButtonStyle} disabled={loading}>Supplier Ledger</button>
+
           </div>
           {payables.length ? (
             <>
@@ -949,95 +754,6 @@ export function PurchasesWorkspace() {
           ) : <div style={emptyStateStyle}>No payables found. Receive a purchase first.</div>}
         </article>
 
-        {/* ── Supplier Ledger Modal ── */}
-        {ledgerOpen ? (
-          <div style={{
-            position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.4)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }} onClick={() => { setLedgerOpen(false); setLedgerData(null); }}>
-            <div style={{
-              background: '#fff', borderRadius: 16, padding: 24, maxWidth: 900, width: '95%',
-              maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
-            }} onClick={(e) => e.stopPropagation()}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <h3 style={{ margin: 0, fontSize: 16 }}>Supplier Ledger</h3>
-                <button onClick={() => { setLedgerOpen(false); setLedgerData(null); }} style={{ ...secondaryButtonStyle, minWidth: 40 }}>✕</button>
-              </div>
-
-              {/* Filters */}
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
-                <select value={ledgerSupplierId} onChange={(e) => setLedgerSupplierId(e.target.value)} style={{ ...fieldStyle, flex: 1, minWidth: 180 }}>
-                  <option value="">Select supplier</option>
-                  {supplierOptions2.map((s) => <option key={s.id} value={s.id}>{s.company_name}</option>)}
-                </select>
-                <input type="date" value={ledgerFromDate} onChange={(e) => setLedgerFromDate(e.target.value)} style={{ ...fieldStyle, width: 150 }} placeholder="From date" />
-                <input type="date" value={ledgerToDate} onChange={(e) => setLedgerToDate(e.target.value)} style={{ ...fieldStyle, width: 150 }} placeholder="To date" />
-                <button onClick={fetchLedger} style={searchButtonStyle} disabled={ledgerLoading || !ledgerSupplierId}>
-                  {ledgerLoading ? 'Loading...' : 'Load Ledger'}
-                </button>
-              </div>
-
-              {/* Export buttons */}
-              {ledgerData ? (
-                <>
-                  <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-                    <button onClick={exportLedgerCsv} style={gray800ButtonStyle}>Export CSV</button>
-                    <button onClick={exportLedgerPdf} style={accentButtonStyle}>Export PDF (A4)</button>
-                  </div>
-
-                  {/* Ledger summary */}
-                  <div style={{ display: 'flex', gap: 16, marginBottom: 12, fontSize: 13 }}>
-                    <span><strong>Opening:</strong> BDT {formatMoney(ledgerData.openingBalance)}</span>
-                    <span><strong>Closing:</strong> BDT {formatMoney(ledgerData.closingBalance)}</span>
-                    <span><strong>Transactions:</strong> {ledgerData.transactions.length}</span>
-                  </div>
-
-                  {/* Ledger table preview */}
-                  <div style={tableWrapStyle}>
-                    <table style={tableStyle}>
-                      <thead><tr>
-                        <th style={tableHeaderCellStyle}>Date</th>
-                        <th style={tableHeaderCellStyle}>Reference</th>
-                        <th style={tableHeaderCellStyle}>Invoice</th>
-                        <th style={tableHeaderCellStyle}>Type</th>
-                        <th style={{ ...tableHeaderCellStyle, textAlign: 'right' }}>Debit</th>
-                        <th style={{ ...tableHeaderCellStyle, textAlign: 'right' }}>Credit</th>
-                        <th style={{ ...tableHeaderCellStyle, textAlign: 'right' }}>Balance</th>
-                      </tr></thead>
-                      <tbody>
-                        <tr style={{ background: '#f8fafc' }}>
-                          <td colSpan={4} style={{ ...tableCellStyle, fontWeight: 600 }}>Opening Balance</td>
-                          <td style={{ ...tableCellStyle, textAlign: 'right', fontFamily: 'monospace', fontWeight: 600 }}>{formatMoney(ledgerData.openingBalance)}</td>
-                          <td style={tableCellStyle}></td>
-                          <td style={tableCellStyle}></td>
-                        </tr>
-                        {ledgerData.transactions.map((tx: any, i: number) => (
-                          <tr key={i}>
-                            <td style={tableCellStyle}>{tx.tx_date}</td>
-                            <td style={tableCellStyle}>{tx.tx_ref || ''}</td>
-                            <td style={tableCellStyle}>{tx.invoice_no || ''}</td>
-                            <td style={{ ...tableCellStyle, textTransform: 'capitalize' }}>{tx.tx_type}</td>
-                            <td style={{ ...tableCellStyle, textAlign: 'right', fontFamily: 'monospace' }}>{tx.debit > 0 ? formatMoney(tx.debit) : '—'}</td>
-                            <td style={{ ...tableCellStyle, textAlign: 'right', fontFamily: 'monospace' }}>{tx.credit > 0 ? formatMoney(tx.credit) : '—'}</td>
-                            <td style={{ ...tableCellStyle, textAlign: 'right', fontFamily: 'monospace', fontWeight: 600 }}>{formatMoney(tx.runningBalance)}</td>
-                          </tr>
-                        ))}
-                        <tr style={{ background: '#f8fafc', borderTop: '2px solid #1e293b' }}>
-                          <td colSpan={4} style={{ ...tableCellStyle, fontWeight: 700 }}>Closing Balance</td>
-                          <td style={tableCellStyle}></td>
-                          <td style={tableCellStyle}></td>
-                          <td style={{ ...tableCellStyle, textAlign: 'right', fontFamily: 'monospace', fontWeight: 700 }}>{formatMoney(ledgerData.closingBalance)}</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                </>
-              ) : (
-                <div style={{ ...emptyStateStyle }}>Select a supplier and date range, then click Load Ledger.</div>
-              )}
-            </div>
-          </div>
-        ) : null}
       </>
       ) : null}
     </section>
