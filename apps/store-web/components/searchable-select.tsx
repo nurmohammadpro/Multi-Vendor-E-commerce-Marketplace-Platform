@@ -20,6 +20,7 @@ type SearchableSelectProps = {
   emptyMessage?: string;
   disabled?: boolean;
   className?: string;
+  style?: React.CSSProperties;
 };
 
 export function SearchableSelect({
@@ -30,6 +31,7 @@ export function SearchableSelect({
   emptyMessage = 'No options found',
   disabled = false,
   className,
+  style,
 }: SearchableSelectProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -77,7 +79,7 @@ export function SearchableSelect({
   };
 
   return (
-    <div ref={containerRef} style={{ position: 'relative', ...(className ? {} : {}) }} className={className}>
+    <div ref={containerRef} style={{ position: 'relative', ...style }} className={className}>
       {/* Trigger */}
       <button
         type="button"

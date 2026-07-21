@@ -19,6 +19,7 @@ import {
   tokenMutedStyle,
 } from '../marketone-theme';
 import { searchRowStyle, useCompactLayout } from '../workspace-responsive';
+import { SearchableSelect } from '@/components/searchable-select';
 
 type Supplier = {
   id: string;
@@ -105,6 +106,7 @@ export function SuppliersWorkspace() {
   const [ledgerLoading, setLedgerLoading] = useState(false);
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil((pagination.total || 0) / (pagination.limit || 20))), [pagination]);
+  const supplierOpts = useMemo(() => suppliers.map((s) => ({ value: s.id, label: s.company_name, indent: false })), [suppliers]);
 
   const refresh = async (search = query, nextPage = 1) => {
     setLoading(true);
@@ -500,7 +502,18 @@ export function SuppliersWorkspace() {
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Supplier Ledger: {ledgerSupplierName}</h3>
 
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12, alignItems: 'center' }}>
+            <SearchableSelect
+              options={supplierOpts}
+              value={ledgerSupplierId}
+              onChange={(v) => {
+                setLedgerSupplierId(v);
+                setLedgerData(null);
+              }}
+              placeholder="Select supplier"
+              emptyMessage="No suppliers found"
+              style={{ minWidth: 220 }}
+            />
             <input
               type="date"
               value={ledgerFromDate}
@@ -515,7 +528,7 @@ export function SuppliersWorkspace() {
               style={{ ...fieldStyle, maxWidth: 160 }}
               placeholder="To date"
             />
-            <button onClick={fetchLedger} style={searchButtonStyle} disabled={ledgerLoading}>
+            <button onClick={fetchLedger} style={searchButtonStyle} disabled={ledgerLoading || !ledgerSupplierId}>
               {ledgerLoading ? 'Loading...' : 'Load Ledger'}
             </button>
           </div>
