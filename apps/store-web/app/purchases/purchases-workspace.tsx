@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   dangerButtonStyle,
@@ -21,6 +21,7 @@ import {
 import { ListPager, type PaginationState, totalPagesFor } from '../list-pager';
 import { searchRowStyle, stackedFilterGridStyle, useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
 import { toast } from 'sonner';
+import { SearchableSelect } from '@/components/searchable-select';
 
 type Supplier = { id: string; company_name: string; contact_name?: string | null; phone?: string | null; opening_payable_amount?: string | number; current_payable_amount?: string | number };
 type Location = { id: string; code: string; name: string; location_type: string };
@@ -143,6 +144,24 @@ export function PurchasesWorkspace() {
   const [lineDefaults, setLineDefaults] = useState({ qty: '1', unitCost: '' });
 
   const supplierOptions = useMemo(() => suppliers.map((s) => ({ id: s.id, company_name: s.company_name })), [suppliers]);
+  const categoryOpts = useMemo(() => {
+    const result: Array<{ value: string; label: string; indent: boolean }> = [];
+    for (const parent of categoryTree) {
+      result.push({ value: parent.id, label: parent.name, indent: false });
+      for (const child of parent.children) {
+        result.push({ value: child.id, label: child.name, indent: true });
+      }
+    }
+    for (const c of categories) {
+      if (!c.parent_id && !categoryTree.find((t) => t.id === c.id)) {
+        result.push({ value: c.id, label: c.name, indent: false });
+      }
+    }
+    return result;
+  }, [categories, categoryTree]);
+  const brandOpts = useMemo(() => brands.map((b) => ({ value: b.id, label: b.name, indent: false })), [brands]);
+  const supplierOpts = useMemo(() => supplierOptions.map((s) => ({ value: s.id, label: s.company_name, indent: false })), [supplierOptions]);
+  const locationOpts = useMemo(() => locations.map((l) => ({ value: l.id, label: `${l.name} · ${l.code}`, indent: false })), [locations]);
 
   const lineTotal = useMemo(() => {
     const discount = Number(purchaseForm.discountAmount || 0);
@@ -385,26 +404,20 @@ export function PurchasesWorkspace() {
 
           {/* Category + Brand */}
           <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : '1fr 1fr', gap: 8, marginBottom: 10 }}>
-            <select value={quickCategoryId} onChange={(e) => setQuickCategoryId(e.target.value)} style={fieldStyle}>
-              <option value="">No category</option>
-              {categoryTree.map((parent) => (
-                <React.Fragment key={parent.id}>
-                  <option value={parent.id} style={{ fontWeight: 600 }}>{parent.name}</option>
-                  {parent.children.map((child) => (
-                    <option key={child.id} value={child.id} style={{ paddingLeft: 16 }}>&nbsp;&nbsp;&nbsp;↳ {child.name}</option>
-                  ))}
-                </React.Fragment>
-              ))}
-              {categories.filter((c) => !c.parent_id && !categoryTree.find((t) => t.id === c.id)).length ? (
-                categories.filter((c) => !c.parent_id && !categoryTree.find((t) => t.id === c.id)).map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))
-              ) : null}
-            </select>
-            <select value={quickBrandId} onChange={(e) => setQuickBrandId(e.target.value)} style={fieldStyle}>
-              <option value="">No brand</option>
-              {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-            </select>
+            <SearchableSelect
+              options={categoryOpts}
+              value={quickCategoryId}
+              onChange={setQuickCategoryId}
+              placeholder="No category"
+              emptyMessage="No categories found"
+            />
+            <SearchableSelect
+              options={brandOpts}
+              value={quickBrandId}
+              onChange={setQuickBrandId}
+              placeholder="No brand"
+              emptyMessage="No brands found"
+            />
           </div>
 
           {/* Variants toggle */}
@@ -456,14 +469,20 @@ export function PurchasesWorkspace() {
 
           {/* Supplier + Location + Paid */}
           <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(3, minmax(0, 1fr))', gap: 8, marginBottom: 10 }}>
-            <select value={quickSupplierId} onChange={(e) => setQuickSupplierId(e.target.value)} style={fieldStyle}>
-              <option value="">Supplier (required)</option>
-              {supplierOptions.map((s) => <option key={s.id} value={s.id}>{s.company_name}</option>)}
-            </select>
-            <select value={quickLocationId} onChange={(e) => setQuickLocationId(e.target.value)} style={fieldStyle}>
-              <option value="">Location (required)</option>
-              {locations.map((l) => <option key={l.id} value={l.id}>{l.name} · {l.code}</option>)}
-            </select>
+            <SearchableSelect
+              options={supplierOpts}
+              value={quickSupplierId}
+              onChange={setQuickSupplierId}
+              placeholder="Supplier (required)"
+              emptyMessage="No suppliers found"
+            />
+            <SearchableSelect
+              options={locationOpts}
+              value={quickLocationId}
+              onChange={setQuickLocationId}
+              placeholder="Location (required)"
+              emptyMessage="No locations found"
+            />
             <input type="number" min="0" step="0.01" value={quickPaid} onChange={(e) => setQuickPaid(e.target.value)} style={fieldStyle} placeholder="Paid amount (BDT)" />
           </div>
 
@@ -480,14 +499,20 @@ export function PurchasesWorkspace() {
 
 
           <div style={{ ...stackedFilterGridStyle, marginBottom: 10 }}>
-            <select value={purchaseForm.supplierId} onChange={(e) => setPurchaseForm((c) => ({ ...c, supplierId: e.target.value }))} style={fieldStyle}>
-              <option value="">Select supplier</option>
-              {supplierOptions.map((s) => <option key={s.id} value={s.id}>{s.company_name}</option>)}
-            </select>
-            <select value={purchaseForm.locationId} onChange={(e) => setPurchaseForm((c) => ({ ...c, locationId: e.target.value }))} style={fieldStyle}>
-              <option value="">Select location</option>
-              {locations.map((l) => <option key={l.id} value={l.id}>{l.name} · {l.code}</option>)}
-            </select>
+            <SearchableSelect
+              options={supplierOpts}
+              value={purchaseForm.supplierId}
+              onChange={(v) => setPurchaseForm((c) => ({ ...c, supplierId: v }))}
+              placeholder="Select supplier"
+              emptyMessage="No suppliers found"
+            />
+            <SearchableSelect
+              options={locationOpts}
+              value={purchaseForm.locationId}
+              onChange={(v) => setPurchaseForm((c) => ({ ...c, locationId: v }))}
+              placeholder="Select location"
+              emptyMessage="No locations found"
+            />
             <input type="date" value={purchaseForm.purchaseDate} onChange={(e) => setPurchaseForm((c) => ({ ...c, purchaseDate: e.target.value }))} style={fieldStyle} />
             <input value={purchaseForm.invoiceNo} onChange={(e) => setPurchaseForm((c) => ({ ...c, invoiceNo: e.target.value }))} style={fieldStyle} placeholder="Invoice no (optional)" />
           </div>
@@ -582,21 +607,20 @@ export function PurchasesWorkspace() {
 
           {/* Category + Brand */}
           <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : '1fr 1fr', gap: 8, marginBottom: 10 }}>
-            <select value={exCategoryId} onChange={(e) => setExCategoryId(e.target.value)} style={fieldStyle}>
-              <option value="">No category</option>
-              {categoryTree.map((parent) => (
-                <React.Fragment key={parent.id}>
-                  <option value={parent.id} style={{ fontWeight: 600 }}>{parent.name}</option>
-                  {parent.children.map((child) => (
-                    <option key={child.id} value={child.id} style={{ paddingLeft: 16 }}>&nbsp;&nbsp;&nbsp;↳ {child.name}</option>
-                  ))}
-                </React.Fragment>
-              ))}
-            </select>
-            <select value={exBrandId} onChange={(e) => setExBrandId(e.target.value)} style={fieldStyle}>
-              <option value="">No brand</option>
-              {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-            </select>
+            <SearchableSelect
+              options={categoryOpts}
+              value={exCategoryId}
+              onChange={setExCategoryId}
+              placeholder="No category"
+              emptyMessage="No categories found"
+            />
+            <SearchableSelect
+              options={brandOpts}
+              value={exBrandId}
+              onChange={setExBrandId}
+              placeholder="No brand"
+              emptyMessage="No brands found"
+            />
           </div>
 
           {/* Variants toggle */}
