@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import {
-  accentButtonStyle,
   dangerButtonStyle,
   emptyStateStyle,
   fieldStyle,
@@ -138,7 +137,7 @@ export function InventoryWorkspace({
   const [decisionNote, setDecisionNote] = useState('');
   const [message, setMessage] = useState('Inventory live workspace is ready.');
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'balances' | 'control' | 'requests' | 'ledger'>('balances');
+  const [activeTab, setActiveTab] = useState<'balances' | 'control'>('balances');
 
   const selectedSku = useMemo(
     () => skuResults.find((sku) => sku.id === selectedSkuId) ?? null,
@@ -339,12 +338,10 @@ export function InventoryWorkspace({
       {compact ? (
         <WorkspaceTabs
           active={activeTab}
-          onChange={(key) => setActiveTab(key as 'balances' | 'control' | 'requests' | 'ledger')}
+          onChange={(key) => setActiveTab(key as 'balances' | 'control')}
           tabs={[
-            { key: 'balances', label: 'Balances' },
+            { key: 'balances', label: 'Live Balances' },
             { key: 'control', label: 'Stock Control' },
-            { key: 'requests', label: 'Requests' },
-            { key: 'ledger', label: 'Ledger' },
           ]}
         />
       ) : null}
@@ -465,9 +462,8 @@ export function InventoryWorkspace({
       </article>
       ) : null}
 
-      {(!compact || activeTab === 'control' || activeTab === 'requests') ? (
-      <section style={{ ...sectionPanelStyle, gridTemplateColumns: compact ? '1fr' : '1.1fr 0.9fr' }}>
-        {!compact || activeTab === 'control' ? (
+      {(!compact || activeTab === 'control') ? (
+      <section style={{ ...sectionPanelStyle, gridTemplateColumns: '1fr' }}>
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Stock Control</h3>
           <p style={{ ...tokenMutedStyle, marginBottom: 12 }}>
@@ -510,7 +506,7 @@ export function InventoryWorkspace({
           <textarea value={reason} onChange={(event) => setReason(event.target.value)} style={{ ...fieldStyle, minHeight: 88, marginBottom: 12 }} placeholder="Reason / note" />
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {canDirectAdjustInventory ? (
-              <button onClick={directAdjustStock} style={accentButtonStyle} disabled={loading}>
+              <button onClick={directAdjustStock} style={searchButtonStyle} disabled={loading}>
                 Update Stock
               </button>
             ) : (
@@ -525,129 +521,7 @@ export function InventoryWorkspace({
             </p>
           ) : null}
         </article>
-        ) : null}
-
-        {!compact || activeTab === 'requests' ? (
-        <article style={surfaceCardStyle}>
-          <h3 style={{ marginTop: 0 }}>Adjustment Queue</h3>
-          <div style={{ ...searchRowStyle, marginBottom: 12 }}>
-            <input value={adjustmentSearch} onChange={(event) => setAdjustmentSearch(event.target.value)} style={{ ...fieldStyle, flex: 1, width: 'auto' }} placeholder="Search product, SKU, location, reason" />
-            <select value={adjustmentStatus} onChange={(event) => setAdjustmentStatus(event.target.value)} style={{ ...fieldStyle, width: 160 }}>
-              <option value="">All statuses</option>
-              <option value="pending">Pending</option>
-              <option value="approved">Approved</option>
-              <option value="rejected">Rejected</option>
-            </select>
-            <button onClick={() => void refreshInventory(balancePage, 1, ledgerPage, selectedLocationId)} style={searchButtonStyle} disabled={loading}>Search</button>
-          </div>
-          <textarea value={decisionNote} onChange={(event) => setDecisionNote(event.target.value)} style={{ ...fieldStyle, minHeight: 72, marginBottom: 12 }} placeholder="Decision note for approve/reject" />
-          {adjustments.length ? (
-            <>
-              <div style={tableWrapStyle}>
-                <table style={tableStyle}>
-                  <thead>
-                    <tr>
-                      <th style={tableHeaderCellStyle}>Product</th>
-                      <th style={tableHeaderCellStyle}>Location</th>
-                      <th style={tableHeaderCellStyle}>Current</th>
-                      <th style={tableHeaderCellStyle}>Requested</th>
-                      <th style={tableHeaderCellStyle}>Delta</th>
-                      <th style={tableHeaderCellStyle}>Reason</th>
-                      <th style={tableHeaderCellStyle}>Status</th>
-                      <th style={tableHeaderCellStyle}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {adjustments.map((request) => (
-                      <tr key={request.id}>
-                        <td style={tableCellStyle}>{request.product_name} · {request.sku_code}</td>
-                        <td style={tableCellStyle}>{request.location_name}</td>
-                        <td style={tableCellStyle}>{Number(request.current_qty)}</td>
-                        <td style={tableCellStyle}>{Number(request.requested_qty)}</td>
-                        <td style={tableCellStyle}>{Number(request.qty_delta) >= 0 ? '+' : ''}{Number(request.qty_delta)}</td>
-                        <td style={tableCellStyle}>{request.reason}</td>
-                        <td style={tableCellStyle}>{request.status}</td>
-                        <td style={tableCellStyle}>
-                          {request.status === 'pending' && canApproveInventory ? (
-                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                              <button onClick={() => decideAdjustment(request.id, 'approve')} style={accentButtonStyle} disabled={loading}>Approve</button>
-                              <button onClick={() => decideAdjustment(request.id, 'reject')} style={dangerButtonStyle} disabled={loading}>Reject</button>
-                            </div>
-                          ) : '—'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <ListPager
-                loading={loading}
-                page={adjustmentPage}
-                pagination={adjustmentPagination}
-                label="request(s)"
-                onPrevious={() => void refreshInventory(balancePage, Math.max(1, adjustmentPage - 1), ledgerPage, selectedLocationId)}
-                onNext={() => void refreshInventory(balancePage, Math.min(totalAdjustmentPages, adjustmentPage + 1), ledgerPage, selectedLocationId)}
-              />
-            </>
-          ) : (
-            <div style={emptyStateStyle}>No adjustment requests yet.</div>
-          )}
-        </article>
-        ) : null}
-
       </section>
-      ) : null}
-
-      {(!compact || activeTab === 'ledger') ? (
-      <article style={{ ...surfaceCardStyle, borderStyle: 'solid' }}>
-        <h3 style={{ marginTop: 0 }}>Ledger</h3>
-        <div style={{ ...searchRowStyle, marginBottom: 12 }}>
-          <input value={ledgerSearch} onChange={(event) => setLedgerSearch(event.target.value)} style={{ ...fieldStyle, flex: 1, width: 'auto' }} placeholder="Search product, SKU, location, movement" />
-          <button onClick={() => void refreshInventory(balancePage, adjustmentPage, 1, selectedLocationId)} style={searchButtonStyle} disabled={loading}>Search</button>
-        </div>
-        {ledger.length ? (
-          <>
-            <div style={tableWrapStyle}>
-              <table style={tableStyle}>
-                <thead>
-                  <tr>
-                    <th style={tableHeaderCellStyle}>Product</th>
-                    <th style={tableHeaderCellStyle}>Location</th>
-                    <th style={tableHeaderCellStyle}>Movement</th>
-                    <th style={tableHeaderCellStyle}>Qty</th>
-                    <th style={tableHeaderCellStyle}>Actor</th>
-                    <th style={tableHeaderCellStyle}>Note</th>
-                    <th style={tableHeaderCellStyle}>Time</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {ledger.map((entry) => (
-                    <tr key={entry.id}>
-                      <td style={tableCellStyle}>{entry.product_name} · {entry.sku_code}</td>
-                      <td style={tableCellStyle}>{entry.location_name}</td>
-                      <td style={tableCellStyle}>{entry.movement_type}</td>
-                      <td style={tableCellStyle}>{Number(entry.qty_delta) >= 0 ? '+' : ''}{Number(entry.qty_delta)}</td>
-                      <td style={tableCellStyle}>{entry.actor_name || 'System'}</td>
-                      <td style={tableCellStyle}>{entry.note || '—'}</td>
-                      <td style={tableCellStyle}>{new Date(entry.created_at).toLocaleString()}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <ListPager
-              loading={loading}
-              page={ledgerPage}
-              pagination={ledgerPagination}
-              label="ledger row(s)"
-              onPrevious={() => void refreshInventory(balancePage, adjustmentPage, Math.max(1, ledgerPage - 1), selectedLocationId)}
-              onNext={() => void refreshInventory(balancePage, adjustmentPage, Math.min(totalLedgerPages, ledgerPage + 1), selectedLocationId)}
-            />
-          </>
-        ) : (
-          <div style={emptyStateStyle}>No ledger entries yet.</div>
-        )}
-      </article>
       ) : null}
 
       <article style={surfaceCardStyle}>

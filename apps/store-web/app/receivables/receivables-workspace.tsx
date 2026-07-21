@@ -3,8 +3,8 @@
 import { useEffect, useState } from 'react';
 
 import { ListPager, type PaginationState } from '../list-pager';
+import { SearchableSelect } from '../../components/searchable-select';
 import {
-  accentButtonStyle,
   emptyStateStyle,
   fieldStyle,
   gray800ButtonStyle,
@@ -373,10 +373,10 @@ export function ReceivablesWorkspace() {
       <section style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'minmax(0, 1.25fr) minmax(340px, 0.75fr)', gap: 16 }}>
         {(!compact || activeTab === 'dues') ? (
           <article style={surfaceCardStyle}>
-            <div style={{ ...searchRowStyle, marginBottom: 12 }}>
+            <form onSubmit={(e) => { e.preventDefault(); void refresh(query, 1); }} style={{ ...searchRowStyle, marginBottom: 12 }}>
               <input value={query} onChange={(event) => setQuery(event.target.value)} style={{ ...fieldStyle, flex: 1, width: 'auto' }} placeholder="Search sale no, customer, phone, or shop" />
-              <button onClick={() => void refresh(query, 1)} style={searchButtonStyle} disabled={loading}>Search</button>
-            </div>
+              <button type="submit" style={searchButtonStyle} disabled={loading}>Search</button>
+            </form>
             {dueSales.length ? (
               <>
                 <div style={tableWrapStyle}>
@@ -457,7 +457,7 @@ export function ReceivablesWorkspace() {
                   Outstanding due {formatMoney(selectedSale.outstanding_due_amount)} · Status {selectedSale.payment_status}
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <button onClick={() => void collectPayment()} style={accentButtonStyle} disabled={loading}>Post collection</button>
+                  <button onClick={() => void collectPayment()} style={searchButtonStyle} disabled={loading}>Post collection</button>
                 </div>
               </div>
             ) : (
@@ -489,10 +489,20 @@ export function ReceivablesWorkspace() {
 
             {/* Filters */}
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
-              <select value={ledgerCustomerId} onChange={(e) => setLedgerCustomerId(e.target.value)} style={{ ...fieldStyle, flex: 1, minWidth: 180 }}>
-                <option value="">Select customer</option>
-                {customers.map((c) => <option key={c.id} value={c.id}>{c.full_name} {c.shop_name ? `(${c.shop_name})` : ''}</option>)}
-              </select>
+              <SearchableSelect
+                options={[
+                  { value: '', label: 'Select customer' },
+                  ...customers.map((c) => ({
+                    value: c.id,
+                    label: `${c.full_name}${c.shop_name ? ` (${c.shop_name})` : ''}`,
+                  }))
+                ]}
+                value={ledgerCustomerId}
+                onChange={setLedgerCustomerId}
+                placeholder="Select customer"
+                emptyMessage="No customers found"
+                style={{ flex: 1, minWidth: 180 }}
+              />
               <input type="date" value={ledgerFromDate} onChange={(e) => setLedgerFromDate(e.target.value)} style={{ ...fieldStyle, width: 150 }} placeholder="From date" />
               <input type="date" value={ledgerToDate} onChange={(e) => setLedgerToDate(e.target.value)} style={{ ...fieldStyle, width: 150 }} placeholder="To date" />
               <button onClick={fetchLedger} style={searchButtonStyle} disabled={ledgerLoading || !ledgerCustomerId}>
@@ -505,7 +515,7 @@ export function ReceivablesWorkspace() {
               <>
                 <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
                   <button onClick={exportLedgerCsv} style={gray800ButtonStyle}>Export CSV</button>
-                  <button onClick={exportLedgerPdf} style={accentButtonStyle}>Export PDF (A4)</button>
+                  <button onClick={exportLedgerPdf} style={searchButtonStyle}>Export PDF (A4)</button>
                 </div>
 
                 {/* Ledger summary */}

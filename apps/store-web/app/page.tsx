@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Building2, Package, ClipboardList, ShoppingCart, Truck, BarChart3, CreditCard, Users, Wallet, ReceiptText, Landmark, MapPin } from 'lucide-react';
+import { Building2, Package, ClipboardList, ShoppingCart, Truck, BarChart3, CreditCard, Users, Wallet, ReceiptText, Landmark, MapPin, CheckCircle } from 'lucide-react';
 
 import { fetchStoreApi, isStoreApiConfigured } from '../lib/api';
 import { getStoreConsoleAccess } from '../lib/access';
@@ -26,13 +26,15 @@ function formatQty(value: number | string | null | undefined) {
 const quickActions = [
   // Daily operations
   { href: '/pos', group: 'Daily Operations', title: 'New Sale', detail: 'Run a POS sale — barcode scan, add items, checkout, print receipt.', icon: ShoppingCart, permission: 'sales.pos.create', feature: 'pos' },
-  { href: '/customers', group: 'Daily Operations', title: 'Customers', detail: 'Track due customers, contacts, shop identity, and payment collections.', icon: Users, permission: 'sales.report.view', feature: 'customers' },
+  { href: '/receivables', group: 'Daily Operations', title: 'Receivables', detail: 'Track due sales, aging reports, customer ledger, and payment collections.', icon: Wallet, permission: 'sales.report.view', feature: 'receivables' },
   // Product & Stock
   { href: '/purchases', group: 'Product & Stock', title: 'Products & Stock', detail: 'Quick add new products, receive supplier stock, manage categories and suppliers.', icon: Package, feature: 'purchases' },
   { href: '/reports', group: 'Product & Stock', title: 'Reports', detail: 'Daily sales, stock snapshots, and exportable business reports.', icon: BarChart3, permission: 'sales.report.view', feature: 'reports' },
+  { href: '/stock-ledger', group: 'Product & Stock', title: 'Stock Ledger', detail: 'View complete stock movement history and adjustments.', icon: ClipboardList, permission: 'inventory.view', feature: 'inventory' },
   { href: '/locations', group: 'Product & Stock', title: 'Locations', detail: 'Manage inventory locations, addresses, and contact details.', icon: MapPin, feature: 'inventory' },
   { href: '/suppliers', group: 'Product & Stock', title: 'Suppliers', detail: 'Manage suppliers, track payables, and view the supplier ledger.', icon: Building2, feature: 'purchases' },
   // Management
+  { href: '/approvals', group: 'Management', title: 'Approvals', detail: 'Review pending stock quantity changes and manager-requested price updates.', icon: CheckCircle, permission: 'inventory.adjust.approve', feature: 'inventory' },
   { href: '/staff', group: 'Management', title: 'Team', detail: 'Manage users, employee records, and payroll workflow from one place.', icon: Users, permission: 'store.staff.manage', feature: 'staff' },
   { href: '/expenses', group: 'Management', title: 'Daily Expenses', detail: 'Track day-level store expenses and spending.', icon: ReceiptText, feature: 'expenses' },
   { href: '/banking', group: 'Management', title: 'Banking', detail: 'Reconcile banking activity, deposits, and withdrawals.', icon: Landmark, feature: 'banking' },
