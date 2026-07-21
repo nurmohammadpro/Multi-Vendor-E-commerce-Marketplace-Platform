@@ -382,9 +382,9 @@ export function InventoryWorkspace({
                       <td style={tableCellStyle}>{balance.product_name}</td>
                       <td style={tableCellStyle}>{balance.sku_code}</td>
                       <td style={tableCellStyle}>{balance.location_name}</td>
-                      <td style={tableCellStyle}>{balance.is_trackable !== false ? formatQty(balance.on_hand_qty) : '—'}</td>
-                      <td style={tableCellStyle}>{balance.is_trackable !== false ? formatQty(balance.available_qty) : '—'}</td>
-                      <td style={tableCellStyle}>{balance.is_trackable !== false ? formatQty(balance.reserved_qty) : '—'}</td>
+                      <td style={tableCellStyle}>{formatQty(balance.on_hand_qty)}</td>
+                      <td style={tableCellStyle}>{formatQty(balance.available_qty)}</td>
+                      <td style={tableCellStyle}>{formatQty(balance.reserved_qty)}</td>
                       <td style={tableCellStyle}>{new Date(balance.updated_at).toLocaleString()}</td>
                       <td style={tableCellStyle}>
                         <button
