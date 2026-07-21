@@ -136,7 +136,7 @@ export function deriveStoreConsoleAccess(
     userEmail: options?.userEmail ?? null,
     canManageCatalog: permissionSet.has('catalog.manage') && canAccessStoreFeature({ planCode, planFeatures }, 'catalog'),
     canViewInventory: permissionSet.has('inventory.view') && canAccessStoreFeature({ planCode, planFeatures }, 'inventory'),
-    canAdjustInventory: canRequestAdjustInventory,
+    canAdjustInventory: canRequestAdjustInventory || canDirectAdjustInventory,
     canDirectAdjustInventory,
     canRequestAdjustInventory,
     canApproveInventory: permissionSet.has('inventory.adjust.approve') && canAccessStoreFeature({ planCode, planFeatures }, 'inventory'),
