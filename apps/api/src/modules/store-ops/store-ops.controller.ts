@@ -279,6 +279,23 @@ export class StoreOpsController {
     return this.storeOpsService.getDueSalesAging(headerStoreId, authContext);
   }
 
+  @Get('receivables/customer-ledger')
+  @RequireContext('store')
+  @RequirePermissions('sales.report.view')
+  getCustomerLedger(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @Query('customerId') customerId?: string,
+    @Query('fromDate') fromDate?: string,
+    @Query('toDate') toDate?: string,
+  ) {
+    return this.storeOpsService.getCustomerLedger(headerStoreId, authContext, {
+      customerId,
+      fromDate,
+      toDate,
+    });
+  }
+
   @Get('owner-overview')
   @RequireContext('store')
   @RequirePermissions('inventory.adjust.approve')

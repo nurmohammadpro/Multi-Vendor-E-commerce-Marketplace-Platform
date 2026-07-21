@@ -1315,6 +1315,141 @@ export class StoreOpsService {
     };
   }
 
+  async getCustomerLedger(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    filters: { customerId?: string; fromDate?: string; toDate?: string },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    this.assertAllowedRoles(authContext, ['store_owner', 'store_manager']);
+    const { customerId, fromDate, toDate } = filters;
+
+    if (!customerId) {
+      throw new Error('customerId is required');
+    }
+
+    // Customer info
+    const customerResult = await this.pool.query(
+      `select id, full_name, phone, email, address, opening_receivable_amount
+       from sales.customers where id = $1 and store_id = $2`,
+      [customerId, storeId],
+    );
+    if (!customerResult.rows.length) {
+      throw new NotFoundException('Customer not found');
+    }
+    const customer = customerResult.rows[0];
+
+    // Opening balance before the fromDate
+    const openingResult = await this.pool.query(
+      `
+        select
+          coalesce(sum(greatest(total_amount - paid_amount - returned_amount, 0)), 0) as sales_outstanding
+        from sales.sales
+        where customer_id = $1
+          and store_id = $2
+          and status <> 'cancelled'
+          and sale_date < $3::date
+      `,
+      [customerId, storeId, fromDate || '1900-01-01'],
+    );
+    const openingSalesOutstanding = Number(openingResult.rows[0]?.sales_outstanding ?? 0);
+    const openingBalance = Number(customer.opening_receivable_amount ?? 0) + openingSalesOutstanding;
+
+    // Transactions within the date range
+    const txResult = await this.pool.query(
+      `
+        select
+          s.sale_date as tx_date,
+          s.sale_no as tx_ref,
+          s.invoice_no,
+          s.total_amount as sale_total,
+          s.paid_amount as sale_paid,
+          s.returned_amount as sale_returned,
+          greatest(s.total_amount - s.paid_amount - s.returned_amount, 0) as sale_outstanding,
+          s.payment_status,
+          'sale' as tx_type,
+          s.id as source_id
+        from sales.sales s
+        where s.customer_id = $1
+          and s.store_id = $2
+          and s.status <> 'cancelled'
+          and s.sale_date between $3::date and $4::date
+        union all
+        select
+          sp.paid_at::date as tx_date,
+          s.sale_no as tx_ref,
+          null as invoice_no,
+          null as sale_total,
+          sp.amount as sale_paid,
+          null as sale_returned,
+          null as sale_outstanding,
+          sp.status as payment_status,
+          'payment' as tx_type,
+          sp.id as source_id
+        from sales.sale_payments sp
+        join sales.sales s on s.id = sp.sale_id
+        where s.customer_id = $1
+          and s.store_id = $2
+          and s.status <> 'cancelled'
+          and sp.status = 'paid'
+          and sp.paid_at::date between $3::date and $4::date
+        order by tx_date asc, tx_type, source_id
+      `,
+      [customerId, storeId, fromDate || '1900-01-01', toDate || '2099-12-31'],
+    );
+
+    // Balance after each transaction
+    let runningBalance = openingBalance;
+    const transactions = (txResult.rows ?? []).map((row: any) => {
+      if (row.tx_type === 'sale') {
+        const debit = Number(row.sale_total ?? 0);
+        const credit = Number(row.sale_paid ?? 0) + Number(row.sale_returned ?? 0);
+        runningBalance = runningBalance + debit - credit;
+        return {
+          tx_date: row.tx_date,
+          tx_ref: row.tx_ref,
+          invoice_no: row.invoice_no,
+          tx_type: 'sale',
+          debit,
+          credit,
+          runningBalance: Math.round(runningBalance * 100) / 100,
+        };
+      }
+      // payment
+      const credit = Number(row.sale_paid ?? 0);
+      runningBalance = runningBalance - credit;
+      return {
+        tx_date: row.tx_date,
+        tx_ref: row.tx_ref,
+        invoice_no: row.invoice_no,
+        tx_type: 'payment',
+        debit: 0,
+        credit,
+        runningBalance: Math.round(runningBalance * 100) / 100,
+      };
+    });
+
+    // Closing balance = last running balance
+    const closingBalance = transactions.length > 0
+      ? transactions[transactions.length - 1].runningBalance
+      : openingBalance;
+
+    return {
+      customer: {
+        id: customer.id,
+        fullName: customer.full_name,
+        phone: customer.phone,
+        email: customer.email,
+        address: customer.address,
+      },
+      fromDate: fromDate || null,
+      toDate: toDate || null,
+      openingBalance: Math.round(openingBalance * 100) / 100,
+      closingBalance: Math.round(closingBalance * 100) / 100,
+      transactions,
+    };
+  }
+
   async listExpenses(
     headerStoreId: string | undefined,
     authContext: StoreAuthContext | null,
