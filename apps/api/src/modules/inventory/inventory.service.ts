@@ -162,6 +162,7 @@ export class InventoryService {
         select id, code, name, address, phone, email, location_type, status, created_at, updated_at
         from inventory.locations
         where store_id = $1
+          and status = 'active'
         order by created_at asc
       `,
       [storeId],
