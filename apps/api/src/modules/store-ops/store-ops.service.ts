@@ -1330,8 +1330,8 @@ export class StoreOpsService {
 
     // Customer info
     const customerResult = await this.pool.query(
-      `select id, full_name, phone, email, address, opening_receivable_amount
-       from sales.customers where id = $1 and store_id = $2`,
+      `select id, full_name, mobile_no as phone, email, address, opening_receivable_amount
+       from store.customers where id = $1 and store_id = $2`,
       [customerId, storeId],
     );
     if (!customerResult.rows.length) {

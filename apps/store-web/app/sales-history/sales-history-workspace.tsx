@@ -317,7 +317,7 @@ export function SalesHistoryWorkspace() {
           onChange={(e) => setSearchQuery(e.target.value)}
           style={{ ...fieldStyle, flex: 1, minWidth: 0 }}
         />
-        <button type="submit" style={searchQuery ? accentButtonStyle : secondaryButtonStyle} disabled={loading}>
+        <button type="submit" style={searchQuery ? searchButtonStyle : secondaryButtonStyle} disabled={loading}>
           {loading ? 'Searching...' : 'Search'}
         </button>
         {searchQuery ? (
