@@ -24,6 +24,7 @@ export class ReportingService {
           from sales.sales
           where store_id = $1
             and status = 'completed'
+            and created_at::date = current_date
         `,
         [storeId],
       ),

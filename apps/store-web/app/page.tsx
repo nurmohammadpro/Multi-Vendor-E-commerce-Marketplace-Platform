@@ -87,7 +87,7 @@ export default async function StoreDashboard() {
 
   if (apiAvailable) {
     try {
-      const salesPayload = await fetchStoreApi<StoreSalesReport>('/reports/store/sales-summary');
+      const salesPayload = await fetchStoreApi<StoreSalesReport>('/reports/store/sales');
       if (salesPayload?.summary) {
         todaySales = `BDT ${metricNumber(salesPayload.summary.total_sales_amount)}`;
         todayOrders = String(salesPayload.summary.total_orders_count ?? '—');
