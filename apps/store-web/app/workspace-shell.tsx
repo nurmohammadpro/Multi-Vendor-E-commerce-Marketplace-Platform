@@ -67,11 +67,16 @@ type NavItem = {
   feature?: StoreConsoleFeature;
 };
 
+type NavGroup = {
+  label: string;
+  items: NavItem[];
+};
+
 type WorkspaceShellProps = {
   badge: string;
   description?: string;
   access: StoreConsoleAccess;
-  navItems: NavItem[];
+  navItems: NavItem[] | NavGroup[];
   title: string;
   children: ReactNode;
 };
@@ -84,6 +89,7 @@ const iconMap: Record<string, typeof LayoutDashboard> = {
   '/purchases': Package,
   '/approvals': ClipboardCheck,
   '/pos': ShoppingCart,
+  '/sales-history': BarChart3,
   '/receivables': Wallet,
   '/customers': Users,
   '/shipping': Truck,
@@ -99,6 +105,7 @@ const iconMap: Record<string, typeof LayoutDashboard> = {
   '/banking': Landmark,
   '/settings': Settings,
   '/hardware': Wrench,
+  '/help': LifeBuoy,
 };
 
 export function WorkspaceShell({ navItems, title, badge, children, access }: WorkspaceShellProps) {
@@ -133,18 +140,31 @@ function AppSidebar({
   title,
   access,
 }: {
-  navItems: NavItem[];
+  navItems: NavItem[] | NavGroup[];
   pathname: string;
   badge: string;
   title: string;
   access: StoreConsoleAccess;
 }) {
   const { setOpen, isMobile } = useSidebar();
-  const visibleNavItems = navItems.filter(
-    (item) =>
-      (!item.permission || access.permissions.includes(item.permission))
-      && canAccessStoreFeature(access, item.feature),
-  );
+  const filterVisible = (item: NavItem) =>
+    (!item.permission || access.permissions.includes(item.permission))
+    && canAccessStoreFeature(access, item.feature);
+
+  const visibleNavItems: (NavGroup | NavItem)[] = navItems
+    .map((item: NavItem | NavGroup) => {
+      if ('items' in item) {
+        const visibleItems = (item as NavGroup).items.filter(filterVisible);
+        return { ...item, items: visibleItems } as NavGroup;
+      }
+      return item;
+    })
+    .filter((item: NavItem | NavGroup) => {
+      if ('items' in item) {
+        return (item as NavGroup).items.length > 0;
+      }
+      return filterVisible(item as NavItem);
+    });
 
   return (
     <Sidebar collapsible="icon" variant="sidebar" className="bg-sidebar border-r border-sidebar-border">
@@ -158,58 +178,48 @@ function AppSidebar({
       </SidebarHeader>
 
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-[10px] font-normal text-muted-foreground">
-            Navigation
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {visibleNavItems.map((item) => {
-                const Icon = iconMap[item.href] || LayoutDashboard;
-                const isActive =
-                  item.href === '/'
-                    ? pathname === '/'
-                    : pathname === item.href || pathname.startsWith(`${item.href}/`);
+        {visibleNavItems.map((group) => {
+          if ('items' in group) {
+            // Grouped navigation
+            return (
+              <SidebarGroup key={group.label}>
+                <SidebarGroupLabel className="text-[10px] font-normal text-muted-foreground">
+                  {group.label}
+                </SidebarGroupLabel>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    {group.items.map((item) => {
+                      const Icon = iconMap[item.href] || LayoutDashboard;
+                      const isActive =
+                        item.href === '/'
+                          ? pathname === '/'
+                          : pathname === item.href || pathname.startsWith(`${item.href}/`);
 
-                return (
-                  <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton
-                      isActive={isActive}
-                      tooltip={item.label}
-                      onClick={() => {
-                        if (isMobile) setOpen(false);
-                      }}
-                      asChild
-                    >
-                      <Link href={item.href}>
-                        <Icon className="size-3.5" />
-                        <span className="text-xs font-normal">{item.label}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+                      return (
+                        <SidebarMenuItem key={item.href}>
+                          <SidebarMenuButton
+                            isActive={isActive}
+                            tooltip={item.label}
+                            onClick={() => {
+                              if (isMobile) setOpen(false);
+                            }}
+                            asChild
+                          >
+                            <Link href={item.href}>
+                              <Icon className="size-3.5" />
+                              <span className="text-xs font-normal">{item.label}</span>
+                            </Link>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      );
+                    })}
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </SidebarGroup>
+            );
+          }
+        })}
 
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-[10px] font-normal text-muted-foreground">
-            Support
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild tooltip="Get Help">
-                  <Link href="/help">
-                    <LifeBuoy className="size-3.5" />
-                    <span className="text-xs font-normal">Help & Reference</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
       </SidebarContent>
 
       <SidebarFooter />
