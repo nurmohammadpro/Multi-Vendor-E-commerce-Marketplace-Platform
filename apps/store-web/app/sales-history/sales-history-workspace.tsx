@@ -6,8 +6,10 @@ import {
   accentButtonStyle,
   emptyStateStyle,
   fieldStyle,
+  gray800ButtonStyle,
   neutralButtonStyle,
   pageShellStyle,
+  searchButtonStyle,
   secondaryButtonStyle,
   surfaceCardStyle,
   tableCellStyle,
@@ -57,6 +59,14 @@ export function SalesHistoryWorkspace() {
   const limit = 15;
   const searchRef = useRef<HTMLInputElement>(null);
 
+  // Sales report export state
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportFromDate, setReportFromDate] = useState('');
+  const [reportToDate, setReportToDate] = useState('');
+  const [reportMonth, setReportMonth] = useState('');
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportData, setReportData] = useState<any>(null);
+
   const loadSales = useCallback(async (p = 1) => {
     setLoading(true);
     try {
@@ -83,6 +93,15 @@ export function SalesHistoryWorkspace() {
 
   useEffect(() => { void loadSales(1); }, [loadSales]);
 
+  // Set default dates for report (current month)
+  useEffect(() => {
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    setReportFromDate(firstDay.toISOString().slice(0, 10));
+    setReportToDate(lastDay.toISOString().slice(0, 10));
+  }, []);
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     void loadSales(1);
@@ -102,8 +121,180 @@ export function SalesHistoryWorkspace() {
     return sortDir === 'asc' ? ' ↑' : ' ↓';
   };
 
+  const fetchReport = async () => {
+    setReportLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (reportMonth) {
+        params.set('month', reportMonth);
+      } else if (reportFromDate && reportToDate) {
+        params.set('fromDate', reportFromDate);
+        params.set('toDate', reportToDate);
+      } else {
+        setMessage('Please select a date range or month.');
+        setReportLoading(false);
+        return;
+      }
+
+      const payload = await readJson<any>(
+        `/api/pos/sales-report?${params.toString()}`
+      );
+      setReportData(payload);
+      setMessage('Sales report loaded successfully.');
+    } catch (error) {
+      setMessage((error as Error).message);
+      setReportData(null);
+    } finally {
+      setReportLoading(false);
+    }
+  };
+
+  const exportReportCsv = () => {
+    if (!reportData) return;
+
+    const rows = [
+      ['Sales Report', `Period: ${reportData.period.fromDate} to ${reportData.period.toDate}`],
+      ['Summary Statistics', ''],
+      ['Total Sales', formatMoney(reportData.summary.totalSales)],
+      ['Total Discounts', formatMoney(reportData.summary.totalDiscounts)],
+      ['Total Tax', formatMoney(reportData.summary.totalTax)],
+      ['Net Sales', formatMoney(reportData.summary.netSales)],
+      ['Total Orders', reportData.summary.totalOrders],
+      ['Paid Orders', reportData.summary.paidOrders],
+      ['Partial Orders', reportData.summary.partialOrders],
+      ['Unpaid Orders', reportData.summary.unpaidOrders],
+      [],
+      ['Date', 'Sale No', 'Customer', 'Phone', 'Items', 'Total', 'Discount', 'Tax', 'Payment Status', 'Fulfillment Status'],
+    ];
+
+    reportData.sales.forEach((sale: any) => {
+      rows.push([
+        new Date(sale.createdAt).toLocaleDateString(),
+        sale.saleNo,
+        sale.customerName || 'Walk-in',
+        sale.customerPhone || '',
+        sale.itemsPurchased || '',
+        formatMoney(sale.totalAmount),
+        formatMoney(sale.discountAmount),
+        formatMoney(sale.taxAmount),
+        sale.paymentStatus,
+        sale.fulfillmentStatus,
+      ]);
+    });
+
+    const csvContent = rows.map((row) => row.join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `sales-report-${reportData.period.fromDate}-to-${reportData.period.toDate}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setMessage('CSV export downloaded.');
+  };
+
+  const exportReportPdf = () => {
+    if (!reportData) return;
+
+    const salesRows = reportData.sales.map((sale: any) => `
+      <tr>
+        <td style="padding: 8px; border: 1px solid #ddd;">${new Date(sale.createdAt).toLocaleDateString()}</td>
+        <td style="padding: 8px; border: 1px solid #ddd;">${sale.saleNo}</td>
+        <td style="padding: 8px; border: 1px solid #ddd;">${sale.customerName || 'Walk-in'}</td>
+        <td style="padding: 8px; border: 1px solid #ddd;">${sale.customerPhone || '—'}</td>
+        <td style="padding: 8px; border: 1px solid #ddd; font-size: 10px;">${sale.itemsPurchased || '—'}</td>
+        <td style="padding: 8px; border: 1px solid #ddd; text-align: right; font-family: monospace;">${formatMoney(sale.totalAmount)}</td>
+        <td style="padding: 8px; border: 1px solid #ddd; text-align: right; font-family: monospace;">${formatMoney(sale.discountAmount)}</td>
+        <td style="padding: 8px; border: 1px solid #ddd; text-align: right; font-family: monospace;">${formatMoney(sale.taxAmount)}</td>
+        <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${sale.paymentStatus}</td>
+        <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${sale.fulfillmentStatus}</td>
+      </tr>
+    `).join('');
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Sales Report</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 20px; }
+          h1 { font-size: 18px; margin-bottom: 5px; }
+          .info { font-size: 12px; color: #666; margin-bottom: 15px; }
+          .summary { background: #f9f9f9; padding: 15px; margin-bottom: 20px; border-radius: 4px; }
+          .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+          .summary-item { font-size: 12px; }
+          .summary-item strong { display: block; font-size: 14px; }
+          table { width: 100%; border-collapse: collapse; font-size: 11px; }
+          th { background: #f5f5f5; padding: 8px; border: 1px solid #ddd; font-weight: 600; text-align: left; }
+          td { padding: 8px; border: 1px solid #ddd; }
+          @media print {
+            body { margin: 0; }
+            button { display: none; }
+          }
+        </style>
+      </head>
+      <body>
+        <h1>Sales Report</h1>
+        <div class="info">
+          <strong>Period:</strong> ${reportData.period.fromDate} to ${reportData.period.toDate}
+        </div>
+
+        <div class="summary">
+          <div class="summary-grid">
+            <div class="summary-item"><strong>Total Sales</strong> BDT ${formatMoney(reportData.summary.totalSales)}</div>
+            <div class="summary-item"><strong>Total Discounts</strong> BDT ${formatMoney(reportData.summary.totalDiscounts)}</div>
+            <div class="summary-item"><strong>Total Tax</strong> BDT ${formatMoney(reportData.summary.totalTax)}</div>
+            <div class="summary-item"><strong>Net Sales</strong> BDT ${formatMoney(reportData.summary.netSales)}</div>
+            <div class="summary-item"><strong>Total Orders</strong> ${reportData.summary.totalOrders}</div>
+            <div class="summary-item"><strong>Paid Orders</strong> ${reportData.summary.paidOrders}</div>
+            <div class="summary-item"><strong>Partial Orders</strong> ${reportData.summary.partialOrders}</div>
+            <div class="summary-item"><strong>Unpaid Orders</strong> ${reportData.summary.unpaidOrders}</div>
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th style="padding: 8px; border: 1px solid #ddd;">Date</th>
+              <th style="padding: 8px; border: 1px solid #ddd;">Sale No</th>
+              <th style="padding: 8px; border: 1px solid #ddd;">Customer</th>
+              <th style="padding: 8px; border: 1px solid #ddd;">Phone</th>
+              <th style="padding: 8px; border: 1px solid #ddd;">Items</th>
+              <th style="padding: 8px; border: 1px solid #ddd; text-align: right;">Total</th>
+              <th style="padding: 8px; border: 1px solid #ddd; text-align: right;">Discount</th>
+              <th style="padding: 8px; border: 1px solid #ddd; text-align: right;">Tax</th>
+              <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">Payment</th>
+              <th style="padding: 8px; border: 1px solid #ddd; text-align: center;">Fulfillment</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${salesRows}
+          </tbody>
+        </table>
+
+        <button onclick="window.print()" style="margin-top: 20px; padding: 8px 16px; background: var(--foreground); color: var(--background); border: 1px solid var(--foreground); cursor: pointer;">Print / Save as PDF</button>
+      </body>
+      </html>
+    `;
+
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+    const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (iframeDoc) {
+      iframeDoc.open();
+      iframeDoc.write(html);
+      iframeDoc.close();
+      setTimeout(() => {
+        iframe.contentWindow?.print();
+        setTimeout(() => document.body.removeChild(iframe), 1000);
+      }, 250);
+    }
+  };
+
   const pagination: PaginationState = { page, limit, total };
   const currency = (v: number) => v.toFixed(2);
+  const formatMoney = (v: number) => v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const totalPage = total > 0 ? Math.ceil(total / limit) : 1;
 
   return (
@@ -145,9 +336,12 @@ export function SalesHistoryWorkspace() {
 
       <article style={surfaceCardStyle}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
-          <button onClick={() => loadSales(1)} style={secondaryButtonStyle} disabled={loading}>
-            {loading ? 'Loading...' : 'Refresh'}
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => loadSales(1)} style={secondaryButtonStyle} disabled={loading}>
+              {loading ? 'Loading...' : 'Refresh'}
+            </button>
+            <button onClick={() => setReportOpen(true)} style={gray800ButtonStyle}>Export Report</button>
+          </div>
           {sales.length > 0 && total > limit ? (
             <ListPager
               page={pagination.page}
@@ -248,6 +442,100 @@ export function SalesHistoryWorkspace() {
       </article>
 
       <p style={{ ...tokenMutedStyle, marginTop: 10 }}>{message}</p>
+
+      {/* Sales Report Export Modal */}
+      {reportOpen ? (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.4)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }} onClick={() => { setReportOpen(false); setReportData(null); }}>
+          <div style={{
+            background: '#fff', borderRadius: 16, padding: 24, maxWidth: 500, width: '95%',
+            maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+          }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h3 style={{ margin: 0, fontSize: 16 }}>Export Sales Report</h3>
+              <button onClick={() => { setReportOpen(false); setReportData(null); }} style={{ ...secondaryButtonStyle, minWidth: 40 }}>✕</button>
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', marginBottom: 8, fontWeight: 500, fontSize: 14 }}>Report Period</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div>
+                  <label style={{ display: 'block', marginBottom: 4, fontSize: 12, color: 'var(--muted-foreground)' }}>Month (optional)</label>
+                  <input
+                    type="month"
+                    value={reportMonth}
+                    onChange={(e) => {
+                      setReportMonth(e.target.value);
+                      if (e.target.value) {
+                        const [year, month] = e.target.value.split('-');
+                        const firstDay = `${year}-${month}-01`;
+                        const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
+                        const lastDayStr = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
+                        setReportFromDate(firstDay);
+                        setReportToDate(lastDayStr);
+                      }
+                    }}
+                    style={fieldStyle}
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: 'block', marginBottom: 4, fontSize: 12, color: 'var(--muted-foreground)' }}>From Date</label>
+                    <input
+                      type="date"
+                      value={reportFromDate}
+                      onChange={(e) => {
+                        setReportFromDate(e.target.value);
+                        setReportMonth(''); // Clear month when custom date is used
+                      }}
+                      style={fieldStyle}
+                    />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: 'block', marginBottom: 4, fontSize: 12, color: 'var(--muted-foreground)' }}>To Date</label>
+                    <input
+                      type="date"
+                      value={reportToDate}
+                      onChange={(e) => {
+                        setReportToDate(e.target.value);
+                        setReportMonth(''); // Clear month when custom date is used
+                      }}
+                      style={fieldStyle}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+              <button onClick={fetchReport} style={searchButtonStyle} disabled={reportLoading}>
+                {reportLoading ? 'Loading...' : 'Generate Report'}
+              </button>
+            </div>
+
+            {reportData ? (
+              <>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                  <button onClick={exportReportCsv} style={gray800ButtonStyle}>Export CSV</button>
+                  <button onClick={exportReportPdf} style={accentButtonStyle}>Export PDF (A4)</button>
+                </div>
+
+                <div style={{ background: 'var(--muted)', padding: 12, borderRadius: 8, marginBottom: 16 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Report Summary</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, fontSize: 13 }}>
+                    <div>Total Sales: <strong>BDT {formatMoney(reportData.summary.totalSales)}</strong></div>
+                    <div>Net Sales: <strong>BDT {formatMoney(reportData.summary.netSales)}</strong></div>
+                    <div>Total Orders: <strong>{reportData.summary.totalOrders}</strong></div>
+                    <div>Paid Orders: <strong>{reportData.summary.paidOrders}</strong></div>
+                  </div>
+                </div>
+              </>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

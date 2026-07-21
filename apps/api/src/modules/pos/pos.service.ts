@@ -749,6 +749,110 @@ export class PosService {
     };
   }
 
+  async getSalesReport(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    filters: { fromDate?: string; toDate?: string; month?: string } = {},
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const { fromDate, toDate, month } = filters;
+
+    // Determine date range
+    let startDate: string;
+    let endDate: string;
+
+    if (month) {
+      // Monthly report (format: YYYY-MM)
+      const [year, monthNum] = month.split('-');
+      startDate = `${year}-${monthNum}-01`;
+      const lastDay = new Date(parseInt(year), parseInt(monthNum), 0).getDate();
+      endDate = `${year}-${monthNum}-${lastDay}`;
+    } else if (fromDate && toDate) {
+      startDate = fromDate;
+      endDate = toDate;
+    } else {
+      // Default to current month if no date range provided
+      const now = new Date();
+      startDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+      const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      endDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${lastDay}`;
+    }
+
+    // Get sales data
+    const result = await this.pool.query(
+      `
+        select
+          s.id,
+          s.sale_no,
+          s.total_amount,
+          s.subtotal_amount,
+          s.discount_amount,
+          s.tax_amount,
+          s.payment_status,
+          s.fulfillment_status,
+          s.customer_name,
+          s.customer_phone,
+          s.customer_email,
+          s.created_at,
+          coalesce(
+            (select string_agg(si.product_name_snapshot, ', ' order by si.created_at)
+             from sales.sale_items si
+             where si.sale_id = s.id),
+            ''
+          ) as items_purchased
+        from sales.sales s
+        where s.store_id = $1
+          and s.status <> 'cancelled'
+          and s.created_at::date between $2::date and $3::date
+        order by s.created_at asc
+      `,
+      [storeId, startDate, endDate],
+    );
+
+    const sales = result.rows;
+
+    // Calculate summary statistics
+    const totalSales = sales.reduce((sum, sale) => sum + Number(sale.total_amount ?? 0), 0);
+    const totalDiscounts = sales.reduce((sum, sale) => sum + Number(sale.discount_amount ?? 0), 0);
+    const totalTax = sales.reduce((sum, sale) => sum + Number(sale.tax_amount ?? 0), 0);
+    const paidCount = sales.filter(sale => sale.payment_status === 'paid').length;
+    const partialCount = sales.filter(sale => sale.payment_status === 'partial').length;
+    const unpaidCount = sales.filter(sale => sale.payment_status === 'unpaid').length;
+
+    return {
+      period: {
+        fromDate: startDate,
+        toDate: endDate,
+        month: month || null,
+      },
+      summary: {
+        totalSales: Math.round(totalSales * 100) / 100,
+        totalDiscounts: Math.round(totalDiscounts * 100) / 100,
+        totalTax: Math.round(totalTax * 100) / 100,
+        netSales: Math.round((totalSales - totalDiscounts + totalTax) * 100) / 100,
+        totalOrders: sales.length,
+        paidOrders: paidCount,
+        partialOrders: partialCount,
+        unpaidOrders: unpaidCount,
+      },
+      sales: sales.map((sale: any) => ({
+        id: sale.id,
+        saleNo: sale.sale_no,
+        totalAmount: Number(sale.total_amount ?? 0),
+        subtotalAmount: Number(sale.subtotal_amount ?? 0),
+        discountAmount: Number(sale.discount_amount ?? 0),
+        taxAmount: Number(sale.tax_amount ?? 0),
+        paymentStatus: sale.payment_status,
+        fulfillmentStatus: sale.fulfillment_status,
+        customerName: sale.customer_name,
+        customerPhone: sale.customer_phone,
+        customerEmail: sale.customer_email,
+        itemsPurchased: sale.items_purchased,
+        createdAt: sale.created_at,
+      })),
+    };
+  }
+
   async reprintSaleReceipt(saleId: string, headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
     const { sale, items, payments } = await this.getSaleAggregate(saleId, storeId);
