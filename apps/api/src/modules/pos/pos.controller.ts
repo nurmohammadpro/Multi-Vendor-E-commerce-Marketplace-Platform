@@ -189,6 +189,23 @@ export class PosController {
     });
   }
 
+  @Get('sales-report')
+  @RequireContext('store')
+  @RequirePermissions('sales.report.view')
+  getSalesReport(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @Query('fromDate') fromDate?: string,
+    @Query('toDate') toDate?: string,
+    @Query('month') month?: string,
+  ) {
+    return this.posService.getSalesReport(headerStoreId, authContext, {
+      fromDate,
+      toDate,
+      month,
+    });
+  }
+
   @Get('sales/:saleId')
   @RequireContext('store')
   @RequirePermissions('sales.report.view')
