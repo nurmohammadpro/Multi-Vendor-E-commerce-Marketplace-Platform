@@ -36,32 +36,71 @@ export const viewport: Viewport = {
   themeColor: '#0f172a',
 };
 
-const navItems = [
-  { href: '/', label: 'Dashboard', feature: 'dashboard' },
-  { href: '/pos', label: 'Sales', permission: 'sales.pos.create', feature: 'pos' },
-  { href: '/sales-history', label: 'Sales History', permission: 'sales.report.view', feature: 'reports' },
-  { href: '/inventory', label: 'Stock', permission: 'inventory.view', feature: 'inventory' },
-  { href: '/locations', label: 'Locations', permission: 'inventory.view', feature: 'inventory' },
-  { href: '/purchases', label: 'Purchases', feature: 'purchases' },
-  { href: '/receivables', label: 'Receivables', permission: 'sales.report.view', feature: 'receivables' },
-  { href: '/customers', label: 'Customers', permission: 'sales.report.view', feature: 'customers' },
-  { href: '/shipping', label: 'Shipping', permission: 'sales.pos.create', feature: 'shipping' },
-  { href: '/reports', label: 'Reports', permission: 'sales.report.view', feature: 'reports' },
-  { href: '/activity', label: 'Activity', permission: 'sales.report.view', feature: 'reports' },
-  { href: '/approvals', label: 'Approvals', permission: 'inventory.adjust.approve', feature: 'inventory' },
-  { href: '/staff', label: 'Team', permission: 'store.staff.manage', feature: 'staff' },
-  { href: '/expenses', label: 'Expenses', feature: 'expenses' },
-  { href: '/banking', label: 'Banking', feature: 'banking' },
-  { href: '/billing', label: 'Subscription', permission: 'billing.subscription.manage', feature: 'billing' },
-  { href: '/disputes', label: 'Disputes', permission: 'sales.report.view', feature: 'disputes' },
-  { href: '/support', label: 'Support', permission: 'sales.report.view', feature: 'support' },
-  { href: '/settings', label: 'Settings', permission: 'store.settings.manage', feature: 'settings' },
-  { href: '/hardware', label: 'Hardware', permission: 'store.settings.manage', feature: 'hardware' },
+const navGroups = [
+  {
+    label: 'Dashboard',
+    items: [
+      { href: '/', label: 'Dashboard', feature: 'dashboard' },
+    ],
+  },
+  {
+    label: 'Sales',
+    items: [
+      { href: '/pos', label: 'Point of Sale', permission: 'sales.pos.create', feature: 'pos' },
+      { href: '/sales-history', label: 'Sales History', permission: 'sales.report.view', feature: 'reports' },
+      { href: '/receivables', label: 'Receivables', permission: 'sales.report.view', feature: 'receivables' },
+      { href: '/customers', label: 'Customers', permission: 'sales.report.view', feature: 'customers' },
+      { href: '/shipping', label: 'Shipping', permission: 'sales.pos.create', feature: 'shipping' },
+    ],
+  },
+  {
+    label: 'Product & Stock',
+    items: [
+      { href: '/inventory', label: 'Stock', permission: 'inventory.view', feature: 'inventory' },
+      { href: '/locations', label: 'Locations', permission: 'inventory.view', feature: 'inventory' },
+      { href: '/purchases', label: 'Purchases', feature: 'purchases' },
+      { href: '/approvals', label: 'Approvals', permission: 'inventory.adjust.approve', feature: 'inventory' },
+    ],
+  },
+  {
+    label: 'Reports & Activity',
+    items: [
+      { href: '/reports', label: 'Reports', permission: 'sales.report.view', feature: 'reports' },
+      { href: '/activity', label: 'Activity Log', permission: 'sales.report.view', feature: 'reports' },
+    ],
+  },
+  {
+    label: 'Finance',
+    items: [
+      { href: '/expenses', label: 'Expenses', feature: 'expenses' },
+      { href: '/banking', label: 'Banking', feature: 'banking' },
+      { href: '/billing', label: 'Subscription', permission: 'billing.subscription.manage', feature: 'billing' },
+    ],
+  },
+  {
+    label: 'Administration',
+    items: [
+      { href: '/staff', label: 'Team', permission: 'store.staff.manage', feature: 'staff' },
+      { href: '/settings', label: 'Settings', permission: 'store.settings.manage', feature: 'settings' },
+      { href: '/hardware', label: 'Hardware', permission: 'store.settings.manage', feature: 'hardware' },
+    ],
+  },
+  {
+    label: 'Support',
+    items: [
+      { href: '/disputes', label: 'Disputes', permission: 'sales.report.view', feature: 'disputes' },
+      { href: '/support', label: 'Support', permission: 'sales.report.view', feature: 'support' },
+      { href: '/help', label: 'Help & Reference' },
+    ],
+  },
 ] satisfies Array<{
-  href: string;
   label: string;
-  permission?: string;
-  feature?: StoreConsoleFeature;
+  items: Array<{
+    href: string;
+    label: string;
+    permission?: string;
+    feature?: StoreConsoleFeature;
+  }>;
 }>;
 
 export default async function StoreLayout({ children }: { children: ReactNode }) {
@@ -74,7 +113,7 @@ export default async function StoreLayout({ children }: { children: ReactNode })
         <WorkspaceShell
           access={access}
           badge="Market One BD"
-          navItems={navItems}
+          navItems={navGroups}
           title="Store Console"
         >
           {children}
