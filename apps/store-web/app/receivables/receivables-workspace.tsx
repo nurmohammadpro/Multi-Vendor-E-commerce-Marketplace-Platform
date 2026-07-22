@@ -496,8 +496,8 @@ export function ReceivablesWorkspace() {
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }} onClick={() => { setLedgerOpen(false); setLedgerData(null); }}>
           <div style={{
-            background: '#fff', borderRadius: 16, padding: 24, maxWidth: 900, width: '95%',
-            maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden',
+            background: '#fff', borderRadius: 16, padding: '24px 24px 0', maxWidth: 900, width: '95%',
+            maxHeight: '90vh', display: 'flex', flexDirection: 'column',
             boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
           }} onClick={(e) => e.stopPropagation()}>
             {/* Header — fixed */}
@@ -537,7 +537,7 @@ export function ReceivablesWorkspace() {
             ) : null}
 
             {/* Scrollable content area — only this scrolls */}
-            <div style={{ overflowY: 'auto', flex: 1, minHeight: 0 }}>
+            <div style={{ overflowY: 'auto', flex: 1, minHeight: 0, paddingBottom: 24 }}>
               {/* Export buttons */}
               {ledgerData ? (
                 <>

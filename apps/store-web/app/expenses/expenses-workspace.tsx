@@ -20,7 +20,8 @@ import {
   tokenMutedStyle,
 } from '../marketone-theme';
 import { ListPager, type PaginationState, totalPagesFor } from '../list-pager';
-import { useCompactLayout } from '../workspace-responsive';
+import { useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
+import { useTheme } from '@mvp/theme';
 
 type Expense = {
   id: string;
@@ -74,6 +75,21 @@ export function ExpensesWorkspace() {
   const [exportStartDate, setExportStartDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [exportEndDate, setExportEndDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [exporting, setExporting] = useState(false);
+
+  const [activeTab, setActiveTab] = useState<'expenses' | 'theme'>('expenses');
+  const { theme: currentTheme, setTheme, mode: currentMode, setMode, resolvedMode } = useTheme();
+
+  const THEME_ITEMS: Array<{ id: string; label: string }> = [
+    { id: 'slate-pro', label: 'Slate Pro' },
+    { id: 'stone-sky', label: 'Stone & Sky' },
+    { id: 'emerald-cream', label: 'Emerald & Cream' },
+    { id: 'ocean-sand', label: 'Ocean & Sand' },
+  ];
+  const MODE_ITEMS: Array<{ id: 'light' | 'dark' | 'system'; label: string }> = [
+    { id: 'light', label: 'Light' },
+    { id: 'dark', label: 'Dark' },
+    { id: 'system', label: 'System' },
+  ];
 
   const loadCategories = async () => {
     try {
@@ -280,11 +296,22 @@ export function ExpensesWorkspace() {
 
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
-      <section style={{ ...sectionPanelStyle, gridTemplateColumns: compact ? '1fr' : 'minmax(320px, 0.9fr) minmax(320px, 0.9fr)' }}>
-        <article style={surfaceCardStyle}>
-          <h3 style={{ marginTop: 0, fontSize: 14 }}>Record Expense</h3>
-          <div style={{ display: 'grid', gap: 10 }}>
-            <input type="date" value={form.expenseDate} onChange={(event) => setForm((current) => ({ ...current, expenseDate: event.target.value }))} style={fieldStyle} />
+      <WorkspaceTabs
+        active={activeTab}
+        onChange={(key) => setActiveTab(key as 'expenses' | 'theme')}
+        tabs={[
+          { key: 'expenses', label: 'Expenses' },
+          { key: 'theme', label: 'Theme' },
+        ]}
+      />
+
+      {activeTab === 'expenses' ? (
+        <>
+          <section style={{ ...sectionPanelStyle, gridTemplateColumns: compact ? '1fr' : 'minmax(320px, 0.9fr) minmax(320px, 0.9fr)' }}>
+            <article style={surfaceCardStyle}>
+              <h3 style={{ marginTop: 0, fontSize: 14 }}>Record Expense</h3>
+              <div style={{ display: 'grid', gap: 10 }}>
+                <input type="date" value={form.expenseDate} onChange={(event) => setForm((current) => ({ ...current, expenseDate: event.target.value }))} style={fieldStyle} />
             {hasCategories ? (
               <select value={form.categoryName} onChange={(event) => setForm((current) => ({ ...current, categoryName: event.target.value }))} style={fieldStyle}>
                 <option value="">Select category...</option>
@@ -458,10 +485,71 @@ export function ExpensesWorkspace() {
         </article>
       </section>
 
-      <article style={surfaceCardStyle}>
-        <h3 style={{ marginTop: 0, fontSize: 14 }}>Operator Notes</h3>
-        <p style={tokenMutedStyle}>{message}</p>
-      </article>
+        <article style={surfaceCardStyle}>
+          <h3 style={{ marginTop: 0, fontSize: 14 }}>Operator Notes</h3>
+          <p style={tokenMutedStyle}>{message}</p>
+        </article>
+      </>
+      ) : (
+        <section style={{ display: 'grid', gap: 16 }}>
+          {/* Theme selector */}
+          <article style={surfaceCardStyle}>
+            <h3 style={{ marginTop: 0, fontSize: 14 }}>Theme</h3>
+            <div style={{ display: 'grid', gap: 6 }}>
+              {THEME_ITEMS.map((t) => {
+                const active = currentTheme === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => { setTheme(t.id as any); }}
+                    className="flex w-full items-center justify-between gap-3 whitespace-nowrap rounded-md px-3 py-2 text-sm transition-colors"
+                    style={{
+                      color: active ? 'var(--accent-foreground)' : 'var(--foreground)',
+                      backgroundColor: active ? 'var(--accent)' : 'transparent',
+                      border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
+                    }}
+                    onMouseEnter={(e) => { if (!active) e.currentTarget.style.backgroundColor = 'var(--muted)'; }}
+                    onMouseLeave={(e) => { if (!active) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                  >
+                    <span>{t.label}</span>
+                    {active ? <span style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--accent-foreground)' }}>Active</span> : null}
+                  </button>
+                );
+              })}
+            </div>
+          </article>
+
+          {/* Mode selector */}
+          <article style={surfaceCardStyle}>
+            <h3 style={{ marginTop: 0, fontSize: 14 }}>Mode</h3>
+            <div style={{ display: 'grid', gap: 6 }}>
+              {MODE_ITEMS.map((m) => {
+                const active = currentMode === m.id;
+                const subtitle = m.id === 'system' ? `Using ${resolvedMode === 'light' ? 'Light' : 'Dark'}` : active ? 'Active' : '';
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => { setMode(m.id); }}
+                    className="flex w-full items-center justify-between gap-3 whitespace-nowrap rounded-md px-3 py-2 text-sm transition-colors"
+                    style={{
+                      color: active ? 'var(--accent-foreground)' : 'var(--foreground)',
+                      backgroundColor: active ? 'var(--accent)' : 'transparent',
+                      border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
+                    }}
+                    onMouseEnter={(e) => { if (!active) e.currentTarget.style.backgroundColor = 'var(--muted)'; }}
+                    onMouseLeave={(e) => { if (!active) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                  >
+                    <span>{m.label}</span>
+                    {subtitle ? <span style={{ fontSize: 10, color: active ? 'var(--accent-foreground)' : 'var(--muted-foreground)' }}>{subtitle}</span> : null}
+                  </button>
+                );
+              })}
+            </div>
+          </article>
+        </section>
+      )}
     </section>
   );
 }
