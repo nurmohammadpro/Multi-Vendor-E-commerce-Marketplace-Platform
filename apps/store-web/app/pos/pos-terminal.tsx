@@ -121,6 +121,9 @@ type ReprintResponse = {
   receipt?: ReceiptPayload;
 };
 
+type Category = { id: string; parent_id?: string | null; parent_name?: string | null; code: string; name: string; status: string };
+type Brand = { id: string; name: string; status: string };
+
 const SHOW_SHIFT_CONTROLS = false;
 
 const currency = (value: number) => value.toFixed(2);
@@ -198,6 +201,8 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
   const [exchangeFormBrand, setExchangeFormBrand] = useState('');
   const [exchangeFormCostPrice, setExchangeFormCostPrice] = useState('');
   const [exchangeFormSellPrice, setExchangeFormSellPrice] = useState('');
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [brands, setBrands] = useState<Brand[]>([]);
   const [openingCash, setOpeningCash] = useState('0');
   const [closingCash, setClosingCash] = useState('0');
   const [loading, setLoading] = useState(false);
@@ -220,12 +225,16 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
     void Promise.all([
       readJson<{ registers: Register[] }>('/api/pos/registers'),
       readJson<{ locations: Location[] }>('/api/pos/locations'),
+      readJson<{ categories: Category[] }>('/api/catalog/categories?status=active&limit=200'),
+      readJson<{ brands: Brand[] }>('/api/catalog/brands?status=active&limit=200'),
     ])
-      .then(([registerPayload, locationPayload]) => {
+      .then(([registerPayload, locationPayload, catPayload, brandPayload]) => {
         setRegisters(registerPayload.registers ?? []);
         setLocations(locationPayload.locations ?? []);
         setSelectedRegisterId(registerPayload.registers?.[0]?.id ?? '');
         setSelectedLocationId(locationPayload.locations?.[0]?.id ?? '');
+        setCategories(catPayload.categories ?? []);
+        setBrands(brandPayload.brands ?? []);
       })
       .catch((error: Error) => {
         setMessage(error.message);
@@ -1094,9 +1103,6 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
         {(!compact || activeTab === 'checkout') ? (
         <article style={cardStyle}>
           <h3 style={{ marginTop: 0, marginBottom: 6 }}>Checkout</h3>
-          <p style={{ marginTop: 0, color: 'var(--muted-foreground)' }}>
-            Customer details stay optional for paid sales, while cash change stays visible for the cashier.
-          </p>
 
           <div style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
             <input value={customerName} onChange={(event) => setCustomerName(event.target.value)} style={inputStyle} placeholder="Customer name (optional)" />
@@ -1437,18 +1443,26 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                 style={inputStyle}
                 placeholder="Product name (required)"
               />
-              <input
+              <select
                 value={exchangeFormCategory}
                 onChange={(e) => setExchangeFormCategory(e.target.value)}
-                style={inputStyle}
-                placeholder="Category"
-              />
-              <input
+                style={{ ...inputStyle, cursor: 'pointer' }}
+              >
+                <option value="">-- Select category --</option>
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.name}>{cat.name}</option>
+                ))}
+              </select>
+              <select
                 value={exchangeFormBrand}
                 onChange={(e) => setExchangeFormBrand(e.target.value)}
-                style={inputStyle}
-                placeholder="Brand"
-              />
+                style={{ ...inputStyle, cursor: 'pointer' }}
+              >
+                <option value="">-- Select brand --</option>
+                {brands.map((b) => (
+                  <option key={b.id} value={b.name}>{b.name}</option>
+                ))}
+              </select>
               <input
                 type="number"
                 min="0"

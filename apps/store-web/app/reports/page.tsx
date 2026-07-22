@@ -11,9 +11,6 @@ export default async function StoreReportsPage() {
       <div style={{ ...sectionIntroStyle, ...pageIntroCardStyle, maxWidth: 900 }}>
         <div style={sectionLabelStyle}>Reports</div>
         <h2 style={pageTitleStyle}>Store reports</h2>
-        <p style={pageLeadStyle}>
-          Daily sales, inventory snapshots, and export jobs are available from the live reporting APIs.
-        </p>
       </div>
       <ReportsWorkspace canViewReports={access.canViewReports} />
     </section>
