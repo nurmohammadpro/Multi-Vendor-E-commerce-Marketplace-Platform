@@ -35,6 +35,10 @@ type StoreSettings = {
   invoice_prefix?: string | null;
   allow_negative_stock: boolean;
   low_stock_threshold_default?: number | null;
+  points_per_amount?: number | null;
+  silver_threshold?: number | null;
+  gold_threshold?: number | null;
+  platinum_threshold?: number | null;
 };
 
 async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
@@ -72,6 +76,10 @@ export function SettingsWorkspace({ canManageSettings }: { canManageSettings: bo
     invoicePrefix: '',
     allowNegativeStock: false,
     lowStockThresholdDefault: '',
+    pointsPerAmount: '100',
+    silverThreshold: '0',
+    goldThreshold: '500',
+    platinumThreshold: '2000',
   });
   const [activeTab, setActiveTab] = useState<'identity' | 'operations'>('identity');
 
@@ -104,6 +112,10 @@ export function SettingsWorkspace({ canManageSettings }: { canManageSettings: bo
         nextSettings?.low_stock_threshold_default === null || nextSettings?.low_stock_threshold_default === undefined
           ? ''
           : String(nextSettings.low_stock_threshold_default),
+      pointsPerAmount: String(nextSettings?.points_per_amount ?? 100),
+      silverThreshold: String(nextSettings?.silver_threshold ?? 0),
+      goldThreshold: String(nextSettings?.gold_threshold ?? 500),
+      platinumThreshold: String(nextSettings?.platinum_threshold ?? 2000),
     });
   };
 
@@ -138,6 +150,10 @@ export function SettingsWorkspace({ canManageSettings }: { canManageSettings: bo
             ? ''
             : String(settings.low_stock_threshold_default)
         )
+      || settingsForm.pointsPerAmount !== String(settings.points_per_amount ?? 100)
+      || settingsForm.silverThreshold !== String(settings.silver_threshold ?? 0)
+      || settingsForm.goldThreshold !== String(settings.gold_threshold ?? 500)
+      || settingsForm.platinumThreshold !== String(settings.platinum_threshold ?? 2000)
     );
   }, [settings, settingsForm]);
 
@@ -192,6 +208,10 @@ export function SettingsWorkspace({ canManageSettings }: { canManageSettings: bo
             settingsForm.lowStockThresholdDefault.trim() === ''
               ? null
               : Number(settingsForm.lowStockThresholdDefault),
+          pointsPerAmount: Number(settingsForm.pointsPerAmount) || 100,
+          silverThreshold: Number(settingsForm.silverThreshold) || 0,
+          goldThreshold: Number(settingsForm.goldThreshold) || 500,
+          platinumThreshold: Number(settingsForm.platinumThreshold) || 2000,
         }),
       });
       await refresh();
@@ -383,6 +403,55 @@ export function SettingsWorkspace({ canManageSettings }: { canManageSettings: bo
         ) : null}
       </section>
 
+      {!compact || activeTab === 'operations' ? (
+      <article style={surfaceCardStyle}>
+        <h3 style={{ marginTop: 0 }}>Customer Loyalty</h3>
+        <div style={{ display: 'grid', gap: 10 }}>
+          <div>
+            <label style={{ fontSize: 12, color: 'var(--muted-foreground)', fontWeight: 500 }}>Points earning rate (per BDT)</label>
+            <input
+              value={settingsForm.pointsPerAmount}
+              onChange={(event) => setSettingsForm((current) => ({ ...current, pointsPerAmount: event.target.value }))}
+              style={fieldStyle}
+              placeholder="100"
+              disabled={!canManageSettings || loading}
+            />
+            <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginTop: 2 }}>Customer earns 1 point for every X BDT spent. Default: 100</div>
+          </div>
+          <div>
+            <label style={{ fontSize: 12, color: 'var(--muted-foreground)', fontWeight: 500 }}>Silver threshold (points)</label>
+            <input
+              value={settingsForm.silverThreshold}
+              onChange={(event) => setSettingsForm((current) => ({ ...current, silverThreshold: event.target.value }))}
+              style={fieldStyle}
+              placeholder="0"
+              disabled={!canManageSettings || loading}
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: 12, color: 'var(--muted-foreground)', fontWeight: 500 }}>Gold threshold (points)</label>
+            <input
+              value={settingsForm.goldThreshold}
+              onChange={(event) => setSettingsForm((current) => ({ ...current, goldThreshold: event.target.value }))}
+              style={fieldStyle}
+              placeholder="500"
+              disabled={!canManageSettings || loading}
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: 12, color: 'var(--muted-foreground)', fontWeight: 500 }}>Platinum threshold (points)</label>
+            <input
+              value={settingsForm.platinumThreshold}
+              onChange={(event) => setSettingsForm((current) => ({ ...current, platinumThreshold: event.target.value }))}
+              style={fieldStyle}
+              placeholder="2000"
+              disabled={!canManageSettings || loading}
+            />
+          </div>
+        </div>
+      </article>
+      ) : null}
+
       <article style={surfaceCardStyle}>
         <h3 style={{ marginTop: 0 }}>Current live configuration</h3>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
@@ -395,6 +464,10 @@ export function SettingsWorkspace({ canManageSettings }: { canManageSettings: bo
           <div><strong>Invoice prefix:</strong> {settings.invoice_prefix || '—'}</div>
           <div><strong>Low stock threshold:</strong> {settings.low_stock_threshold_default ?? '—'}</div>
           <div><strong>Negative stock:</strong> {settings.allow_negative_stock ? 'Allowed' : 'Blocked'}</div>
+          <div><strong>Points per:</strong> BDT {settings.points_per_amount ?? 100}</div>
+          <div><strong>Silver:</strong> {settings.silver_threshold ?? 0} pts</div>
+          <div><strong>Gold:</strong> {settings.gold_threshold ?? 500} pts</div>
+          <div><strong>Platinum:</strong> {settings.platinum_threshold ?? 2000} pts</div>
         </div>
         <p style={{ marginTop: 14, marginBottom: 0, color: 'var(--muted-foreground)' }}>{message}</p>
       </article>
