@@ -621,23 +621,23 @@ export class StoreService {
           sub.auto_renew as subscription_auto_renew,
           case
             when coalesce(sub.renewal_at, sub.end_at) is null then null
-            else coalesce(sub.renewal_at, sub.end_at) + interval '7 days'
+            else coalesce(sub.renewal_at, sub.end_at) + interval '3 months'
           end as deactivation_review_at,
           case
             when coalesce(sub.renewal_at, sub.end_at) is null then null
-            else coalesce(sub.renewal_at, sub.end_at) + interval '3 months'
+            else coalesce(sub.renewal_at, sub.end_at) + interval '6 months'
           end as delete_eligible_at,
           case
             when s.status = 'inactive'
               and coalesce(sub.renewal_at, sub.end_at) is not null
-              and now() >= coalesce(sub.renewal_at, sub.end_at) + interval '3 months'
+              and now() >= coalesce(sub.renewal_at, sub.end_at) + interval '6 months'
             then true
             else false
           end as can_delete,
           case
             when s.status <> 'inactive'
               and coalesce(sub.renewal_at, sub.end_at) is not null
-              and now() >= coalesce(sub.renewal_at, sub.end_at) + interval '7 days'
+              and now() >= coalesce(sub.renewal_at, sub.end_at) + interval '3 months'
             then true
             else false
           end as should_deactivate_review
@@ -811,11 +811,11 @@ export class StoreService {
           s.subscription_status,
           case
             when coalesce(sub.renewal_at, sub.end_at) is null then null
-            else coalesce(sub.renewal_at, sub.end_at) + interval '3 months'
+            else coalesce(sub.renewal_at, sub.end_at) + interval '6 months'
           end as delete_eligible_at,
           case
             when coalesce(sub.renewal_at, sub.end_at) is null then null
-            else coalesce(sub.renewal_at, sub.end_at) + interval '7 days'
+            else coalesce(sub.renewal_at, sub.end_at) + interval '3 months'
           end as deactivation_review_at,
           coalesce(sub.renewal_at, sub.end_at) as billing_due_at
         from store.stores s

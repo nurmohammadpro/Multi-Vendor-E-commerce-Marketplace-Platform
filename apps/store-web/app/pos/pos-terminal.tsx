@@ -191,10 +191,10 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
     bank_transfer: { amount: '', reference: '' },
   });
   const [exchangeItem, setExchangeItem] = useState<{ skuId: string; skuCode: string; productName: string; exchangeAmount: number } | null>(null);
-  const [exchangeSearch, setExchangeSearch] = useState('');
-  const [exchangeResults, setExchangeResults] = useState<SkuSearchResult[]>([]);
-  const [exchangeSearching, setExchangeSearching] = useState(false);
-  const exchangeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [exchangeModalOpen, setExchangeModalOpen] = useState(false);
+  const [exchangeFormName, setExchangeFormName] = useState('');
+  const [exchangeFormPrice, setExchangeFormPrice] = useState('');
+  const [exchangeFormSku, setExchangeFormSku] = useState('');
   const [openingCash, setOpeningCash] = useState('0');
   const [closingCash, setClosingCash] = useState('0');
   const [loading, setLoading] = useState(false);
@@ -519,35 +519,28 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
     }
   };
 
-  // ── Exchange product search ──
+  // ── Exchange product selection ──
 
-  const searchExchangeProducts = async (q: string) => {
-    if (!q.trim()) { setExchangeResults([]); return; }
-    setExchangeSearching(true);
-    try {
-      const payload = await readJson<{ skus: SkuSearchResult[] }>(`/api/pos/search?q=${encodeURIComponent(q.trim())}&limit=10&productType=exchange`);
-      setExchangeResults(payload.skus ?? []);
-    } catch { /* ignore */ }
-    finally { setExchangeSearching(false); }
+  const openExchangeModal = () => {
+    setExchangeFormName(exchangeItem?.productName ?? '');
+    setExchangeFormPrice(exchangeItem?.exchangeAmount ? String(exchangeItem.exchangeAmount) : '');
+    setExchangeFormSku(exchangeItem?.skuCode ?? '');
+    setExchangeModalOpen(true);
   };
 
-  useEffect(() => {
-    if (exchangeDebounceRef.current) clearTimeout(exchangeDebounceRef.current);
-    if (!exchangeSearch.trim()) { setExchangeResults([]); setExchangeSearching(false); return; }
-    setExchangeSearching(true);
-    exchangeDebounceRef.current = setTimeout(() => { void searchExchangeProducts(exchangeSearch.trim()); }, 150);
-    return () => { if (exchangeDebounceRef.current) clearTimeout(exchangeDebounceRef.current); };
-  }, [exchangeSearch]);
-
-  const selectExchangeItem = (sku: SkuSearchResult) => {
+  const saveExchangeItem = () => {
+    if (!exchangeFormName.trim()) return;
     setExchangeItem({
-      skuId: sku.id,
-      skuCode: sku.sku_code,
-      productName: sku.product_name,
-      exchangeAmount: Number(sku.sale_price ?? 0),
+      skuId: `exchange-${Date.now()}`,
+      skuCode: exchangeFormSku.trim() || 'EXCHANGE',
+      productName: exchangeFormName.trim(),
+      exchangeAmount: Number(exchangeFormPrice || 0),
     });
-    setExchangeSearch('');
-    setExchangeResults([]);
+    setExchangeModalOpen(false);
+  };
+
+  const removeExchangeItem = () => {
+    setExchangeItem(null);
   };
 
   const updateCartQty = (skuId: string, nextQty: number) => {
@@ -785,8 +778,6 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
       setPaymentMethod('cash');
       setPaymentReference('');
       setExchangeItem(null);
-      setExchangeSearch('');
-      setExchangeResults([]);
       setOrderDiscount('');
       setVatAmount('');
       setCashReceived('');
@@ -1121,35 +1112,30 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
 
           <div style={{ marginBottom: 12 }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13 }}>
-              <input type="checkbox" checked={exchangeEnabled} onChange={(e) => { setExchangeEnabled(e.target.checked); if (!e.target.checked) { setExchangeItem(null); setExchangeSearch(''); setExchangeResults([]); } }} style={{ accentColor: '#0f172a' }} />
+              <input type="checkbox" checked={exchangeEnabled} onChange={(e) => { setExchangeEnabled(e.target.checked); if (!e.target.checked) { setExchangeItem(null); } if (e.target.checked) { openExchangeModal(); } }} style={{ accentColor: '#0f172a' }} />
               <span style={{ color: 'var(--muted-foreground)' }}>Exchange / Trade-in</span>
             </label>
           </div>
 
-          {exchangeEnabled ? (
-            <div style={{ position: 'relative', marginBottom: 12 }}>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <div style={{ position: 'relative', flex: 1 }}>
-                  <input value={exchangeSearch} onChange={(event) => setExchangeSearch(event.target.value)} style={{ ...inputStyle, width: '100%' }} placeholder="Search exchange product" />
-                  {exchangeSearching ? <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: 'var(--muted-foreground)' }}>searching...</span> : null}
+          {exchangeEnabled && exchangeItem ? (
+            <div style={{ marginBottom: 12, padding: '8px 10px', background: 'rgba(22,163,74,0.08)', borderRadius: 8, border: '1px solid rgba(22,163,74,0.2)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                <div style={{ fontSize: 13 }}>
+                  <span style={{ fontWeight: 600 }}>{exchangeItem.productName}</span>
+                  <span style={{ color: 'var(--muted-foreground)', marginLeft: 6 }}>({exchangeItem.skuCode})</span>
+                  <span style={{ color: '#16a34a', fontWeight: 600, marginLeft: 6 }}>-{currency(exchangeItem.exchangeAmount)}</span>
+                </div>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <button onClick={openExchangeModal} style={{ ...subtleButtonStyle, fontSize: 11 }}>Edit</button>
+                  <button onClick={removeExchangeItem} style={{ ...subtleButtonStyle, fontSize: 11, color: '#dc2626' }}>Remove</button>
                 </div>
               </div>
-              {exchangeResults.length > 0 ? (
-                <div style={{ position: 'absolute', left: 0, right: 0, top: '100%', zIndex: 50, background: 'var(--card)', borderRadius: 8, border: '1px solid var(--border)', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', maxHeight: 200, overflowY: 'auto' }}>
-                  {exchangeResults.map((sku) => (
-                    <div key={sku.id} onMouseDown={(e) => e.preventDefault()} onClick={() => selectExchangeItem(sku)} style={{ padding: '8px 10px', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontSize: 13 }}>
-                      <div style={{ fontWeight: 600 }}>{sku.product_name}</div>
-                      <div style={{ color: 'var(--muted-foreground)', fontSize: 11 }}>{sku.sku_code} · BDT {Number(sku.sale_price ?? 0).toFixed(2)}</div>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-              {exchangeItem ? (
-                <div style={{ fontSize: 12, color: '#16a34a', marginTop: 4 }}>
-                  Selected: {exchangeItem.productName} (-{currency(exchangeItem.exchangeAmount)})
-                  <button onClick={() => { setExchangeItem(null); setExchangeSearch(''); }} style={{ ...subtleButtonStyle, marginLeft: 8, fontSize: 11 }}>Remove</button>
-                </div>
-              ) : null}
+            </div>
+          ) : exchangeEnabled && !exchangeItem ? (
+            <div style={{ marginBottom: 12 }}>
+              <button onClick={openExchangeModal} style={{ ...subtleButtonStyle, width: '100%', fontSize: 12, padding: '6px 10px', border: '1px dashed var(--border)', borderRadius: 8 }}>
+                + Add Exchange / Trade-in Product
+              </button>
             </div>
           ) : null}
 
@@ -1405,6 +1391,65 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
               ) : (
                 <div style={tokenMutedStyle}>No variants loaded for this product yet.</div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {exchangeModalOpen && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 50,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            backgroundColor: 'rgba(0,0,0,0.5)',
+          }}
+          onClick={() => setExchangeModalOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: 'var(--card)', borderRadius: 12,
+              width: '90%', maxWidth: 420,
+              padding: 24,
+              boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
+            }}
+          >
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>Exchange / Trade-in Product</h2>
+            <p style={{ margin: '4px 0 16px', fontSize: 14, color: 'var(--muted-foreground)' }}>
+              Enter the product details accepted as trade-in.
+            </p>
+
+            <div style={{ display: 'grid', gap: 10 }}>
+              <input
+                value={exchangeFormName}
+                onChange={(e) => setExchangeFormName(e.target.value)}
+                style={inputStyle}
+                placeholder="Product name (required)"
+              />
+              <input
+                value={exchangeFormSku}
+                onChange={(e) => setExchangeFormSku(e.target.value)}
+                style={inputStyle}
+                placeholder="SKU code (optional)"
+              />
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={exchangeFormPrice}
+                onChange={(e) => setExchangeFormPrice(e.target.value)}
+                style={inputStyle}
+                placeholder="Exchange value / sale price (BDT)"
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
+              <button onClick={() => setExchangeModalOpen(false)} style={neutralButtonStyle}>
+                Cancel
+              </button>
+              <button onClick={saveExchangeItem} style={gray800ButtonStyle} disabled={!exchangeFormName.trim()}>
+                Save Exchange Product
+              </button>
             </div>
           </div>
         </div>
