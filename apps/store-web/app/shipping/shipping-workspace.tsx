@@ -3,9 +3,9 @@
 import { useEffect, useState } from 'react';
 
 import {
-  accentButtonStyle,
   emptyStateStyle,
   fieldStyle,
+  gray800ButtonStyle,
   neutralButtonStyle,
   pageShellStyle,
   searchButtonStyle,
@@ -143,6 +143,7 @@ export function ShippingWorkspace({
     }
     setLoading(true);
     try {
+      const trackingNo = form.trackingNo.trim() || `SHIP-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
       await readJson('/api/shipping/shipments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -155,7 +156,7 @@ export function ShippingWorkspace({
           district: form.district || undefined,
           area: form.area || undefined,
           deliveryFee: Number(form.deliveryFee || 0),
-          trackingNo: form.trackingNo || undefined,
+          trackingNo,
           note: form.note || undefined,
         }),
       });
@@ -243,7 +244,7 @@ export function ShippingWorkspace({
           <input value={form.note} onChange={(e) => setForm((v) => ({ ...v, note: e.target.value }))} style={inputStyle} placeholder="Note" />
         </div>
         <textarea value={form.deliveryAddress} onChange={(e) => setForm((v) => ({ ...v, deliveryAddress: e.target.value }))} style={{ ...inputStyle, minHeight: 90, marginTop: 10, marginBottom: 10 }} placeholder="Delivery address" />
-        <button onClick={createShipment} style={accentButtonStyle} disabled={!canCreateShipment || !canManageShipping}>Create Shipment</button>
+        <button onClick={createShipment} style={gray800ButtonStyle} disabled={!canCreateShipment || !canManageShipping}>Create Shipment</button>
       </article>
       ) : null}
 

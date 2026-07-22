@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Eye, Phone, MessageSquareText } from 'lucide-react';
 
 import {
@@ -134,6 +134,16 @@ export function CustomersWorkspace() {
   useEffect(() => {
     void refresh().catch((error: Error) => setMessage(error.message));
   }, []);
+
+  // Reactive search: debounce query changes
+  const searchTimer = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(() => {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => {
+      void refresh(query).catch((error: Error) => setMessage(error.message));
+    }, 300);
+    return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
+  }, [query]);
 
   const enrichedCustomers = useMemo(() =>
     customers.map((c) => {
