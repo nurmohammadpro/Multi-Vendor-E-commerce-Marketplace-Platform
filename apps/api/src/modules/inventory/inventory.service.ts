@@ -326,6 +326,7 @@ export class InventoryService {
     );
 
     // Log the adjustment in ledger
+    const movementType = qtyDelta >= 0 ? 'adjustment_in' : 'adjustment_out';
     await this.pool.query(
       `
         insert into inventory.ledger (
@@ -348,12 +349,12 @@ export class InventoryService {
           $2,
           $3,
           $4,
-          ${qtyDelta >= 0 ? "'adjustment_in'" : "'adjustment_out'"},
           $5,
+          $6,
           'direct_adjust',
           gen_random_uuid(),
-          $6,
           $7,
+          $8,
           now()
         )
       `,
@@ -362,6 +363,7 @@ export class InventoryService {
         storeId,
         payload.locationId,
         payload.skuId,
+        movementType,
         qtyDelta,
         payload.reason,
         userId,
