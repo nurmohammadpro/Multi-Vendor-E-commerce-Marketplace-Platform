@@ -86,37 +86,14 @@ export function ActivityWorkspace() {
   const totalPages = Math.max(1, Math.ceil((pagination.total || 0) / (pagination.limit || 20)));
 
   return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 24 }}>
-      {/* Header Section */}
-      <div style={{ marginBottom: 8 }}>
-        <h1 style={{ margin: '0 0 6px', fontSize: 'clamp(24px, 2.2vw, 32px)', lineHeight: 1.1, letterSpacing: '-0.03em', fontWeight: 500 }}>
-          Activity Log
-        </h1>
-        <p style={{ ...tokenMutedStyle, margin: 0 }}>
-          Track system activities, user actions, and operational events for transparency and audit.
-        </p>
-      </div>
-
-      {/* Professional Filter Section */}
-      <article style={{ ...surfaceCardStyle, background: 'var(--muted)', padding: '20px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <div>
-            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>Filter Activities</h3>
-            <p style={{ margin: '4px 0 0', color: 'var(--muted-foreground)', fontSize: 13 }}>
-              Search and filter through system activity logs
-            </p>
-          </div>
-          <button onClick={() => { setSearch(''); setActionCode(''); setResourceType(''); void refresh(1); }} style={{ ...secondaryButtonStyle, fontSize: 12 }}>
-            Clear Filters
-          </button>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr)) auto', gap: 12 }}>
-          <input value={search} onChange={(event) => setSearch(event.target.value)} style={{ ...fieldStyle, padding: '10px 12px', fontSize: 13 }} placeholder="🔍 Search action, resource, or record ID" />
-          <input value={actionCode} onChange={(event) => setActionCode(event.target.value)} style={{ ...fieldStyle, padding: '10px 12px', fontSize: 13 }} placeholder="⚡ Action code" />
-          <input value={resourceType} onChange={(event) => setResourceType(event.target.value)} style={{ ...fieldStyle, padding: '10px 12px', fontSize: 13 }} placeholder="📁 Resource type" />
-          <button onClick={() => void refresh(1)} style={{ ...searchButtonStyle, padding: '10px 20px', fontSize: 13, fontWeight: 500 }} disabled={loading}>
-            {loading ? 'Searching...' : 'Apply Filters'}
-          </button>
+    <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
+      <article style={surfaceCardStyle}>
+        <h3 style={{ marginTop: 0 }}>Activity filters</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1.4fr) repeat(2, minmax(180px, 1fr)) auto', gap: 10 }}>
+          <input value={search} onChange={(event) => setSearch(event.target.value)} style={fieldStyle} placeholder="Search action, resource, or record id" />
+          <input value={actionCode} onChange={(event) => setActionCode(event.target.value)} style={fieldStyle} placeholder="Action code" />
+          <input value={resourceType} onChange={(event) => setResourceType(event.target.value)} style={fieldStyle} placeholder="Resource type" />
+          <button onClick={() => void refresh(1)} style={searchButtonStyle} disabled={loading}>Apply</button>
         </div>
       </article>
 
