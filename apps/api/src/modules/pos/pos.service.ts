@@ -1569,6 +1569,88 @@ export class PosService {
   }
 
 
+  async createExchangeItem(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    payload: {
+      productName: string;
+      categoryName?: string;
+      brandName?: string;
+      costPrice: number;
+      salePrice: number;
+    },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const client = await this.pool.connect();
+
+    try {
+      await client.query('begin');
+
+      const tenantResult = await client.query<{ tenant_id: string; store_code: string }>(
+        'select tenant_id, store_code from store.stores where id = $1 limit 1', [storeId],
+      );
+      const tenantId = tenantResult.rows[0].tenant_id;
+
+      // Resolve category/brand by name
+      let categoryId: string | null = null;
+      if (payload.categoryName) {
+        const result = await client.query<{ id: string }>(
+          'select id from catalog.categories where store_id = $1 and name = $2 limit 1',
+          [storeId, payload.categoryName],
+        );
+        categoryId = result.rows[0]?.id ?? null;
+      }
+
+      let brandId: string | null = null;
+      if (payload.brandName) {
+        const result = await client.query<{ id: string }>(
+          'select id from catalog.brands where store_id = $1 and name = $2 limit 1',
+          [storeId, payload.brandName],
+        );
+        brandId = result.rows[0]?.id ?? null;
+      }
+
+      const productName = payload.productName.trim();
+      const baseCode = productName.replace(/[^A-Za-z0-9]/g, '-').toUpperCase().slice(0, 28) || 'EXCHANGE';
+      const productCode = `${baseCode}-${Date.now().toString(36).slice(-4).toUpperCase()}`;
+      const ts = Date.now();
+      const barcode = '2' + String(ts).slice(-9) + String(Math.floor(Math.random() * 1000)).padStart(3, '0');
+
+      // Create exchange product
+      const productResult = await client.query<{ id: string }>(
+        `insert into catalog.products (id, tenant_id, store_id, product_code, name, category_id, brand_id, has_variants, variant_mode, is_trackable, product_type, status, created_at, updated_at)
+         values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, false, 'none', false, 'exchange', 'active', now(), now()) returning id`,
+        [tenantId, storeId, productCode, productName, categoryId, brandId],
+      );
+      const productId = productResult.rows[0].id;
+
+      // Create SKU
+      const skuCode = `EXC-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+      const skuResult = await client.query<{ id: string }>(
+        `insert into catalog.skus (id, tenant_id, store_id, product_id, sku_code, barcode, status, created_at, updated_at)
+         values (gen_random_uuid(), $1, $2, $3, $4, $5, 'active', now(), now()) returning id`,
+        [tenantId, storeId, productId, skuCode, barcode],
+      );
+
+      // Create price entry
+      await client.query(
+        `insert into catalog.prices (id, tenant_id, store_id, sku_id, sale_price, cost_price, effective_from, created_at)
+         values (gen_random_uuid(), $1, $2, $3, $4, $5, now(), now())`,
+        [tenantId, storeId, skuResult.rows[0].id, String(payload.salePrice), String(payload.costPrice)],
+      );
+
+      await client.query('commit');
+
+      return { skuId: skuResult.rows[0].id, skuCode };
+    } catch (error) {
+      await client.query('rollback').catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+
   private assertStoreContext(headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
     if (!authContext || authContext.type !== 'store') {
       throw new ForbiddenException('Store context is required');
