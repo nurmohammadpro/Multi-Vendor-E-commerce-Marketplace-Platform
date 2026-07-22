@@ -47,6 +47,10 @@ export class InventoryService {
             where l.store_id = s.id
               and l.status = 'active'
           )
+        on conflict (store_id, code)
+        do update set
+          status = 'active',
+          updated_at = now()
       `,
       [storeId],
     );
@@ -330,13 +334,12 @@ export class InventoryService {
           store_id,
           location_id,
           sku_id,
-          transaction_type,
-          quantity_delta,
-          balance_after,
+          movement_type,
+          qty_delta,
           reference_type,
           reference_id,
-          notes,
-          created_by,
+          note,
+          actor_id,
           created_at
         )
         values (
@@ -347,11 +350,10 @@ export class InventoryService {
           $4,
           'adjustment',
           $5,
-          $6,
           'direct_adjust',
           gen_random_uuid(),
+          $6,
           $7,
-          $8,
           now()
         )
       `,
@@ -361,7 +363,6 @@ export class InventoryService {
         payload.locationId,
         payload.skuId,
         qtyDelta,
-        payload.onHandQty,
         payload.reason,
         userId,
       ],
