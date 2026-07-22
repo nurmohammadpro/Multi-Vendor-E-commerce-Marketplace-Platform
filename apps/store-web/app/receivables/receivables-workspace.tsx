@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { ListPager, type PaginationState } from '../list-pager';
 import { SearchableSelect } from '../../components/searchable-select';
@@ -118,6 +118,19 @@ export function ReceivablesWorkspace() {
   const [ledgerToDate, setLedgerToDate] = useState(new Date().toISOString().slice(0, 10));
   const [ledgerLoading, setLedgerLoading] = useState(false);
   const [ledgerData, setLedgerData] = useState<CustomerLedgerData | null>(null);
+  const [customerTotalOutstanding, setCustomerTotalOutstanding] = useState<number | null>(null);
+
+  const fetchCustomerOutstanding = useCallback(async (customerId: string) => {
+    if (!customerId) { setCustomerTotalOutstanding(null); return; }
+    try {
+      const payload = await readJson<{ customer: { opening_receivable_amount?: number }; dueSales: Array<{ outstanding_due_amount: number }> }>(
+        `/api/store-ops/customers/${customerId}`
+      );
+      const opening = Number(payload.customer?.opening_receivable_amount ?? 0);
+      const dueTotal = (payload.dueSales ?? []).reduce((sum, d) => sum + Number(d.outstanding_due_amount ?? 0), 0);
+      setCustomerTotalOutstanding(opening + dueTotal);
+    } catch { setCustomerTotalOutstanding(null); }
+  }, []);
 
   const refresh = async (search = query, nextPage = page) => {
     const params = new URLSearchParams({ page: String(nextPage), limit: String(pagination.limit) });
@@ -154,6 +167,10 @@ export function ReceivablesWorkspace() {
     };
     void fetchCustomers();
   }, []);
+
+  useEffect(() => {
+    void fetchCustomerOutstanding(ledgerCustomerId);
+  }, [ledgerCustomerId, fetchCustomerOutstanding]);
 
   const selectedSale = dueSales.find((sale) => sale.id === selectedSaleId) ?? null;
 
@@ -480,15 +497,17 @@ export function ReceivablesWorkspace() {
         }} onClick={() => { setLedgerOpen(false); setLedgerData(null); }}>
           <div style={{
             background: '#fff', borderRadius: 16, padding: 24, maxWidth: 900, width: '95%',
-            maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+            maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
           }} onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            {/* Header — fixed */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexShrink: 0 }}>
               <h3 style={{ margin: 0, fontSize: 16 }}>Customer Ledger</h3>
               <button onClick={() => { setLedgerOpen(false); setLedgerData(null); }} style={{ ...secondaryButtonStyle, minWidth: 40 }}>✕</button>
             </div>
 
-            {/* Filters */}
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+            {/* Filters — fixed, no overflow clipping */}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10, flexShrink: 0 }}>
               <SearchableSelect
                 options={[
                   { value: '', label: 'Select customer' },
@@ -510,40 +529,49 @@ export function ReceivablesWorkspace() {
               </button>
             </div>
 
-            {/* Export buttons */}
-            {ledgerData ? (
-              <>
-                <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-                  <button onClick={exportLedgerCsv} style={gray800ButtonStyle}>Export CSV</button>
-                  <button onClick={exportLedgerPdf} style={searchButtonStyle}>Export PDF (A4)</button>
-                </div>
+            {/* Total outstanding — shown as soon as customer is selected */}
+            {ledgerCustomerId && customerTotalOutstanding !== null ? (
+              <div style={{ marginBottom: 10, fontSize: 13, padding: '8px 12px', background: '#f0fdf4', borderRadius: 8, border: '1px solid #bbf7d0', flexShrink: 0 }}>
+                <strong>Total Outstanding (All Time):</strong> BDT {formatMoney(customerTotalOutstanding)}
+              </div>
+            ) : null}
 
-                {/* Ledger summary */}
-                <div style={{ display: 'flex', gap: 16, marginBottom: 12, fontSize: 13 }}>
-                  <span><strong>Opening:</strong> BDT {formatMoney(ledgerData.openingBalance)}</span>
-                  <span><strong>Closing:</strong> BDT {formatMoney(ledgerData.closingBalance)}</span>
-                  <span><strong>Transactions:</strong> {ledgerData.transactions.length}</span>
-                </div>
+            {/* Scrollable content area — only this scrolls */}
+            <div style={{ overflowY: 'auto', flex: 1, minHeight: 0 }}>
+              {/* Export buttons */}
+              {ledgerData ? (
+                <>
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                    <button onClick={exportLedgerCsv} style={gray800ButtonStyle}>Export CSV</button>
+                    <button onClick={exportLedgerPdf} style={searchButtonStyle}>Export PDF (A4)</button>
+                  </div>
 
-                {/* Ledger table preview */}
-                <div style={tableWrapStyle}>
-                  <table style={tableStyle}>
-                    <thead><tr>
-                      <th style={tableHeaderCellStyle}>Date</th>
-                      <th style={tableHeaderCellStyle}>Reference</th>
-                      <th style={tableHeaderCellStyle}>Invoice</th>
-                      <th style={tableHeaderCellStyle}>Type</th>
-                      <th style={{ ...tableHeaderCellStyle, textAlign: 'right' }}>Debit</th>
-                      <th style={{ ...tableHeaderCellStyle, textAlign: 'right' }}>Credit</th>
-                      <th style={{ ...tableHeaderCellStyle, textAlign: 'right' }}>Balance</th>
-                    </tr></thead>
-                    <tbody>
-                      <tr style={{ background: '#f8fafc' }}>
-                        <td colSpan={4} style={{ ...tableCellStyle, fontWeight: 600 }}>Opening Balance</td>
-                        <td style={{ ...tableCellStyle, textAlign: 'right', fontFamily: 'monospace', fontWeight: 600 }}>{formatMoney(ledgerData.openingBalance)}</td>
-                        <td style={tableCellStyle}></td>
-                        <td style={tableCellStyle}></td>
-                      </tr>
+                  {/* Ledger summary */}
+                  <div style={{ display: 'flex', gap: 16, marginBottom: 12, fontSize: 13 }}>
+                    <span><strong>Opening:</strong> BDT {formatMoney(ledgerData.openingBalance)}</span>
+                    <span><strong>Closing:</strong> BDT {formatMoney(ledgerData.closingBalance)}</span>
+                    <span><strong>Transactions:</strong> {ledgerData.transactions.length}</span>
+                  </div>
+
+                  {/* Ledger table preview */}
+                  <div style={tableWrapStyle}>
+                    <table style={tableStyle}>
+                      <thead><tr>
+                        <th style={tableHeaderCellStyle}>Date</th>
+                        <th style={tableHeaderCellStyle}>Reference</th>
+                        <th style={tableHeaderCellStyle}>Invoice</th>
+                        <th style={tableHeaderCellStyle}>Type</th>
+                        <th style={{ ...tableHeaderCellStyle, textAlign: 'right' }}>Debit</th>
+                        <th style={{ ...tableHeaderCellStyle, textAlign: 'right' }}>Credit</th>
+                        <th style={{ ...tableHeaderCellStyle, textAlign: 'right' }}>Balance</th>
+                      </tr></thead>
+                      <tbody>
+                        <tr style={{ background: '#f8fafc' }}>
+                          <td colSpan={4} style={{ ...tableCellStyle, fontWeight: 600 }}>Opening Balance</td>
+                          <td style={{ ...tableCellStyle, textAlign: 'right', fontFamily: 'monospace', fontWeight: 600 }}>{formatMoney(ledgerData.openingBalance)}</td>
+                          <td style={tableCellStyle}></td>
+                          <td style={tableCellStyle}></td>
+                        </tr>
                       {ledgerData.transactions.map((tx, i) => (
                         <tr key={i}>
                           <td style={tableCellStyle}>{tx.tx_date}</td>
@@ -569,6 +597,7 @@ export function ReceivablesWorkspace() {
               <div style={emptyStateStyle}>Select a customer and date range, then click Load Ledger.</div>
             )}
           </div>
+        </div>
         </div>
       ) : null}
     </section>

@@ -51,9 +51,16 @@ export function ThemeToggle() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-1.5 w-64 rounded-lg border border-border bg-popover p-1.5 shadow-lg">
+        <div
+          className="absolute right-0 top-full z-50 mt-1.5 min-w-56 rounded-lg border shadow-lg sm:w-64"
+          style={{
+            backgroundColor: 'var(--popover)',
+            borderColor: 'var(--border)',
+            padding: '0.375rem',
+          }}
+        >
           {/* Theme selector */}
-          <div className="px-2.5 pb-1 pt-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+          <div className="px-2.5 pb-1 pt-0.5 text-[10px] font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--muted-foreground)' }}>
             Theme
           </div>
           {THEMES.map((t) => {
@@ -66,23 +73,25 @@ export function ThemeToggle() {
                   setTheme(t.id);
                   setOpen(false);
                 }}
-                className={`flex w-full items-center justify-between gap-3 whitespace-nowrap rounded-md px-2.5 py-1.5 text-xs transition-colors ${
-                  active
-                    ? 'bg-accent text-accent-foreground font-medium'
-                    : 'text-foreground hover:bg-muted'
-                }`}
+                onMouseEnter={(e) => { if (!active) e.currentTarget.style.backgroundColor = 'var(--muted)'; }}
+                onMouseLeave={(e) => { if (!active) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                className="flex w-full items-center justify-between gap-3 whitespace-nowrap rounded-md px-2.5 py-1.5 text-xs transition-colors"
+                style={{
+                  color: active ? 'var(--accent-foreground)' : 'var(--foreground)',
+                  backgroundColor: active ? 'var(--accent)' : 'transparent',
+                }}
               >
                 <span>{t.label}</span>
-                {active ? <span className="text-[10px] uppercase tracking-[0.08em]">Active</span> : null}
+                {active ? <span className="text-[10px] uppercase tracking-[0.08em]" style={{ color: 'var(--accent-foreground)' }}>Active</span> : null}
               </button>
             );
           })}
 
           {/* Separator */}
-          <div className="my-1.5 border-t border-border" />
+          <div className="my-1.5 border-t" style={{ borderColor: 'var(--border)' }} />
 
           {/* Mode selector */}
-          <div className="px-2.5 pb-1 pt-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+          <div className="px-2.5 pb-1 pt-0.5 text-[10px] font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--muted-foreground)' }}>
             Mode
           </div>
           {(['light', 'dark', 'system'] as const).map((value) => {
@@ -95,14 +104,16 @@ export function ThemeToggle() {
                   setMode(value);
                   setOpen(false);
                 }}
-                className={`flex w-full items-center justify-between gap-3 whitespace-nowrap rounded-md px-2.5 py-1.5 text-xs transition-colors ${
-                  active
-                    ? 'bg-accent text-accent-foreground font-medium'
-                    : 'text-foreground hover:bg-muted'
-                }`}
+                onMouseEnter={(e) => { if (!active) e.currentTarget.style.backgroundColor = 'var(--muted)'; }}
+                onMouseLeave={(e) => { if (!active) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                className="flex w-full items-center justify-between gap-3 whitespace-nowrap rounded-md px-2.5 py-1.5 text-xs transition-colors"
+                style={{
+                  color: active ? 'var(--accent-foreground)' : 'var(--foreground)',
+                  backgroundColor: active ? 'var(--accent)' : 'transparent',
+                }}
               >
                 <span>{MODE_LABELS[value]}</span>
-                <span className={`text-[10px] ${active ? 'text-accent-foreground/80' : 'text-muted-foreground'}`}>
+                <span className="text-[10px]" style={{ color: active ? 'var(--accent-foreground)' : 'var(--muted-foreground)' }}>
                   {value === 'system' ? `Using ${MODE_LABELS[resolvedMode]}` : active ? 'Active' : ''}
                 </span>
               </button>

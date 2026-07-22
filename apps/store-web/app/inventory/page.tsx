@@ -11,9 +11,6 @@ export default async function StoreInventoryPage() {
       <div style={{ ...sectionIntroStyle, ...pageIntroCardStyle, maxWidth: 900 }}>
         <div style={sectionLabelStyle}>Inventory</div>
         <h2 style={pageTitleStyle}>Inventory control</h2>
-        <p style={pageLeadStyle}>
-          Use live inventory APIs for balances, adjustments, approvals, and ledger history.
-        </p>
       </div>
       <InventoryWorkspace
         canApproveInventory={access.canApproveInventory}
