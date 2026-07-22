@@ -155,85 +155,45 @@ export function ReportsWorkspace({ canViewReports }: { canViewReports: boolean }
   }
 
   return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 24 }}>
-      {/* Header Section */}
-      <div style={{ marginBottom: 8 }}>
-        <h1 style={{ margin: '0 0 6px', fontSize: 'clamp(24px, 2.2vw, 32px)', lineHeight: 1.1, letterSpacing: '-0.03em', fontWeight: 500 }}>
-          Business Reports
-        </h1>
-        <p style={{ ...tokenMutedStyle, margin: 0 }}>
-          Comprehensive insights into sales performance, inventory status, and business metrics.
-        </p>
-      </div>
-
+    <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
       {compact ? (
         <WorkspaceTabs
           active={activeTab}
           onChange={(key) => setActiveTab(key as 'summary' | 'sales' | 'inventory' | 'due' | 'exports')}
           tabs={[
-            { key: 'summary', label: 'Overview' },
+            { key: 'summary', label: 'Summary' },
             { key: 'sales', label: 'Sales' },
             { key: 'inventory', label: 'Inventory' },
-            { key: 'due', label: 'Receivables' },
-            { key: 'exports', label: 'Export Data' },
+            { key: 'due', label: 'Due' },
+            { key: 'exports', label: 'Exports' },
           ]}
         />
       ) : null}
-
       {(!compact || activeTab === 'summary') ? (
-      <section>
-        <div style={{ ...sectionPanelStyle, gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 }}>
-          <article style={{ ...surfaceCardStyle, borderLeft: '4px solid var(--primary)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-              <div style={metricLabelStyle}>Total Revenue</div>
-              <div style={{ fontSize: 20, opacity: 0.6 }}>💰</div>
-            </div>
-            <div style={metricValueStyle}>{sales?.summary.total_sales_amount ?? '—'}</div>
-            <div style={{ color: 'var(--muted-foreground)', fontSize: 12, marginTop: 4 }}>
-              Today's sales performance
-            </div>
-          </article>
-          <article style={{ ...surfaceCardStyle, borderLeft: '4px solid #16a34a' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-              <div style={metricLabelStyle}>Total Orders</div>
-              <div style={{ fontSize: 20, opacity: 0.6 }}>📦</div>
-            </div>
-            <div style={metricValueStyle}>{sales?.summary.total_orders_count ?? '—'}</div>
-            <div style={{ color: 'var(--muted-foreground)', fontSize: 12, marginTop: 4 }}>
-              Completed transactions
-            </div>
-          </article>
-          <article style={{ ...surfaceCardStyle, borderLeft: '4px solid #ea580c' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-              <div style={metricLabelStyle}>Product SKUs</div>
-              <div style={{ fontSize: 20, opacity: 0.6 }}>🏷️</div>
-            </div>
-            <div style={metricValueStyle}>{inventory?.summary.sku_count ?? '—'}</div>
-            <div style={{ color: 'var(--muted-foreground)', fontSize: 12, marginTop: 4 }}>
-              Active product catalog
-            </div>
-          </article>
-          <article style={{ ...surfaceCardStyle, borderLeft: '4px solid #2563eb' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-              <div style={metricLabelStyle}>Available Stock</div>
-              <div style={{ fontSize: 20, opacity: 0.6 }}>📊</div>
-            </div>
-            <div style={metricValueStyle}>{inventory ? formatQty(inventory.summary.total_available_qty) : '—'}</div>
-            <div style={{ color: 'var(--muted-foreground)', fontSize: 12, marginTop: 4 }}>
-              Ready to sell quantity
-            </div>
-          </article>
-          <article style={{ ...surfaceCardStyle, borderLeft: '4px solid #dc2626' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-              <div style={metricLabelStyle}>Due Collections</div>
-              <div style={{ fontSize: 20, opacity: 0.6 }}>⚠️</div>
-            </div>
-            <div style={metricValueStyle}>{sales?.summary.due_sales_count ?? '—'}</div>
-            <div style={{ color: 'var(--muted-foreground)', fontSize: 12, marginTop: 4 }}>
-              Outstanding: {sales?.summary.due_sales_amount ?? '—'}
-            </div>
-          </article>
-        </div>
+      <section style={{ ...sectionPanelStyle, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+        <article style={surfaceCardStyle}>
+          <div style={metricLabelStyle}>Total Sales</div>
+          <div style={metricValueStyle}>{sales?.summary.total_sales_amount ?? '—'}</div>
+        </article>
+        <article style={surfaceCardStyle}>
+          <div style={metricLabelStyle}>Orders</div>
+          <div style={metricValueStyle}>{sales?.summary.total_orders_count ?? '—'}</div>
+        </article>
+        <article style={surfaceCardStyle}>
+          <div style={metricLabelStyle}>SKUs</div>
+          <div style={metricValueStyle}>{inventory?.summary.sku_count ?? '—'}</div>
+        </article>
+        <article style={surfaceCardStyle}>
+          <div style={metricLabelStyle}>Available Qty</div>
+          <div style={metricValueStyle}>{inventory ? formatQty(inventory.summary.total_available_qty) : '—'}</div>
+        </article>
+        <article style={surfaceCardStyle}>
+          <div style={metricLabelStyle}>Due Sales</div>
+          <div style={metricValueStyle}>{sales?.summary.due_sales_count ?? '—'}</div>
+          <div style={{ color: 'var(--muted-foreground)', fontSize: 12, marginTop: 4 }}>
+            Amount: {sales?.summary.due_sales_amount ?? '—'}
+          </div>
+        </article>
       </section>
       ) : null}
 
