@@ -182,6 +182,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
   const [paymentReference, setPaymentReference] = useState('');
   const [orderDiscount, setOrderDiscount] = useState('');
   const [vatAmount, setVatAmount] = useState('');
+  const [taxAmount, setTaxAmount] = useState('');
   const [cashReceived, setCashReceived] = useState('');
   const [usePartialPayments, setUsePartialPayments] = useState(false);
   const [partialPayments, setPartialPayments] = useState<Record<'cash' | 'card' | 'mfs' | 'bank_transfer', { amount: string; reference: string }>>({
@@ -190,11 +191,13 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
     mfs: { amount: '', reference: '' },
     bank_transfer: { amount: '', reference: '' },
   });
-  const [exchangeItem, setExchangeItem] = useState<{ skuId: string; skuCode: string; productName: string; exchangeAmount: number } | null>(null);
+  const [exchangeItem, setExchangeItem] = useState<{ skuId: string; skuCode: string; productName: string; category: string; brand: string; costPrice: number; exchangeAmount: number } | null>(null);
   const [exchangeModalOpen, setExchangeModalOpen] = useState(false);
   const [exchangeFormName, setExchangeFormName] = useState('');
-  const [exchangeFormPrice, setExchangeFormPrice] = useState('');
-  const [exchangeFormSku, setExchangeFormSku] = useState('');
+  const [exchangeFormCategory, setExchangeFormCategory] = useState('');
+  const [exchangeFormBrand, setExchangeFormBrand] = useState('');
+  const [exchangeFormCostPrice, setExchangeFormCostPrice] = useState('');
+  const [exchangeFormSellPrice, setExchangeFormSellPrice] = useState('');
   const [openingCash, setOpeningCash] = useState('0');
   const [closingCash, setClosingCash] = useState('0');
   const [loading, setLoading] = useState(false);
@@ -315,18 +318,18 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
 
   const orderDiscountAmount = useMemo(() => Math.max(Number(orderDiscount || 0), 0), [orderDiscount]);
   const vatAmountValue = useMemo(() => Math.max(Number(vatAmount || 0), 0), [vatAmount]);
+  const taxAmountValue = useMemo(() => Math.max(Number(taxAmount || 0), 0), [taxAmount]);
 
   const grandTotal = useMemo(
-    () => Math.max(total - totalDiscount - orderDiscountAmount + vatAmountValue, 0),
-    [total, totalDiscount, orderDiscountAmount, vatAmountValue],
+    () => Math.max(total - totalDiscount - orderDiscountAmount + vatAmountValue + taxAmountValue, 0),
+    [total, totalDiscount, orderDiscountAmount, vatAmountValue, taxAmountValue],
   );
 
-  const exchangeAmount = exchangeItem?.exchangeAmount ?? 0;
-  const amountAfterExchange = useMemo(() => grandTotal - exchangeAmount, [grandTotal, exchangeAmount]);
+  const exchangeCost = exchangeItem?.costPrice ?? 0;
 
   const paymentRequired = useMemo(
-    () => exchangeEnabled && exchangeItem ? Math.max(amountAfterExchange, 0) : grandTotal,
-    [exchangeEnabled, exchangeItem, amountAfterExchange, grandTotal],
+    () => exchangeEnabled && exchangeItem ? Math.max(grandTotal - exchangeCost, 0) : Math.max(grandTotal, 0),
+    [exchangeEnabled, exchangeItem, exchangeCost, grandTotal],
   );
 
   const totalPaidFromPartial = useMemo(
@@ -523,8 +526,10 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
 
   const openExchangeModal = () => {
     setExchangeFormName(exchangeItem?.productName ?? '');
-    setExchangeFormPrice(exchangeItem?.exchangeAmount ? String(exchangeItem.exchangeAmount) : '');
-    setExchangeFormSku(exchangeItem?.skuCode ?? '');
+    setExchangeFormCategory(exchangeItem?.category ?? '');
+    setExchangeFormBrand(exchangeItem?.brand ?? '');
+    setExchangeFormCostPrice(exchangeItem?.costPrice ? String(exchangeItem.costPrice) : '');
+    setExchangeFormSellPrice(exchangeItem?.exchangeAmount ? String(exchangeItem.exchangeAmount) : '');
     setExchangeModalOpen(true);
   };
 
@@ -532,9 +537,12 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
     if (!exchangeFormName.trim()) return;
     setExchangeItem({
       skuId: `exchange-${Date.now()}`,
-      skuCode: exchangeFormSku.trim() || 'EXCHANGE',
+      skuCode: `EXC-${Date.now()}`,
       productName: exchangeFormName.trim(),
-      exchangeAmount: Number(exchangeFormPrice || 0),
+      category: exchangeFormCategory.trim(),
+      brand: exchangeFormBrand.trim(),
+      costPrice: Number(exchangeFormCostPrice || 0),
+      exchangeAmount: Number(exchangeFormSellPrice || 0),
     });
     setExchangeModalOpen(false);
   };
@@ -694,7 +702,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
           exchangeSkuId: saleIsExchange ? exchangeItem!.skuId : undefined,
           exchangeAmount: saleIsExchange ? exchangeItem!.exchangeAmount : 0,
           discountAmount: orderDiscountAmount,
-          taxAmount: 0,
+          taxAmount: taxAmountValue,
           vatAmount: vatAmountValue,
           shippingAmount: 0,
           items: cart.map((item) => ({
@@ -719,7 +727,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
             : [
                 {
                   paymentMethod,
-                  amount: saleIsExchange ? Math.max(amountAfterExchange, 0) : grandTotal,
+                  amount: paymentRequired,
                   referenceNo: paymentReference || undefined,
                   status: saleIsDue ? 'pending' : 'paid',
                 },
@@ -978,14 +986,12 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                 </p>
               </div>
               <div style={{ fontSize: 12, color: 'var(--muted-foreground)', textAlign: 'right' }}>
-                <div>{cart.length} item(s) · Subtotal {currency(total)}</div>
                 {totalDiscount > 0 ? (
                   <div style={{ color: '#b45309' }}>Item Disc. -{currency(totalDiscount)}</div>
                 ) : null}
                 {orderDiscountAmount > 0 ? (
                   <div style={{ color: '#b45309' }}>Order Disc. -{currency(orderDiscountAmount)}</div>
                 ) : null}
-                <div style={{ fontWeight: 700, fontSize: 14 }}>Total {currency(grandTotal)}</div>
               </div>
             </div>
             {cart.length ? (
@@ -1139,6 +1145,65 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
             </div>
           ) : null}
 
+          <div style={{ display: 'grid', gap: 8, marginBottom: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span>Subtotal</span>
+              <strong>{currency(total)}</strong>
+            </div>
+            {exchangeEnabled && exchangeItem ? (
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#16a34a' }}>
+                <span>Exchange: {exchangeItem.productName}</span>
+                <strong>-{currency(exchangeItem.costPrice)}</strong>
+              </div>
+            ) : null}
+            {totalDiscount > 0 ? (
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#b45309' }}>
+                <span>Item Discount</span>
+                <strong>-{currency(totalDiscount)}</strong>
+              </div>
+            ) : null}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 13 }}>Discount</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={orderDiscount}
+                onChange={(e) => setOrderDiscount(e.target.value)}
+                style={{ ...inputStyle, width: 100, fontSize: 12, textAlign: 'right', padding: '4px 8px' }}
+                placeholder="0.00"
+              />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 13 }}>VAT</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={vatAmount}
+                onChange={(e) => setVatAmount(e.target.value)}
+                style={{ ...inputStyle, width: 100, fontSize: 12, textAlign: 'right', padding: '4px 8px' }}
+                placeholder="0.00"
+              />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 13 }}>Tax</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={taxAmount}
+                onChange={(e) => setTaxAmount(e.target.value)}
+                style={{ ...inputStyle, width: 100, fontSize: 12, textAlign: 'right', padding: '4px 8px' }}
+                placeholder="0.00"
+              />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 15, borderTop: '1px solid var(--border)', paddingTop: 8 }}>
+              <span>Net Payable</span>
+              <strong>{currency(paymentRequired)}</strong>
+            </div>
+          </div>
+
           {!usePartialPayments ? (
             <div style={{ marginBottom: 12 }}>
               <select
@@ -1204,85 +1269,32 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
             </div>
           )}
 
-          <div style={{ display: 'grid', gap: 8 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>Subtotal</span>
-              <strong>{currency(total)}</strong>
-            </div>
-            {totalDiscount > 0 ? (
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#b45309' }}>
-                <span>Item Discount</span>
-                <strong>-{currency(totalDiscount)}</strong>
-              </div>
-            ) : null}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 13 }}>Order Discount</span>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={orderDiscount}
-                onChange={(e) => setOrderDiscount(e.target.value)}
-                style={{ ...inputStyle, width: 100, fontSize: 12, textAlign: 'right', padding: '4px 8px' }}
-                placeholder="0.00"
-              />
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 13 }}>VAT</span>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={vatAmount}
-                onChange={(e) => setVatAmount(e.target.value)}
-                style={{ ...inputStyle, width: 100, fontSize: 12, textAlign: 'right', padding: '4px 8px' }}
-                placeholder="0.00"
-              />
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border)', paddingTop: 4 }}>
-              <span>Total</span>
-              <strong>{currency(grandTotal)}</strong>
-            </div>
-            {exchangeEnabled && exchangeItem ? (
-              <>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderTop: '1px solid var(--border-weak)' }}>
-                  <span style={{ color: 'var(--muted-foreground)' }}>Exchange: {exchangeItem.productName}</span>
-                  <strong style={{ color: '#16a34a' }}>-{currency(exchangeItem.exchangeAmount)}</strong>
+          {saleMode === 'paid' ? (
+            usePartialPayments ? (
+              changeAmount > 0 ? (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <span>Change due</span>
+                  <strong>{currency(changeAmount)}</strong>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 15, paddingTop: 4 }}>
-                  <span>{amountAfterExchange < 0 ? 'Excess to return' : 'Net payable'}</span>
-                  <strong style={amountAfterExchange < 0 ? { color: '#16a34a' } : undefined}>
-                    {amountAfterExchange < 0 ? currency(Math.abs(amountAfterExchange)) : currency(amountAfterExchange)}
-                  </strong>
-                </div>
-              </>
-            ) : null}
-            {saleMode === 'paid' ? (
-              usePartialPayments ? (
-                changeAmount > 0 ? (
+              ) : null
+            ) : paymentMethod === 'cash' ? (
+              <div style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
+                <input type="number" min="0" step="0.01" value={cashReceived} onChange={(event) => setCashReceived(event.target.value)} style={inputStyle} placeholder={`Amount paid by customer (${currency(paymentRequired)} required)`} />
+                {changeAmount > 0 ? (
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span>Change due</span>
                     <strong>{currency(changeAmount)}</strong>
                   </div>
-                ) : null
-              ) : paymentMethod === 'cash' ? (
-                <>
-                  <input type="number" min="0" step="0.01" value={cashReceived} onChange={(event) => setCashReceived(event.target.value)} style={inputStyle} placeholder={`Amount paid by customer (${currency(paymentRequired)} required)`} />
-                  {changeAmount > 0 ? (
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span>Change due</span>
-                      <strong>{currency(changeAmount)}</strong>
-                    </div>
-                  ) : null}
-                </>
-              ) : null
-            ) : null}
-            {saleMode === 'due' ? (
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--muted-foreground)' }}>
-                <span>Due amount</span>
-                <strong>{currency(usePartialPayments ? Math.max(paymentRequired - totalPaidFromPartial, 0) : paymentRequired)}</strong>
+                ) : null}
               </div>
-            ) : null}
+            ) : null
+          ) : null}
+          {saleMode === 'due' ? (
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--muted-foreground)', marginBottom: 12 }}>
+              <span>Due amount</span>
+              <strong>{currency(usePartialPayments ? Math.max(paymentRequired - totalPaidFromPartial, 0) : paymentRequired)}</strong>
+            </div>
+          ) : null}
             <button onClick={checkout} style={gray800ButtonStyle} disabled={loading || cart.length === 0 || !selectedLocationId || (exchangeEnabled && !exchangeItem)}>
               {saleMode === 'due' ? 'Save Due Sale' : 'Complete Sale'}
             </button>
@@ -1291,7 +1303,6 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                 Select a stock location below before completing the sale.
               </div>
             ) : null}
-          </div>
         </article>
         ) : null}
       </section>
@@ -1427,19 +1438,34 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                 placeholder="Product name (required)"
               />
               <input
-                value={exchangeFormSku}
-                onChange={(e) => setExchangeFormSku(e.target.value)}
+                value={exchangeFormCategory}
+                onChange={(e) => setExchangeFormCategory(e.target.value)}
                 style={inputStyle}
-                placeholder="SKU code (optional)"
+                placeholder="Category"
+              />
+              <input
+                value={exchangeFormBrand}
+                onChange={(e) => setExchangeFormBrand(e.target.value)}
+                style={inputStyle}
+                placeholder="Brand"
               />
               <input
                 type="number"
                 min="0"
                 step="0.01"
-                value={exchangeFormPrice}
-                onChange={(e) => setExchangeFormPrice(e.target.value)}
+                value={exchangeFormCostPrice}
+                onChange={(e) => setExchangeFormCostPrice(e.target.value)}
                 style={inputStyle}
-                placeholder="Exchange value / sale price (BDT)"
+                placeholder="Cost price (BDT)"
+              />
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={exchangeFormSellPrice}
+                onChange={(e) => setExchangeFormSellPrice(e.target.value)}
+                style={inputStyle}
+                placeholder="Sell price (BDT)"
               />
             </div>
 
@@ -1448,7 +1474,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                 Cancel
               </button>
               <button onClick={saveExchangeItem} style={gray800ButtonStyle} disabled={!exchangeFormName.trim()}>
-                Save Exchange Product
+                Save
               </button>
             </div>
           </div>
