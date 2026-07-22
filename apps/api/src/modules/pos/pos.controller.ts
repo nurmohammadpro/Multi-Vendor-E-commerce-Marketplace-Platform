@@ -77,6 +77,14 @@ const returnSaleSchema = z.object({
   ).min(1),
 });
 
+const createExchangeItemSchema = z.object({
+  productName: z.string().min(1).max(200),
+  categoryName: z.string().max(100).optional(),
+  brandName: z.string().max(100).optional(),
+  costPrice: z.number().nonnegative().default(0),
+  salePrice: z.number().nonnegative(),
+});
+
 @Controller('pos')
 @UseGuards(PermissionsGuard)
 export class PosController {
@@ -166,6 +174,17 @@ export class PosController {
         clientRequestId: parsed.clientRequestId ?? idempotencyKey,
       },
     );
+  }
+
+  @Post('exchange-item')
+  @RequireContext('store')
+  @RequirePermissions('sales.pos.create')
+  createExchangeItem(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @Body() payload: unknown,
+  ) {
+    return this.posService.createExchangeItem(headerStoreId, authContext, createExchangeItemSchema.parse(payload));
   }
 
   @Get('sales')

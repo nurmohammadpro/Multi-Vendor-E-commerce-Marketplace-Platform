@@ -3,14 +3,12 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import {
-  dangerButtonStyle,
   emptyStateStyle,
   fieldStyle,
   gray800ButtonStyle,
   pageShellStyle,
   searchButtonStyle,
   secondaryButtonStyle,
-  sectionPanelStyle,
   surfaceCardStyle,
   tableCellStyle,
   tableHeaderCellStyle,
@@ -19,7 +17,7 @@ import {
   tokenMutedStyle,
 } from '../marketone-theme';
 import { ListPager, type PaginationState, totalPagesFor } from '../list-pager';
-import { searchRowStyle, stackedFilterGridStyle, useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
+import { searchRowStyle, useCompactLayout } from '../workspace-responsive';
 
 type Location = {
   id: string;
@@ -137,7 +135,7 @@ export function InventoryWorkspace({
   const [decisionNote, setDecisionNote] = useState('');
   const [message, setMessage] = useState('Inventory live workspace is ready.');
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'balances' | 'control'>('balances');
+  const [stockControlOpen, setStockControlOpen] = useState(false);
 
   const selectedSku = useMemo(
     () => skuResults.find((sku) => sku.id === selectedSkuId) ?? null,
@@ -335,16 +333,6 @@ export function InventoryWorkspace({
 
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
-      {compact ? (
-        <WorkspaceTabs
-          active={activeTab}
-          onChange={(key) => setActiveTab(key as 'balances' | 'control')}
-          tabs={[
-            { key: 'balances', label: 'Live Balances' },
-            { key: 'control', label: 'Stock Control' },
-          ]}
-        />
-      ) : null}
       {!locations.length ? (
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Inventory setup</h3>
@@ -354,7 +342,6 @@ export function InventoryWorkspace({
         </article>
       ) : null}
 
-      {(!compact || activeTab === 'balances') ? (
       <article style={surfaceCardStyle}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start', marginBottom: 12 }}>
           <div>
@@ -435,6 +422,7 @@ export function InventoryWorkspace({
                               },
                             ]);
                             setMessage(`Loaded ${balance.sku_code} into stock control.`);
+                            setStockControlOpen(true);
                           }}
                           style={secondaryButtonStyle}
                           disabled={loading}
@@ -460,68 +448,76 @@ export function InventoryWorkspace({
           <div style={emptyStateStyle}>No balances found yet. Products will appear here automatically after at least one active stock location exists for this store.</div>
         )}
       </article>
-      ) : null}
 
-      {(!compact || activeTab === 'control') ? (
-      <section style={{ ...sectionPanelStyle, gridTemplateColumns: '1fr' }}>
-        <article style={surfaceCardStyle}>
-          <h3 style={{ marginTop: 0 }}>Stock Control</h3>
-          <p style={{ ...tokenMutedStyle, marginBottom: 12 }}>
-            {canDirectAdjustInventory
-              ? 'Search an existing SKU, then update stock quantities directly.'
-              : 'Search an existing SKU, then initialize opening quantity or send an approval request for changes.'}
-          </p>
-          {!canAdjustInventory ? (
-            <div style={{ ...emptyStateStyle, marginBottom: 12 }}>Your role can review inventory, but stock changes are restricted.</div>
-          ) : !canDirectAdjustInventory ? (
-            <div style={{ ...emptyStateStyle, marginBottom: 12 }}>Stock is updated through purchase receipts. You can request adjustments below.</div>
-          ) : null}
-          <div style={{ ...searchRowStyle, marginBottom: 12 }}>
-            <input
-              value={skuSearch}
-              onChange={(event) => setSkuSearch(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  event.preventDefault();
-                  void searchSkus();
-                }
-              }}
-              style={{ ...fieldStyle, flex: 1, width: 'auto' }}
-              placeholder="Search SKU or product"
-            />
-            <button onClick={searchSkus} style={searchButtonStyle} disabled={loading}>
-              Search
-            </button>
-          </div>
-          <select value={selectedSkuId} onChange={(event) => setSelectedSkuId(event.target.value)} style={{ ...fieldStyle, marginBottom: 12 }}>
-            <option value="">Select SKU</option>
-            {skuResults.map((sku) => (
-              <option key={sku.id} value={sku.id}>
-                {sku.sku_code} — {sku.product_name}
-                {sku.variant_label ? ` · ${sku.variant_label}` : ''}
-              </option>
-            ))}
-          </select>
-          <input value={quantity} onChange={(event) => setQuantity(event.target.value)} style={{ ...fieldStyle, marginBottom: 12 }} placeholder="Quantity or requested final qty" />
-          <textarea value={reason} onChange={(event) => setReason(event.target.value)} style={{ ...fieldStyle, minHeight: 88, marginBottom: 12 }} placeholder="Reason / note" />
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {canDirectAdjustInventory ? (
-              <button onClick={directAdjustStock} style={searchButtonStyle} disabled={loading}>
-                Update Stock
-              </button>
-            ) : (
-              <button onClick={requestAdjustment} style={gray800ButtonStyle} disabled={!canRequestAdjustInventory || loading}>
-                Request Change
-              </button>
-            )}
-          </div>
-          {selectedSku ? (
-            <p style={{ marginTop: 12, marginBottom: 0, color: 'var(--muted-foreground)' }}>
-              Selected: {selectedSku.product_name} · {selectedSku.sku_code}
+      {stockControlOpen ? (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.4)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }} onClick={() => setStockControlOpen(false)}>
+          <div style={{
+            background: '#fff', borderRadius: 16, padding: 24, maxWidth: 480, width: '95%',
+            maxHeight: '80vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+          }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h3 style={{ margin: 0, fontSize: 16 }}>Stock Control</h3>
+              <button onClick={() => setStockControlOpen(false)} style={{ ...secondaryButtonStyle, minWidth: 40, fontSize: 16, lineHeight: 1 }}>✕</button>
+            </div>
+            <p style={{ ...tokenMutedStyle, marginBottom: 12 }}>
+              {canDirectAdjustInventory
+                ? 'Search an existing SKU, then update stock quantities directly.'
+                : 'Search an existing SKU, then initialize opening quantity or send an approval request for changes.'}
             </p>
-          ) : null}
-        </article>
-      </section>
+            {!canAdjustInventory ? (
+              <div style={{ ...emptyStateStyle, marginBottom: 12 }}>Your role can review inventory, but stock changes are restricted.</div>
+            ) : !canDirectAdjustInventory ? (
+              <div style={{ ...emptyStateStyle, marginBottom: 12 }}>Stock is updated through purchase receipts. You can request adjustments below.</div>
+            ) : null}
+            <div style={{ ...searchRowStyle, marginBottom: 12 }}>
+              <input
+                value={skuSearch}
+                onChange={(event) => setSkuSearch(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    void searchSkus();
+                  }
+                }}
+                style={{ ...fieldStyle, flex: 1, width: 'auto' }}
+                placeholder="Search SKU or product"
+              />
+              <button onClick={searchSkus} style={searchButtonStyle} disabled={loading}>
+                Search
+              </button>
+            </div>
+            <select value={selectedSkuId} onChange={(event) => setSelectedSkuId(event.target.value)} style={{ ...fieldStyle, marginBottom: 12 }}>
+              <option value="">Select SKU</option>
+              {skuResults.map((sku) => (
+                <option key={sku.id} value={sku.id}>
+                  {sku.sku_code} — {sku.product_name}
+                  {sku.variant_label ? ` · ${sku.variant_label}` : ''}
+                </option>
+              ))}
+            </select>
+            <input value={quantity} onChange={(event) => setQuantity(event.target.value)} style={{ ...fieldStyle, marginBottom: 12 }} placeholder="Quantity or requested final qty" />
+            <textarea value={reason} onChange={(event) => setReason(event.target.value)} style={{ ...fieldStyle, minHeight: 88, marginBottom: 12 }} placeholder="Reason / note" />
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {canDirectAdjustInventory ? (
+                <button onClick={directAdjustStock} style={searchButtonStyle} disabled={loading}>
+                  Update Stock
+                </button>
+              ) : (
+                <button onClick={requestAdjustment} style={gray800ButtonStyle} disabled={!canRequestAdjustInventory || loading}>
+                  Request Change
+                </button>
+              )}
+            </div>
+            {selectedSku ? (
+              <p style={{ marginTop: 12, marginBottom: 0, color: 'var(--muted-foreground)' }}>
+                Selected: {selectedSku.product_name} · {selectedSku.sku_code}
+              </p>
+            ) : null}
+          </div>
+        </div>
       ) : null}
 
       <article style={surfaceCardStyle}>

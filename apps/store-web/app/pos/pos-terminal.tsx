@@ -542,17 +542,32 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
     setExchangeModalOpen(true);
   };
 
-  const saveExchangeItem = () => {
+  const saveExchangeItem = async () => {
     if (!exchangeFormName.trim()) return;
-    setExchangeItem({
-      skuId: `exchange-${Date.now()}`,
-      skuCode: `EXC-${Date.now()}`,
-      productName: exchangeFormName.trim(),
-      category: exchangeFormCategory.trim(),
-      brand: exchangeFormBrand.trim(),
-      costPrice: Number(exchangeFormCostPrice || 0),
-      exchangeAmount: Number(exchangeFormSellPrice || 0),
-    });
+    try {
+      const result = await readJson<{ skuId: string; skuCode: string }>('/api/pos/exchange-item', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productName: exchangeFormName.trim(),
+          categoryName: exchangeFormCategory.trim() || undefined,
+          brandName: exchangeFormBrand.trim() || undefined,
+          costPrice: Number(exchangeFormCostPrice || 0),
+          salePrice: Number(exchangeFormSellPrice || 0),
+        }),
+      });
+      setExchangeItem({
+        skuId: result.skuId,
+        skuCode: result.skuCode,
+        productName: exchangeFormName.trim(),
+        category: exchangeFormCategory.trim(),
+        brand: exchangeFormBrand.trim(),
+        costPrice: Number(exchangeFormCostPrice || 0),
+        exchangeAmount: Number(exchangeFormSellPrice || 0),
+      });
+    } catch (error) {
+      setMessage((error as Error).message);
+    }
     setExchangeModalOpen(false);
   };
 
@@ -1487,7 +1502,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
               <button onClick={() => setExchangeModalOpen(false)} style={neutralButtonStyle}>
                 Cancel
               </button>
-              <button onClick={saveExchangeItem} style={gray800ButtonStyle} disabled={!exchangeFormName.trim()}>
+              <button onClick={() => void saveExchangeItem()} style={gray800ButtonStyle} disabled={!exchangeFormName.trim()}>
                 Save
               </button>
             </div>
