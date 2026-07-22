@@ -3,10 +3,10 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import {
-  accentButtonStyle,
   dangerButtonStyle,
   emptyStateStyle,
   fieldStyle,
+  gray800ButtonStyle,
   searchButtonStyle,
   secondaryButtonStyle,
   subtleButtonStyle,
@@ -251,7 +251,7 @@ export function TaxonomyWorkspace({ canManageCatalog }: { canManageCatalog: bool
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <h3 style={{ margin: 0 }}>Categories</h3>
             {canManageCatalog && !categoryFormOpen ? (
-              <button onClick={() => setCategoryFormOpen(true)} style={accentButtonStyle} disabled={loading}>+ New</button>
+              <button onClick={() => setCategoryFormOpen(true)} style={gray800ButtonStyle} disabled={loading}>+ New</button>
             ) : null}
           </div>
 
@@ -291,7 +291,7 @@ export function TaxonomyWorkspace({ canManageCatalog }: { canManageCatalog: bool
                 {parentOptions.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
               <div style={{ display: 'flex', gap: 6 }}>
-                <button onClick={saveCategory} style={{ ...accentButtonStyle, flex: 1 }} disabled={loading || !categoryForm.code || !categoryForm.name}>
+                <button onClick={saveCategory} style={{ ...gray800ButtonStyle, flex: 1 }} disabled={loading || !categoryForm.code || !categoryForm.name}>
                   {editingCategoryId ? 'Update' : 'Create'}
                 </button>
                 <button onClick={resetCategoryForm} style={secondaryButtonStyle} disabled={loading}>Cancel</button>
@@ -356,7 +356,7 @@ export function TaxonomyWorkspace({ canManageCatalog }: { canManageCatalog: bool
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <h3 style={{ margin: 0 }}>Brands</h3>
             {canManageCatalog && !brandFormOpen ? (
-              <button onClick={() => setBrandFormOpen(true)} style={accentButtonStyle} disabled={loading}>+ New</button>
+              <button onClick={() => setBrandFormOpen(true)} style={gray800ButtonStyle} disabled={loading}>+ New</button>
             ) : null}
           </div>
 
@@ -383,7 +383,7 @@ export function TaxonomyWorkspace({ canManageCatalog }: { canManageCatalog: bool
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void saveBrand(); } }}
               />
               <div style={{ display: 'flex', gap: 6 }}>
-                <button onClick={saveBrand} style={{ ...accentButtonStyle, flex: 1 }} disabled={loading || !brandForm.name.trim()}>
+                <button onClick={saveBrand} style={{ ...gray800ButtonStyle, flex: 1 }} disabled={loading || !brandForm.name.trim()}>
                   {editingBrandId ? 'Update' : 'Create'}
                 </button>
                 <button onClick={resetBrandForm} style={secondaryButtonStyle} disabled={loading}>Cancel</button>

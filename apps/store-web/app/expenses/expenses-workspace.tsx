@@ -1,6 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { jsPDF } from 'jspdf';
+import 'jspdf-autotable';
 
 import {
   emptyStateStyle,
@@ -65,6 +67,14 @@ export function ExpensesWorkspace() {
     status: 'draft',
     note: '',
   });
+
+  // ── Export state ──
+  const [exportMode, setExportMode] = useState<'monthly' | 'daterange'>('monthly');
+  const [exportMonth, setExportMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [exportStartDate, setExportStartDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [exportEndDate, setExportEndDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [exporting, setExporting] = useState(false);
+
   const loadCategories = async () => {
     try {
       const payload = await readJson<{ categories: ExpenseCategory[] }>('/api/store-ops/expense-categories');
@@ -150,6 +160,119 @@ export function ExpensesWorkspace() {
       setMessage((error as Error).message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // ── Export helpers ──
+
+  /** Return { startDate, endDate } based on current export mode */
+  const exportDateRange = useMemo(() => {
+    if (exportMode === 'monthly') {
+      const start = `${exportMonth}-01`;
+      const lastDay = new Date(Number(exportMonth.slice(0, 4)), Number(exportMonth.slice(5, 7)), 0).getDate();
+      return { startDate: start, endDate: `${exportMonth}-${String(lastDay).padStart(2, '0')}` };
+    }
+    return { startDate: exportStartDate, endDate: exportEndDate };
+  }, [exportMode, exportMonth, exportStartDate, exportEndDate]);
+
+  const fetchExportData = async () => {
+    const { startDate, endDate } = exportDateRange;
+    const params = new URLSearchParams({ startDate, endDate, limit: '5000' });
+    const payload = await readJson<{ expenses: Expense[] }>(`/api/store-ops/expenses?${params.toString()}`);
+    return payload.expenses ?? [];
+  };
+
+  const exportCSV = async () => {
+    setExporting(true);
+    try {
+      const data = await fetchExportData();
+      if (!data.length) { setMessage('No expenses found for this period.'); return; }
+
+      const rows = data.map((e) => [
+        e.expense_date,
+        `"${e.title.replace(/"/g, '""')}"`,
+        `"${e.category_name.replace(/"/g, '""')}"`,
+        e.payment_method,
+        e.status,
+        Number(e.amount).toFixed(2),
+      ]);
+      const csv = [
+        '﻿Date,Title,Category,Method,Status,Amount',
+        ...rows.map((r) => r.join(',')),
+      ].join('\n');
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const { startDate, endDate } = exportDateRange;
+      a.download = `expenses-${startDate}_to_${endDate}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setMessage(`Exported ${data.length} expense(s) as CSV.`);
+    } catch (error) {
+      setMessage((error as Error).message);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const exportPDF = async () => {
+    setExporting(true);
+    try {
+      const data = await fetchExportData();
+      if (!data.length) { setMessage('No expenses found for this period.'); return; }
+
+      const { startDate, endDate } = exportDateRange;
+      const total = data.reduce((s, e) => s + Number(e.amount), 0);
+
+      const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+      const pageWidth = doc.internal.pageSize.getWidth();
+
+      // Header
+      doc.setFontSize(16);
+      doc.text('Expense Report', pageWidth / 2, 16, { align: 'center' });
+      doc.setFontSize(9);
+      doc.text(`Period: ${startDate} to ${endDate}`, pageWidth / 2, 23, { align: 'center' });
+      doc.text(`Generated: ${new Date().toLocaleDateString('en-BD', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`, pageWidth / 2, 29, { align: 'center' });
+
+      // Table
+      const tableData = data.map((e) => [
+        e.expense_date,
+        e.title,
+        e.category_name,
+        e.payment_method,
+        e.status,
+        Number(e.amount).toFixed(2),
+      ]);
+
+      (doc as any).autoTable({
+        startY: 34,
+        head: [['Date', 'Title', 'Category', 'Method', 'Status', 'Amount']],
+        body: tableData,
+        foot: [['', '', '', '', 'Total', total.toFixed(2)]],
+        theme: 'grid',
+        headStyles: { fillColor: [41, 41, 41], textColor: 255, fontSize: 8, fontStyle: 'bold' },
+        footStyles: { fillColor: [245, 245, 245], textColor: [41, 41, 41], fontSize: 8, fontStyle: 'bold' },
+        bodyStyles: { fontSize: 7 },
+        alternateRowStyles: { fillColor: [252, 252, 252] },
+        columnStyles: {
+          0: { cellWidth: 22 },
+          1: { cellWidth: 'auto' },
+          2: { cellWidth: 28 },
+          3: { cellWidth: 20 },
+          4: { cellWidth: 16 },
+          5: { cellWidth: 20, halign: 'right' },
+        },
+        margin: { left: 10, right: 10 },
+      });
+
+      doc.save(`expenses-${startDate}_to_${endDate}.pdf`);
+      setMessage(`Exported ${data.length} expense(s) as PDF.`);
+    } catch (error) {
+      setMessage((error as Error).message);
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -251,9 +374,29 @@ export function ExpensesWorkspace() {
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0, fontSize: 14 }}>Expenses</h3>
           <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-            <input value={search} onChange={(event) => setSearch(event.target.value)} style={{ ...fieldStyle, flex: 1 }} placeholder="Search title, category, method, or status" />
+            <input value={search} onChange={(event) => setSearch(event.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void refresh(1); }} style={{ ...fieldStyle, flex: 1 }} placeholder="Search title, category, method, or status" />
             <button onClick={() => void refresh(1)} style={searchButtonStyle} disabled={loading}>Search</button>
           </div>
+
+          {/* ── Export section ── */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginBottom: 12, padding: 8, background: 'var(--muted)', borderRadius: 8 }}>
+            <select value={exportMode} onChange={(e) => setExportMode(e.target.value as 'monthly' | 'daterange')} style={{ ...fieldStyle, width: 'auto', minWidth: 120, fontSize: 12 }}>
+              <option value="monthly">Monthly</option>
+              <option value="daterange">Date range</option>
+            </select>
+            {exportMode === 'monthly' ? (
+              <input type="month" value={exportMonth} onChange={(e) => setExportMonth(e.target.value)} style={{ ...fieldStyle, width: 'auto', fontSize: 12 }} />
+            ) : (
+              <>
+                <input type="date" value={exportStartDate} onChange={(e) => setExportStartDate(e.target.value)} style={{ ...fieldStyle, width: 'auto', fontSize: 12 }} />
+                <span style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>to</span>
+                <input type="date" value={exportEndDate} onChange={(e) => setExportEndDate(e.target.value)} style={{ ...fieldStyle, width: 'auto', fontSize: 12 }} />
+              </>
+            )}
+            <button onClick={() => void exportCSV()} style={{ ...gray800ButtonStyle, fontSize: 12 }} disabled={exporting}>CSV</button>
+            <button onClick={() => void exportPDF()} style={{ ...gray800ButtonStyle, fontSize: 12 }} disabled={exporting}>PDF</button>
+          </div>
+
           {expenses.length ? (
             <>
               <div style={tableWrapStyle}>
