@@ -162,7 +162,6 @@ export function formatReceiptText(receipt: ReceiptPayload) {
     'Item                     Qty     Total',
     sep,
     ...items.flatMap((item) => {
-      if (item.isExchangeItem) return [];
       const rows: (string | null)[] = [item.name || 'Item'];
       const right = `${item.qty ?? 0}  ${money(item.lineTotal)}`;
       if (item.variantLabel) {
@@ -348,7 +347,6 @@ async function buildEscPosReceipt(receipt: ReceiptPayload) {
   pushText(sep);
 
   for (const item of receipt.items ?? []) {
-    if (item.isExchangeItem) continue;
     pushText(sanitizeReceiptText(item.name || 'Item'));
     const right = `${item.qty ?? 0}  ${money(item.lineTotal)}`;
     if (item.variantLabel) {
