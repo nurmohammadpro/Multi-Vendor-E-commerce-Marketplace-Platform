@@ -194,7 +194,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
     mfs: { amount: '', reference: '' },
     bank_transfer: { amount: '', reference: '' },
   });
-  const [exchangeItem, setExchangeItem] = useState<{ skuId: string; skuCode: string; productName: string; category: string; brand: string; costPrice: number; exchangeAmount: number } | null>(null);
+  const [exchangeItem, setExchangeItem] = useState<{ skuId: string; skuCode: string; productName: string; category: string; brand: string; costPrice: number; salePrice: number; exchangeAmount: number } | null>(null);
   const [exchangeModalOpen, setExchangeModalOpen] = useState(false);
   const [exchangeFormName, setExchangeFormName] = useState('');
   const [exchangeFormCategory, setExchangeFormCategory] = useState('');
@@ -538,7 +538,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
     setExchangeFormCategory(exchangeItem?.category ?? '');
     setExchangeFormBrand(exchangeItem?.brand ?? '');
     setExchangeFormCostPrice(exchangeItem?.costPrice ? String(exchangeItem.costPrice) : '');
-    setExchangeFormSellPrice(exchangeItem?.exchangeAmount ? String(exchangeItem.exchangeAmount) : '');
+    setExchangeFormSellPrice(exchangeItem?.salePrice ? String(exchangeItem.salePrice) : '');
     setExchangeModalOpen(true);
   };
 
@@ -563,7 +563,8 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
         category: exchangeFormCategory.trim(),
         brand: exchangeFormBrand.trim(),
         costPrice: Number(exchangeFormCostPrice || 0),
-        exchangeAmount: Number(exchangeFormSellPrice || 0),
+        salePrice: Number(exchangeFormSellPrice || 0),
+        exchangeAmount: Number(exchangeFormCostPrice || 0),
       });
     } catch (error) {
       setMessage((error as Error).message);

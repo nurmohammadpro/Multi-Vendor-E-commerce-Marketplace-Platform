@@ -32,7 +32,6 @@ export function renderReceipt(receipt, mode) {
   };
 
   var itemRows = (receipt.items || []).map(function(item, idx) {
-    if (item.isExchangeItem) return '';
     var lt = Number(item.lineTotal || 0);
     var details = [];
     if (item.variantLabel) details.push('<span style="font-size:11px;color:#64748b">'+esc(item.variantLabel)+'</span>');
