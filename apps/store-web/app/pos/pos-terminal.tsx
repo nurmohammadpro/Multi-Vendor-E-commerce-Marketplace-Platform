@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   DEFAULT_PRINT_AGENT_URL,
   fetchPrintAgentHealth,
+  downloadReceiptHtml,
   openCashDrawer,
   openInvoicePrintWindow,
   printLabel,
@@ -793,8 +794,9 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
           setMessage(`${saleIsDue ? 'Due sale' : 'Sale'} ${salePayload.sale?.saleNo ?? ''} completed and receipt printed.`);
         } else {
           setInvoiceModalOpen(true);
+          openInvoicePrintWindow(reprintPayload.receipt);
           setMessage(
-            `Sale ${salePayload.sale?.saleNo ?? ''} completed. Receipt queued for local print agent. If the receipt does not print within a few seconds, use the Print Invoice button below.`,
+            `Sale ${salePayload.sale?.saleNo ?? ''} completed. Browser print dialog should open automatically.`,
           );
         }
       }
@@ -1530,6 +1532,16 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
             >
               Print Invoice
             </button>
+            <button
+              onClick={() => {
+                if (lastInvoice) {
+                  downloadReceiptHtml(lastInvoice);
+                }
+              }}
+              style={secondaryButtonStyle}
+            >
+              Download Receipt
+            </button>
             <button onClick={() => setInvoiceModalOpen(false)} style={neutralButtonStyle}>
               Close
             </button>
@@ -1609,9 +1621,14 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
           <div style={{ marginBottom: 16, display: 'grid', gap: 10 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
               <strong>Latest invoice preview</strong>
-              <button onClick={handlePrintInvoice} style={buttonStyle}>
-                Print Invoice
-              </button>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button onClick={() => lastInvoice && downloadReceiptHtml(lastInvoice)} style={{ ...buttonStyle, fontSize: 11 }}>
+                  Download
+                </button>
+                <button onClick={handlePrintInvoice} style={buttonStyle}>
+                  Print Invoice
+                </button>
+              </div>
             </div>
             <div
               style={{
