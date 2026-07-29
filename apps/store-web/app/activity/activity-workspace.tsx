@@ -101,15 +101,15 @@ export function ActivityWorkspace() {
         <h3 style={{ marginTop: 0 }}>Audit trail</h3>
         {logs.length ? (
           <div style={tableWrapStyle}>
-            <table style={tableStyle}>
+            <table style={{ ...tableStyle, tableLayout: 'fixed' }}>
               <thead>
                 <tr>
-                  <th style={tableHeaderCellStyle}>Time</th>
-                  <th style={tableHeaderCellStyle}>Action</th>
-                  <th style={tableHeaderCellStyle}>Resource</th>
-                  <th style={tableHeaderCellStyle}>Record</th>
-                  <th style={tableHeaderCellStyle}>Actor</th>
-                  <th style={tableHeaderCellStyle}>After</th>
+                  <th style={{ ...tableHeaderCellStyle, width: '15%' }}>Time</th>
+                  <th style={{ ...tableHeaderCellStyle, width: '13%' }}>Action</th>
+                  <th style={{ ...tableHeaderCellStyle, width: '12%' }}>Resource</th>
+                  <th style={{ ...tableHeaderCellStyle, width: '20%' }}>Record</th>
+                  <th style={{ ...tableHeaderCellStyle, width: '16%' }}>Actor</th>
+                  <th style={{ ...tableHeaderCellStyle, width: '24%' }}>After</th>
                 </tr>
               </thead>
               <tbody>
@@ -118,8 +118,12 @@ export function ActivityWorkspace() {
                     <td style={tableCellStyle}>{new Date(log.created_at).toLocaleString()}</td>
                     <td style={tableCellStyle}>{humanizeAuditCode(log.action_code)}</td>
                     <td style={tableCellStyle}>{humanizeAuditCode(log.resource_type)}</td>
-                    <td style={tableCellStyle}>{log.resource_id || '—'}</td>
-                    <td style={tableCellStyle}>{log.actor_type}{log.actor_user_id ? ` · ${log.actor_user_id}` : ''}</td>
+                    <td style={{ ...tableCellStyle, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 0 }} title={log.resource_id || '—'}>
+                      {log.resource_id || '—'}
+                    </td>
+                    <td style={{ ...tableCellStyle, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 0 }} title={`${log.actor_type}${log.actor_user_id ? ` · ${log.actor_user_id}` : ''}`}>
+                      {log.actor_type}{log.actor_user_id ? ` · ${log.actor_user_id}` : ''}
+                    </td>
                     <td style={tableCellStyle}>
                       <AuditAfterCell value={log.after_json} />
                     </td>
@@ -162,7 +166,7 @@ function AuditAfterCell({ value }: { value?: Record<string, unknown> | null }) {
   }
 
   return (
-    <div style={{ display: 'grid', gap: 6, minWidth: 260 }}>
+    <div style={{ display: 'grid', gap: 6 }}>
       {entries.map(([key, entryValue]) => (
         <div
           key={key}

@@ -355,41 +355,41 @@ export function SalesHistoryWorkspace() {
 
         {sales.length ? (
           <div style={tableWrapStyle}>
-            <table style={tableStyle}>
+            <table style={{ ...tableStyle, tableLayout: 'fixed' }}>
               <thead>
                 <tr>
-                  <th style={tableHeaderCellStyle}>
+                  <th style={{ ...tableHeaderCellStyle, width: '11%' }}>
                     <button onClick={() => handleSort('sale_no')} style={sortBtnStyle}>
                       Sale No{sortIndicator('sale_no')}
                     </button>
                   </th>
-                  <th style={tableHeaderCellStyle}>
+                  <th style={{ ...tableHeaderCellStyle, width: '15%' }}>
                     <button onClick={() => handleSort('customer_name')} style={sortBtnStyle}>
                       Customer{sortIndicator('customer_name')}
                     </button>
                   </th>
-                  <th style={tableHeaderCellStyle}>
+                  <th style={{ ...tableHeaderCellStyle, width: '13%' }}>
                     <button onClick={() => handleSort('customer_phone')} style={sortBtnStyle}>
                       Mobile{sortIndicator('customer_phone')}
                     </button>
                   </th>
-                  <th style={tableHeaderCellStyle}>Items</th>
-                  <th style={{ ...tableHeaderCellStyle, textAlign: 'right' }}>
+                  <th style={{ ...tableHeaderCellStyle, width: '18%' }}>Items</th>
+                  <th style={{ ...tableHeaderCellStyle, width: '10%', textAlign: 'right' }}>
                     <button onClick={() => handleSort('total_amount')} style={sortBtnStyle}>
                       Total{sortIndicator('total_amount')}
                     </button>
                   </th>
-                  <th style={tableHeaderCellStyle}>
+                  <th style={{ ...tableHeaderCellStyle, width: '11%' }}>
                     <button onClick={() => handleSort('payment_status')} style={sortBtnStyle}>
                       Payment{sortIndicator('payment_status')}
                     </button>
                   </th>
-                  <th style={tableHeaderCellStyle}>
+                  <th style={{ ...tableHeaderCellStyle, width: '12%' }}>
                     <button onClick={() => handleSort('created_at')} style={sortBtnStyle}>
                       Date{sortIndicator('created_at')}
                     </button>
                   </th>
-                  <th style={tableHeaderCellStyle}>Action</th>
+                  <th style={{ ...tableHeaderCellStyle, width: '10%' }}>Action</th>
                 </tr>
               </thead>
               <tbody>

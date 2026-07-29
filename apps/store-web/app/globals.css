@@ -96,3 +96,44 @@
     box-shadow: 0 0 0 1px var(--ring);
   }
 }
+
+/* ─── Responsive tables ─── */
+
+/* Smooth momentum scrolling for iOS on any scrollable container */
+[style*="overflow-x: auto"],
+[style*="overflow-x:auto"],
+[data-slot="table-container"] {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+/* Larger touch targets for buttons inside tables */
+td button,
+td a[role="button"],
+th button {
+  min-height: 36px;
+}
+
+@media (max-width: 640px) {
+  /* Bigger touch targets on mobile */
+  td button,
+  td a[role="button"],
+  th button {
+    min-height: 44px;
+    font-size: 13px;
+  }
+
+  /* Compact table cells to fit more content */
+  td {
+    padding: 5px 6px !important;
+  }
+
+  th {
+    padding: 6px 6px !important;
+  }
+
+  /* Slightly smaller table text */
+  table {
+    font-size: 11px !important;
+  }
+}
