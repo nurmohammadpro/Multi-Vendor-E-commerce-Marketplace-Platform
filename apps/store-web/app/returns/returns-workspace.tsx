@@ -107,12 +107,13 @@ export function ReturnsWorkspace() {
     setSaleLoading(true);
     setError('');
     try {
-      const data = await readJson<{ sale: SaleDetail; items: SaleItem[] }>(`/api/pos/sales/${saleId}`);
-      const sale: SaleDetail = { ...data.sale, items: data.items };
+      const data = await readJson<{ sale: SaleDetail; items: SaleItem[]; payments: Array<{ amount: number; status: string }> }>(`/api/pos/sales/${saleId}`);
+      const paidAmount = data.payments?.reduce((sum, p) => sum + (p.status === 'paid' ? Number(p.amount) : 0), 0) ?? 0;
+      const sale: SaleDetail = { ...data.sale, items: data.items, paid_amount: paidAmount };
       setSelectedSale(sale);
       const initial: Record<string, { qty: number; refundAmount: number; restock: boolean }> = {};
       for (const item of data.items) {
-        initial[item.id] = { qty: 1, refundAmount: item.unit_price, restock: true };
+        initial[item.id] = { qty: 1, refundAmount: Number(item.unit_price), restock: true };
       }
       setReturnItems(initial);
       setReason('');
@@ -137,7 +138,7 @@ export function ReturnsWorkspace() {
         saleItemId,
         qty: v.qty,
         restockToInventory: v.restock,
-        lineRefundAmount: v.refundAmount,
+        lineRefundAmount: Number(v.refundAmount),
       }));
 
     if (items.length === 0) {
@@ -159,7 +160,7 @@ export function ReturnsWorkspace() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           reason: reason.trim(),
-          refundAmount: totalRefund,
+          refundAmount: Number(totalRefund),
           items,
         }),
       });
