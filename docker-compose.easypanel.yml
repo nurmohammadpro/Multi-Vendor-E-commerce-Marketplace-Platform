@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────
-# Market One BD — EasyPanel Deployment Compose
+# Merch Flow — EasyPanel Deployment Compose
 # Server: Hostinger KVM2 (72.60.222.185)
 # Deploy: docker compose -f docker-compose.easypanel.yml up -d
 # ──────────────────────────────────────────────
@@ -226,7 +226,7 @@ services:
         NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
         NEXT_PUBLIC_LOGIN_APP_URL: ${NEXT_PUBLIC_LOGIN_APP_URL}
         API_BASE_URL: ${API_BASE_URL}
-        NEXT_PUBLIC_ADMIN_APP_NAME: ${NEXT_PUBLIC_ADMIN_APP_NAME:-Market One Admin}
+        NEXT_PUBLIC_ADMIN_APP_NAME: ${NEXT_PUBLIC_ADMIN_APP_NAME:-Merch Flow Admin}
         ADMIN_DEMO_BEARER_TOKEN: ${ADMIN_DEMO_BEARER_TOKEN:-}
     restart: unless-stopped
     deploy:
@@ -241,7 +241,7 @@ services:
       API_BASE_URL: "${API_BASE_URL}"
       NEXT_PUBLIC_API_BASE_URL: "${NEXT_PUBLIC_API_BASE_URL}"
       NEXT_PUBLIC_LOGIN_APP_URL: "${NEXT_PUBLIC_LOGIN_APP_URL}"
-      NEXT_PUBLIC_ADMIN_APP_NAME: "${NEXT_PUBLIC_ADMIN_APP_NAME:-Market One Admin}"
+      NEXT_PUBLIC_ADMIN_APP_NAME: "${NEXT_PUBLIC_ADMIN_APP_NAME:-Merch Flow Admin}"
       ADMIN_DEMO_BEARER_TOKEN: "${ADMIN_DEMO_BEARER_TOKEN:-}"
     depends_on:
       api:
@@ -261,7 +261,7 @@ services:
         NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
         NEXT_PUBLIC_LOGIN_APP_URL: ${NEXT_PUBLIC_LOGIN_APP_URL}
         API_BASE_URL: ${API_BASE_URL}
-        NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-Market One BD}
+        NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-Merch Flow}
         NEXT_PUBLIC_PRINT_AGENT_URL: ${NEXT_PUBLIC_PRINT_AGENT_URL:-http://127.0.0.1:17658}
         STORE_DEMO_BEARER_TOKEN: ${STORE_DEMO_BEARER_TOKEN:-}
         STORE_DEMO_STORE_ID: ${STORE_DEMO_STORE_ID:-}
@@ -278,7 +278,7 @@ services:
       API_BASE_URL: "${API_BASE_URL}"
       NEXT_PUBLIC_API_BASE_URL: "${NEXT_PUBLIC_API_BASE_URL}"
       NEXT_PUBLIC_LOGIN_APP_URL: "${NEXT_PUBLIC_LOGIN_APP_URL}"
-      NEXT_PUBLIC_APP_NAME: "${NEXT_PUBLIC_APP_NAME:-Market One BD}"
+      NEXT_PUBLIC_APP_NAME: "${NEXT_PUBLIC_APP_NAME:-Merch Flow}"
       NEXT_PUBLIC_PRINT_AGENT_URL: "${NEXT_PUBLIC_PRINT_AGENT_URL:-http://127.0.0.1:17658}"
       STORE_DEMO_BEARER_TOKEN: "${STORE_DEMO_BEARER_TOKEN:-}"
       STORE_DEMO_STORE_ID: "${STORE_DEMO_STORE_ID:-}"

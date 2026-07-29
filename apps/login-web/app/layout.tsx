@@ -4,7 +4,7 @@ import { ThemeProvider } from '@mvp/theme';
 import './globals.css';
 
 export const metadata = {
-  title: 'Market One BD',
+  title: 'Merch Flow',
   description: 'Multi-Vendor Platform — Login',
 };
 

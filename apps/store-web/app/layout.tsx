@@ -8,8 +8,8 @@ import { WorkspaceShell } from './workspace-shell';
 import { getStoreConsoleAccess, type StoreConsoleFeature } from '../lib/access';
 
 export const metadata: Metadata = {
-  title: 'Market One BD Store Console',
-  applicationName: 'Market One BD',
+  title: 'Merch Flow Store Console',
+  applicationName: 'Merch Flow',
   description: 'Installable multi-vendor store operating system for POS, inventory, billing, approvals, and retail workflows.',
   manifest: '/manifest.webmanifest',
   icons: {
@@ -22,7 +22,7 @@ export const metadata: Metadata = {
   },
   appleWebApp: {
     capable: true,
-    title: 'Market One BD',
+    title: 'Merch Flow',
     statusBarStyle: 'black-translucent',
   },
   formatDetection: {
@@ -114,7 +114,7 @@ export default async function StoreLayout({ children }: { children: ReactNode })
         <ThemeProvider>
         <WorkspaceShell
           access={access}
-          badge="Market One BD"
+          badge="Merch Flow"
           navItems={navGroups}
           title="Store Console"
         >

@@ -8,11 +8,11 @@ COPY packages ./packages
 RUN npm ci
 
 FROM deps AS builder
-ARG NEXT_PUBLIC_API_URL=https://api.marketone.appbrainer.tech
-ARG NEXT_PUBLIC_API_BASE_URL=https://api.marketone.appbrainer.tech/v1
-ARG API_BASE_URL=https://api.marketone.appbrainer.tech/v1
-ARG NEXT_PUBLIC_ADMIN_APP_URL=https://admin.marketone.appbrainer.tech
-ARG NEXT_PUBLIC_STORE_APP_URL=https://app.marketone.appbrainer.tech
+ARG NEXT_PUBLIC_API_URL=https://api.merchflow.appbrainer.tech
+ARG NEXT_PUBLIC_API_BASE_URL=https://api.merchflow.appbrainer.tech/v1
+ARG API_BASE_URL=https://api.merchflow.appbrainer.tech/v1
+ARG NEXT_PUBLIC_ADMIN_APP_URL=https://admin.merchflow.appbrainer.tech
+ARG NEXT_PUBLIC_STORE_APP_URL=https://app.merchflow.appbrainer.tech
 
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 ENV NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}

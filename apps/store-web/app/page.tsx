@@ -154,7 +154,7 @@ export default async function StoreDashboard() {
         <article style={surfaceCardStyle}>
           <div style={metricLabelStyle}>Plan</div>
           <div style={{ ...metricValueStyle, textTransform: 'capitalize' }}>{access.planName}</div>
-          <div style={metricNoteStyle}>Market One BD</div>
+          <div style={metricNoteStyle}>Merch Flow</div>
         </article>
       </section>
 
