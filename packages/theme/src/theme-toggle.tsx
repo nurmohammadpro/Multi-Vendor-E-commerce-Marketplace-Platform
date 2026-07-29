@@ -8,6 +8,7 @@ const THEMES: Array<{ id: ThemeName; label: string }> = [
   { id: 'stone-sky', label: 'Stone & Sky' },
   { id: 'emerald-cream', label: 'Emerald & Cream' },
   { id: 'ocean-sand', label: 'Ocean & Sand' },
+  { id: 'merch-flow', label: 'Merch Flow' },
 ];
 
 const MODE_LABELS: Record<string, string> = {

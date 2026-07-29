@@ -20,7 +20,7 @@ function resolveCookieDomain(hostname?: string) {
   }
   const host = hostname ?? (typeof window !== 'undefined' ? window.location.hostname : '');
   if (!host || host === 'localhost' || host === '127.0.0.1') return '';
-  if (host.endsWith('marketone.appbrainer.tech')) return '.marketone.appbrainer.tech';
+  if (host.endsWith('merchflow.appbrainer.tech')) return '.merchflow.appbrainer.tech';
   return '';
 }
 

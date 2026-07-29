@@ -9,7 +9,7 @@ export class ResendProvider implements EmailProvider {
 
   constructor(config: { apiKey: string; defaultFrom?: string }) {
     this.apiKey = config.apiKey;
-    this.defaultFrom = config.defaultFrom || 'Market One BD <noreply@marketone.com.bd>';
+    this.defaultFrom = config.defaultFrom || 'Merch Flow <noreply@marketone.com.bd>';
   }
 
   async send(input: SendEmailInput): Promise<EmailResult> {

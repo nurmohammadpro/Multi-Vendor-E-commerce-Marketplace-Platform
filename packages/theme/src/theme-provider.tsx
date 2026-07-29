@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 
-export type ThemeName = 'slate-pro' | 'stone-sky' | 'emerald-cream' | 'ocean-sand';
+export type ThemeName = 'slate-pro' | 'stone-sky' | 'emerald-cream' | 'ocean-sand' | 'merch-flow';
 export type ColorMode = 'light' | 'dark' | 'system';
 
 export type ThemeContextValue = {
@@ -69,7 +69,7 @@ export type ThemeProviderProps = {
 
 export function ThemeProvider({
   children,
-  defaultTheme = 'slate-pro',
+  defaultTheme = 'merch-flow',
   defaultMode = 'system',
 }: ThemeProviderProps) {
   const [theme, setThemeState] = useState<ThemeName>(defaultTheme);

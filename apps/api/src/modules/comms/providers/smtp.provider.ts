@@ -15,7 +15,7 @@ export class SmtpProvider implements EmailProvider {
     this.port = config.port;
     this.user = config.user;
     this.pass = config.pass;
-    this.defaultFrom = config.defaultFrom || 'Market One BD <noreply@marketone.com.bd>';
+    this.defaultFrom = config.defaultFrom || 'Merch Flow <noreply@marketone.com.bd>';
   }
 
   async send(input: SendEmailInput): Promise<EmailResult> {

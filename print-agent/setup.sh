@@ -59,7 +59,7 @@ cat > "$ENV_FILE" <<EOF
 MVP_PRINTER_NAME=$PRINTER_NAME
 MVP_STORE_ID=$STORE_ID
 MVP_AUTH_TOKEN=$AUTH_TOKEN
-MVP_API_BASE_URL=https://api.marketone.appbrainer.tech/v1
+MVP_API_BASE_URL=https://api.merchflow.appbrainer.tech/v1
 MVP_POLL_INTERVAL_MS=3000
 EOF
 
@@ -68,7 +68,7 @@ echo -e "  ${GREEN}✓${NC} Environment saved to $ENV_FILE"
 # Create LaunchAgent plist for auto-start
 PLIST_DIR="$HOME/Library/LaunchAgents"
 mkdir -p "$PLIST_DIR"
-PLIST_FILE="$PLIST_DIR/com.marketone.print-agent.plist"
+PLIST_FILE="$PLIST_DIR/com.merchflow.print-agent.plist"
 
 cat > "$PLIST_FILE" <<PLISTEOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -76,7 +76,7 @@ cat > "$PLIST_FILE" <<PLISTEOF
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.marketone.print-agent</string>
+    <string>com.merchflow.print-agent</string>
     <key>ProgramArguments</key>
     <array>
         <string>/usr/local/bin/node</string>
@@ -101,7 +101,7 @@ cat > "$PLIST_FILE" <<PLISTEOF
         <key>MVP_AUTH_TOKEN</key>
         <string>$AUTH_TOKEN</string>
         <key>MVP_API_BASE_URL</key>
-        <string>https://api.marketone.appbrainer.tech/v1</string>
+        <string>https://api.merchflow.appbrainer.tech/v1</string>
         <key>MVP_POLL_INTERVAL_MS</key>
         <string>3000</string>
     </dict>

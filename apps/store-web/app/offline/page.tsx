@@ -17,7 +17,7 @@ export default function OfflinePage() {
         <div style={{ fontSize: 12, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--muted-foreground)' }}>
           Offline Mode
         </div>
-        <h1 style={{ margin: 0, fontSize: 28, lineHeight: 1.1 }}>Market One BD is temporarily offline.</h1>
+        <h1 style={{ margin: 0, fontSize: 28, lineHeight: 1.1 }}>Merch Flow is temporarily offline.</h1>
         <p style={tokenMutedStyle}>
           The app is installed and still available, but this screen needs a connection before it can load fresh store data.
         </p>

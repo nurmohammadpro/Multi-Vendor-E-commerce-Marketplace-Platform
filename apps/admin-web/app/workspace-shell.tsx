@@ -111,8 +111,8 @@ function AppSidebar({
           <div className="flex items-center gap-1.5">
             <div className="flex items-center justify-center size-8 rounded-md bg-card text-primary border p-1">
               <img
-                src="/marketone-logo.svg"
-                alt="Market One logo"
+                src="/merchflow-logo.svg"
+                alt="Merch Flow logo"
                 className="h-full w-full object-contain"
               />
             </div>

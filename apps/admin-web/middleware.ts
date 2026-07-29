@@ -4,7 +4,7 @@ import type { NextRequest } from 'next/server';
 function resolveCookieDomain(hostname: string) {
   const explicit = process.env.NEXT_PUBLIC_COOKIE_DOMAIN?.trim();
   if (explicit) return explicit.startsWith('.') ? explicit : `.${explicit}`;
-  if (hostname.endsWith('marketone.appbrainer.tech')) return '.marketone.appbrainer.tech';
+  if (hostname.endsWith('merchflow.appbrainer.tech')) return '.merchflow.appbrainer.tech';
   return undefined;
 }
 

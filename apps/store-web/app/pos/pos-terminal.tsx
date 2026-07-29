@@ -1665,7 +1665,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                 {lastInvoice.customer?.address ? <div><strong>Address:</strong> {lastInvoice.customer.address}</div> : null}
               </div>
               <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border)', textAlign: 'center', color: 'var(--muted-foreground)', fontSize: 12 }}>
-                Developed and maintained by Market One BD · Your One Stop Marketplace
+                Developed and maintained by Merch Flow
               </div>
             </div>
           </div>

@@ -27,13 +27,13 @@ try {
 const PORT = Number(process.env.MVP_PRINT_AGENT_PORT || 17668);
 const PRINTER_NAME = process.env.MVP_PRINTER_NAME || '';
 const LABEL_PRINTER_NAME = process.env.MVP_LABEL_PRINTER_NAME || '';
-const API_BASE_URL = process.env.MVP_API_BASE_URL || 'https://api.marketone.appbrainer.tech/v1';
+const API_BASE_URL = process.env.MVP_API_BASE_URL || 'https://api.merchflow.appbrainer.tech/v1';
 const STORE_ID = process.env.MVP_STORE_ID || '';
 const AUTH_TOKEN = process.env.MVP_AUTH_TOKEN || '';
 const POLL_INTERVAL_MS = Number(process.env.MVP_POLL_INTERVAL_MS || 3000);
 const ALLOWED_ORIGINS = new Set(
   (process.env.MVP_ALLOWED_ORIGINS
-    || 'http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001,http://localhost:3002,http://127.0.0.1:3002,https://marketone.appbrainer.tech,https://admin.marketone.appbrainer.tech,https://app.marketone.appbrainer.tech,https://store.marketone.appbrainer.tech')
+    || 'http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001,http://localhost:3002,http://127.0.0.1:3002,https://merchflow.appbrainer.tech,https://admin.merchflow.appbrainer.tech,https://app.merchflow.appbrainer.tech,https://store.merchflow.appbrainer.tech')
     .split(',').map((v) => v.trim()).filter(Boolean),
 );
 

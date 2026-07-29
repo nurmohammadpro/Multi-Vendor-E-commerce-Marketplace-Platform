@@ -443,3 +443,92 @@
   --sidebar-border: oklch(0.2 0.02 260);
   --sidebar-ring: oklch(0.55 0.2 250);
 }
+
+/* =====================================================
+   Theme: Merch Flow (deep indigo + clean neutrals)
+   Professional B2B palette with #2E3691 indigo accent.
+   Trustworthy, modern, enterprise-focused.
+   ===================================================== */
+
+[data-theme="merch-flow"] {
+  --background: oklch(0.99 0.004 85);
+  --foreground: oklch(0.145 0.008 260);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0.008 260);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0.008 260);
+  --primary: oklch(0.21 0.015 260);
+  --primary-foreground: oklch(0.985 0.003 85);
+  --secondary: oklch(0.96 0.006 85);
+  --secondary-foreground: oklch(0.21 0.015 260);
+  --muted: oklch(0.965 0.005 85);
+  --muted-foreground: oklch(0.48 0.01 260);
+  --accent: oklch(0.38 0.18 270);
+  --accent-foreground: oklch(0.985 0.003 85);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.577 0.245 27.325);
+  --border: oklch(0.91 0.006 85);
+  --input: oklch(0.82 0.008 85);
+  --input-hover: oklch(0.62 0.012 260);
+  --ring: oklch(0.38 0.18 270);
+  --border-strong: oklch(0.82 0.008 85);
+  --shadow: oklch(0.145 0.008 260 / 0.04);
+  --shadow-strong: oklch(0.145 0.008 260 / 0.08);
+  --accent-soft: oklch(0.38 0.18 270 / 0.12);
+  --accent-deep: oklch(0.25 0.18 270);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --radius: 0.375rem;
+  --sidebar: oklch(0.985 0.003 85);
+  --sidebar-foreground: oklch(0.145 0.008 260);
+  --sidebar-primary: oklch(0.21 0.015 260);
+  --sidebar-primary-foreground: oklch(0.985 0.003 85);
+  --sidebar-accent: oklch(0.96 0.006 85);
+  --sidebar-accent-foreground: oklch(0.145 0.008 260);
+  --sidebar-border: oklch(0.91 0.006 85);
+  --sidebar-ring: oklch(0.38 0.18 270);
+}
+
+[data-theme="merch-flow"].dark {
+  --background: oklch(0.145 0.005 260);
+  --foreground: oklch(0.985 0.002 85);
+  --card: oklch(0.145 0.005 260);
+  --card-foreground: oklch(0.985 0.002 85);
+  --popover: oklch(0.145 0.005 260);
+  --popover-foreground: oklch(0.985 0.002 85);
+  --primary: oklch(0.985 0.002 85);
+  --primary-foreground: oklch(0.21 0.015 260);
+  --secondary: oklch(0.269 0.005 260);
+  --secondary-foreground: oklch(0.985 0.002 85);
+  --muted: oklch(0.269 0.005 260);
+  --muted-foreground: oklch(0.708 0.005 260);
+  --accent: oklch(0.55 0.18 270);
+  --accent-foreground: oklch(0.985 0.002 85);
+  --destructive: oklch(0.396 0.141 25.723);
+  --destructive-foreground: oklch(0.637 0.237 25.331);
+  --border: oklch(0.269 0.005 260);
+  --input: oklch(0.35 0.008 260);
+  --input-hover: oklch(0.48 0.012 260);
+  --ring: oklch(0.55 0.18 270);
+  --border-strong: oklch(0.35 0.005 260);
+  --shadow: oklch(0 0 0 / 0.3);
+  --shadow-strong: oklch(0 0 0 / 0.5);
+  --accent-soft: oklch(0.55 0.18 270 / 0.2);
+  --accent-deep: oklch(0.4 0.18 270);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.205 0.005 260);
+  --sidebar-foreground: oklch(0.985 0.002 85);
+  --sidebar-primary: oklch(0.55 0.18 270);
+  --sidebar-primary-foreground: oklch(0.985 0.002 85);
+  --sidebar-accent: oklch(0.269 0.005 260);
+  --sidebar-accent-foreground: oklch(0.985 0.002 85);
+  --sidebar-border: oklch(0.269 0.005 260);
+  --sidebar-ring: oklch(0.55 0.18 270);
+}

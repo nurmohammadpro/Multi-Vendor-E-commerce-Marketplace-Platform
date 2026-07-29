@@ -3,8 +3,8 @@ import type { MetadataRoute } from 'next';
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: '/',
-    name: 'Market One BD Store Console',
-    short_name: 'Market One',
+    name: 'Merch Flow Store Console',
+    short_name: 'Merch Flow',
     description: 'Installable store console for POS, stock, approvals, customers, and daily retail operations.',
     start_url: '/',
     scope: '/',

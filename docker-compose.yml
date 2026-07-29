@@ -1,7 +1,7 @@
 # ──────────────────────────────────────────────
-# Market One BD — Dokploy Deployment Compose
+# Merch Flow — Dokploy Deployment Compose
 # Server: Hostinger KVM2 (72.62.254.192)
-# Domain: marketone.appbrainer.tech
+# Domain: merchflow.appbrainer.tech
 # Deploy: docker compose -f docker-compose.dokploy.yml up -d
 # ──────────────────────────────────────────────
 
@@ -78,7 +78,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: "4000"
-      APP_URL: "${APP_URL:-https://app.marketone.appbrainer.tech}"
+      APP_URL: "${APP_URL:-https://app.merchflow.appbrainer.tech}"
       DATABASE_URL: "postgresql://${POSTGRES_USER:-multivendor}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-multivendor}"
       REDIS_URL: "redis://redis:6379"
       STORAGE_DRIVER: "${STORAGE_DRIVER:-s3}"
@@ -112,10 +112,10 @@ services:
         condition: service_started
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.marketone-api.rule=Host(`api.marketone.appbrainer.tech`)"
-      - "traefik.http.routers.marketone-api.entrypoints=websecure"
-      - "traefik.http.routers.marketone-api.tls.certResolver=letsencrypt"
-      - "traefik.http.services.marketone-api.loadbalancer.server.port=4000"
+      - "traefik.http.routers.merchflow-api.rule=Host(`api.merchflow.appbrainer.tech`)"
+      - "traefik.http.routers.merchflow-api.entrypoints=websecure"
+      - "traefik.http.routers.merchflow-api.tls.certResolver=letsencrypt"
+      - "traefik.http.services.merchflow-api.loadbalancer.server.port=4000"
     healthcheck:
       test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:4000/v1/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))\""]
       interval: 15s
@@ -130,11 +130,11 @@ services:
       context: .
       dockerfile: Dockerfile.login
       args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.marketone.appbrainer.tech}
-        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-https://api.marketone.appbrainer.tech/v1}
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.merchflow.appbrainer.tech}
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-https://api.merchflow.appbrainer.tech/v1}
         API_BASE_URL: http://api:4000/v1
-        NEXT_PUBLIC_ADMIN_APP_URL: ${NEXT_PUBLIC_ADMIN_APP_URL:-https://admin.marketone.appbrainer.tech}
-        NEXT_PUBLIC_STORE_APP_URL: ${NEXT_PUBLIC_STORE_APP_URL:-https://app.marketone.appbrainer.tech}
+        NEXT_PUBLIC_ADMIN_APP_URL: ${NEXT_PUBLIC_ADMIN_APP_URL:-https://admin.merchflow.appbrainer.tech}
+        NEXT_PUBLIC_STORE_APP_URL: ${NEXT_PUBLIC_STORE_APP_URL:-https://app.merchflow.appbrainer.tech}
     restart: unless-stopped
     deploy:
       resources:
@@ -145,17 +145,17 @@ services:
       NODE_ENV: production
       PORT: "3000"
       HOSTNAME: "0.0.0.0"
-      NEXT_PUBLIC_API_URL: "${NEXT_PUBLIC_API_URL:-https://api.marketone.appbrainer.tech}"
-      NEXT_PUBLIC_API_BASE_URL: "${NEXT_PUBLIC_API_BASE_URL:-https://api.marketone.appbrainer.tech/v1}"
+      NEXT_PUBLIC_API_URL: "${NEXT_PUBLIC_API_URL:-https://api.merchflow.appbrainer.tech}"
+      NEXT_PUBLIC_API_BASE_URL: "${NEXT_PUBLIC_API_BASE_URL:-https://api.merchflow.appbrainer.tech/v1}"
       API_BASE_URL: "http://api:4000/v1"
-      NEXT_PUBLIC_ADMIN_APP_URL: "${NEXT_PUBLIC_ADMIN_APP_URL:-https://admin.marketone.appbrainer.tech}"
-      NEXT_PUBLIC_STORE_APP_URL: "${NEXT_PUBLIC_STORE_APP_URL:-https://app.marketone.appbrainer.tech}"
+      NEXT_PUBLIC_ADMIN_APP_URL: "${NEXT_PUBLIC_ADMIN_APP_URL:-https://admin.merchflow.appbrainer.tech}"
+      NEXT_PUBLIC_STORE_APP_URL: "${NEXT_PUBLIC_STORE_APP_URL:-https://app.merchflow.appbrainer.tech}"
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.marketone-login.rule=Host(`marketone.appbrainer.tech`)"
-      - "traefik.http.routers.marketone-login.entrypoints=websecure"
-      - "traefik.http.routers.marketone-login.tls.certResolver=letsencrypt"
-      - "traefik.http.services.marketone-login.loadbalancer.server.port=3000"
+      - "traefik.http.routers.merchflow-login.rule=Host(`merchflow.appbrainer.tech`)"
+      - "traefik.http.routers.merchflow-login.entrypoints=websecure"
+      - "traefik.http.routers.merchflow-login.tls.certResolver=letsencrypt"
+      - "traefik.http.services.merchflow-login.loadbalancer.server.port=3000"
     depends_on:
       api:
         condition: service_healthy
@@ -168,8 +168,8 @@ services:
       context: .
       dockerfile: Dockerfile.admin
       args:
-        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-https://api.marketone.appbrainer.tech/v1}
-        NEXT_PUBLIC_LOGIN_APP_URL: ${NEXT_PUBLIC_LOGIN_APP_URL:-https://marketone.appbrainer.tech}
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-https://api.merchflow.appbrainer.tech/v1}
+        NEXT_PUBLIC_LOGIN_APP_URL: ${NEXT_PUBLIC_LOGIN_APP_URL:-https://merchflow.appbrainer.tech}
         API_BASE_URL: http://api:4000/v1
     restart: unless-stopped
     deploy:
@@ -182,13 +182,13 @@ services:
       PORT: "3001"
       API_BASE_URL: "http://api:4000/v1"
       HOSTNAME: "0.0.0.0"
-      NEXT_PUBLIC_LOGIN_APP_URL: "${NEXT_PUBLIC_LOGIN_APP_URL:-https://marketone.appbrainer.tech}"
+      NEXT_PUBLIC_LOGIN_APP_URL: "${NEXT_PUBLIC_LOGIN_APP_URL:-https://merchflow.appbrainer.tech}"
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.marketone-admin.rule=Host(`admin.marketone.appbrainer.tech`)"
-      - "traefik.http.routers.marketone-admin.entrypoints=websecure"
-      - "traefik.http.routers.marketone-admin.tls.certResolver=letsencrypt"
-      - "traefik.http.services.marketone-admin.loadbalancer.server.port=3001"
+      - "traefik.http.routers.merchflow-admin.rule=Host(`admin.merchflow.appbrainer.tech`)"
+      - "traefik.http.routers.merchflow-admin.entrypoints=websecure"
+      - "traefik.http.routers.merchflow-admin.tls.certResolver=letsencrypt"
+      - "traefik.http.services.merchflow-admin.loadbalancer.server.port=3001"
     depends_on:
       api:
         condition: service_healthy
@@ -201,10 +201,10 @@ services:
       context: .
       dockerfile: Dockerfile.store
       args:
-        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-https://api.marketone.appbrainer.tech/v1}
-        NEXT_PUBLIC_LOGIN_APP_URL: ${NEXT_PUBLIC_LOGIN_APP_URL:-https://marketone.appbrainer.tech}
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-https://api.merchflow.appbrainer.tech/v1}
+        NEXT_PUBLIC_LOGIN_APP_URL: ${NEXT_PUBLIC_LOGIN_APP_URL:-https://merchflow.appbrainer.tech}
         API_BASE_URL: http://api:4000/v1
-        NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-Market One BD}
+        NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-Merch Flow}
         NEXT_PUBLIC_PRINT_AGENT_URL: ${NEXT_PUBLIC_PRINT_AGENT_URL:-http://127.0.0.1:17658}
     restart: unless-stopped
     deploy:
@@ -217,14 +217,14 @@ services:
       PORT: "3002"
       HOSTNAME: "0.0.0.0"
       API_BASE_URL: "http://api:4000/v1"
-      NEXT_PUBLIC_LOGIN_APP_URL: "${NEXT_PUBLIC_LOGIN_APP_URL:-https://marketone.appbrainer.tech}"
+      NEXT_PUBLIC_LOGIN_APP_URL: "${NEXT_PUBLIC_LOGIN_APP_URL:-https://merchflow.appbrainer.tech}"
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.marketone-store-app.rule=Host(`app.marketone.appbrainer.tech`) || Host(`store.marketone.appbrainer.tech`)"
-      - "traefik.http.routers.marketone-store-app.entrypoints=websecure"
-      - "traefik.http.routers.marketone-store-app.tls.certResolver=letsencrypt"
-      - "traefik.http.routers.marketone-store-app.service=marketone-store"
-      - "traefik.http.services.marketone-store.loadbalancer.server.port=3002"
+      - "traefik.http.routers.merchflow-store-app.rule=Host(`app.merchflow.appbrainer.tech`) || Host(`store.merchflow.appbrainer.tech`)"
+      - "traefik.http.routers.merchflow-store-app.entrypoints=websecure"
+      - "traefik.http.routers.merchflow-store-app.tls.certResolver=letsencrypt"
+      - "traefik.http.routers.merchflow-store-app.service=merchflow-store"
+      - "traefik.http.services.merchflow-store.loadbalancer.server.port=3002"
     depends_on:
       api:
         condition: service_healthy

@@ -55,7 +55,7 @@ set AGENT_DIR=%AGENT_DIR:~0,-1%
 echo MVP_PRINTER_NAME=%PRINTER_NAME%
 echo MVP_STORE_ID=%STORE_ID%
 echo MVP_AUTH_TOKEN=%AUTH_TOKEN%
-echo MVP_API_BASE_URL=https://api.marketone.appbrainer.tech/v1
+echo MVP_API_BASE_URL=https://api.merchflow.appbrainer.tech/v1
 echo MVP_POLL_INTERVAL_MS=3000
 ) > "%AGENT_DIR%\.env"
 
