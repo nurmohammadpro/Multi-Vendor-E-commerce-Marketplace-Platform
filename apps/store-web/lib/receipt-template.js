@@ -55,18 +55,18 @@ export function renderReceipt(receipt, mode) {
     : '';
 
   var barcodeHtml = barcode
-    ? '<div style="margin-top:10px"><img src="https://barcode.tec-it.com/barcode.ashx?data='+encodeURIComponent(barcode)+'&code=Code128&translate-esc=true&dpi=96&imagetype=png" style="max-width:260px;height:58px" alt="Barcode"><div class="bt">'+esc(barcode)+'</div></div>'
+    ? '<div class="bc-wrap"><div class="bc-frame"><img src="https://barcode.tec-it.com/barcode.ashx?data='+encodeURIComponent(barcode)+'&code=Code128&translate-esc=true&dpi=96&imagetype=png" alt="Barcode"><div class="bt">'+esc(barcode)+'</div></div></div>'
     : '';
 
   var css = [
     '*{margin:0;padding:0;box-sizing:border-box}',
     'body{font-family:"Segoe UI",system-ui,sans-serif;background:#fff;color:#1e293b;font-size:'+fs.body+'}',
     '.page{max-width:'+(isA5?'100%':'80mm')+';margin:0 auto;padding:'+(isA5?'8mm 10mm':'12px 8px')+'}',
-    '.header{display:flex;justify-content:space-between;border-bottom:3px double #1e293b;padding-bottom:8px;margin-bottom:8px;'+(isA5?'':'flex-direction:column;gap:4px;')+'}',
-    '.hl{flex:1}',
-    '.hr{text-align:'+(isA5?'right':'left')+';border-left:1px dashed #cbd5e1;padding-left:12px;min-width:160px;}',
+    '.header{display:flex;justify-content:space-between;border-bottom:4px double #1e293b;padding-bottom:12px;margin-bottom:8px;'+(isA5?'':'flex-direction:column;gap:6px;')+'}',
+    '.hl{flex:1;display:flex;flex-direction:column;'+(!isA5?'align-items:center;text-align:center;':'')+'}',
+    '.hr{text-align:'+(isA5?'right':'left')+';border-left:1px dashed #cbd5e1;padding-left:16px;min-width:180px;'+(isA5?'':'padding-left:0;border-left:0;')+'}',
     '.vl{color:#64748b;font-weight:400}',
-    '.sn{font-size:'+fs.sn+';font-weight:700;margin-bottom:1px}',
+    '.sn{font-size:'+fs.sn+';font-weight:800;margin-bottom:2px;letter-spacing:-.02em;color:#0f172a}',
     '.sm{font-size:'+fs.sm+';color:#475569;line-height:1.5}',
     '.it{font-size:'+fs.it+';font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-bottom:1px}',
     '.ino{font-size:'+fs.ino+';font-weight:600}',
@@ -89,14 +89,19 @@ export function renderReceipt(receipt, mode) {
     '.iw{margin-top:8px;padding:6px 8px;background:#f8fafc;font-weight:600;color:#1e293b;border-radius:4px}',
     '.pb{margin-top:6px;color:#475569}',
     '.bt{font-family:monospace;font-size:'+fs.bt+';letter-spacing:.1em;color:#64748b;margin-top:1px}',
+    '.bc-wrap{display:flex;justify-content:center;margin:10px 0 8px}',
+    '.bc-frame{border:2px dashed #cbd5e1;border-radius:6px;padding:8px 16px;text-align:center;background:#fafafa}',
+    '.bc-frame img{max-width:260px;height:58px}',
+    '.bc-label{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;margin-bottom:2px}',
     '@media print{@page{margin:0;size:'+(isA5?'A5':'80mm')+' auto}}'
   ].join('\n');
 
   var storeMetaHtml = storeMeta.map(function(l) { return '<div class="sm">'+esc(l)+'</div>'; }).join('');
 
   return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc(receipt.saleNo||'Invoice')+'</title><style>'+css+'</style></head><body><div class="page">'+
-    '<div class="header"><div class="hl"><div class="sn">'+esc(store.name||'Store')+'</div>'+storeMetaHtml+logoHtml+barcodeHtml+'</div>'+
+    '<div class="header"><div class="hl">'+logoHtml+'<div class="sn">'+esc(store.name||'Store')+'</div>'+storeMetaHtml+'</div>'+
     '<div class="hr"><div class="it">Sales Receipt</div><div class="ino">'+esc(receipt.saleNo||'—')+'</div><div class="sm">'+esc(dateStr)+'</div>'+custSec+'</div></div>'+
+    barcodeHtml+
     '<h2>Items</h2><table><thead><tr><th class="ic">Item</th><th class="qc">Qty</th><th class="tc">Total</th></tr></thead><tbody>'+itemRows+'</tbody></table>'+
     '<div class="totals">'+
     '<div class="tr"><span class="lb">Sub Total</span><span class="vl">'+money(grossSubtotal)+'</span></div>'+
