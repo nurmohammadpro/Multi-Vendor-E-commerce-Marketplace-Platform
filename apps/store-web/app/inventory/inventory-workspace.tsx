@@ -504,7 +504,11 @@ export function InventoryWorkspace({
                   Update Stock
                 </button>
               ) : (
-                <button onClick={requestAdjustment} style={gray800ButtonStyle} disabled={!canRequestAdjustInventory || loading}>
+                <button
+                  onClick={requestAdjustment}
+                  style={{ ...gray800ButtonStyle, ...(!canRequestAdjustInventory ? { opacity: 0.4, cursor: 'not-allowed' } : {}) }}
+                  disabled={!canRequestAdjustInventory || loading}
+                >
                   Request Change
                 </button>
               )}
