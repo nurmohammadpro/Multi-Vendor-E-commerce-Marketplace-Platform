@@ -455,7 +455,7 @@ export function InventoryWorkspace({
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }} onClick={() => setStockControlOpen(false)}>
           <div style={{
-            background: '#fff', borderRadius: 16, padding: 24, maxWidth: 480, width: '95%',
+            background: 'var(--card)', borderRadius: 16, padding: 24, maxWidth: 480, width: '95%',
             maxHeight: '80vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
           }} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
@@ -463,14 +463,12 @@ export function InventoryWorkspace({
               <button onClick={() => setStockControlOpen(false)} style={{ ...secondaryButtonStyle, minWidth: 40, fontSize: 16, lineHeight: 1 }}>✕</button>
             </div>
             <p style={{ ...tokenMutedStyle, marginBottom: 12 }}>
-              {canDirectAdjustInventory
-                ? 'Search an existing SKU, then update stock quantities directly.'
-                : 'Search an existing SKU, then initialize opening quantity or send an approval request for changes.'}
+              {canRequestAdjustInventory
+                ? 'Search for a SKU, enter the target quantity, and submit a change request for owner approval.'
+                : 'Browse live stock quantities below. Changes require owner approval.'}
             </p>
-            {!canAdjustInventory ? (
+            {!canRequestAdjustInventory ? (
               <div style={{ ...emptyStateStyle, marginBottom: 12 }}>Your role can review inventory, but stock changes are restricted.</div>
-            ) : !canDirectAdjustInventory ? (
-              <div style={{ ...emptyStateStyle, marginBottom: 12 }}>Stock is updated through purchase receipts. You can request adjustments below.</div>
             ) : null}
             <div style={{ ...searchRowStyle, marginBottom: 12 }}>
               <input
