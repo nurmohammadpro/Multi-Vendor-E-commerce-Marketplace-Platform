@@ -85,10 +85,10 @@ export function ReturnsWorkspace() {
     setError('');
     try {
       const params = new URLSearchParams({ page: String(page), limit: String(limit) });
-      if (search) params.set('search', search);
-      const result = await readJson<{ data: Sale[]; total: number }>(`/api/pos/sales-report?${params}`);
-      setSales(result.data ?? []);
-      setTotal(result.total ?? 0);
+      if (search) params.set('query', search);
+      const result = await readJson<{ sales: Sale[]; pagination: { total: number } }>(`/api/pos/sales?${params}`);
+      setSales(result.sales ?? []);
+      setTotal(result.pagination?.total ?? 0);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load sales');
       setSales([]);
