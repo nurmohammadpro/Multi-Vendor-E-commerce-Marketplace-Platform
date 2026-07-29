@@ -7,7 +7,7 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { getStoreConsoleAccess } from '../../lib/access';
-import { pageShellStyle, sectionLabelStyle, tokenMutedStyle } from '../marketone-theme';
+import { pageShellStyle } from '../marketone-theme';
 import { SettingsWorkspace } from './settings-workspace';
 
 export default async function StoreSettingsPage() {
@@ -15,16 +15,6 @@ export default async function StoreSettingsPage() {
 
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
-      <div style={{ maxWidth: 900 }}>
-        <div style={sectionLabelStyle}>Store settings</div>
-        <h2 style={{ margin: '8px 0 8px', fontSize: 'clamp(20px, 2vw, 28px)', fontWeight: 500, letterSpacing: '-0.02em' }}>
-          Keep the operational defaults compact and predictable.
-        </h2>
-        <p style={tokenMutedStyle}>
-          Timezone, currency, invoice prefix, receipt footer, policy preferences, and stock controls live here.
-        </p>
-      </div>
-
       {access.canManageSettings ? (
         <>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

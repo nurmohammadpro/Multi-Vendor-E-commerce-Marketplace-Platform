@@ -9,7 +9,7 @@ import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
 
 import { fetchStoreApi, isStoreApiConfigured } from '../../lib/api';
-import { pageShellStyle, pageTitleStyle, sectionLabelStyle, tokenMutedStyle } from '../marketone-theme';
+import { pageShellStyle } from '../marketone-theme';
 import { LogoutButton } from './logout-button';
 
 type SessionProfile = {
@@ -39,21 +39,6 @@ export default async function StoreSessionPage() {
 
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
-      <div style={{ maxWidth: 900 }}>
-        <div style={sectionLabelStyle}>Session status</div>
-        <h2 style={{ ...pageTitleStyle, margin: '8px 0' }}>
-          See exactly which identity and permissions are active.
-        </h2>
-        <p style={tokenMutedStyle}>
-          This closes the last UX gap by making the auth/session state visible to the operator instead of hidden.
-        </p>
-        <p className="text-sm text-muted-foreground mt-2">
-          {configured
-            ? 'The session endpoint is reachable.'
-            : 'Set `API_BASE_URL`, `STORE_DEMO_BEARER_TOKEN`, and `STORE_DEMO_STORE_ID` to inspect a live session.'}
-        </p>
-      </div>
-
       <Separator />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
