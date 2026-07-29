@@ -51,7 +51,7 @@ export function WorkspaceTabs({
             style={{
               ...subtleButtonStyle,
               minHeight: 32,
-              background: selected ? '#ffffff' : marketoneColors.backgroundAlt,
+              background: selected ? 'var(--card)' : marketoneColors.backgroundAlt,
               border: selected ? `1px solid ${marketoneColors.borderStrong}` : `1px solid ${marketoneColors.border}`,
               color: selected ? marketoneColors.ink : marketoneColors.muted,
               boxShadow: selected ? `0 1px 2px ${marketoneColors.shadowStrong}` : 'none',

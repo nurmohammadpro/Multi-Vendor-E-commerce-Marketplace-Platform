@@ -608,11 +608,15 @@ export class StoreOpsController {
     @Query('search') search?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
   ) {
     return this.storeOpsService.listPayrollRuns(headerStoreId, authContext, {
       search,
       page: page ? Number(page) : undefined,
       limit: limit ? Number(limit) : undefined,
+      startDate,
+      endDate,
     });
   }
 

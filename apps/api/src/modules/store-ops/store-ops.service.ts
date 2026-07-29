@@ -1922,12 +1922,14 @@ export class StoreOpsService {
   async listPayrollRuns(
     headerStoreId: string | undefined,
     authContext: StoreAuthContext | null,
-    filters: { search?: string; page?: number; limit?: number } = {},
+    filters: { search?: string; page?: number; limit?: number; startDate?: string; endDate?: string } = {},
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
     this.assertAllowedRoles(authContext, ['store_owner']);
     const { page, limit, offset } = normalizePageQuery(filters);
     const search = filters.search?.trim() || null;
+    const startDate = filters.startDate?.trim() || null;
+    const endDate = filters.endDate?.trim() || null;
     const result = await this.pool.query(
       `
         select *
@@ -1944,13 +1946,15 @@ export class StoreOpsService {
               or coalesce(pr.payroll_no, '') ilike '%' || $2::text || '%'
               or coalesce(pr.status, '') ilike '%' || $2::text || '%'
             )
+            and ($3::date is null or pr.period_start >= $3::date)
+            and ($4::date is null or pr.period_end <= $4::date)
           group by pr.id
           order by pr.period_end desc, pr.created_at desc
-          limit $3
-          offset $4
+          limit $5
+          offset $6
         ) payroll_runs
       `,
-      [storeId, search, limit, offset],
+      [storeId, search, startDate, endDate, limit, offset],
     );
     const { items, total } = stripPaginationTotal(result.rows);
     return { payrollRuns: items, pagination: { page, limit, total } };
