@@ -5,7 +5,7 @@ export const permissionGroups = {
     'inventory.adjust.approve',
     'inventory.view',
   ],
-  sales: ['sales.pos.create', 'sales.report.view'],
+  sales: ['sales.pos.create', 'sales.report.view', 'sales.returns.manage'],
   billing: ['billing.subscription.manage'],
 } as const;
 
