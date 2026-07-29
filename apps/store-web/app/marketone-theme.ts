@@ -276,6 +276,8 @@ export const emptyStateStyle: CSSProperties = {
 
 export const tableWrapStyle: CSSProperties = {
   overflowX: 'auto',
+  WebkitOverflowScrolling: 'touch',
+  scrollBehavior: 'smooth',
   border: `1px solid ${marketoneColors.borderStrong}`,
   borderRadius: 8,
   background: 'var(--card)',

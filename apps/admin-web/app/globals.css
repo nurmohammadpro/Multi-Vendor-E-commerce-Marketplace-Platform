@@ -78,3 +78,40 @@
     -moz-osx-font-smoothing: grayscale;
   }
 }
+
+/* ─── Responsive tables ─── */
+
+/* Smooth momentum scrolling for iOS on table containers */
+[data-slot="table-container"] {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+/* Larger touch targets for buttons inside tables */
+[data-slot="table-cell"] button,
+[data-slot="table-cell"] a[role="button"] {
+  min-height: 36px;
+}
+
+@media (max-width: 640px) {
+  /* Bigger touch targets on mobile */
+  [data-slot="table-cell"] button,
+  [data-slot="table-cell"] a[role="button"] {
+    min-height: 44px;
+    font-size: 13px;
+  }
+
+  /* Compact table cell padding on mobile */
+  [data-slot="table-cell"] {
+    padding: 5px 6px !important;
+  }
+
+  [data-slot="table-head"] {
+    padding: 6px 6px !important;
+  }
+
+  /* Smaller table text */
+  [data-slot="table"] {
+    font-size: 11px !important;
+  }
+}
