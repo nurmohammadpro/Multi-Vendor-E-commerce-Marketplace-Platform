@@ -54,6 +54,7 @@ export type StoreConsoleAccess = {
   canUseBankingReconciliation: boolean;
   canUseSupport: boolean;
   canUseDisputes: boolean;
+  canManageLocations: boolean;
 };
 
 type StoreSubscriptionSummary = {
@@ -156,6 +157,7 @@ export function deriveStoreConsoleAccess(
     canUseBankingReconciliation: isOwner && canAccessStoreFeature({ planCode, planFeatures }, 'banking'),
     canUseSupport: permissionSet.has('sales.report.view') && canAccessStoreFeature({ planCode, planFeatures }, 'support'),
     canUseDisputes: permissionSet.has('sales.report.view') && canAccessStoreFeature({ planCode, planFeatures }, 'disputes'),
+    canManageLocations: isOwner && canAccessStoreFeature({ planCode, planFeatures }, 'inventory'),
   };
 }
 
