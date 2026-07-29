@@ -452,7 +452,10 @@ export function StoresWorkspace() {
               <p className="text-xs text-muted-foreground">
                 This logo will be shown at the top of the store sidebar.
               </p>
-              <Input id="storeLogoFile" type="file" accept="image/*" onChange={(event) => void handleLogoFileChange(event)} />
+              <Input id="storeLogoFile" type="file" accept="image/*" onChange={(event) => void handleLogoFileChange(event)} className="hidden" />
+              <Button variant="outline" type="button" size="sm" onClick={() => document.getElementById('storeLogoFile')?.click()}>
+                Choose file
+              </Button>
               {form.logoUrl ? (
                 <div className="flex items-center gap-3 rounded-md border border-border/60 bg-muted/30 p-3">
                   <img src={form.logoUrl} alt="Store logo preview" className="h-14 w-14 rounded-md object-contain bg-card p-1" />
@@ -664,6 +667,12 @@ export function StoresWorkspace() {
         <div className="flex flex-col gap-4">
           <Card>
             <CardContent className="pt-[var(--erp-card-py)]">
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">
+                  {filteredStores.length} of {stores.length} store{stores.length !== 1 ? 's' : ''}
+                  {statusFilter !== 'all' ? ` (filtered by ${statusFilter})` : ''}
+                </p>
+              </div>
               <div className="grid gap-3 sm:grid-cols-3">
                 <div className="space-y-2">
                   <Label htmlFor="searchStores">Search</Label>
@@ -703,32 +712,64 @@ export function StoresWorkspace() {
               <CardContent className="pt-[var(--erp-card-py)]">
                 <div className="flex flex-col gap-4 lg:flex-row lg:justify-between">
                   <div className="space-y-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <div className="text-lg font-semibold">{store.name}</div>
-                      <Badge variant={statusTone(store.status)}>{store.status}</Badge>
-                      {store.should_deactivate_review ? <Badge variant="secondary">billing overdue</Badge> : null}
-                      {store.can_delete ? <Badge variant="destructive">delete eligible</Badge> : null}
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border bg-card text-sm font-semibold text-muted-foreground overflow-hidden">
+                        {store.logo_url && (store.logo_url.startsWith('data:image') || store.logo_url.startsWith('http')) ? (
+                          <img src={store.logo_url} alt={`${store.name} logo`} className="h-full w-full object-contain" />
+                        ) : (
+                          store.name.charAt(0).toUpperCase()
+                        )}
+                      </div>
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div className="text-lg font-semibold leading-none">{store.name}</div>
+                          <Badge variant={statusTone(store.status)}>{store.status}</Badge>
+                          {store.should_deactivate_review ? <Badge variant="secondary">billing overdue</Badge> : null}
+                          {store.can_delete ? <Badge variant="destructive">delete eligible</Badge> : null}
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {store.store_code} · {store.slug} · Staff {store.staff_count}
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-sm text-muted-foreground">
-                      {store.store_code} · {store.slug} · Staff {store.staff_count}
-                    </div>
-                    {store.logo_url ? (
-                      <div className="text-xs text-muted-foreground">Logo: {store.logo_url}</div>
-                    ) : null}
                     {store.address_text ? (
-                      <div className="text-xs text-muted-foreground">Address: {store.address_text}</div>
+                      <div className="text-xs text-muted-foreground">
+                        <span className="font-medium">Address:</span> {store.address_text}
+                      </div>
                     ) : null}
                     <div className="text-sm text-muted-foreground">
-                      Owner: {store.owner_name || '—'} · {store.owner_email || store.email || '—'}
+                      <span className="font-medium">Owner:</span> {store.owner_name || '—'} · {store.owner_email || store.email || '—'}
                     </div>
-                    <div className="grid gap-1 text-sm text-muted-foreground sm:grid-cols-2 xl:grid-cols-3">
-                      <div>Subscription: {store.subscription_status}</div>
-                      <div>Billing: {store.billing_status || '—'}</div>
-                      <div>Due: {formatDate(store.billing_due_at)}</div>
-                      <div>Deactivation review: {formatDate(store.deactivation_review_at)}</div>
-                      <div>Delete eligible: {formatDate(store.delete_eligible_at)}</div>
-                      <div>Auto renew: {store.subscription_auto_renew ? 'Yes' : 'No'}</div>
+
+                    <div className="border-t border-border/40 pt-2.5">
+                      <div className="grid gap-x-4 gap-y-1.5 text-sm sm:grid-cols-2 xl:grid-cols-3">
+                        <div className="flex items-center justify-between gap-2 sm:flex-col sm:items-start">
+                          <span className="text-muted-foreground text-xs font-medium">Subscription</span>
+                          <span className="font-medium capitalize">{store.subscription_status}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2 sm:flex-col sm:items-start">
+                          <span className="text-muted-foreground text-xs font-medium">Billing</span>
+                          <span className={store.billing_status === 'overdue' ? 'text-destructive font-medium' : 'capitalize'}>{store.billing_status || '—'}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2 sm:flex-col sm:items-start">
+                          <span className="text-muted-foreground text-xs font-medium">Due date</span>
+                          <span>{formatDate(store.billing_due_at)}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2 sm:flex-col sm:items-start">
+                          <span className="text-muted-foreground text-xs font-medium">Deactivation review</span>
+                          <span>{formatDate(store.deactivation_review_at)}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2 sm:flex-col sm:items-start">
+                          <span className="text-muted-foreground text-xs font-medium">Delete eligible</span>
+                          <span>{formatDate(store.delete_eligible_at)}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2 sm:flex-col sm:items-start">
+                          <span className="text-muted-foreground text-xs font-medium">Auto renew</span>
+                          <span className={store.subscription_auto_renew ? 'text-emerald-600 dark:text-emerald-400' : ''}>{store.subscription_auto_renew ? 'Yes' : 'No'}</span>
+                        </div>
+                      </div>
                     </div>
+
                     {store.should_deactivate_review ? (
                       <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-950 dark:text-amber-200">
                         This store is past the billing grace period. Admins may deactivate it now, but it will not be deleted automatically.
@@ -741,12 +782,12 @@ export function StoresWorkspace() {
                     ) : null}
                   </div>
 
-                  <div className="flex flex-wrap items-start gap-2">
+                  <div className="flex flex-wrap items-start gap-1.5">
                     <Button variant="outline" size="sm" onClick={() => beginEdit(store)} disabled={loading || saving}>
                       Edit
                     </Button>
                     <Button variant="outline" size="sm" onClick={() => setOwnerPasswordTarget(store)} disabled={loading || saving}>
-                      Reset owner password
+                      Reset pwd
                     </Button>
                     <Button
                       variant="outline"
