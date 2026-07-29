@@ -94,6 +94,7 @@ const iconMap: Record<string, typeof LayoutDashboard> = {
   '/approvals': ClipboardCheck,
   '/pos': ShoppingCart,
   '/sales-history': BarChart3,
+  '/returns': Receipt,
   '/receivables': Wallet,
   '/customers': Users,
   '/shipping': Truck,

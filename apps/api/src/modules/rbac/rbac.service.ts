@@ -3,7 +3,6 @@ import { permissionGroups } from '@mvp/rbac';
 
 const roleToPermissions: Record<string, string[]> = {
   store_owner: [
-    'inventory.adjust.direct',
     'inventory.adjust.request',
     'inventory.adjust.approve',
     'inventory.view',
@@ -12,13 +11,13 @@ const roleToPermissions: Record<string, string[]> = {
     'finance.payables.manage',
     'sales.pos.create',
     'sales.report.view',
+    'sales.returns.manage',
     'store.settings.manage',
     'store.staff.manage',
     'billing.subscription.manage',
     'payment.gateway.manage',
   ],
   store_manager: [
-    'inventory.adjust.direct',
     'inventory.adjust.request',
     'inventory.view',
     'catalog.manage',
@@ -26,9 +25,10 @@ const roleToPermissions: Record<string, string[]> = {
     'finance.payables.manage',
     'sales.pos.create',
     'sales.report.view',
+    'sales.returns.manage',
     'store.staff.manage',
   ],
-  store_salesman: ['inventory.view', 'sales.pos.create', 'sales.report.view'],
+  store_salesman: ['inventory.view', 'sales.pos.create', 'sales.report.view', 'sales.returns.manage'],
   platform_owner: [
     'platform.store.review',
     'platform.store.manage',
