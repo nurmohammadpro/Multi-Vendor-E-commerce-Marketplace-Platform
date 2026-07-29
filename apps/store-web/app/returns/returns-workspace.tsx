@@ -107,10 +107,11 @@ export function ReturnsWorkspace() {
     setSaleLoading(true);
     setError('');
     try {
-      const sale = await readJson<SaleDetail>(`/api/pos/sales/${saleId}`);
+      const data = await readJson<{ sale: SaleDetail; items: SaleItem[] }>(`/api/pos/sales/${saleId}`);
+      const sale: SaleDetail = { ...data.sale, items: data.items };
       setSelectedSale(sale);
       const initial: Record<string, { qty: number; refundAmount: number; restock: boolean }> = {};
-      for (const item of sale.items) {
+      for (const item of data.items) {
         initial[item.id] = { qty: 1, refundAmount: item.unit_price, restock: true };
       }
       setReturnItems(initial);
