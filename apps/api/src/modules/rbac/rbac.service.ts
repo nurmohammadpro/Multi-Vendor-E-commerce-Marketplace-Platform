@@ -5,6 +5,7 @@ const roleToPermissions: Record<string, string[]> = {
   store_owner: [
     'inventory.adjust.request',
     'inventory.adjust.approve',
+    'inventory.adjust.direct',
     'inventory.view',
     'catalog.manage',
     'procurement.manage',
