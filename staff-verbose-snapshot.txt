@@ -1,0 +1,489 @@
+uid=73_0 RootWebArea "Merch Flow Store Console" url="https://store.merchflow.appbrainer.tech/staff"
+  uid=74_0 ignored
+    uid=74_1 ignored
+      uid=74_2 ignored
+        uid=74_3 ignored
+          uid=74_4 ignored
+            uid=74_5 generic
+            uid=74_6 generic
+              uid=74_7 ignored
+                uid=74_8 ignored
+                  uid=74_9 ignored
+                    uid=74_10 ignored
+                      uid=74_11 generic
+                        uid=73_1 StaticText "Pro"
+                          uid=74_12 InlineTextBox "Pro"
+                        uid=73_2 StaticText " plan"
+                          uid=74_12 InlineTextBox " plan"
+                      uid=74_13 generic
+                        uid=73_3 StaticText "PC World"
+                          uid=74_12 InlineTextBox "PC World"
+                uid=74_14 generic
+                  uid=74_15 generic
+                    uid=74_16 ignored
+                      uid=73_4 StaticText "Dashboard"
+                        uid=74_12 InlineTextBox "Dashboard"
+                    uid=74_17 ignored
+                      uid=74_18 list
+                        uid=74_19 listitem level="1"
+                          uid=73_5 link "Dashboard" url="https://store.merchflow.appbrainer.tech/"
+                            uid=74_20 ignored
+                              uid=73_6 StaticText "Dashboard"
+                                uid=74_12 InlineTextBox "Dashboard"
+                  uid=74_21 generic
+                    uid=74_22 ignored
+                      uid=73_7 StaticText "Sales"
+                        uid=74_12 InlineTextBox "Sales"
+                    uid=74_23 ignored
+                      uid=74_24 list
+                        uid=74_25 listitem level="1"
+                          uid=73_8 link "Point of Sale" url="https://store.merchflow.appbrainer.tech/pos"
+                            uid=74_26 ignored
+                              uid=73_9 StaticText "Point of Sale"
+                                uid=74_12 InlineTextBox "Point of Sale"
+                        uid=74_27 listitem level="1"
+                          uid=73_10 link "Sales History" url="https://store.merchflow.appbrainer.tech/sales-history"
+                            uid=74_28 ignored
+                              uid=73_11 StaticText "Sales History"
+                                uid=74_12 InlineTextBox "Sales History"
+                        uid=74_29 listitem level="1"
+                          uid=73_12 link "Receivables" url="https://store.merchflow.appbrainer.tech/receivables"
+                            uid=74_30 ignored
+                              uid=73_13 StaticText "Receivables"
+                                uid=74_12 InlineTextBox "Receivables"
+                        uid=74_31 listitem level="1"
+                          uid=73_14 link "Customers" url="https://store.merchflow.appbrainer.tech/customers"
+                            uid=74_32 ignored
+                              uid=73_15 StaticText "Customers"
+                                uid=74_12 InlineTextBox "Customers"
+                        uid=74_33 listitem level="1"
+                          uid=73_16 link "Shipping" url="https://store.merchflow.appbrainer.tech/shipping"
+                            uid=74_34 ignored
+                              uid=73_17 StaticText "Shipping"
+                                uid=74_12 InlineTextBox "Shipping"
+                  uid=74_35 generic
+                    uid=74_36 ignored
+                      uid=73_18 StaticText "Product & Stock"
+                        uid=74_12 InlineTextBox "Product & Stock"
+                    uid=74_37 ignored
+                      uid=74_38 list
+                        uid=74_39 listitem level="1"
+                          uid=73_19 link "Stock" url="https://store.merchflow.appbrainer.tech/inventory"
+                            uid=74_40 ignored
+                              uid=73_20 StaticText "Stock"
+                                uid=74_12 InlineTextBox "Stock"
+                        uid=74_41 listitem level="1"
+                          uid=73_21 link "Categories & Brands" url="https://store.merchflow.appbrainer.tech/taxonomy"
+                            uid=74_42 ignored
+                              uid=73_22 StaticText "Categories & Brands"
+                                uid=74_12 InlineTextBox "Categories & Brands"
+                        uid=74_43 listitem level="1"
+                          uid=73_23 link "Locations" url="https://store.merchflow.appbrainer.tech/locations"
+                            uid=74_44 ignored
+                              uid=73_24 StaticText "Locations"
+                                uid=74_12 InlineTextBox "Locations"
+                        uid=74_45 listitem level="1"
+                          uid=73_25 link "Purchases" url="https://store.merchflow.appbrainer.tech/purchases"
+                            uid=74_46 ignored
+                              uid=73_26 StaticText "Purchases"
+                                uid=74_12 InlineTextBox "Purchases"
+                        uid=74_47 listitem level="1"
+                          uid=73_27 link "Suppliers" url="https://store.merchflow.appbrainer.tech/suppliers"
+                            uid=74_48 ignored
+                              uid=73_28 StaticText "Suppliers"
+                                uid=74_12 InlineTextBox "Suppliers"
+                        uid=74_49 listitem level="1"
+                          uid=73_29 link "Approvals" url="https://store.merchflow.appbrainer.tech/approvals"
+                            uid=74_50 ignored
+                              uid=73_30 StaticText "Approvals"
+                                uid=74_12 InlineTextBox "Approvals"
+                  uid=74_51 generic
+                    uid=74_52 ignored
+                      uid=73_31 StaticText "Reports & Activity"
+                        uid=74_12 InlineTextBox "Reports & Activity"
+                    uid=74_53 ignored
+                      uid=74_54 list
+                        uid=74_55 listitem level="1"
+                          uid=73_32 link "Reports" url="https://store.merchflow.appbrainer.tech/reports"
+                            uid=74_56 ignored
+                              uid=73_33 StaticText "Reports"
+                                uid=74_12 InlineTextBox "Reports"
+                        uid=74_57 listitem level="1"
+                          uid=73_34 link "Activity Log" url="https://store.merchflow.appbrainer.tech/activity"
+                            uid=74_58 ignored
+                              uid=73_35 StaticText "Activity Log"
+                                uid=74_12 InlineTextBox "Activity Log"
+                  uid=74_59 generic
+                    uid=74_60 ignored
+                      uid=73_36 StaticText "Finance"
+                        uid=74_12 InlineTextBox "Finance"
+                    uid=74_61 ignored
+                      uid=74_62 list
+                        uid=74_63 listitem level="1"
+                          uid=73_37 link "Expenses" url="https://store.merchflow.appbrainer.tech/expenses"
+                            uid=74_64 ignored
+                              uid=73_38 StaticText "Expenses"
+                                uid=74_12 InlineTextBox "Expenses"
+                        uid=74_65 listitem level="1"
+                          uid=73_39 link "Banking" url="https://store.merchflow.appbrainer.tech/banking"
+                            uid=74_66 ignored
+                              uid=73_40 StaticText "Banking"
+                                uid=74_12 InlineTextBox "Banking"
+                        uid=74_67 listitem level="1"
+                          uid=73_41 link "Subscription" url="https://store.merchflow.appbrainer.tech/billing"
+                            uid=74_68 ignored
+                              uid=73_42 StaticText "Subscription"
+                                uid=74_12 InlineTextBox "Subscription"
+                  uid=74_69 generic
+                    uid=74_70 ignored
+                      uid=73_43 StaticText "Administration"
+                        uid=74_12 InlineTextBox "Administration"
+                    uid=74_71 ignored
+                      uid=74_72 list
+                        uid=74_73 listitem level="1"
+                          uid=73_44 link "Team" url="https://store.merchflow.appbrainer.tech/staff"
+                            uid=74_74 ignored
+                              uid=73_45 StaticText "Team"
+                                uid=74_12 InlineTextBox "Team"
+                        uid=74_75 listitem level="1"
+                          uid=73_46 link "Settings" url="https://store.merchflow.appbrainer.tech/settings"
+                            uid=74_76 ignored
+                              uid=73_47 StaticText "Settings"
+                                uid=74_12 InlineTextBox "Settings"
+                        uid=74_77 listitem level="1"
+                          uid=73_48 link "Hardware" url="https://store.merchflow.appbrainer.tech/hardware"
+                            uid=74_78 ignored
+                              uid=73_49 StaticText "Hardware"
+                                uid=74_12 InlineTextBox "Hardware"
+                  uid=74_79 generic
+                    uid=74_80 ignored
+                      uid=73_50 StaticText "Support"
+                        uid=74_12 InlineTextBox "Support"
+                    uid=74_81 ignored
+                      uid=74_82 list
+                        uid=74_83 listitem level="1"
+                          uid=73_51 link "Disputes" url="https://store.merchflow.appbrainer.tech/disputes"
+                            uid=74_84 ignored
+                              uid=73_52 StaticText "Disputes"
+                                uid=74_12 InlineTextBox "Disputes"
+                        uid=74_85 listitem level="1"
+                          uid=73_53 link "Support" url="https://store.merchflow.appbrainer.tech/support"
+                            uid=74_86 ignored
+                              uid=73_54 StaticText "Support"
+                                uid=74_12 InlineTextBox "Support"
+                        uid=74_87 listitem level="1"
+                          uid=73_55 link "Help & Reference" url="https://store.merchflow.appbrainer.tech/help"
+                            uid=74_88 ignored
+                              uid=73_56 StaticText "Help & Reference"
+                                uid=74_12 InlineTextBox "Help & Reference"
+                uid=74_89 ignored
+          uid=74_90 ignored
+            uid=73_57 banner
+              uid=73_58 button "Toggle Sidebar"
+                uid=74_91 ignored
+                  uid=74_92 StaticText "Toggle Sidebar"
+                    uid=74_12 InlineTextBox "Toggle Sidebar"
+              uid=74_93 ignored
+                uid=73_59 heading "Staff" level="1"
+                  uid=74_94 StaticText "Staff"
+                    uid=74_12 InlineTextBox "Staff"
+              uid=74_95 ignored
+                uid=74_96 generic
+                  uid=73_60 button "Switch theme"
+                    uid=74_97 StaticText "Merch Flow"
+                      uid=74_12 InlineTextBox "Merch Flow"
+                    uid=74_98 StaticText " · "
+                      uid=74_12 InlineTextBox " · "
+                    uid=74_99 StaticText "System (Dark)"
+                      uid=74_12 InlineTextBox "System (Dark)"
+                uid=74_100 ignored
+                uid=74_101 ignored
+                  uid=73_61 button "Install App"
+                    uid=74_102 StaticText "Install App"
+                      uid=74_12 InlineTextBox "Install App"
+                uid=74_103 ignored
+                  uid=73_62 StaticText "OWNER ACCESS"
+                    uid=74_12 InlineTextBox "OWNER ACCESS"
+                uid=74_104 ignored
+                  uid=73_63 StaticText "PRO"
+                    uid=74_12 InlineTextBox "PRO"
+                uid=73_64 button "HR" expandable haspopup="menu"
+                  uid=74_105 ignored
+                    uid=74_106 ignored
+                      uid=74_107 StaticText "HR"
+                        uid=74_12 InlineTextBox "HR"
+            uid=73_65 main
+              uid=74_108 ignored
+                uid=74_109 generic
+                  uid=74_110 ignored
+                    uid=74_111 generic
+                      uid=73_66 StaticText "TEAM"
+                        uid=74_12 InlineTextBox "TEAM"
+                    uid=73_67 heading "Users, employees, and payroll" level="2"
+                      uid=74_112 StaticText "Users, employees, and payroll"
+                        uid=74_12 InlineTextBox "Users, employees, and payroll"
+                    uid=74_113 paragraph
+                      uid=73_68 StaticText "Manage console users, employee records, and payroll workflow from one focused team workspace."
+                        uid=74_12 InlineTextBox "Manage console users, employee records, and payroll workflow from one focused team workspace."
+                  uid=74_114 generic
+                    uid=74_115 ignored
+                      uid=73_69 button "Users"
+                        uid=74_116 StaticText "Users"
+                          uid=74_12 InlineTextBox "Users"
+                      uid=73_70 button "HR & Payroll"
+                        uid=74_117 StaticText "HR & Payroll"
+                          uid=74_12 InlineTextBox "HR & Payroll"
+                    uid=74_118 generic
+                      uid=74_119 article
+                        uid=73_71 heading "Create user with system access" level="3"
+                          uid=74_120 StaticText "Create user with system access"
+                            uid=74_12 InlineTextBox "Create user with system access"
+                        uid=74_121 paragraph
+                          uid=73_72 StaticText "Every console user now requires name, phone, email, password, and address. HR details stay attached from day one."
+                            uid=74_12 InlineTextBox "Every console user now requires name, phone, email, password, and address. HR details stay attached from day one."
+                        uid=74_122 ignored
+                          uid=73_73 textbox "Full name*"
+                            uid=74_123 ignored
+                            uid=74_124 generic
+                          uid=73_74 textbox "Phone*"
+                            uid=74_125 ignored
+                            uid=74_126 generic
+                          uid=73_75 textbox "Email*"
+                            uid=74_127 ignored
+                            uid=74_128 generic
+                          uid=74_129 generic
+                            uid=73_76 textbox "Password*"
+                              uid=74_130 ignored
+                              uid=74_131 generic
+                            uid=73_77 button "Show password"
+                          uid=73_78 textbox "Address*"
+                            uid=74_132 ignored
+                            uid=74_133 generic
+                          uid=73_79 combobox expandable expanded focusable focused haspopup="menu" value="Manager"
+                            uid=74_134 MenuListPopup
+                              uid=73_80 option "Manager" selectable selected value="Manager"
+                              uid=73_81 option "Salesman" selectable value="Salesman"
+                          uid=74_135 combobox expandable haspopup="menu" invalid="true" value="Select location*"
+                            uid=74_136 MenuListPopup
+                              uid=74_137 option "Select location*" selectable selected value="Select location*"
+                              uid=74_138 option "Main Store (MAIN)" selectable value="Main Store (MAIN)"
+                          uid=73_82 Date value="2026-07-29"
+                            uid=74_139 ignored
+                              uid=74_140 ignored
+                                uid=74_141 generic
+                                  uid=73_83 spinbutton "Day" value="29" valuemax="31" valuemin="1" valuetext="29"
+                                    uid=74_142 StaticText "29"
+                                      uid=74_12 InlineTextBox "29"
+                                  uid=73_84 StaticText "/"
+                                    uid=74_12 InlineTextBox "/"
+                                  uid=73_85 spinbutton "Month" value="7" valuemax="12" valuemin="1" valuetext="07"
+                                    uid=74_143 StaticText "07"
+                                      uid=74_12 InlineTextBox "07"
+                                  uid=73_86 StaticText "/"
+                                    uid=74_12 InlineTextBox "/"
+                                  uid=73_87 spinbutton "Year" value="2026" valuemax="275760" valuemin="1" valuetext="2026"
+                                    uid=74_144 StaticText "2026"
+                                      uid=74_12 InlineTextBox "2026"
+                              uid=73_88 button "Show date picker" haspopup="menu"
+                          uid=73_89 textbox "Monthly salary"
+                            uid=74_145 ignored
+                            uid=74_146 generic
+                          uid=73_90 textbox "Designation"
+                            uid=74_147 ignored
+                            uid=74_148 generic
+                          uid=73_91 textbox "Department"
+                            uid=74_149 ignored
+                            uid=74_150 generic
+                          uid=73_92 textbox "Emergency contact name"
+                            uid=74_151 ignored
+                            uid=74_152 generic
+                          uid=73_93 textbox "Emergency contact phone"
+                            uid=74_153 ignored
+                            uid=74_154 generic
+                        uid=74_155 ignored
+                          uid=73_94 textbox "Educational qualifications" multiline
+                            uid=74_156 ignored
+                            uid=74_157 generic
+                          uid=73_95 textbox "Experience summary" multiline
+                            uid=74_158 ignored
+                            uid=74_159 generic
+                          uid=73_96 textbox "Training and certifications" multiline
+                            uid=74_160 ignored
+                            uid=74_161 generic
+                          uid=73_97 textbox "Internal note" multiline
+                            uid=74_162 ignored
+                            uid=74_163 generic
+                        uid=74_164 ignored
+                          uid=73_98 button "Create user"
+                            uid=74_165 StaticText "Create user"
+                              uid=74_12 InlineTextBox "Create user"
+                          uid=74_166 ignored
+                            uid=73_99 StaticText "Owners can create managers and salesmen."
+                              uid=74_12 InlineTextBox "Owners can create managers and salesmen."
+                      uid=74_167 article
+                        uid=73_100 heading "Store Users" level="3"
+                          uid=74_168 StaticText "Store Users"
+                            uid=74_12 InlineTextBox "Store Users"
+                        uid=74_169 ignored
+                          uid=73_101 textbox "Search name, phone, email, employee id, role"
+                            uid=74_170 ignored
+                            uid=74_171 generic
+                          uid=73_102 button "Search"
+                            uid=74_172 StaticText "Search"
+                              uid=74_12 InlineTextBox "Search"
+                        uid=74_173 ignored
+                          uid=74_174 table
+                            uid=74_175 rowgroup
+                              uid=74_176 row
+                                uid=74_177 columnheader "NAME"
+                                  uid=73_103 StaticText "NAME"
+                                    uid=74_12 InlineTextBox "NAME"
+                                uid=74_178 columnheader "ROLE"
+                                  uid=73_104 StaticText "ROLE"
+                                    uid=74_12 InlineTextBox "ROLE"
+                                uid=74_179 columnheader "STATUS"
+                                  uid=73_105 StaticText "STATUS"
+                                    uid=74_12 InlineTextBox "STATUS"
+                                uid=74_180 columnheader "EMPLOYEE ID"
+                                  uid=73_106 StaticText "EMPLOYEE ID"
+                                    uid=74_12 InlineTextBox "EMPLOYEE ID"
+                                uid=74_181 columnheader "CONTACT"
+                                  uid=73_107 StaticText "CONTACT"
+                                    uid=74_12 InlineTextBox "CONTACT"
+                                uid=74_182 columnheader "LOCATION"
+                                  uid=73_108 StaticText "LOCATION"
+                                    uid=74_12 InlineTextBox "LOCATION"
+                                uid=74_183 columnheader "DESIGNATION"
+                                  uid=73_109 StaticText "DESIGNATION"
+                                    uid=74_12 InlineTextBox "DESIGNATION"
+                                uid=74_184 columnheader "DEPARTMENT"
+                                  uid=73_110 StaticText "DEPARTMENT"
+                                    uid=74_12 InlineTextBox "DEPARTMENT"
+                                uid=74_185 columnheader "SALARY"
+                                  uid=73_111 StaticText "SALARY"
+                                    uid=74_12 InlineTextBox "SALARY"
+                                uid=74_186 columnheader "ACTIONS"
+                                  uid=73_112 StaticText "ACTIONS"
+                                    uid=74_12 InlineTextBox "ACTIONS"
+                            uid=74_187 ignored
+                              uid=74_188 row
+                                uid=74_189 cell "Hasib Rayhan No address"
+                                  uid=74_190 generic
+                                    uid=73_113 StaticText "Hasib Rayhan"
+                                      uid=74_12 InlineTextBox "Hasib Rayhan"
+                                  uid=74_191 generic
+                                    uid=73_114 StaticText "No address"
+                                      uid=74_12 InlineTextBox "No address"
+                                uid=74_192 cell "store_owner"
+                                  uid=73_115 StaticText "store_owner"
+                                    uid=74_12 InlineTextBox "store_owner"
+                                uid=74_193 cell "active"
+                                  uid=73_116 StaticText "active"
+                                    uid=74_12 InlineTextBox "active"
+                                uid=74_194 cell "—"
+                                  uid=73_117 StaticText "—"
+                                    uid=74_12 InlineTextBox "—"
+                                uid=74_195 cell "pcworld@email.com 01766554433"
+                                  uid=73_118 StaticText "pcworld@email.com"
+                                    uid=74_12 InlineTextBox "pcworld@email.com"
+                                  uid=74_196 generic
+                                    uid=73_119 StaticText "01766554433"
+                                      uid=74_12 InlineTextBox "01766554433"
+                                uid=74_197 cell "—"
+                                  uid=73_120 StaticText "—"
+                                    uid=74_12 InlineTextBox "—"
+                                uid=74_198 cell "—"
+                                  uid=73_121 StaticText "—"
+                                    uid=74_12 InlineTextBox "—"
+                                uid=74_199 cell "—"
+                                  uid=73_122 StaticText "—"
+                                    uid=74_12 InlineTextBox "—"
+                                uid=74_200 cell "0"
+                                  uid=73_123 StaticText "0"
+                                    uid=74_12 InlineTextBox "0"
+                                uid=74_201 cell
+                                  uid=74_202 ignored
+                              uid=74_203 row
+                                uid=74_204 cell "Rahim Mia Maijdee, Noakhali"
+                                  uid=74_205 generic
+                                    uid=73_124 StaticText "Rahim Mia"
+                                      uid=74_12 InlineTextBox "Rahim Mia"
+                                  uid=74_206 generic
+                                    uid=73_125 StaticText "Maijdee, Noakhali"
+                                      uid=74_12 InlineTextBox "Maijdee, Noakhali"
+                                uid=74_207 cell "store_salesman"
+                                  uid=73_126 StaticText "store_salesman"
+                                    uid=74_12 InlineTextBox "store_salesman"
+                                uid=74_208 cell "active"
+                                  uid=73_127 StaticText "active"
+                                    uid=74_12 InlineTextBox "active"
+                                uid=74_209 cell "PCWORL-0001"
+                                  uid=73_128 StaticText "PCWORL-0001"
+                                    uid=74_12 InlineTextBox "PCWORL-0001"
+                                uid=74_210 cell "rahim@pcworld.com 01812345678"
+                                  uid=73_129 StaticText "rahim@pcworld.com"
+                                    uid=74_12 InlineTextBox "rahim@pcworld.com"
+                                  uid=74_211 generic
+                                    uid=73_130 StaticText "01812345678"
+                                      uid=74_12 InlineTextBox "01812345678"
+                                uid=74_212 cell "—"
+                                  uid=73_131 StaticText "—"
+                                    uid=74_12 InlineTextBox "—"
+                                uid=74_213 cell "Sales Associate"
+                                  uid=73_132 StaticText "Sales Associate"
+                                    uid=74_12 InlineTextBox "Sales Associate"
+                                uid=74_214 cell "Sales"
+                                  uid=73_133 StaticText "Sales"
+                                    uid=74_12 InlineTextBox "Sales"
+                                uid=74_215 cell "25000.00"
+                                  uid=73_134 StaticText "25000.00"
+                                    uid=74_12 InlineTextBox "25000.00"
+                                uid=74_216 cell "Make Manager Suspend Edit Remove"
+                                  uid=74_217 ignored
+                                    uid=73_135 button "Make Manager"
+                                      uid=74_218 StaticText "Make Manager"
+                                        uid=74_12 InlineTextBox "Make Manager"
+                                    uid=73_136 button "Suspend"
+                                      uid=74_219 StaticText "Suspend"
+                                        uid=74_12 InlineTextBox "Suspend"
+                                    uid=73_137 button "Edit"
+                                      uid=74_220 StaticText "Edit"
+                                        uid=74_12 InlineTextBox "Edit"
+                                    uid=73_138 button "Remove"
+                                      uid=74_221 StaticText "Remove"
+                                        uid=74_12 InlineTextBox "Remove"
+                        uid=74_222 ignored
+                          uid=74_223 ignored
+                            uid=73_139 StaticText "Page "
+                              uid=74_12 InlineTextBox "Page "
+                            uid=73_140 StaticText "1"
+                              uid=74_12 InlineTextBox "1"
+                            uid=73_141 StaticText " of "
+                              uid=74_12 InlineTextBox " of "
+                            uid=73_142 StaticText "1"
+                              uid=74_12 InlineTextBox "1"
+                            uid=73_143 StaticText " · "
+                              uid=74_12 InlineTextBox " · "
+                            uid=73_144 StaticText "2"
+                              uid=74_12 InlineTextBox "2"
+                            uid=73_145 StaticText " "
+                              uid=74_12 InlineTextBox " "
+                            uid=73_146 StaticText "user(s)"
+                              uid=74_12 InlineTextBox "user(s)"
+                          uid=74_224 ignored
+                            uid=73_147 button "Previous" disableable disabled
+                              uid=74_225 StaticText "Previous"
+                                uid=74_12 InlineTextBox "Previous"
+                            uid=73_148 button "Next" disableable disabled
+                              uid=74_226 StaticText "Next"
+                                uid=74_12 InlineTextBox "Next"
+                      uid=74_227 article
+                        uid=73_149 heading "Operator Notes" level="3"
+                          uid=74_228 StaticText "Operator Notes"
+                            uid=74_12 InlineTextBox "Operator Notes"
+                        uid=74_229 paragraph
+                          uid=73_150 StaticText "User management is ready."
+                            uid=74_12 InlineTextBox "User management is ready."
+      uid=73_151 region "Notifications alt+T" live="polite" relevant="additions text"
+      uid=74_230 generic
+        uid=73_152 alert atomic live="assertive" relevant="additions text"

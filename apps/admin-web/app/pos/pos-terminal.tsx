@@ -153,9 +153,15 @@ export function POSTerminal({ storeId, onSaleComplete }: POSTerminalProps) {
         headers: {
           'Content-Type': 'application/json',
           'x-store-id': storeId,
-        },
-        body: JSON.stringify({
-          items: cart,
+        },          body: JSON.stringify({
+          items: cart.map(item => ({
+            skuId: item.skuId,
+            productName: item.productName,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            deviceSerial: item.deviceSerial,
+            deviceImei: item.deviceImei,
+          })),
           subtotal,
           tax,
           total,
@@ -178,7 +184,12 @@ export function POSTerminal({ storeId, onSaleComplete }: POSTerminalProps) {
           title: 'Sale Receipt',
           orderNumber: sale.id,
           date: new Date(),
-          items: cart,
+          items: cart.map(item => ({
+            description: item.productName,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            total: item.quantity * item.unitPrice,
+          })),
           subtotal,
           tax,
           total,

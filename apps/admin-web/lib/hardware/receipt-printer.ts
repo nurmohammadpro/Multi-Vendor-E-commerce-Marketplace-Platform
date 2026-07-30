@@ -195,7 +195,7 @@ export class ReceiptPrinter {
       commands.push(`LINE 50,${yPosition},${pixelWidth - 50},${yPosition},1`);
       yPosition += 15;
 
-      commands.push(this.text(pixelWidth / 2, yPosition, 'A', data.notes, 'center', 'small'));
+      commands.push(this.text(pixelWidth / 2, yPosition, 'A', data.notes, 'center', 'normal', 'small'));
       yPosition += 25;
     }
 
