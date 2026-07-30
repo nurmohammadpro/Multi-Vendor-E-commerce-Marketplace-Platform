@@ -1506,7 +1506,7 @@ export class PosService {
   private async buildRefundReceipt(saleId: string, returnId: string, storeId: string) {
     const { sale, items } = await this.getSaleAggregate(saleId, storeId);
 
-    const paymentResult = await this.pool.query(
+    const paymentResult = await this.pool.query<any>(
       `select id, payment_method, gateway_provider, amount, reference_no, status, paid_at
        from sales.sale_payments
        where sale_id = $1
@@ -1515,7 +1515,7 @@ export class PosService {
     );
     const paymentRows: any[] = paymentResult.rows ?? [];
 
-    const returnResult = await this.pool.query(
+    const returnResult = await this.pool.query<any>(
       `
         select
           sr.*,
