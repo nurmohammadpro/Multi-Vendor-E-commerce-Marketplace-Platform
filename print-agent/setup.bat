@@ -1,8 +1,8 @@
 @echo off
 setlocal enabledelayedexpansion
-title Market One BD — POS Printer Setup
+title App Brainer — POS Printer Setup
 echo ============================================
-echo   Market One BD — Silent Printer Setup
+echo   App Brainer — Silent Printer Setup
 echo ============================================
 echo.
 
