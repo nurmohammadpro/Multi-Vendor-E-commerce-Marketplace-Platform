@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Headers, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
+import { z } from 'zod';
 
 import { CurrentAuthContext, CurrentAuthSession } from '../auth/current-auth.decorator.js';
 import type { AuthSession, StoreAuthContext } from '../auth/auth.types.js';
@@ -76,6 +77,10 @@ const expenseSchema = z.object({
 });
 
 const expenseUpdateSchema = expenseSchema.partial();
+
+const returnDecisionSchema = z.object({
+  decisionNote: z.string().max(500).optional(),
+});
 
 const ownerCashCountSchema = z.object({
   countedCashAmount: z.number().nonnegative(),
