@@ -45,7 +45,7 @@ export class WarrantyController {
     const session: AuthSession = req.user;
     const storeId = req.headers['x-store-id'];
 
-    return this.warrantyService.createWarrantyPolicy(storeId, session.tenantId, body);
+    return this.warrantyService.createWarrantyPolicy(storeId, session.user.tenantId, body);
   }
 
   /**
@@ -78,7 +78,7 @@ export class WarrantyController {
     const session: AuthSession = req.user;
     const storeId = req.headers['x-store-id'];
 
-    return this.warrantyService.createSaleWarranty(storeId, session.tenantId, body);
+    return this.warrantyService.createSaleWarranty(storeId, session.user.tenantId, body);
   }
 
   /**
@@ -119,7 +119,7 @@ export class WarrantyController {
     const session: AuthSession = req.user;
     const storeId = req.headers['x-store-id'];
 
-    return this.warrantyService.submitWarrantyClaim(storeId, session.tenantId, body);
+    return this.warrantyService.submitWarrantyClaim(storeId, session.user.tenantId, body);
   }
 
   /**
@@ -164,7 +164,7 @@ export class WarrantyController {
 
     return this.warrantyService.resolveWarrantyClaim(claimId, storeId, {
       ...body,
-      approvedByUserId: session.userId,
+      approvedByUserId: session.user.id,
     } as any);
   }
 }

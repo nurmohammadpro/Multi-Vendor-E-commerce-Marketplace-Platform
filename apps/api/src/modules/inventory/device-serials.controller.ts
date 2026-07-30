@@ -42,7 +42,7 @@ export class DeviceSerialsController {
     const session: AuthSession = req.user;
     const storeId = req.headers['x-store-id'];
 
-    return this.deviceSerialsService.createDeviceSerial(storeId, session.tenantId, body);
+    return this.deviceSerialsService.createDeviceSerial(storeId, session.user.tenantId, body);
   }
 
   /**
@@ -68,7 +68,7 @@ export class DeviceSerialsController {
     const session: AuthSession = req.user;
     const storeId = req.headers['x-store-id'];
 
-    return this.deviceSerialsService.bulkImportSerials(storeId, session.tenantId, body.serials);
+    return this.deviceSerialsService.bulkImportSerials(storeId, session.user.tenantId, body.serials);
   }
 
   /**

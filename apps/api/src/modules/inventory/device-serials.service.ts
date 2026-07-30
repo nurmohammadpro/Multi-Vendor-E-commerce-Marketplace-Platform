@@ -242,7 +242,7 @@ export class DeviceSerialsService {
     const whereClause = conditions.join(' AND ');
 
     // Get total count
-    const countResult = await this.pool.query(
+    const countResult = await this.pool.query<{ count: string }>(
       `SELECT COUNT(*) as count FROM inventory.device_serials WHERE ${whereClause}`,
       params,
     );

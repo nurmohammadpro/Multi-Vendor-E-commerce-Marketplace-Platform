@@ -94,7 +94,7 @@ export class WarrantyService {
     },
   ): Promise<SaleWarranty> {
     // Get warranty policy to calculate end date
-    const policyResult = await this.pool.query(
+    const policyResult = await this.pool.query<{ duration_months: number }>(
       `SELECT duration_months FROM catalog.warranty_policies WHERE id = $1`,
       [data.warrantyPolicyId],
     );
@@ -183,7 +183,7 @@ export class WarrantyService {
     },
   ): Promise<WarrantyClaim> {
     // Validate warranty is active and not expired
-    const warranty = await this.pool.query(
+    const warranty = await this.pool.query<{ warranty_end_date: Date; status: string }>(
       `
         SELECT warranty_end_date, status FROM sales.sale_warranties
         WHERE id = $1 AND store_id = $2
@@ -316,7 +316,7 @@ export class WarrantyService {
     }
 
     // Get count
-    const countResult = await this.pool.query(
+    const countResult = await this.pool.query<{ count: string }>(
       `SELECT COUNT(*) as count FROM sales.warranty_claims WHERE ${whereClause}`,
       params,
     );

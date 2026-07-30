@@ -52,7 +52,7 @@ export class SalesController {
 
     return this.salesIntegrationService.createTechProductSale(
       storeId,
-      session.tenantId,
+      session.user.tenantId,
       body,
     );
   }

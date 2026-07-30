@@ -213,7 +213,7 @@ export class SalesIntegrationService {
       [serialNumber, storeId],
     );
 
-    return result.rows.length > 0 ? result.rows[0].id : null;
+    return result.rows.length > 0 ? (result.rows[0].id as string) : null;
   }
 
   /**

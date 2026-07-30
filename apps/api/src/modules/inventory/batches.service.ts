@@ -43,16 +43,16 @@ export class BatchesService {
           id, tenant_id, store_id, batch_code, supplier_id, product_id, sku_id,
           purchase_order_number, manufacture_batch_code, expiry_date,
           received_quantity, current_quantity, serial_count, notes, status,
-          created_at, updated_at
+          received_date, created_at, updated_at
         )
         VALUES (
-          gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10, 0, $11, 'active', NOW(), NOW()
+          gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10, 0, $11, 'active', NOW(), NOW(), NOW()
         )
         RETURNING
           id, tenant_id, store_id, batch_code, supplier_id, product_id, sku_id,
           purchase_order_number, manufacture_batch_code, expiry_date,
           received_quantity, current_quantity, serial_count, notes, status,
-          recall_reason, created_at, updated_at
+          recall_reason, received_date, created_at, updated_at
       `,
       [
         tenantId,
@@ -82,7 +82,7 @@ export class BatchesService {
           id, tenant_id, store_id, batch_code, supplier_id, product_id, sku_id,
           purchase_order_number, manufacture_batch_code, expiry_date,
           received_quantity, current_quantity, serial_count, notes, status,
-          recall_reason, created_at, updated_at
+          recall_reason, received_date, created_at, updated_at
         FROM inventory.stock_batches
         WHERE id = $1 AND store_id = $2
       `,
@@ -106,7 +106,7 @@ export class BatchesService {
           id, tenant_id, store_id, batch_code, supplier_id, product_id, sku_id,
           purchase_order_number, manufacture_batch_code, expiry_date,
           received_quantity, current_quantity, serial_count, notes, status,
-          recall_reason, created_at, updated_at
+          recall_reason, received_date, created_at, updated_at
         FROM inventory.stock_batches
         WHERE batch_code = $1 AND store_id = $2
       `,
@@ -159,7 +159,7 @@ export class BatchesService {
     }
 
     // Get count
-    const countResult = await this.pool.query(
+    const countResult = await this.pool.query<{ count: string }>(
       `SELECT COUNT(*) as count FROM inventory.stock_batches WHERE ${whereClause}`,
       params,
     );
@@ -172,7 +172,7 @@ export class BatchesService {
           id, tenant_id, store_id, batch_code, supplier_id, product_id, sku_id,
           purchase_order_number, manufacture_batch_code, expiry_date,
           received_quantity, current_quantity, serial_count, notes, status,
-          recall_reason, created_at, updated_at
+          recall_reason, received_date, created_at, updated_at
         FROM inventory.stock_batches
         WHERE ${whereClause}
         ORDER BY created_at DESC
@@ -213,7 +213,7 @@ export class BatchesService {
           id, tenant_id, store_id, batch_code, supplier_id, product_id, sku_id,
           purchase_order_number, manufacture_batch_code, expiry_date,
           received_quantity, current_quantity, serial_count, notes, status,
-          recall_reason, created_at, updated_at
+          recall_reason, received_date, created_at, updated_at
       `,
       [newQuantity, newSerialCount, batchId, storeId],
     );
@@ -237,7 +237,7 @@ export class BatchesService {
           id, tenant_id, store_id, batch_code, supplier_id, product_id, sku_id,
           purchase_order_number, manufacture_batch_code, expiry_date,
           received_quantity, current_quantity, serial_count, notes, status,
-          recall_reason, created_at, updated_at
+          recall_reason, received_date, created_at, updated_at
       `,
       [reason, batchId, storeId],
     );
@@ -265,7 +265,7 @@ export class BatchesService {
           id, tenant_id, store_id, batch_code, supplier_id, product_id, sku_id,
           purchase_order_number, manufacture_batch_code, expiry_date,
           received_quantity, current_quantity, serial_count, notes, status,
-          recall_reason, created_at, updated_at
+          recall_reason, received_date, created_at, updated_at
       `,
       [reason, batchId, storeId],
     );
@@ -303,7 +303,7 @@ export class BatchesService {
           id, tenant_id, store_id, batch_code, supplier_id, product_id, sku_id,
           purchase_order_number, manufacture_batch_code, expiry_date,
           received_quantity, current_quantity, serial_count, notes, status,
-          recall_reason, created_at, updated_at
+          recall_reason, received_date, created_at, updated_at
       `,
       [batchId, storeId],
     );
@@ -323,6 +323,7 @@ export class BatchesService {
       purchaseOrderNumber: row.purchase_order_number,
       manufactureBatchCode: row.manufacture_batch_code,
       expiryDate: row.expiry_date,
+      receivedDate: row.received_date,
       receivedQuantity: row.received_quantity,
       currentQuantity: row.current_quantity,
       serialCount: row.serial_count,

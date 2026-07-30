@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -40,7 +41,7 @@ export class HardwareController {
     const session: AuthSession = req.user;
     const storeId = req.headers['x-store-id'];
 
-    return this.hardwareService.registerHardwareDevice(storeId, session.tenantId, body);
+    return this.hardwareService.registerHardwareDevice(storeId, session.user.tenantId, body);
   }
 
   /**
@@ -123,7 +124,7 @@ export class HardwareController {
     const session: AuthSession = req.user;
     const storeId = req.headers['x-store-id'];
 
-    return this.hardwareService.queuePrintJob(storeId, session.tenantId, body);
+    return this.hardwareService.queuePrintJob(storeId, session.user.tenantId, body);
   }
 
   /**
