@@ -6,6 +6,10 @@ import './globals.css';
 export const metadata = {
   title: 'Merch Flow',
   description: 'Multi-Vendor Platform — Login',
+  icons: {
+    icon: [{ url: '/favicon.png', sizes: '32x32', type: 'image/png' }],
+    shortcut: ['/favicon.png'],
+  },
 };
 
 export default function LoginLayout({ children }: { children: ReactNode }) {
