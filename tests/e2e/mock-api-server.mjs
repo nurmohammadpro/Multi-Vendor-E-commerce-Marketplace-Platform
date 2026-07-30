@@ -99,6 +99,7 @@ const buildState = (scenario = 'default') => {
     shifts: [],
     sales: [],
     salePayments: [],
+    saleReturns: [],
     auditLogs: [],
     customers: [],
     categories: [
@@ -207,6 +208,7 @@ const buildState = (scenario = 'default') => {
     stockRequests: [],
     priceRequests: [],
     ownerCashCount: null,
+    pendingReturnIdCounter: 0,
   };
 
   if (scenario === 'default') {
@@ -712,9 +714,11 @@ const buildOwnerOverviewPayload = () => {
   return {
     pendingStockApprovals: state.stockRequests.filter((request) => request.status === 'pending').length,
     pendingPriceApprovals: state.priceRequests.filter((request) => request.status === 'pending').length,
+    pendingReturnApprovals: state.saleReturns.filter((r) => r.status === 'pending_approval').length,
     totalPendingApprovals:
       state.stockRequests.filter((request) => request.status === 'pending').length
-      + state.priceRequests.filter((request) => request.status === 'pending').length,
+      + state.priceRequests.filter((request) => request.status === 'pending').length
+      + state.saleReturns.filter((r) => r.status === 'pending_approval').length,
     todayDueCollectionsAmount: todayDuePayments.reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0),
     todayDueCollectionsCount: todayDuePayments.length,
     todayCashSalesAmount,
@@ -1544,6 +1548,150 @@ const server = http.createServer(async (req, res) => {
     const sale = state.sales.find((entry) => entry.id === saleId);
     if (!sale) return send(res, 404, { error: 'Sale not found' });
     return send(res, 200, { receipt: buildReceiptPayload(sale) });
+  }
+
+  // ── Return approval workflow (mock) ──
+
+  if (url.pathname === '/v1/pos/sales' && req.method === 'GET') {
+    const query = String(url.searchParams.get('query') ?? '').trim().toLowerCase();
+    const page = Math.max(1, Number(url.searchParams.get('page') ?? '1') || 1);
+    const limit = Math.min(100, Math.max(1, Number(url.searchParams.get('limit') ?? '20') || 20));
+    const sales = state.sales
+      .filter((s) => s.status === 'completed' || s.status === 'refunded' || s.status === 'returned_partially')
+      .filter((s) => !query || s.sale_no.toLowerCase().includes(query) || (s.customer_name || '').toLowerCase().includes(query))
+      .map((s) => ({
+        id: s.id,
+        sale_no: s.sale_no,
+        total_amount: s.total_amount,
+        payment_status: s.payment_status,
+        status: s.status,
+        customer_name: s.customer_name,
+        customer_phone: s.customer_phone,
+        created_at: s.created_at,
+      }));
+    const start = (page - 1) * limit;
+    return send(res, 200, {
+      sales: sales.slice(start, start + limit),
+      pagination: { page, limit, total: sales.length },
+    });
+  }
+
+  const REFUND_APPROVAL_THRESHOLD = 5000;
+
+  if (/^\/v1\/pos\/sales\/[^/]+\/returns$/.test(url.pathname) && req.method === 'POST') {
+    const actor = requireActor(req, res);
+    if (!actor) return;
+    const saleId = url.pathname.split('/')[4];
+    const sale = state.sales.find((entry) => entry.id === saleId);
+    if (!sale) return send(res, 404, { error: 'Sale not found' });
+
+    const body = await parseBody(req);
+    const refundAmount = Number(body.refundAmount ?? 0);
+    const needsApproval = refundAmount >= REFUND_APPROVAL_THRESHOLD;
+    const returnId = `ret-${++state.counters.sale}`;
+
+    const returnRecord = {
+      id: returnId,
+      sale_id: saleId,
+      store_id: 'store_test',
+      refund_amount: refundAmount,
+      reason: body.reason ?? '',
+      status: needsApproval ? 'pending_approval' : 'processed',
+      processed_by: actor.id,
+      created_at: nowIso(),
+      updated_at: nowIso(),
+      sale_no: sale.sale_no,
+      customer_name: sale.customer_name,
+      customer_phone: sale.customer_phone,
+      processed_by_name: actor.name,
+      return_items: (body.items || []).map((item) => ({
+        productName: 'Mock Product',
+        skuCode: 'MOCK-SKU',
+        qty: item.qty ?? 1,
+        restockToInventory: item.restockToInventory ?? true,
+        lineRefundAmount: item.lineRefundAmount ?? 0,
+      })),
+    };
+    state.saleReturns.unshift(returnRecord);
+
+    if (!needsApproval) {
+      // Process immediately: update sale status
+      const totalReturned = state.saleReturns
+        .filter((r) => r.sale_id === saleId && r.status === 'processed')
+        .reduce((sum, r) => sum + Number(r.refund_amount), 0);
+      const isFullRefund = totalReturned >= Number(sale.total_amount);
+      sale.payment_status = isFullRefund ? 'refunded' : 'partial';
+      sale.status = isFullRefund ? 'refunded' : 'returned_partially';
+      sale.updated_at = nowIso();
+    }
+
+    return send(res, 201, {
+      saleReturn: {
+        id: returnId,
+        refundAmount,
+        saleNo: sale.sale_no,
+        status: returnRecord.status,
+        ...(needsApproval ? { message: 'This return requires approval.' } : {}),
+      },
+      refundReceipt: needsApproval ? null : { type: 'refund', returnId },
+      ...(needsApproval ? { needsApproval: true } : {}),
+    });
+  }
+
+  if (url.pathname === '/v1/pos/returns/pending-approvals' && req.method === 'GET') {
+    return send(res, 200, {
+      returnRequests: state.saleReturns
+        .filter((r) => r.status === 'pending_approval')
+        .map((r) => ({
+          id: r.id,
+          sale_id: r.sale_id,
+          sale_no: r.sale_no,
+          refund_amount: r.refund_amount,
+          reason: r.reason,
+          created_at: r.created_at,
+          customer_name: r.customer_name,
+          customer_phone: r.customer_phone,
+          requested_by_name: r.processed_by_name,
+          return_items: r.return_items,
+        })),
+    });
+  }
+
+  if (/^\/v1\/pos\/returns\/[^/]+\/approve$/.test(url.pathname) && req.method === 'POST') {
+    const actor = requirePermission(req, res, 'inventory.adjust.approve');
+    if (!actor) return;
+    const returnId = url.pathname.split('/')[4];
+    const ret = state.saleReturns.find((r) => r.id === returnId && r.status === 'pending_approval');
+    if (!ret) return send(res, 404, { error: 'Pending return request not found' });
+
+    ret.status = 'processed';
+    ret.updated_at = nowIso();
+
+    const sale = state.sales.find((s) => s.id === ret.sale_id);
+    if (sale) {
+      const totalReturned = state.saleReturns
+        .filter((r) => r.sale_id === ret.sale_id && r.status === 'processed')
+        .reduce((sum, r) => sum + Number(r.refund_amount), 0);
+      const isFullRefund = totalReturned >= Number(sale.total_amount);
+      sale.payment_status = isFullRefund ? 'refunded' : 'partial';
+      sale.status = isFullRefund ? 'refunded' : 'returned_partially';
+      sale.updated_at = nowIso();
+    }
+
+    return send(res, 200, { ok: true, message: 'Return approved and processed.', saleNo: ret.sale_no, refundAmount: Number(ret.refund_amount) });
+  }
+
+  if (/^\/v1\/pos\/returns\/[^/]+\/reject$/.test(url.pathname) && req.method === 'POST') {
+    const actor = requirePermission(req, res, 'inventory.adjust.approve');
+    if (!actor) return;
+    const returnId = url.pathname.split('/')[4];
+    const ret = state.saleReturns.find((r) => r.id === returnId && r.status === 'pending_approval');
+    if (!ret) return send(res, 404, { error: 'Pending return request not found' });
+
+    ret.status = 'rejected';
+    ret.updated_at = nowIso();
+
+    return send(res, 200, { ok: true, message: 'Return request rejected.', refundAmount: Number(ret.refund_amount) });
   }
 
   if (url.pathname === '/v1/store-ops/customers' && req.method === 'GET') {
