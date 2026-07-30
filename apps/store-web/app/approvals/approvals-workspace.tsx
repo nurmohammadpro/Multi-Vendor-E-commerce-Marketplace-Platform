@@ -168,7 +168,7 @@ export function ApprovalsWorkspace({ canApproveInventory }: { canApproveInventor
       });
       await refresh();
       setDecisionNote('');
-      setMessage(`Stock request ${decision}d successfully.`);
+      setMessage(`Stock request ${decision === 'approve' ? 'approved' : 'rejected'} successfully.`);
     } catch (error) {
       setMessage((error as Error).message);
     } finally {
@@ -186,7 +186,7 @@ export function ApprovalsWorkspace({ canApproveInventory }: { canApproveInventor
       });
       await refresh();
       setDecisionNote('');
-      setMessage(`Price request ${decision}d successfully.`);
+      setMessage(`Price request ${decision === 'approve' ? 'approved' : 'rejected'} successfully.`);
     } catch (error) {
       setMessage((error as Error).message);
     } finally {
@@ -204,7 +204,7 @@ export function ApprovalsWorkspace({ canApproveInventory }: { canApproveInventor
       });
       await refresh();
       setDecisionNote('');
-      setMessage(`Return request ${decision}d successfully.`);
+      setMessage(`Return request ${decision === 'approve' ? 'approved' : 'rejected'} successfully.`);
     } catch (error) {
       setMessage((error as Error).message);
     } finally {
