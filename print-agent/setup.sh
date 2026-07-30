@@ -9,7 +9,7 @@ NC='\033[0m'
 
 echo ""
 echo -e "${CYAN}============================================${NC}"
-echo -e "${CYAN}  Market One BD — Silent Printer Setup${NC}"
+echo -e "${CYAN}  App Brainer — Silent Printer Setup${NC}"
 echo -e "${CYAN}============================================${NC}"
 echo ""
 

@@ -31,7 +31,7 @@ export function IntroSplash({ onComplete }: { onComplete?: () => void }) {
         />
         <div className="intro-splash__text">
           <span className="intro-splash__eyebrow">Merch Flow</span>
-          <span className="intro-splash__title">Your One Stop Marketplace</span>
+          <span className="intro-splash__title">A Complete Business Solution</span>
         </div>
       </div>
     </div>

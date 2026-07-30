@@ -422,7 +422,7 @@ async function buildExportBundle(
       <div class="section"><h2 class="section-title">Due Sales</h2><table><thead><tr><th>Sale</th><th>Amount</th><th>Customer</th><th>Phone</th><th>Due Date</th></tr></thead><tbody>
       ${(sales.dueSales ?? []).map((sale) => `<tr><td>${escapeHtml(sale.sale_no)}</td><td>${formatMoney(sale.total_amount)}</td><td>${escapeHtml(sale.customer_name || sale.customer_shop_name || '—')}</td><td>${escapeHtml(sale.customer_phone || '—')}</td><td>${escapeHtml(sale.due_date || '—')}</td></tr>`).join('')}
       </tbody></table></div>
-      <div class="footer">Developed and maintained by Merch Flow · Your One Stop Marketplace</div>
+      <div class="footer">Developed and maintained by Merch Flow · A Complete Business Solution</div>
     `;
     return { title: 'Sales Report', csv, html };
   }
@@ -445,7 +445,7 @@ async function buildExportBundle(
       <div class="section"><h2 class="section-title">Inventory Snapshot</h2><table><thead><tr><th>Product</th><th>SKU</th><th>Location</th><th>On Hand</th><th>Available</th><th>Updated</th></tr></thead><tbody>
       ${rows.map((balance) => `<tr><td>${escapeHtml(balance.product_name)}</td><td>${escapeHtml(balance.sku_code)}</td><td>${escapeHtml(balance.location_name)}</td><td>${escapeHtml(formatQty(balance.on_hand_qty))}</td><td>${escapeHtml(formatQty(balance.available_qty))}</td><td>${escapeHtml(new Date(balance.updated_at).toLocaleString())}</td></tr>`).join('')}
       </tbody></table></div>
-      <div class="footer">Developed and maintained by Merch Flow · Your One Stop Marketplace</div>
+      <div class="footer">Developed and maintained by Merch Flow · A Complete Business Solution</div>
     `;
     return { title: 'Inventory Report', csv, html };
   }
@@ -462,7 +462,7 @@ async function buildExportBundle(
       <div class="section"><h2 class="section-title">Invoices</h2><table><thead><tr><th>Invoice</th><th>Type</th><th>Status</th><th>Total</th><th>Paid</th><th>Due Date</th><th>Issued</th></tr></thead><tbody>
       ${rows.map((invoice) => `<tr><td>${escapeHtml(invoice.invoice_no)}</td><td>${escapeHtml(invoice.invoice_type)}</td><td>${escapeHtml(invoice.status)}</td><td>${formatMoney(invoice.total_amount)}</td><td>${formatMoney(invoice.paid_amount)}</td><td>${escapeHtml(invoice.due_at ? new Date(invoice.due_at).toLocaleDateString() : '—')}</td><td>${escapeHtml(invoice.issued_at ? new Date(invoice.issued_at).toLocaleString() : '—')}</td></tr>`).join('')}
       </tbody></table></div>
-      <div class="footer">Developed and maintained by Merch Flow · Your One Stop Marketplace</div>
+      <div class="footer">Developed and maintained by Merch Flow · A Complete Business Solution</div>
     `;
     return { title: 'Billing Report', csv, html };
   }
@@ -478,7 +478,7 @@ async function buildExportBundle(
     <div class="section"><h2 class="section-title">Tickets</h2><table><thead><tr><th>Ticket</th><th>Type</th><th>Subject</th><th>Status</th><th>Priority</th><th>Opened By</th><th>Created</th></tr></thead><tbody>
     ${rows.map((ticket) => `<tr><td>${escapeHtml(ticket.ticket_no)}</td><td>${escapeHtml(ticket.ticket_type)}</td><td>${escapeHtml(ticket.subject)}</td><td>${escapeHtml(ticket.status)}</td><td>${escapeHtml(ticket.priority)}</td><td>${escapeHtml(ticket.opened_by_name || '—')}</td><td>${escapeHtml(new Date(ticket.created_at).toLocaleString())}</td></tr>`).join('')}
     </tbody></table></div>
-    <div class="footer">Developed and maintained by Merch Flow · Your One Stop Marketplace</div>
+    <div class="footer">Developed and maintained by Merch Flow · A Complete Business Solution</div>
   `;
   return { title: 'Support Report', csv, html };
 }
