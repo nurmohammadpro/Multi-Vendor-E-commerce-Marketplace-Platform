@@ -702,6 +702,8 @@ export class PosService {
           s.tax_amount,
           s.shipping_amount,
           s.payment_status,
+          s.status,
+          s.returned_amount,
           s.fulfillment_status,
           s.customer_name,
           s.customer_phone,
@@ -719,7 +721,7 @@ export class PosService {
           count(*) over()::int as total_count
         from sales.sales s
         where s.store_id = $1
-          and s.status = 'completed'
+          and s.status in ('completed', 'refunded', 'returned_partially')
           and (
             $2::text is null
             or s.sale_no ilike '%' || $2::text || '%'
@@ -873,6 +875,8 @@ export class PosService {
     };
   }
 
+  private readonly REFUND_APPROVAL_THRESHOLD = 5000;
+
   async returnSale(
     saleId: string,
     headerStoreId: string | undefined,
@@ -891,6 +895,10 @@ export class PosService {
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
     const userId = this.requireUserId(session);
+
+    // Check if this return needs approval (refund >= threshold)
+    const needsApproval = payload.refundAmount >= this.REFUND_APPROVAL_THRESHOLD;
+
     const client = await this.pool.connect();
 
     try {
@@ -919,6 +927,8 @@ export class PosService {
         throw new NotFoundException('Sale not found');
       }
 
+      const returnStatus = needsApproval ? 'pending_approval' : 'processed';
+
       const returnResult = await client.query<{ id: string }>(
         `
           insert into sales.sale_returns (
@@ -941,22 +951,21 @@ export class PosService {
             $3,
             $4,
             $5,
-            'processed',
+            $6,
             now(),
             now()
           from store.stores s
           where s.id = $1
           returning id
         `,
-        [storeId, saleId, userId, payload.reason, payload.refundAmount],
+        [storeId, saleId, userId, payload.reason, payload.refundAmount, returnStatus],
       );
 
       const saleReturnId = returnResult.rows[0].id;
 
+      // Always insert return items (needed for approval/rejection too)
       for (const item of payload.items) {
-        const saleItemResult = await client.query<{
-          sku_id: string;
-        }>(
+        const saleItemResult = await client.query<{ sku_id: string }>(
           `
             select sku_id
             from sales.sale_items
@@ -996,7 +1005,8 @@ export class PosService {
           [saleReturnId, item.saleItemId, item.qty, item.restockToInventory, item.lineRefundAmount],
         );
 
-        if (item.restockToInventory) {
+        // Only restock inventory immediately if NOT pending approval
+        if (!needsApproval && item.restockToInventory) {
           await this.upsertBalance(client, storeId, sale.location_id, saleItem.sku_id, item.qty);
           await this.insertLedger(client, {
             storeId,
@@ -1012,6 +1022,39 @@ export class PosService {
         }
       }
 
+      if (needsApproval) {
+        // For pending approval: save changes (return record + items), don't update sale yet
+        await client.query('commit');
+
+        await this.auditService.recordStoreAction({
+          storeId,
+          actorUserId: userId,
+          actionCode: 'sale.return.request',
+          resourceType: 'sale_return',
+          resourceId: saleReturnId,
+          after: {
+            saleId,
+            saleNo: sale.sale_no,
+            refundAmount: payload.refundAmount,
+            status: 'pending_approval',
+            itemCount: payload.items.length,
+          },
+        });
+
+        return {
+          saleReturn: {
+            id: saleReturnId,
+            refundAmount: payload.refundAmount,
+            saleNo: sale.sale_no,
+            status: 'pending_approval',
+            message: 'This return requires owner or manager approval before it is processed.',
+          },
+          refundReceipt: null,
+          needsApproval: true,
+        };
+      }
+
+      // Process immediately (existing logic)
       // Compute total returned amount for this sale
       const returnedResult = await client.query<{ total_returned: string }>(
         `
@@ -1026,18 +1069,15 @@ export class PosService {
       const totalAmount = Number(sale.total_amount);
       const isFullRefund = totalReturned >= totalAmount;
 
-      // Determine new payment_status
       let newPaymentStatus: string;
       if (isFullRefund) {
         newPaymentStatus = 'refunded';
       } else if (sale.payment_status === 'paid' || sale.payment_status === 'partial') {
-        // If some amount was paid but now partially refunded, keep as 'partial'
         newPaymentStatus = 'partial';
       } else {
         newPaymentStatus = sale.payment_status;
       }
 
-      // Determine new status
       let newStatus: string;
       if (isFullRefund) {
         newStatus = 'refunded';
@@ -1045,7 +1085,6 @@ export class PosService {
         newStatus = 'returned_partially';
       }
 
-      // Update sale record with refund status and returned_amount
       await client.query(
         `
           update sales.sales
@@ -1062,7 +1101,6 @@ export class PosService {
 
       await client.query('commit');
 
-      // Build refund receipt after commit (reads fresh data)
       const refundReceipt = await this.buildRefundReceipt(saleId, saleReturnId, storeId);
 
       await this.auditService.recordStoreAction({
@@ -1099,6 +1137,331 @@ export class PosService {
     } finally {
       client.release();
     }
+  }
+
+  async getPendingReturnApprovals(headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const result = await this.pool.query<any>(
+      `
+        select
+          sr.id,
+          sr.sale_id,
+          sr.refund_amount,
+          sr.reason,
+          sr.created_at,
+          s.sale_no,
+          s.customer_name,
+          s.customer_phone,
+          up.full_name as requested_by_name,
+          json_agg(
+            json_build_object(
+              'productName', si.product_name_snapshot,
+              'skuCode', si.sku_code_snapshot,
+              'qty', sri.qty,
+              'restockToInventory', sri.restock_to_inventory,
+              'lineRefundAmount', sri.line_refund_amount
+            )
+          ) as return_items
+        from sales.sale_returns sr
+        join sales.sales s on s.id = sr.sale_id
+        left join identity.user_profiles up on up.user_id = sr.processed_by
+        left join sales.sale_return_items sri on sri.sale_return_id = sr.id
+        left join sales.sale_items si on si.id = sri.sale_item_id
+        where sr.store_id = $1
+          and sr.status = 'pending_approval'
+        group by sr.id, sr.sale_id, sr.refund_amount, sr.reason, sr.created_at, s.sale_no, s.customer_name, s.customer_phone, up.full_name
+        order by sr.created_at asc
+      `,
+      [storeId],
+    );
+    return { returnRequests: result.rows };
+  }
+
+  async approveReturn(
+    returnId: string,
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    session: AuthSession | null,
+    decisionNote?: string,
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const userId = this.requireUserId(session);
+    const client = await this.pool.connect();
+
+    try {
+      await client.query('begin');
+
+      // Lock and validate the return request
+      const returnResult = await client.query<any>(
+        `
+          select sr.*, s.location_id, s.sale_no, s.total_amount, s.payment_status
+          from sales.sale_returns sr
+          join sales.sales s on s.id = sr.sale_id
+          where sr.id = $1
+            and sr.store_id = $2
+            and sr.status = 'pending_approval'
+          limit 1
+          for update
+        `,
+        [returnId, storeId],
+      );
+
+      const returnData = returnResult.rows[0];
+      if (!returnData) {
+        throw new NotFoundException('Pending return request not found');
+      }
+
+      // Get return items to restock inventory
+      const itemsResult = await client.query<any>(
+        `
+          select sri.*, si.sku_id
+          from sales.sale_return_items sri
+          join sales.sale_items si on si.id = sri.sale_item_id
+          where sri.sale_return_id = $1
+        `,
+        [returnId],
+      );
+
+      // Restock inventory for items flagged for restock
+      for (const item of itemsResult.rows) {
+        if (item.restock_to_inventory) {
+          await this.upsertBalance(client, storeId, returnData.location_id, item.sku_id, item.qty);
+          await this.insertLedger(client, {
+            storeId,
+            locationId: returnData.location_id,
+            skuId: item.sku_id,
+            movementType: 'return',
+            qtyDelta: item.qty,
+            referenceType: 'sale_return',
+            referenceId: returnId,
+            note: returnData.reason + (decisionNote ? ' — ' + decisionNote : ''),
+            actorId: userId,
+          });
+        }
+      }
+
+      // Compute total returned amount for this sale
+      const returnedResult = await client.query<{ total_returned: string }>(
+        `
+          select coalesce(sum(refund_amount), 0)::text as total_returned
+          from sales.sale_returns
+          where sale_id = $1
+            and status = 'processed'
+        `,
+        [returnData.sale_id],
+      );
+      // Add this return's amount to the total
+      const previousReturned = Number(returnedResult.rows[0]?.total_returned ?? 0);
+      const totalReturned = previousReturned + Number(returnData.refund_amount);
+      const totalAmount = Number(returnData.total_amount);
+      const isFullRefund = totalReturned >= totalAmount;
+
+      let newPaymentStatus: string;
+      if (isFullRefund) {
+        newPaymentStatus = 'refunded';
+      } else if (returnData.payment_status === 'paid' || returnData.payment_status === 'partial') {
+        newPaymentStatus = 'partial';
+      } else {
+        newPaymentStatus = returnData.payment_status;
+      }
+
+      let newStatus: string;
+      if (isFullRefund) {
+        newStatus = 'refunded';
+      } else {
+        newStatus = 'returned_partially';
+      }
+
+      // Update return status to processed
+      await client.query(
+        `update sales.sale_returns set status = 'processed', updated_at = now() where id = $1`,
+        [returnId],
+      );
+
+      // Update sale record
+      await client.query(
+        `
+          update sales.sales
+          set
+            payment_status = $2,
+            status = $3,
+            fulfillment_status = 'returned',
+            returned_amount = $4,
+            updated_at = now()
+          where id = $1
+        `,
+        [returnData.sale_id, newPaymentStatus, newStatus, totalReturned],
+      );
+
+      await client.query('commit');
+
+      await this.auditService.recordStoreAction({
+        storeId,
+        actorUserId: userId,
+        actionCode: 'sale.return.approve',
+        resourceType: 'sale_return',
+        resourceId: returnId,
+        after: {
+          saleId: returnData.sale_id,
+          saleNo: returnData.sale_no,
+          refundAmount: Number(returnData.refund_amount),
+          totalReturned,
+          paymentStatus: newPaymentStatus,
+          status: newStatus,
+          decisionNote: decisionNote ?? null,
+        },
+      });
+
+      return {
+        ok: true,
+        message: 'Return approved and processed.',
+        saleNo: returnData.sale_no,
+        refundAmount: Number(returnData.refund_amount),
+      };
+    } catch (error) {
+      await client.query('rollback').catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async rejectReturn(
+    returnId: string,
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    session: AuthSession | null,
+    decisionNote?: string,
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const userId = this.requireUserId(session);
+
+    const result = await this.pool.query(
+      `
+        update sales.sale_returns
+        set status = 'rejected', updated_at = now(), note = case when $3::text is not null then concat_ws(E'\n', note, $3::text) else note end
+        where id = $1
+          and store_id = $2
+          and status = 'pending_approval'
+        returning id, sale_id, refund_amount
+      `,
+      [returnId, storeId, decisionNote ?? null],
+    );
+
+    const updated = result.rows[0];
+    if (!updated) {
+      throw new NotFoundException('Pending return request not found');
+    }
+
+    await this.auditService.recordStoreAction({
+      storeId,
+      actorUserId: userId,
+      actionCode: 'sale.return.reject',
+      resourceType: 'sale_return',
+      resourceId: returnId,
+      after: {
+        status: 'rejected',
+        decisionNote: decisionNote ?? null,
+      },
+    });
+
+    return {
+      ok: true,
+      message: 'Return request rejected.',
+      refundAmount: Number(updated.refund_amount),
+    };
+  }
+
+  async getReturnsReport(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    filters: { fromDate?: string; toDate?: string; month?: string } = {},
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+
+    // Determine date range (same logic as getSalesReport)
+    let startDate: string;
+    let endDate: string;
+
+    if (filters.month) {
+      const [year, monthNum] = filters.month.split('-');
+      startDate = `${year}-${monthNum}-01`;
+      const lastDay = new Date(parseInt(year), parseInt(monthNum), 0).getDate();
+      endDate = `${year}-${monthNum}-${lastDay}`;
+    } else if (filters.fromDate && filters.toDate) {
+      startDate = filters.fromDate;
+      endDate = filters.toDate;
+    } else {
+      const now = new Date();
+      startDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+      const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      endDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${lastDay}`;
+    }
+
+    const result = await this.pool.query<any>(
+      `
+        select
+          sr.id as return_id,
+          sr.sale_id,
+          s.sale_no,
+          sr.reason,
+          sr.refund_amount,
+          sr.status as return_status,
+          sr.created_at as return_date,
+          up.full_name as processed_by_name,
+          s.customer_name,
+          s.customer_phone,
+          json_agg(
+            json_build_object(
+              'product_name', si.product_name_snapshot,
+              'sku_code', si.sku_code_snapshot,
+              'qty', sri.qty,
+              'line_refund_amount', sri.line_refund_amount
+            )
+          ) as items
+        from sales.sale_returns sr
+        join sales.sales s on s.id = sr.sale_id
+        left join identity.user_profiles up on up.user_id = sr.processed_by
+        left join sales.sale_return_items sri on sri.sale_return_id = sr.id
+        left join sales.sale_items si on si.id = sri.sale_item_id
+        where sr.store_id = $1
+          and sr.created_at::date between $2::date and $3::date
+        group by sr.id, sr.sale_id, s.sale_no, sr.reason, sr.refund_amount, sr.status, sr.created_at, up.full_name, s.customer_name, s.customer_phone
+        order by sr.created_at desc
+      `,
+      [storeId, startDate, endDate],
+    );
+
+    const returns = result.rows;
+
+    // Summary statistics
+    const totalRefunds = returns.reduce((sum, r) => sum + Number(r.refund_amount ?? 0), 0);
+    const totalReturnCount = returns.length;
+
+    return {
+      period: {
+        fromDate: startDate,
+        toDate: endDate,
+        month: filters.month || null,
+      },
+      summary: {
+        totalRefunds: Math.round(totalRefunds * 100) / 100,
+        totalReturns: totalReturnCount,
+      },
+      returns: returns.map((r: any) => ({
+        returnId: r.return_id,
+        saleId: r.sale_id,
+        saleNo: r.sale_no,
+        reason: r.reason,
+        refundAmount: Number(r.refund_amount ?? 0),
+        returnStatus: r.return_status,
+        returnDate: r.return_date,
+        processedByName: r.processed_by_name,
+        customerName: r.customer_name,
+        customerPhone: r.customer_phone,
+        items: Array.isArray(r.items) ? r.items.filter((i: any) => i.product_name) : [],
+      })),
+    };
   }
 
   async getSaleReturns(saleId: string, headerStoreId: string | undefined, authContext: StoreAuthContext | null) {

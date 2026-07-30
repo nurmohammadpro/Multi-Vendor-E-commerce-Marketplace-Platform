@@ -28,6 +28,8 @@ type Sale = {
   sale_no: string;
   total_amount: number;
   payment_status: string;
+  status: string;
+  returned_amount?: number;
   customer_name?: string | null;
   customer_phone?: string | null;
   items_purchased?: string | null;
@@ -409,10 +411,23 @@ export function SalesHistoryWorkspace() {
                     <td style={tableCellStyle}>
                       <span style={{
                         display: 'inline-block', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600,
-                        background: sale.payment_status === 'paid' ? 'rgba(34,197,94,0.1)' : sale.payment_status === 'partial' ? 'rgba(234,179,8,0.1)' : 'rgba(239,68,68,0.1)',
-                        color: sale.payment_status === 'paid' ? '#16a34a' : sale.payment_status === 'partial' ? '#b45309' : '#dc2626',
+                        background:
+                          sale.payment_status === 'paid' ? 'rgba(34,197,94,0.1)' :
+                          sale.payment_status === 'refunded' ? 'rgba(107,114,128,0.15)' :
+                          sale.status === 'returned_partially' ? 'rgba(234,179,8,0.1)' :
+                          sale.payment_status === 'partial' ? 'rgba(234,179,8,0.1)' :
+                          'rgba(239,68,68,0.1)',
+                        color:
+                          sale.payment_status === 'paid' ? '#16a34a' :
+                          sale.payment_status === 'refunded' ? '#6b7280' :
+                          sale.status === 'returned_partially' ? '#b45309' :
+                          sale.payment_status === 'partial' ? '#b45309' : '#dc2626',
                       }}>
-                        {sale.payment_status}
+                        {sale.payment_status === 'refunded'
+                          ? 'Returned'
+                          : sale.status === 'returned_partially'
+                            ? 'Partially Returned'
+                            : sale.payment_status}
                       </span>
                     </td>
                     <td style={tableCellStyle}>
@@ -432,12 +447,16 @@ export function SalesHistoryWorkspace() {
                       >
                         Print
                       </button>
-                      <Link
-                        href={`/returns?saleId=${sale.id}`}
-                        style={subtleButtonStyle}
-                      >
-                        Return
-                      </Link>
+                      {sale.payment_status === 'refunded' ? (
+                        <span style={{ ...tokenMutedStyle, fontSize: 11 }}>Returned</span>
+                      ) : (
+                        <Link
+                          href={`/returns?saleId=${sale.id}`}
+                          style={subtleButtonStyle}
+                        >
+                          Return
+                        </Link>
+                      )}
                     </td>
                   </tr>
                 ))}

@@ -240,6 +240,7 @@ export class StoreOpsService {
     const [
       pendingStockResult,
       pendingPriceResult,
+      pendingReturnResult,
       dueCollectionsResult,
       cashSalesResult,
       cashDueCollectionsResult,
@@ -262,6 +263,15 @@ export class StoreOpsService {
           from catalog.price_change_requests
           where store_id = $1
             and status = 'pending'
+        `,
+        [storeId],
+      ),
+      this.pool.query<{ pending_return_count: number }>(
+        `
+          select count(*)::int as pending_return_count
+          from sales.sale_returns
+          where store_id = $1
+            and status = 'pending_approval'
         `,
         [storeId],
       ),
@@ -364,6 +374,7 @@ export class StoreOpsService {
 
     const pendingStockApprovals = Number(pendingStockResult.rows[0]?.pending_stock_count ?? 0);
     const pendingPriceApprovals = Number(pendingPriceResult.rows[0]?.pending_price_count ?? 0);
+    const pendingReturnApprovals = Number(pendingReturnResult.rows[0]?.pending_return_count ?? 0);
     const todayDueCollectionsAmount = Number(dueCollectionsResult.rows[0]?.today_due_collection_amount ?? 0);
     const todayDueCollectionsCount = Number(dueCollectionsResult.rows[0]?.today_due_collection_count ?? 0);
     const todayCashSalesAmount = Number(cashSalesResult.rows[0]?.today_cash_sales_amount ?? 0);
@@ -380,7 +391,8 @@ export class StoreOpsService {
       overview: {
         pendingStockApprovals,
         pendingPriceApprovals,
-        totalPendingApprovals: pendingStockApprovals + pendingPriceApprovals,
+        totalPendingApprovals: pendingStockApprovals + pendingPriceApprovals + pendingReturnApprovals,
+        pendingReturnApprovals,
         todayDueCollectionsAmount,
         todayDueCollectionsCount,
         todayCashSalesAmount,

@@ -52,6 +52,7 @@ type PriceChangeRequest = {
 type OwnerOverview = {
   pendingStockApprovals: number;
   pendingPriceApprovals: number;
+  pendingReturnApprovals: number;
   totalPendingApprovals: number;
   todayDueCollectionsAmount: string | number;
   todayDueCollectionsCount: number;
@@ -73,6 +74,25 @@ type OwnerOverview = {
   }>;
 };
 
+type PendingReturnRequest = {
+  id: string;
+  sale_id: string;
+  sale_no: string;
+  refund_amount: string | number;
+  reason: string;
+  created_at: string;
+  customer_name?: string | null;
+  customer_phone?: string | null;
+  requested_by_name?: string | null;
+  return_items?: Array<{
+    productName: string;
+    skuCode: string;
+    qty: number;
+    restockToInventory: boolean;
+    lineRefundAmount: number;
+  }>;
+};
+
 async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
   const response = await fetch(input, init);
   const payload = (await response.json().catch(() => null)) as T | { error?: string } | null;
@@ -90,6 +110,7 @@ export function ApprovalsWorkspace({ canApproveInventory }: { canApproveInventor
   const [overview, setOverview] = useState<OwnerOverview | null>(null);
   const [stockRequests, setStockRequests] = useState<StockAdjustmentRequest[]>([]);
   const [priceRequests, setPriceRequests] = useState<PriceChangeRequest[]>([]);
+  const [returnRequests, setReturnRequests] = useState<PendingReturnRequest[]>([]);
   const [decisionNote, setDecisionNote] = useState('');
   const [countedCashAmount, setCountedCashAmount] = useState('');
   const [cashCountNote, setCashCountNote] = useState('');
@@ -116,10 +137,11 @@ export function ApprovalsWorkspace({ canApproveInventory }: { canApproveInventor
   const refresh = async () => {
     const refreshId = latestRefreshId.current + 1;
     latestRefreshId.current = refreshId;
-    const [overviewPayload, stockPayload, pricePayload] = await Promise.all([
+    const [overviewPayload, stockPayload, pricePayload, returnPayload] = await Promise.all([
       readJson<{ overview: OwnerOverview }>('/api/store-ops/owner-overview'),
       readJson<{ adjustmentRequests: StockAdjustmentRequest[] }>('/api/inventory/adjustments?status=pending'),
       readJson<{ priceChangeRequests: PriceChangeRequest[] }>('/api/catalog/price-change-requests?status=pending'),
+      readJson<{ returnRequests: PendingReturnRequest[] }>('/api/pos/returns/pending-approvals'),
     ]);
 
     if (refreshId !== latestRefreshId.current) {
@@ -129,6 +151,7 @@ export function ApprovalsWorkspace({ canApproveInventory }: { canApproveInventor
     applyOverview(overviewPayload.overview ?? null);
     setStockRequests(stockPayload.adjustmentRequests ?? []);
     setPriceRequests(pricePayload.priceChangeRequests ?? []);
+    setReturnRequests(returnPayload.returnRequests ?? []);
   };
 
   useEffect(() => {
@@ -164,6 +187,24 @@ export function ApprovalsWorkspace({ canApproveInventory }: { canApproveInventor
       await refresh();
       setDecisionNote('');
       setMessage(`Price request ${decision}d successfully.`);
+    } catch (error) {
+      setMessage((error as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const decideReturn = async (returnId: string, decision: 'approve' | 'reject') => {
+    setLoading(true);
+    try {
+      await readJson(`/api/pos/returns/${returnId}/${decision}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ decisionNote: decisionNote || undefined }),
+      });
+      await refresh();
+      setDecisionNote('');
+      setMessage(`Return request ${decision}d successfully.`);
     } catch (error) {
       setMessage((error as Error).message);
     } finally {
@@ -236,6 +277,11 @@ export function ApprovalsWorkspace({ canApproveInventory }: { canApproveInventor
           <div style={metricLabelStyle}>Pending price approvals</div>
           <div style={metricValueStyle}>{overview?.pendingPriceApprovals ?? '—'}</div>
           <div style={{ color: 'var(--muted-foreground)' }}>Pricing changes waiting on owner action.</div>
+        </article>
+        <article style={surfaceCardStyle}>
+          <div style={metricLabelStyle}>Pending return approvals</div>
+          <div style={metricValueStyle}>{overview?.pendingReturnApprovals ?? '—'}</div>
+          <div style={{ color: 'var(--muted-foreground)' }}>High-value return requests (&ge; BDT 5,000) needing approval.</div>
         </article>
       </section>
 
@@ -423,6 +469,50 @@ export function ApprovalsWorkspace({ canApproveInventory }: { canApproveInventor
           )}
         </article>
       </section>
+
+      {/* Pending return approvals */}
+      <article style={surfaceCardStyle}>
+        <h3 style={{ marginTop: 0 }}>Pending return approvals</h3>
+        {returnRequests.length ? (
+          <div style={tableWrapStyle}>
+            <table style={tableStyle}>
+              <thead>
+                <tr>
+                  <th style={tableHeaderCellStyle}>Sale</th>
+                  <th style={tableHeaderCellStyle}>Customer</th>
+                  <th style={tableHeaderCellStyle}>Refund Amount</th>
+                  <th style={tableHeaderCellStyle}>Reason</th>
+                  <th style={tableHeaderCellStyle}>Requested By</th>
+                  <th style={tableHeaderCellStyle}>Date</th>
+                  <th style={tableHeaderCellStyle}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {returnRequests.map((request) => (
+                  <tr key={request.id}>
+                    <td style={tableCellStyle}><strong>{request.sale_no}</strong></td>
+                    <td style={tableCellStyle}>{request.customer_name || request.customer_phone || '—'}</td>
+                    <td style={{ ...tableCellStyle, fontWeight: 600, color: '#dc2626' }}>
+                      BDT {Number(request.refund_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </td>
+                    <td style={tableCellStyle}>{request.reason}</td>
+                    <td style={tableCellStyle}>{request.requested_by_name || 'User'}</td>
+                    <td style={tableCellStyle}>{new Date(request.created_at).toLocaleDateString()}</td>
+                    <td style={tableCellStyle}>
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        <button onClick={() => void decideReturn(request.id, 'approve')} style={accentButtonStyle} disabled={loading}>Approve</button>
+                        <button onClick={() => void decideReturn(request.id, 'reject')} style={secondaryButtonStyle} disabled={loading}>Reject</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div style={emptyStateStyle}>No pending return approvals.</div>
+        )}
+      </article>
     </section>
   );
 }

@@ -271,6 +271,23 @@ export class PosController {
   }
 
 
+  @Get('returns-report')
+  @RequireContext('store')
+  @RequirePermissions('sales.report.view')
+  getReturnsReport(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @Query('fromDate') fromDate?: string,
+    @Query('toDate') toDate?: string,
+    @Query('month') month?: string,
+  ) {
+    return this.posService.getReturnsReport(headerStoreId, authContext, {
+      fromDate,
+      toDate,
+      month,
+    });
+  }
+
   @Get('sales/:saleId/returns')
   @RequireContext('store')
   @RequirePermissions('sales.report.view')
@@ -299,5 +316,43 @@ export class PosController {
       session,
       returnSaleSchema.parse(payload),
     );
+  }
+
+  // ── Return approval workflow (owner/manager approval for high-value returns) ──
+
+  @Get('returns/pending-approvals')
+  @RequireContext('store')
+  @RequirePermissions('sales.report.view')
+  getPendingReturnApprovals(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+  ) {
+    return this.posService.getPendingReturnApprovals(headerStoreId, authContext);
+  }
+
+  @Post('returns/:returnId/approve')
+  @RequireContext('store')
+  @RequirePermissions('inventory.adjust.approve')
+  approveReturn(
+    @Param('returnId') returnId: string,
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @CurrentAuthSession() session: AuthSession | null,
+    @Body() payload: { decisionNote?: string },
+  ) {
+    return this.posService.approveReturn(returnId, headerStoreId, authContext, session, payload?.decisionNote);
+  }
+
+  @Post('returns/:returnId/reject')
+  @RequireContext('store')
+  @RequirePermissions('inventory.adjust.approve')
+  rejectReturn(
+    @Param('returnId') returnId: string,
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @CurrentAuthSession() session: AuthSession | null,
+    @Body() payload: { decisionNote?: string },
+  ) {
+    return this.posService.rejectReturn(returnId, headerStoreId, authContext, session, payload?.decisionNote);
   }
 }

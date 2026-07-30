@@ -4,9 +4,10 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 import {
-  accentButtonStyle,
+  dangerButtonStyle,
   emptyStateStyle,
   fieldStyle,
+  gray800ButtonStyle,
   pageShellStyle,
   searchButtonStyle,
   secondaryButtonStyle,
@@ -17,7 +18,7 @@ import {
   tableWrapStyle,
   tokenMutedStyle,
 } from '../marketone-theme';
-import { ListPager, type PaginationState, totalPagesFor } from '../list-pager';
+import { ListPager } from '../list-pager';
 import { searchRowStyle } from '../workspace-responsive';
 import { openInvoicePrintWindow } from '../../lib/print-agent';
 
@@ -26,6 +27,8 @@ type Sale = {
   sale_no: string;
   total_amount: number;
   payment_status: string;
+  status: string;
+  returned_amount?: number;
   customer_name?: string | null;
   customer_phone?: string | null;
   created_at: string;
@@ -129,14 +132,29 @@ export function ReturnsWorkspace() {
   const [success, setSuccess] = useState(false);
   const [refundReceipt, setRefundReceipt] = useState<RefundReceipt | null>(null);
 
-  const fetchSales = useCallback(async (search?: string) => {
+  // Returns export state
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportFromDate, setExportFromDate] = useState('');
+  const [exportToDate, setExportToDate] = useState('');
+  const [exportMonth, setExportMonth] = useState('');
+  const [exportLoading, setExportLoading] = useState(false);
+  const [exportData, setExportData] = useState<any>(null);
+
+  // Sorting state
+  type SortField = 'sale_no' | 'customer_name' | 'total_amount' | 'payment_status' | 'created_at';
+  const [sortBy, setSortBy] = useState<SortField>('created_at');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
+  const loadSales = useCallback(async (p = 1) => {
     setLoading(true);
     setError('');
     try {
-      const params = new URLSearchParams({ page: String(page), limit: String(limit) });
-      if (search) params.set('query', search);
+      const params = new URLSearchParams({ page: String(p), limit: String(limit), sortBy, sortDir });
+      const q = searchQuery.trim();
+      if (q) params.set('query', q);
       const result = await readJson<{ sales: Sale[]; pagination: { total: number } }>(`/api/pos/sales?${params}`);
       setSales(result.sales ?? []);
+      setPage(p);
       setTotal(result.pagination?.total ?? 0);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load sales');
@@ -144,7 +162,106 @@ export function ReturnsWorkspace() {
     } finally {
       setLoading(false);
     }
-  }, [page]);
+  }, [searchQuery, sortBy, sortDir]);
+
+  const handleSort = (field: SortField) => {
+    if (sortBy === field) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortBy(field);
+      setSortDir('asc');
+    }
+  };
+
+  const sortIndicator = (field: SortField) => {
+    if (sortBy !== field) return ' ↕';
+    return sortDir === 'asc' ? ' ↑' : ' ↓';
+  };
+
+  // Set default export dates (current month)
+  useEffect(() => {
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    setExportFromDate(firstDay.toISOString().slice(0, 10));
+    setExportToDate(lastDay.toISOString().slice(0, 10));
+  }, []);
+
+  const fetchReturnsReport = async () => {
+    setExportLoading(true);
+    setError('');
+    try {
+      const params = new URLSearchParams();
+      if (exportMonth) {
+        params.set('month', exportMonth);
+      } else if (exportFromDate && exportToDate) {
+        params.set('fromDate', exportFromDate);
+        params.set('toDate', exportToDate);
+      } else {
+        setError('Please select a date range or month.');
+        setExportLoading(false);
+        return;
+      }
+      const data = await readJson<any>(`/api/pos/returns-report?${params.toString()}`);
+      setExportData(data);
+      setMessage(`Returns report loaded: ${data.summary?.totalReturns ?? 0} returns, total BDT ${data.summary?.totalRefunds ?? 0}.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load returns report');
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
+  const exportReturnsCsv = () => {
+    if (!exportData) return;
+    const rows: string[][] = [
+      ['Returns Report', `Period: ${exportData.period.fromDate} to ${exportData.period.toDate}`],
+      ['Summary', ''],
+      ['Total Returns', String(exportData.summary.totalReturns)],
+      ['Total Refunds', formatMoney(exportData.summary.totalRefunds)],
+      [],
+      ['Date', 'Sale No', 'Customer', 'Phone', 'Reason', 'Refund Amount', 'Processed By', 'Status'],
+    ];
+    exportData.returns.forEach((r: any) => {
+      rows.push([
+        new Date(r.returnDate).toLocaleDateString(),
+        r.saleNo,
+        r.customerName || 'Walk-in',
+        r.customerPhone || '',
+        r.reason,
+        formatMoney(r.refundAmount),
+        r.processedByName || '—',
+        r.returnStatus,
+      ]);
+    });
+    const csvContent = rows.map(row => row.join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `returns-report-${exportData.period.fromDate}-to-${exportData.period.toDate}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setMessage('CSV export downloaded.');
+  };
+
+  const formatMoney = (v: number) => v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  const paymentBadgeStyle = (status: string): React.CSSProperties => ({
+    display: 'inline-block', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600,
+    background: status === 'paid' ? 'rgba(34,197,94,0.1)' :
+      status === 'partial' || status === 'returned_partially' ? 'rgba(234,179,8,0.1)' :
+      status === 'refunded' ? 'rgba(107,114,128,0.15)' : 'rgba(239,68,68,0.1)',
+    color: status === 'paid' ? '#16a34a' :
+      status === 'partial' || status === 'returned_partially' ? '#b45309' :
+      status === 'refunded' ? '#6b7280' : '#dc2626',
+  });
+
+  const displayStatus = (status: string, paymentStatus: string): string => {
+    if (paymentStatus === 'refunded') return 'Returned';
+    if (status === 'returned_partially') return 'Partially Returned';
+    return paymentStatus;
+  };
 
   // Auto-load sale from URL search param (e.g. from Sales History "Return" button)
   useEffect(() => {
@@ -159,9 +276,9 @@ export function ReturnsWorkspace() {
 
   useEffect(() => {
     if (!selectedSale && !autoLoaded) {
-      void fetchSales(searchQuery || undefined);
+      void loadSales(1);
     }
-  }, [fetchSales, searchQuery, selectedSale, autoLoaded]);
+  }, [loadSales, selectedSale, autoLoaded]);
 
   const openSale = async (saleId: string) => {
     setSaleLoading(true);
@@ -245,6 +362,92 @@ export function ReturnsWorkspace() {
     }));
   };
 
+  // Returns Export Modal (renders as overlay before sale list check)
+  if (exportOpen) {
+    return (
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.4)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }} onClick={() => { setExportOpen(false); setExportData(null); }}>
+        <div style={{
+          background: '#fff', borderRadius: 16, padding: 24, maxWidth: 500, width: '95%',
+          maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+        }} onClick={(e) => e.stopPropagation()}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <h3 style={{ margin: 0, fontSize: 16 }}>Export Returns Report</h3>
+            <button onClick={() => { setExportOpen(false); setExportData(null); }} style={{ ...secondaryButtonStyle, minWidth: 40 }}>✕</button>
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: 'block', marginBottom: 8, fontWeight: 500, fontSize: 14 }}>Report Period</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: 4, fontSize: 12, color: 'var(--muted-foreground)' }}>Month (optional)</label>
+                <input
+                  type="month"
+                  value={exportMonth}
+                  onChange={(e) => {
+                    setExportMonth(e.target.value);
+                    if (e.target.value) {
+                      const [year, month] = e.target.value.split('-');
+                      const firstDay = `${year}-${month}-01`;
+                      const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
+                      const lastDayStr = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
+                      setExportFromDate(firstDay);
+                      setExportToDate(lastDayStr);
+                    }
+                  }}
+                  style={fieldStyle}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', marginBottom: 4, fontSize: 12, color: 'var(--muted-foreground)' }}>From Date</label>
+                  <input
+                    type="date"
+                    value={exportFromDate}
+                    onChange={(e) => { setExportFromDate(e.target.value); setExportMonth(''); }}
+                    style={fieldStyle}
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', marginBottom: 4, fontSize: 12, color: 'var(--muted-foreground)' }}>To Date</label>
+                  <input
+                    type="date"
+                    value={exportToDate}
+                    onChange={(e) => { setExportToDate(e.target.value); setExportMonth(''); }}
+                    style={fieldStyle}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+            <button onClick={fetchReturnsReport} style={searchButtonStyle} disabled={exportLoading}>
+              {exportLoading ? 'Loading...' : 'Generate Report'}
+            </button>
+          </div>
+
+          {exportData ? (
+            <>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                <button onClick={exportReturnsCsv} style={gray800ButtonStyle}>Export CSV</button>
+              </div>
+              <div style={{ background: 'var(--muted)', padding: 12, borderRadius: 8, marginBottom: 16 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Report Summary</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, fontSize: 13 }}>
+                  <div>Total Returns: <strong>{exportData.summary.totalReturns}</strong></div>
+                  <div>Total Refunds: <strong>BDT {formatMoney(exportData.summary.totalRefunds)}</strong></div>
+                </div>
+              </div>
+            </>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
   // Sale list view
   if (!selectedSale) {
     return (
@@ -263,61 +466,113 @@ export function ReturnsWorkspace() {
           <input
             value={searchQuery}
             onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
-            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void fetchSales(searchQuery || undefined); } }}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void loadSales(1); } }}
             style={{ ...fieldStyle, flex: 1, width: 'auto' }}
             placeholder="Search by sale number or customer"
           />
-          <button onClick={() => void fetchSales(searchQuery || undefined)} style={searchButtonStyle} disabled={loading}>
+          <button onClick={() => void loadSales(1)} style={searchButtonStyle} disabled={loading}>
             {loading ? 'Loading...' : 'Search'}
           </button>
         </div>
 
-        {sales.length === 0 && !loading ? (
-          <div style={emptyStateStyle}>
-            {searchQuery ? 'No sales found matching your search.' : 'No completed sales found. Complete a sale in POS first.'}
+        <article style={surfaceCardStyle}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+            <button onClick={() => void loadSales(1)} style={secondaryButtonStyle} disabled={loading}>
+              {loading ? 'Loading...' : 'Refresh'}
+            </button>
+            <button onClick={() => setExportOpen(true)} style={gray800ButtonStyle}>Export Returns Report</button>
           </div>
-        ) : (
-          <div style={tableWrapStyle}>
-            <table style={tableStyle}>
-              <thead>
-                <tr>
-                  <th style={tableHeaderCellStyle}>Invoice</th>
-                  <th style={tableHeaderCellStyle}>Customer</th>
-                  <th style={tableHeaderCellStyle}>Amount</th>
-                  <th style={tableHeaderCellStyle}>Status</th>
-                  <th style={tableHeaderCellStyle}>Date</th>
-                  <th style={tableHeaderCellStyle}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {sales.map((sale) => (
-                  <tr key={sale.id}>
-                    <td style={tableCellStyle}>{sale.sale_no}</td>
-                    <td style={tableCellStyle}>{sale.customer_name || sale.customer_phone || '—'}</td>
-                    <td style={tableCellStyle}>{Number(sale.total_amount).toFixed(2)}</td>
-                    <td style={tableCellStyle}>{sale.payment_status}</td>
-                    <td style={tableCellStyle}>{new Date(sale.created_at).toLocaleDateString()}</td>
-                    <td style={tableCellStyle}>
-                      <button onClick={() => void openSale(sale.id)} style={accentButtonStyle}>
-                        Return
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
 
-        {total > limit && (
-            <ListPager
-              page={page}
-              pagination={{ page, total, limit }}
-              label="sales"
-              onPrevious={() => setPage(Math.max(1, page - 1))}
-              onNext={() => { if (page < totalPagesFor({ page, total, limit })) setPage(page + 1); }}
-            />
+          {sales.length === 0 && !loading ? (
+            <div style={emptyStateStyle}>
+              {searchQuery ? 'No sales found matching your search.' : 'No completed sales found. Complete a sale in POS first.'}
+            </div>
+          ) : (
+            <div style={tableWrapStyle}>
+              <table style={{ ...tableStyle, tableLayout: 'fixed' }}>
+                <thead>
+                  <tr>
+                    <th style={{ ...tableHeaderCellStyle, width: '15%' }}>
+                      <button onClick={() => handleSort('sale_no')} style={sortBtnStyle}>
+                        Invoice{sortIndicator('sale_no')}
+                      </button>
+                    </th>
+                    <th style={{ ...tableHeaderCellStyle, width: '20%' }}>
+                      <button onClick={() => handleSort('customer_name')} style={sortBtnStyle}>
+                        Customer{sortIndicator('customer_name')}
+                      </button>
+                    </th>
+                    <th style={{ ...tableHeaderCellStyle, width: '12%', textAlign: 'right' }}>
+                      <button onClick={() => handleSort('total_amount')} style={sortBtnStyle}>
+                        Amount{sortIndicator('total_amount')}
+                      </button>
+                    </th>
+                    <th style={{ ...tableHeaderCellStyle, width: '16%' }}>
+                      <button onClick={() => handleSort('payment_status')} style={sortBtnStyle}>
+                        Status{sortIndicator('payment_status')}
+                      </button>
+                    </th>
+                    <th style={{ ...tableHeaderCellStyle, width: '17%' }}>
+                      <button onClick={() => handleSort('created_at')} style={sortBtnStyle}>
+                        Date{sortIndicator('created_at')}
+                      </button>
+                    </th>
+                    <th style={{ ...tableHeaderCellStyle, width: '20%' }}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sales.map((sale) => {
+                    const isRefunded = sale.payment_status === 'refunded';
+                    return (
+                      <tr key={sale.id}>
+                        <td style={tableCellStyle}><strong>{sale.sale_no}</strong></td>
+                        <td style={tableCellStyle}>{sale.customer_name || sale.customer_phone || '—'}</td>
+                        <td style={{ ...tableCellStyle, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                          BDT {Number(sale.total_amount).toFixed(2)}
+                        </td>
+                        <td style={tableCellStyle}>
+                          <span style={paymentBadgeStyle(
+                            isRefunded ? 'refunded' :
+                            sale.status === 'returned_partially' ? 'returned_partially' :
+                            sale.payment_status
+                          )}>
+                            {displayStatus(sale.status, sale.payment_status)}
+                          </span>
+                        </td>
+                        <td style={tableCellStyle}>
+                          {new Date(sale.created_at).toLocaleDateString('en-BD', {
+                            year: 'numeric', month: 'short', day: 'numeric',
+                          })}
+                        </td>
+                        <td style={tableCellStyle}>
+                          {isRefunded ? (
+                            <span style={{ ...tokenMutedStyle, fontSize: 11 }}>Fully Returned</span>
+                          ) : (
+                            <button onClick={() => void openSale(sale.id)} style={gray800ButtonStyle}>
+                              Return
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
+
+          {total > limit && (
+            <div style={{ marginTop: 12 }}>
+              <ListPager
+                page={page}
+                pagination={{ page, total, limit }}
+                label="sales"
+                onPrevious={() => { const np = Math.max(1, page - 1); void loadSales(np); }}
+                onNext={() => { if (page < Math.ceil(total / limit)) void loadSales(page + 1); }}
+              />
+            </div>
+          )}
+        </article>
       </div>
     );
   }
@@ -489,7 +744,7 @@ export function ReturnsWorkspace() {
 
             {/* Actions */}
             <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
-              <button onClick={handlePrintRefundReceipt} style={accentButtonStyle}>
+              <button onClick={handlePrintRefundReceipt} style={gray800ButtonStyle}>
                 Print Refund Receipt
               </button>
               <button onClick={() => { setSelectedSale(null); setPage(1); setRefundReceipt(null); }} style={secondaryButtonStyle}>
@@ -508,6 +763,11 @@ export function ReturnsWorkspace() {
 
   return (
     <div style={pageShellStyle}>
+      <div style={{ marginBottom: 24 }}>
+        <h1 style={{ margin: '0 0 6px', fontSize: 'clamp(24px, 2.2vw, 32px)', lineHeight: 1.1, letterSpacing: '-0.03em', fontWeight: 500 }}>
+          Returns & Refunds
+        </h1>
+      </div>
       <button onClick={() => { setSelectedSale(null); setError(''); }} style={{ ...secondaryButtonStyle, marginBottom: 16 }}>
         &larr; Back to Sales List
       </button>
@@ -600,7 +860,7 @@ export function ReturnsWorkspace() {
           </div>
 
           <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
-            <button onClick={processReturn} style={{ ...accentButtonStyle, background: '#dc2626', borderColor: '#dc2626', color: '#fff' }} disabled={processing}>
+            <button onClick={processReturn} style={dangerButtonStyle} disabled={processing}>
               {processing ? 'Processing...' : 'Process Return & Refund'}
             </button>
             <button onClick={() => { setSelectedSale(null); setError(''); }} style={secondaryButtonStyle}>
@@ -616,3 +876,9 @@ export function ReturnsWorkspace() {
     </div>
   );
 }
+
+const sortBtnStyle: React.CSSProperties = {
+  background: 'none', border: 'none', cursor: 'pointer',
+  fontWeight: 600, fontSize: 'inherit', color: 'inherit',
+  padding: 0, fontFamily: 'inherit',
+};
