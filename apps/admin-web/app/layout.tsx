@@ -7,6 +7,10 @@ import { WorkspaceShell } from './workspace-shell';
 export const metadata = {
   title: 'Admin Console',
   description: 'Phase 1 platform admin operating system',
+  icons: {
+    icon: [{ url: '/favicon.png', sizes: '32x32', type: 'image/png' }],
+    shortcut: ['/favicon.png'],
+  },
 };
 
 const navItems = [
