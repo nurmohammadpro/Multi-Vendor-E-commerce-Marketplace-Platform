@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
 import { requestStoreApi } from '../../../../../../lib/api';
 
@@ -7,6 +7,16 @@ type RouteContext = {
     saleId: string;
   }>;
 };
+
+export async function GET(_request: NextRequest, context: RouteContext) {
+  const { saleId } = await context.params;
+  const response = await requestStoreApi(`/pos/sales/${saleId}/returns`, {
+    method: 'GET',
+  });
+  const payload = await response.json().catch(() => ({ ok: false, error: 'Invalid upstream response' }));
+
+  return NextResponse.json(payload, { status: response.status });
+}
 
 export async function POST(request: Request, context: RouteContext) {
   const { saleId } = await context.params;

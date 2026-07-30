@@ -271,6 +271,17 @@ export class PosController {
   }
 
 
+  @Get('sales/:saleId/returns')
+  @RequireContext('store')
+  @RequirePermissions('sales.report.view')
+  getSaleReturns(
+    @Param('saleId') saleId: string,
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+  ) {
+    return this.posService.getSaleReturns(saleId, headerStoreId, authContext);
+  }
+
   @Post('sales/:saleId/returns')
   @RequireContext('store')
   @RequirePermissions('sales.pos.create')

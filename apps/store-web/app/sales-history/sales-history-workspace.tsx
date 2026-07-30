@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 
 import {
   accentButtonStyle,
@@ -11,6 +12,7 @@ import {
   pageShellStyle,
   searchButtonStyle,
   secondaryButtonStyle,
+  subtleButtonStyle,
   surfaceCardStyle,
   tableCellStyle,
   tableHeaderCellStyle,
@@ -389,7 +391,7 @@ export function SalesHistoryWorkspace() {
                       Date{sortIndicator('created_at')}
                     </button>
                   </th>
-                  <th style={{ ...tableHeaderCellStyle, width: '10%' }}>Action</th>
+                  <th style={{ ...tableHeaderCellStyle, width: '14%' }}>Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -418,7 +420,7 @@ export function SalesHistoryWorkspace() {
                         year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
                       })}
                     </td>
-                    <td style={tableCellStyle}>
+                    <td style={{ ...tableCellStyle, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                       <button
                         onClick={async () => {
                           try {
@@ -428,8 +430,14 @@ export function SalesHistoryWorkspace() {
                         }}
                         style={secondaryButtonStyle}
                       >
-                        Print Invoice
+                        Print
                       </button>
+                      <Link
+                        href={`/returns?saleId=${sale.id}`}
+                        style={subtleButtonStyle}
+                      >
+                        Return
+                      </Link>
                     </td>
                   </tr>
                 ))}
