@@ -35,4 +35,7 @@ USER node
 
 EXPOSE 4000
 
-CMD ["sh", "-c", "node packages/database/src/migrate.mjs && node packages/database/src/seed.mjs && node apps/api/dist/main.js"]
+# tsc output nests under dist/apps/api/src/ because baseUrl in
+# tsconfig.base.json resolves to the monorepo root, so dist mirrors
+# the source tree. Do not simplify to dist/main.js.
+CMD ["sh", "-c", "node packages/database/src/migrate.mjs && node packages/database/src/seed.mjs && node apps/api/dist/apps/api/src/main.js"]

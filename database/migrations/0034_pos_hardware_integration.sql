@@ -3,6 +3,8 @@
 
 begin;
 
+create schema if not exists pos;
+
 -- ============================================================================
 -- 1. POS HARDWARE DEVICES (USB Device Configuration Registry)
 -- ============================================================================
