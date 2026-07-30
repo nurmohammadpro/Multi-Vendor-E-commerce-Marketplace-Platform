@@ -899,9 +899,12 @@ export class PosService {
         id: string;
         store_id: string;
         location_id: string;
+        sale_no: string;
+        total_amount: string;
+        payment_status: string;
       }>(
         `
-          select id, store_id, location_id
+          select id, store_id, location_id, sale_no, total_amount, payment_status
           from sales.sales
           where id = $1
             and store_id = $2
@@ -1009,7 +1012,59 @@ export class PosService {
         }
       }
 
+      // Compute total returned amount for this sale
+      const returnedResult = await client.query<{ total_returned: string }>(
+        `
+          select coalesce(sum(refund_amount), 0)::text as total_returned
+          from sales.sale_returns
+          where sale_id = $1
+            and status = 'processed'
+        `,
+        [saleId],
+      );
+      const totalReturned = Number(returnedResult.rows[0]?.total_returned ?? 0);
+      const totalAmount = Number(sale.total_amount);
+      const isFullRefund = totalReturned >= totalAmount;
+
+      // Determine new payment_status
+      let newPaymentStatus: string;
+      if (isFullRefund) {
+        newPaymentStatus = 'refunded';
+      } else if (sale.payment_status === 'paid' || sale.payment_status === 'partial') {
+        // If some amount was paid but now partially refunded, keep as 'partial'
+        newPaymentStatus = 'partial';
+      } else {
+        newPaymentStatus = sale.payment_status;
+      }
+
+      // Determine new status
+      let newStatus: string;
+      if (isFullRefund) {
+        newStatus = 'refunded';
+      } else {
+        newStatus = 'returned_partially';
+      }
+
+      // Update sale record with refund status and returned_amount
+      await client.query(
+        `
+          update sales.sales
+          set
+            payment_status = $2,
+            status = $3,
+            fulfillment_status = 'returned',
+            returned_amount = $4,
+            updated_at = now()
+          where id = $1
+        `,
+        [saleId, newPaymentStatus, newStatus, totalReturned],
+      );
+
       await client.query('commit');
+
+      // Build refund receipt after commit (reads fresh data)
+      const refundReceipt = await this.buildRefundReceipt(saleId, saleReturnId, storeId);
+
       await this.auditService.recordStoreAction({
         storeId,
         actorUserId: userId,
@@ -1018,7 +1073,11 @@ export class PosService {
         resourceId: saleReturnId,
         after: {
           saleId,
+          saleNo: sale.sale_no,
           refundAmount: payload.refundAmount,
+          totalReturned,
+          paymentStatus: newPaymentStatus,
+          status: newStatus,
           itemCount: payload.items.length,
         },
       });
@@ -1027,7 +1086,12 @@ export class PosService {
         saleReturn: {
           id: saleReturnId,
           refundAmount: payload.refundAmount,
+          totalReturned,
+          saleNo: sale.sale_no,
+          paymentStatus: newPaymentStatus,
+          status: newStatus,
         },
+        refundReceipt,
       };
     } catch (error) {
       await client.query('rollback').catch(() => {});
@@ -1035,6 +1099,140 @@ export class PosService {
     } finally {
       client.release();
     }
+  }
+
+  async getSaleReturns(saleId: string, headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+
+    const returnsResult = await this.pool.query(
+      `
+        select
+          sr.id,
+          sr.sale_id,
+          sr.reason,
+          sr.refund_amount,
+          sr.status,
+          sr.created_at,
+          up.full_name as processed_by_name,
+          json_agg(
+            json_build_object(
+              'id', sri.id,
+              'saleItemId', sri.sale_item_id,
+              'qty', sri.qty,
+              'restockToInventory', sri.restock_to_inventory,
+              'lineRefundAmount', sri.line_refund_amount,
+              'productName', si.product_name_snapshot,
+              'skuCode', si.sku_code_snapshot
+            )
+          ) as items
+        from sales.sale_returns sr
+        left join identity.user_profiles up on up.user_id = sr.processed_by
+        left join sales.sale_return_items sri on sri.sale_return_id = sr.id
+        left join sales.sale_items si on si.id = sri.sale_item_id
+        where sr.sale_id = $1
+          and sr.store_id = $2
+        group by sr.id, sr.sale_id, sr.reason, sr.refund_amount, sr.status, sr.created_at, up.full_name
+        order by sr.created_at desc
+      `,
+      [saleId, storeId],
+    );
+
+    return { returns: returnsResult.rows };
+  }
+
+  private async buildRefundReceipt(saleId: string, returnId: string, storeId: string) {
+    const { sale, items } = await this.getSaleAggregate(saleId, storeId);
+
+    const paymentResult = await this.pool.query(
+      `select id, payment_method, gateway_provider, amount, reference_no, status, paid_at
+       from sales.sale_payments
+       where sale_id = $1
+       order by created_at asc`,
+      [saleId],
+    );
+    const paymentRows: any[] = paymentResult.rows ?? [];
+
+    const returnResult = await this.pool.query(
+      `
+        select
+          sr.*,
+          up.full_name as processed_by_name,
+          json_agg(
+            json_build_object(
+              'id', sri.id,
+              'saleItemId', sri.sale_item_id,
+              'qty', sri.qty,
+              'restockToInventory', sri.restock_to_inventory,
+              'lineRefundAmount', sri.line_refund_amount,
+              'productName', si.product_name_snapshot,
+              'skuCode', si.sku_code_snapshot
+            )
+          ) as return_items
+        from sales.sale_returns sr
+        left join identity.user_profiles up on up.user_id = sr.processed_by
+        left join sales.sale_return_items sri on sri.sale_return_id = sr.id
+        left join sales.sale_items si on si.id = sri.sale_item_id
+        where sr.id = $1
+          and sr.store_id = $2
+        group by sr.id, up.full_name
+        limit 1
+      `,
+      [returnId, storeId],
+    );
+
+    const returnData = returnResult.rows[0];
+    if (!returnData) return null;
+
+    const storeResult = await this.pool.query(
+      'select name, logo_url, phone, email, address_text, receipt_footer from store.stores where id = $1 limit 1',
+      [storeId],
+    );
+    const store = storeResult.rows[0] ?? {};
+
+    return {
+      type: 'refund',
+      returnId: returnData.id,
+      saleId: sale.id,
+      saleNo: sale.sale_no,
+      reason: returnData.reason,
+      refundAmount: Number(returnData.refund_amount),
+      processedAt: returnData.created_at,
+      processedByName: returnData.processed_by_name,
+      store: {
+        name: store.name ?? null,
+        logoUrl: store.logo_url ?? null,
+        phone: store.phone ?? null,
+        email: store.email ?? null,
+        address: store.address_text ?? null,
+        footer: store.receipt_footer ?? null,
+      },
+      customer: {
+        name: sale.customer_name ?? null,
+        phone: sale.customer_phone ?? null,
+        shopName: sale.customer_shop_name ?? null,
+      },
+      originalPayments: paymentRows.map((p: any) => ({
+        paymentMethod: p.payment_method ?? null,
+        amount: Number(p.amount ?? 0),
+        status: p.status ?? null,
+      })),
+      returnItems: (returnData.return_items ?? []).map((ri: any) => ({
+        productName: ri.productName ?? 'Item',
+        skuCode: ri.skuCode ?? null,
+        qty: Number(ri.qty ?? 0),
+        restockToInventory: ri.restockToInventory ?? true,
+        lineRefundAmount: Number(ri.lineRefundAmount ?? 0),
+      })),
+      totals: {
+        originalTotal: Number(sale.total_amount ?? 0),
+        refundAmount: Number(returnData.refund_amount),
+        paidAmount: paymentRows.reduce(
+          (sum: number, p: any) => sum + (p.status === 'paid' ? Number(p.amount ?? 0) : 0),
+          0,
+        ),
+      },
+      printedAt: new Date().toISOString(),
+    };
   }
 
   private async reserveAndDeductInventory(

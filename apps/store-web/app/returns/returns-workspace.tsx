@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 import {
   accentButtonStyle,
@@ -18,6 +19,7 @@ import {
 } from '../marketone-theme';
 import { ListPager, type PaginationState, totalPagesFor } from '../list-pager';
 import { searchRowStyle } from '../workspace-responsive';
+import { openInvoicePrintWindow } from '../../lib/print-agent';
 
 type Sale = {
   id: string;
@@ -50,6 +52,48 @@ type SaleDetail = {
   items: SaleItem[];
 };
 
+type RefundReceipt = {
+  type: 'refund';
+  returnId: string;
+  saleId: string;
+  saleNo: string;
+  reason: string;
+  refundAmount: number;
+  processedAt: string;
+  processedByName: string;
+  store: {
+    name?: string | null;
+    logoUrl?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    address?: string | null;
+    footer?: string | null;
+  };
+  customer: {
+    name?: string | null;
+    phone?: string | null;
+    shopName?: string | null;
+  };
+  originalPayments: Array<{
+    paymentMethod: string | null;
+    amount: number;
+    status: string | null;
+  }>;
+  returnItems: Array<{
+    productName: string;
+    skuCode: string | null;
+    qty: number;
+    restockToInventory: boolean;
+    lineRefundAmount: number;
+  }>;
+  totals: {
+    originalTotal: number;
+    refundAmount: number;
+    paidAmount: number;
+  };
+  printedAt: string;
+};
+
 async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
   const response = await fetch(input, init);
   const payload = (await response.json().catch(() => null)) as T | { error?: string } | null;
@@ -64,6 +108,9 @@ async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
 }
 
 export function ReturnsWorkspace() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialSaleId = searchParams.get('saleId');
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -75,10 +122,12 @@ export function ReturnsWorkspace() {
 
   const [selectedSale, setSelectedSale] = useState<SaleDetail | null>(null);
   const [saleLoading, setSaleLoading] = useState(false);
+  const [autoLoaded, setAutoLoaded] = useState(false);
   const [returnItems, setReturnItems] = useState<Record<string, { qty: number; refundAmount: number; restock: boolean }>>({});
   const [reason, setReason] = useState('');
   const [processing, setProcessing] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [refundReceipt, setRefundReceipt] = useState<RefundReceipt | null>(null);
 
   const fetchSales = useCallback(async (search?: string) => {
     setLoading(true);
@@ -97,11 +146,22 @@ export function ReturnsWorkspace() {
     }
   }, [page]);
 
+  // Auto-load sale from URL search param (e.g. from Sales History "Return" button)
   useEffect(() => {
-    if (!selectedSale) {
+    if (initialSaleId && !autoLoaded) {
+      setAutoLoaded(true);
+      void openSale(initialSaleId).then(() => {
+        // Clean the saleId from URL so refreshing doesn't re-open
+        router.replace('/returns', { scroll: false });
+      });
+    }
+  }, [initialSaleId, autoLoaded, router]);
+
+  useEffect(() => {
+    if (!selectedSale && !autoLoaded) {
       void fetchSales(searchQuery || undefined);
     }
-  }, [fetchSales, searchQuery, selectedSale]);
+  }, [fetchSales, searchQuery, selectedSale, autoLoaded]);
 
   const openSale = async (saleId: string) => {
     setSaleLoading(true);
@@ -118,6 +178,7 @@ export function ReturnsWorkspace() {
       setReturnItems(initial);
       setReason('');
       setSuccess(false);
+      setRefundReceipt(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load sale details');
     } finally {
@@ -155,7 +216,10 @@ export function ReturnsWorkspace() {
     setProcessing(true);
     setError('');
     try {
-      await readJson(`/api/pos/sales/${selectedSale.id}/returns`, {
+      const response = await readJson<{
+        saleReturn: { id: string; refundAmount: number; saleNo: string };
+        refundReceipt: RefundReceipt | null;
+      }>(`/api/pos/sales/${selectedSale.id}/returns`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -164,6 +228,7 @@ export function ReturnsWorkspace() {
           items,
         }),
       });
+      setRefundReceipt(response.refundReceipt ?? null);
       setSuccess(true);
       setMessage(`Return processed for sale ${selectedSale.sale_no}. Refund: ${totalRefund.toFixed(2)}`);
     } catch (err) {
@@ -257,16 +322,186 @@ export function ReturnsWorkspace() {
     );
   }
 
+  // Build a ReceiptPayload from refund data for printing
+  const buildRefundReceiptPayload = (rr: RefundReceipt) => ({
+    saleId: rr.saleId,
+    saleNo: rr.saleNo,
+    saleType: 'paid' as const,
+    paymentStatus: 'refunded',
+    note: `Refund: ${rr.reason}`,
+    store: rr.store,
+    customer: rr.customer,
+    preparedBy: rr.processedByName || undefined,
+    amountInWords: null,
+    items: rr.returnItems.map((ri) => ({
+      name: ri.productName,
+      skuCode: ri.skuCode,
+      qty: ri.qty,
+      unitPrice: Math.round(ri.lineRefundAmount / ri.qty * 100) / 100 || 0,
+      discountAmount: 0,
+      lineTotal: -ri.lineRefundAmount,
+    })),
+    totals: {
+      subtotal: -rr.refundAmount,
+      discount: 0,
+      vat: 0,
+      tax: 0,
+      shipping: 0,
+      total: -rr.refundAmount,
+      paid: -rr.refundAmount,
+      due: 0,
+      change: 0,
+    },
+    payments: rr.originalPayments.map((p) => ({
+      paymentMethod: p.paymentMethod,
+      amount: p.status === 'paid' ? -p.amount : 0,
+      status: p.status === 'paid' ? 'refunded' : p.status,
+    })),
+    printedAt: rr.printedAt,
+  });
+
+  const handlePrintRefundReceipt = () => {
+    if (!refundReceipt) return;
+    openInvoicePrintWindow(buildRefundReceiptPayload(refundReceipt) as any);
+  };
+
   // Return processing view
   if (success) {
+    const rr = refundReceipt;
+    const hasPayments = rr && rr.originalPayments && rr.originalPayments.length > 0;
     return (
       <div style={pageShellStyle}>
+        {/* Success banner */}
         <div style={{ background: '#d1fae5', color: '#065f46', padding: '16px 20px', borderRadius: 8, marginBottom: 16, fontSize: 14 }}>
           <strong>Return processed successfully.</strong> {message}
         </div>
-        <button onClick={() => { setSelectedSale(null); setPage(1); }} style={secondaryButtonStyle}>
-          Back to Sales List
-        </button>
+
+        {/* Refund receipt card */}
+        {rr ? (
+          <article style={{ ...surfaceCardStyle, marginBottom: 16 }}>
+            {/* Store header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, paddingBottom: 12, borderBottom: '2px solid var(--border)' }}>
+              <div>
+                <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em' }}>{rr.store?.name || 'Store'}</div>
+                {rr.store?.phone && <div style={{ ...tokenMutedStyle, fontSize: 12 }}>{rr.store.phone}</div>}
+                {rr.store?.address && <div style={{ ...tokenMutedStyle, fontSize: 12 }}>{rr.store.address}</div>}
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#64748b', marginBottom: 2 }}>Refund Receipt</div>
+                <div style={{ fontSize: 16, fontWeight: 700 }}>{rr.saleNo}</div>
+                <div style={{ ...tokenMutedStyle, fontSize: 11 }}>{new Date(rr.processedAt).toLocaleDateString('en-BD', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
+              </div>
+            </div>
+
+            {/* Customer & Reason */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+              <div>
+                <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#64748b', marginBottom: 2 }}>Customer</div>
+                <div style={{ fontWeight: 600 }}>{rr.customer?.name || 'Walk-in'}</div>
+                {rr.customer?.phone && <div style={{ ...tokenMutedStyle, fontSize: 12 }}>{rr.customer.phone}</div>}
+              </div>
+              <div>
+                <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#64748b', marginBottom: 2 }}>Processed By</div>
+                <div style={{ fontWeight: 600 }}>{rr.processedByName || '—'}</div>
+                <div style={{ fontSize: 11, color: '#64748b', marginTop: 1 }}>Reason: <span style={{ fontStyle: 'italic' }}>{rr.reason}</span></div>
+              </div>
+            </div>
+
+            {/* Returned items table */}
+            <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#64748b', marginBottom: 6 }}>Returned Items</div>
+            <div style={tableWrapStyle}>
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={tableHeaderCellStyle}>Item</th>
+                    <th style={tableHeaderCellStyle}>SKU</th>
+                    <th style={{ ...tableHeaderCellStyle, textAlign: 'center' }}>Qty</th>
+                    <th style={{ ...tableHeaderCellStyle, textAlign: 'right' }}>Refund Amt</th>
+                    <th style={tableHeaderCellStyle}>Restock</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rr.returnItems.map((ri, idx) => (
+                    <tr key={idx}>
+                      <td style={tableCellStyle}>{ri.productName}</td>
+                      <td style={{ ...tableCellStyle, ...tokenMutedStyle }}>{ri.skuCode || '—'}</td>
+                      <td style={{ ...tableCellStyle, textAlign: 'center' }}>{ri.qty}</td>
+                      <td style={{ ...tableCellStyle, textAlign: 'right', fontWeight: 600, color: '#dc2626' }}>
+                        -{ri.lineRefundAmount.toFixed(2)}
+                      </td>
+                      <td style={tableCellStyle}>{ri.restockToInventory ? 'Yes' : 'No'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Original payments */}
+            {hasPayments && (
+              <>
+                <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#64748b', marginBottom: 6, marginTop: 12 }}>Original Payments</div>
+                <div style={tableWrapStyle}>
+                  <table style={tableStyle}>
+                    <thead>
+                      <tr>
+                        <th style={tableHeaderCellStyle}>Method</th>
+                        <th style={{ ...tableHeaderCellStyle, textAlign: 'right' }}>Amount</th>
+                        <th style={tableHeaderCellStyle}>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rr.originalPayments.map((p, idx) => (
+                        <tr key={idx}>
+                          <td style={tableCellStyle}>{p.paymentMethod || '—'}</td>
+                          <td style={{ ...tableCellStyle, textAlign: 'right', fontFamily: 'monospace' }}>{p.amount.toFixed(2)}</td>
+                          <td style={tableCellStyle}>
+                            <span style={{
+                              display: 'inline-block', padding: '1px 6px', borderRadius: 3, fontSize: 10, fontWeight: 600,
+                              background: p.status === 'paid' ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
+                              color: p.status === 'paid' ? '#16a34a' : '#dc2626',
+                            }}>
+                              {p.status || '—'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+
+            {/* Totals */}
+            <div style={{ marginTop: 12, padding: '12px 16px', background: 'var(--muted)', borderRadius: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
+                <span style={{ color: '#64748b' }}>Original Total</span>
+                <span>{rr.totals.originalTotal.toFixed(2)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
+                <span style={{ color: '#64748b' }}>Amount Paid</span>
+                <span>{rr.totals.paidAmount.toFixed(2)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 700, borderTop: '2px solid var(--border)', paddingTop: 6, marginTop: 4 }}>
+                <span style={{ color: '#dc2626' }}>Refund Total</span>
+                <span style={{ color: '#dc2626' }}>-{rr.totals.refundAmount.toFixed(2)}</span>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
+              <button onClick={handlePrintRefundReceipt} style={accentButtonStyle}>
+                Print Refund Receipt
+              </button>
+              <button onClick={() => { setSelectedSale(null); setPage(1); setRefundReceipt(null); }} style={secondaryButtonStyle}>
+                Back to Sales List
+              </button>
+            </div>
+          </article>
+        ) : (
+          <button onClick={() => { setSelectedSale(null); setPage(1); }} style={secondaryButtonStyle}>
+            Back to Sales List
+          </button>
+        )}
       </div>
     );
   }
