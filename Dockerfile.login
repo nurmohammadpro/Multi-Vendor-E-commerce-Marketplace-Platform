@@ -20,7 +20,12 @@ ENV API_BASE_URL=${API_BASE_URL}
 ENV NEXT_PUBLIC_ADMIN_APP_URL=${NEXT_PUBLIC_ADMIN_APP_URL}
 ENV NEXT_PUBLIC_STORE_APP_URL=${NEXT_PUBLIC_STORE_APP_URL}
 
-RUN npm run build --workspace @mvp/login-web
+# Compile shared packages first so their ./dist/index.js exports are available
+RUN npm run build --workspace @mvp/types && \
+    npm run build --workspace @mvp/config && \
+    npm run build --workspace @mvp/auth && \
+    npm run build --workspace @mvp/rbac && \
+    npm run build --workspace @mvp/login-web
 
 FROM node:22-bookworm-slim AS runner
 WORKDIR /app
