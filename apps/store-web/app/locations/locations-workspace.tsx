@@ -29,13 +29,25 @@ type Location = {
   updated_at: string;
 };
 
+const LOGIN_URL = process.env.NEXT_PUBLIC_LOGIN_APP_URL || 'https://merchflow.appbrainer.tech';
+
 async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
   const response = await fetch(input, init);
+  if (response.status === 401 || response.status === 403) {
+    throw new AuthError();
+  }
   const payload = (await response.json().catch(() => null)) as T | { error?: string } | null;
   if (!response.ok) {
     throw new Error(payload && typeof payload === 'object' && ((payload as any).error || (payload as any).message) ? ((payload as any).error || (payload as any).message) : `Request failed with ${response.status}`);
   }
   return payload as T;
+}
+
+class AuthError extends Error {
+  constructor() {
+    super('auth_required');
+    this.name = 'AuthError';
+  }
 }
 
 type WorkspaceProps = {
@@ -46,6 +58,7 @@ type WorkspaceProps = {
 export function LocationsWorkspace({ canViewInventory, canManageLocations }: WorkspaceProps) {
   const [locations, setLocations] = useState<Location[]>([]);
   const [message, setMessage] = useState('Location management ready.');
+  const [authError, setAuthError] = useState(false);
   const [loading, setLoading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -65,7 +78,14 @@ export function LocationsWorkspace({ canViewInventory, canManageLocations }: Wor
   };
 
   useEffect(() => {
-    void refresh().catch((error: Error) => setMessage(error.message));
+    void refresh().catch((error: Error) => {
+      if (error instanceof AuthError) {
+        setAuthError(true);
+        setMessage('');
+      } else {
+        setMessage(error.message);
+      }
+    });
   }, []);
 
   const resetForm = () => {
@@ -97,7 +117,12 @@ export function LocationsWorkspace({ canViewInventory, canManageLocations }: Wor
       resetForm();
       setMessage('Location created successfully.');
     } catch (error) {
-      setMessage((error as Error).message);
+      if (error instanceof AuthError) {
+        setAuthError(true);
+        setMessage('');
+      } else {
+        setMessage((error as Error).message);
+      }
     } finally {
       setLoading(false);
     }
@@ -138,7 +163,12 @@ export function LocationsWorkspace({ canViewInventory, canManageLocations }: Wor
       resetForm();
       setMessage('Location updated successfully.');
     } catch (error) {
-      setMessage((error as Error).message);
+      if (error instanceof AuthError) {
+        setAuthError(true);
+        setMessage('');
+      } else {
+        setMessage((error as Error).message);
+      }
     } finally {
       setLoading(false);
     }
@@ -152,7 +182,12 @@ export function LocationsWorkspace({ canViewInventory, canManageLocations }: Wor
       await refresh();
       setMessage(`Location "${location.name}" deleted.`);
     } catch (error) {
-      setMessage((error as Error).message);
+      if (error instanceof AuthError) {
+        setAuthError(true);
+        setMessage('');
+      } else {
+        setMessage((error as Error).message);
+      }
     } finally {
       setLoading(false);
     }
@@ -164,6 +199,25 @@ export function LocationsWorkspace({ canViewInventory, canManageLocations }: Wor
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Access limited</h3>
           <p style={tokenMutedStyle}>Your role can&apos;t view location data.</p>
+        </article>
+      </section>
+    );
+  }
+
+  if (authError) {
+    return (
+      <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
+        <article style={{ ...surfaceCardStyle, border: '2px solid #dc2626' }}>
+          <h3 style={{ marginTop: 0, color: '#dc2626' }}>Session expired</h3>
+          <p style={tokenMutedStyle}>
+            Your session has expired or your login credentials are no longer valid.&
+bsp;Please{' '}
+            <a href={LOGIN_URL} style={{ color: '#2563eb', textDecoration: 'underline', fontWeight: 500 }}>
+              log in again
+            </a>
+            &
+bsp;to continue managing locations.
+          </p>
         </article>
       </section>
     );

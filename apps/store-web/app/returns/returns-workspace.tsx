@@ -462,7 +462,7 @@ export function ReturnsWorkspace() {
             {error}
           </div>
         )}
-        <div style={searchRowStyle}>
+        <div style={{ ...searchRowStyle, marginBottom: 16 }}>
           <input
             value={searchQuery}
             onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}

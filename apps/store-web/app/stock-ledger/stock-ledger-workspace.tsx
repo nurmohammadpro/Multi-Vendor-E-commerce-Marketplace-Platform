@@ -24,12 +24,12 @@ type LedgerRow = {
   sku_code: string;
   product_name: string;
   movement_type: string;
-  quantity: string | number;
+  qty_delta: string | number;
   reference_type: string | null;
   reference_id: string | null;
-  reason: string | null;
+  note: string | null;
   created_at: string;
-  created_by_name: string | null;
+  actor_name: string | null;
 };
 
 type Pagination = {
@@ -173,13 +173,13 @@ export function StockLedgerWorkspace() {
                           {entry.movement_type}
                         </td>
                         <td style={{ ...tableCellStyle, fontFamily: 'monospace' }}>
-                          {formatQty(entry.quantity)}
+                          {formatQty(entry.qty_delta)}
                         </td>
                         <td style={tableCellStyle}>
                           {entry.reference_type ? `${entry.reference_type} #${entry.reference_id || '—'}` : '—'}
                         </td>
-                        <td style={tableCellStyle}>{entry.reason || '—'}</td>
-                        <td style={tableCellStyle}>{entry.created_by_name || 'System'}</td>
+                        <td style={tableCellStyle}>{entry.note || '—'}</td>
+                        <td style={tableCellStyle}>{entry.actor_name || 'System'}</td>
                       </tr>
                     ))}
                   </tbody>
