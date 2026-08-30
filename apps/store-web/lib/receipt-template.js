@@ -56,7 +56,7 @@ export function renderReceipt(receipt, mode) {
     : '';
 
   var barcodeHtml = barcode
-    ? '<div class="bc-wrap"><div class="bc-frame"><div class="bc-label">Scan to verify</div><img src="https://barcode.tec-it.com/barcode.ashx?data='+encodeURIComponent(barcode)+'&code=Code128&translate-esc=true&dpi=96&imagetype=png" alt="Barcode"><div class="bt">'+esc(barcode)+'</div></div></div>'
+    ? '<div class="bc-label">Scan to verify</div><img src="https://barcode.tec-it.com/barcode.ashx?data='+encodeURIComponent(barcode)+'&code=Code128&translate-esc=true&dpi=96&imagetype=png" alt="Barcode" style="max-width:140px;height:38px"><div class="bt">'+esc(barcode)+'</div>'
     : '';
 
   var css = [
@@ -91,10 +91,7 @@ export function renderReceipt(receipt, mode) {
     '.iw{margin-top:6px;padding:4px 6px;background:#f8fafc;font-weight:600;color:#1e293b;border-radius:3px;font-size:10px}',
     '.pb{margin-top:4px;color:#475569;font-size:10px}',
     '.bt{font-family:monospace;font-size:'+fs.bt+';letter-spacing:.08em;color:#64748b;margin-top:1px}',
-    '.bc-wrap{display:flex;justify-content:center;margin:6px 0 4px}',
-    '.bc-frame{border:1px solid #e2e8f0;border-radius:4px;padding:6px 12px;text-align:center;background:#fafafa}',
-    '.bc-frame img{max-width:180px;height:45px}',
-    '.bc-label{font-size:8px;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8;margin-bottom:2px}',
+    '.bc-label{font-size:8px;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8;margin-top:4px;margin-bottom:2px}',
     '@media print{@page{margin:0;size:'+(isA5?'A5':'80mm')+' auto}}'
   ].join('\n');
 
@@ -102,8 +99,7 @@ export function renderReceipt(receipt, mode) {
 
   return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc(receipt.saleNo||'Invoice')+'</title><style>'+css+'</style></head><body><div class="page">'+
     '<div class="header"><div class="hl">'+logoHtml+'<div class="sn">'+esc(store.name||'Store')+'</div>'+storeMetaHtml+'</div>'+
-    '<div class="hr"><div class="it">Sales Receipt</div><div class="ino">'+esc(receipt.saleNo||'—')+'</div><div class="sm">'+esc(dateStr)+'</div>'+custSec+'</div></div>'+
-    barcodeHtml+
+    '<div class="hr"><div class="it">Sales Receipt</div><div class="ino">'+esc(receipt.saleNo||'—')+'</div><div class="sm">'+esc(dateStr)+'</div>'+custSec+barcodeHtml+'</div></div>'+
     '<h2>Items</h2><table><thead><tr><th class="ic">Item</th><th class="qc">Qty</th>'+(isA5?'<th class="uc">Unit Price</th>':'')+'<th class="tc">Total</th></tr></thead><tbody>'+itemRows+'</tbody></table>'+
     '<div class="totals">'+
     '<div class="tr"><span class="lb">Sub Total</span><span class="vl">'+money(grossSubtotal)+'</span></div>'+
