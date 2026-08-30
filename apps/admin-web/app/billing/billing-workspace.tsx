@@ -246,7 +246,11 @@ export function BillingWorkspace() {
                     <tr key={plan.id} className="border-b last:border-0">
                       <td className="py-2 pr-4">
                         {plan.name}
-                        {plan.is_custom && <Badge className="ml-2" variant="secondary">Custom</Badge>}
+                        {plan.is_custom ? (
+                          <Badge className="ml-2" variant="secondary">Custom</Badge>
+                        ) : (
+                          <Badge className="ml-2" variant="outline">System</Badge>
+                        )}
                       </td>
                       <td className="py-2 pr-4 text-muted-foreground">{plan.code}</td>
                       <td className="py-2 pr-4">BDT {Number(plan.price_amount).toLocaleString()}</td>
@@ -263,7 +267,7 @@ export function BillingWorkspace() {
                         {formatFeatures(plan)}
                       </td>
                       <td className="py-2">
-                        {plan.is_custom && plan.status === 'active' ? (
+                        {plan.status === 'active' ? (
                           <div className="flex gap-1">
                             <Button variant="outline" size="sm" onClick={() => openEdit(plan)}>Edit</Button>
                             <Button variant="destructive" size="sm" onClick={() => setDeleteId(plan.id)}>Deactivate</Button>

@@ -159,10 +159,10 @@ export class BillingService {
 
   async deactivatePlan(planId: string, tenantId: string) {
     const result = await this.pool.query(
-      `update billing.plans set status = 'inactive', updated_at = now() where id = $1 and tenant_id = $2 and is_custom = true returning id`,
+      `update billing.plans set status = 'inactive', updated_at = now() where id = $1 and tenant_id = $2 returning id`,
       [planId, tenantId],
     );
-    if (!result.rows[0]) throw new NotFoundException('Custom plan not found');
+    if (!result.rows[0]) throw new NotFoundException('Plan not found');
     return { success: true };
   }
 
