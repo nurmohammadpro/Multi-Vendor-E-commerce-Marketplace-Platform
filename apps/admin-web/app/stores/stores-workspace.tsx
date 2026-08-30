@@ -48,6 +48,8 @@ type StoreRow = {
   deactivation_review_at?: string | null;
   delete_eligible_at?: string | null;
   can_delete?: boolean;
+  can_force_delete?: boolean;
+  has_sales?: boolean;
   should_deactivate_review?: boolean;
 };
 
@@ -147,6 +149,7 @@ export function StoresWorkspace() {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [deleteTarget, setDeleteTarget] = useState<StoreRow | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [forceDelete, setForceDelete] = useState(false);
   const [ownerPasswordTarget, setOwnerPasswordTarget] = useState<StoreRow | null>(null);
   const [ownerPassword, setOwnerPassword] = useState('');
   const [showPasswordOwner, setShowPasswordOwner] = useState(false);
@@ -334,11 +337,15 @@ export function StoresWorkspace() {
 
     setLoading(true);
     try {
-      await readJson(`/api/stores/${deleteTarget.id}`, { method: 'DELETE' });
+      const url = forceDelete
+        ? `/api/stores/${deleteTarget.id}?force=true`
+        : `/api/stores/${deleteTarget.id}`;
+      await readJson(url, { method: 'DELETE' });
       await refresh();
-      setMessage(`Deleted ${deleteTarget.name}.`);
+      setMessage(forceDelete ? `Force-deleted ${deleteTarget.name}.` : `Deleted ${deleteTarget.name}.`);
       setDeleteTarget(null);
       setDeleteConfirmText('');
+      setForceDelete(false);
     } catch (error) {
       setMessage((error as Error).message);
     } finally {
@@ -401,12 +408,13 @@ export function StoresWorkspace() {
             <div className="space-y-1">
               <div className="text-sm font-medium">Billing guardrails</div>
               <p className="text-sm text-muted-foreground">
-                Stores become review-ready 7 days after the due date. Only inactive stores that stayed overdue for 3 months can be deleted manually.
+                Stores become review-ready 3 months after the due date. Inactive stores that stayed overdue for 6 months can be deleted. Active stores with no sales data can be force-deleted.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Badge variant="secondary">7 days → deactivation review</Badge>
-              <Badge variant="destructive">3 months → delete eligible</Badge>
+              <Badge variant="secondary">3 months → deactivation review</Badge>
+              <Badge variant="destructive">6 months → delete eligible</Badge>
+              <Badge variant="outline">No sales → force delete</Badge>
             </div>
           </div>
         </CardContent>
@@ -417,7 +425,7 @@ export function StoresWorkspace() {
           <CardHeader className="space-y-2">
             <CardTitle>{editingStoreId ? 'Edit store' : 'Create store'}</CardTitle>
             <p className="text-sm text-muted-foreground">
-              Stores start active. Admins may only delete a store after it is inactive and overdue by three months.
+              Stores start active. Admins may delete a store after it is inactive and overdue by 6 months, or force-delete active stores with no sales data.
             </p>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -726,6 +734,7 @@ export function StoresWorkspace() {
                           <Badge variant={statusTone(store.status)}>{store.status}</Badge>
                           {store.should_deactivate_review ? <Badge variant="secondary">billing overdue</Badge> : null}
                           {store.can_delete ? <Badge variant="destructive">delete eligible</Badge> : null}
+                          {store.can_force_delete && !store.can_delete ? <Badge variant="outline">force delete ok</Badge> : null}
                         </div>
                         <div className="text-sm text-muted-foreground">
                           {store.store_code} · {store.slug} · Staff {store.staff_count}
@@ -816,8 +825,8 @@ export function StoresWorkspace() {
                     <Button
                       variant="destructive"
                       size="sm"
-                      onClick={() => setDeleteTarget(store)}
-                      disabled={loading || saving || !store.can_delete}
+                      onClick={() => { setForceDelete(false); setDeleteTarget(store); }}
+                      disabled={loading || saving || (!store.can_delete && !store.can_force_delete)}
                     >
                       Delete
                     </Button>
@@ -839,13 +848,16 @@ export function StoresWorkspace() {
             if (!open) {
               setDeleteTarget(null);
               setDeleteConfirmText('');
+              setForceDelete(false);
             }
           }}>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Delete store</DialogTitle>
                 <DialogDescription>
-                  Type the store name to confirm deletion. This action is only available for inactive stores that are eligible for removal.
+                  {deleteTarget?.can_delete
+                    ? 'Type the store name to confirm deletion. This store is eligible for standard deletion.'
+                    : 'This store is not yet eligible for standard deletion (requires inactive status + 6 months overdue). Force-delete will permanently remove the store and all its data.'}
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-2">
@@ -857,10 +869,28 @@ export function StoresWorkspace() {
                   placeholder={deleteTarget?.name ?? 'Store name'}
                 />
               </div>
+              {deleteTarget && !deleteTarget.can_delete && deleteTarget.can_force_delete && (
+                <div className="flex items-center gap-2 rounded-md border border-destructive/20 bg-destructive/5 p-3">
+                  <input
+                    type="checkbox"
+                    id="forceDelete"
+                    checked={forceDelete}
+                    onChange={(event) => setForceDelete(event.target.checked)}
+                    className="h-4 w-4"
+                  />
+                  <Label htmlFor="forceDelete" className="text-sm font-medium text-destructive">
+                    Force delete (store has no sales data — safe to remove)
+                  </Label>
+                </div>
+              )}
               <DialogFooter>
-                <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
-                <Button variant="destructive" onClick={() => void confirmDelete()} disabled={!deleteTarget || deleteConfirmText.trim() !== deleteTarget.name}>
-                  Delete store
+                <Button variant="outline" onClick={() => { setDeleteTarget(null); setForceDelete(false); }}>Cancel</Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => void confirmDelete()}
+                  disabled={!deleteTarget || deleteConfirmText.trim() !== deleteTarget.name || (forceDelete && !deleteTarget.can_force_delete)}
+                >
+                  {forceDelete ? 'Force delete store' : 'Delete store'}
                 </Button>
               </DialogFooter>
             </DialogContent>

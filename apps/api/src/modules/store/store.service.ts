@@ -640,7 +640,9 @@ export class StoreService {
               and now() >= coalesce(sub.renewal_at, sub.end_at) + interval '3 months'
             then true
             else false
-          end as should_deactivate_review
+          end as should_deactivate_review,
+          coalesce(sales_count.cnt, 0) > 0 as has_sales,
+          coalesce(sales_count.cnt, 0) = 0 as can_force_delete
         from store.stores s
         left join store.store_settings ss on ss.store_id = s.id
         left join identity.users u on u.id = s.owner_user_id
@@ -659,6 +661,11 @@ export class StoreService {
           order by coalesce(sub.renewal_at, sub.end_at, sub.start_at) desc nulls last, sub.created_at desc
           limit 1
         ) sub on true
+        left join lateral (
+          select count(*)::int as cnt
+          from sales.sales sal
+          where sal.store_id = s.id
+        ) sales_count on true
         group by
           s.id,
           ss.store_id,
@@ -669,7 +676,8 @@ export class StoreService {
           sub.start_at,
           sub.end_at,
           sub.renewal_at,
-          sub.auto_renew
+          sub.auto_renew,
+          sales_count.cnt
         order by s.created_at desc
       `,
     );
@@ -786,7 +794,7 @@ export class StoreService {
     return { store };
   }
 
-  async adminDeleteStore(storeId: string, authContext: AdminAuthContext | null, session: AuthSession | null) {
+  async adminDeleteStore(storeId: string, authContext: AdminAuthContext | null, session: AuthSession | null, force = false) {
     this.assertAdminContext(authContext);
     const userId = this.requireUserId(session);
 
@@ -800,6 +808,7 @@ export class StoreService {
       delete_eligible_at: string | null;
       deactivation_review_at: string | null;
       billing_due_at: string | null;
+      has_sales: boolean;
     }>(
       `
         select
@@ -817,7 +826,8 @@ export class StoreService {
             when coalesce(sub.renewal_at, sub.end_at) is null then null
             else coalesce(sub.renewal_at, sub.end_at) + interval '3 months'
           end as deactivation_review_at,
-          coalesce(sub.renewal_at, sub.end_at) as billing_due_at
+          coalesce(sub.renewal_at, sub.end_at) as billing_due_at,
+          coalesce(sales_count.cnt, 0) > 0 as has_sales
         from store.stores s
         left join lateral (
           select
@@ -828,6 +838,11 @@ export class StoreService {
           order by coalesce(sub.renewal_at, sub.end_at, sub.start_at) desc nulls last, sub.created_at desc
           limit 1
         ) sub on true
+        left join lateral (
+          select count(*)::int as cnt
+          from sales.sales sal
+          where sal.store_id = s.id
+        ) sales_count on true
         where s.id = $1
         limit 1
       `,
@@ -839,16 +854,24 @@ export class StoreService {
       throw new NotFoundException('Store not found');
     }
 
-    if (store.status !== 'inactive') {
-      throw new ForbiddenException('Store must be inactive before deletion');
-    }
+    if (force) {
+      // Force delete: only allowed for stores with no sales data
+      if (store.has_sales) {
+        throw new ForbiddenException('Cannot force-delete a store that has sales data. Deactivate and wait for the standard deletion window instead.');
+      }
+    } else {
+      // Standard deletion: must be inactive + 6 months overdue
+      if (store.status !== 'inactive') {
+        throw new ForbiddenException('Store must be inactive before deletion');
+      }
 
-    if (!store.delete_eligible_at) {
-      throw new ForbiddenException('Store does not have a deletion window yet');
-    }
+      if (!store.delete_eligible_at) {
+        throw new ForbiddenException('Store does not have a deletion window yet');
+      }
 
-    if (new Date(store.delete_eligible_at).getTime() > Date.now()) {
-      throw new ForbiddenException('Store is not yet eligible for deletion');
+      if (new Date(store.delete_eligible_at).getTime() > Date.now()) {
+        throw new ForbiddenException('Store is not yet eligible for deletion');
+      }
     }
 
     await this.pool.query('delete from store.stores where id = $1', [storeId]);
@@ -857,13 +880,14 @@ export class StoreService {
       tenantId: store.tenant_id,
       actorUserId: userId,
       storeId,
-      actionCode: 'platform.store.delete',
+      actionCode: force ? 'platform.store.force_delete' : 'platform.store.delete',
       resourceType: 'store',
       resourceId: storeId,
       after: {
         storeId,
         storeCode: store.store_code,
         storeName: store.name,
+        force,
         deletedAt: new Date().toISOString(),
       },
     });
@@ -871,6 +895,7 @@ export class StoreService {
     return {
       deleted: true,
       storeId,
+      force,
       canDeleteAt: store.delete_eligible_at,
       deactivationReviewAt: store.deactivation_review_at,
       billingDueAt: store.billing_due_at,

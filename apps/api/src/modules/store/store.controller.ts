@@ -363,8 +363,9 @@ export class AdminStoreController {
     @Param('storeId') storeId: string,
     @CurrentAuthContext() authContext: AdminAuthContext | null,
     @CurrentAuthSession() session: AuthSession | null,
+    @Query('force') force?: string,
   ) {
-    return this.storeService.adminDeleteStore(storeId, authContext, session);
+    return this.storeService.adminDeleteStore(storeId, authContext, session, force === 'true');
   }
 
   @Post(':storeId/owner-password')
