@@ -1,4 +1,4 @@
-import { pageShellStyle } from '../marketone-theme';
+import { pageShellStyle } from '../merchflow-theme';
 import { getStoreConsoleAccess } from '../../lib/access';
 import { CatalogWorkspace } from './catalog-workspace';
 

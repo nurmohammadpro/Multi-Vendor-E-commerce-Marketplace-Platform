@@ -1,6 +1,6 @@
 'use client';
 
-import { secondaryButtonStyle, tokenMutedStyle } from './marketone-theme';
+import { secondaryButtonStyle, tokenMutedStyle } from './merchflow-theme';
 
 export type PaginationState = {
   page: number;

@@ -1,5 +1,5 @@
 import { getStoreConsoleAccess } from '../../lib/access';
-import { emptyStateStyle, pageShellStyle, surfaceCardStyle } from '../marketone-theme';
+import { emptyStateStyle, pageShellStyle, surfaceCardStyle } from '../merchflow-theme';
 import { SuppliersWorkspace } from './suppliers-workspace';
 
 export default async function StoreSuppliersPage() {

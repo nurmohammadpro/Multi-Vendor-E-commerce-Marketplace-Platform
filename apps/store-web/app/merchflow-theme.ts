@@ -5,7 +5,7 @@ import type { CSSProperties } from 'react';
  * Every value is a CSS variable reference so that inline styles
  * automatically react to theme/mode switches.
  */
-export const marketoneColors = {
+export const merchflowColors = {
   background: 'var(--background)',
   backgroundAlt: 'var(--muted)',
   backgroundRaised: 'var(--secondary)',
@@ -26,7 +26,7 @@ export const marketoneColors = {
 export const pageShellStyle: CSSProperties = {
   minHeight: 'auto',
   padding: 0,
-  color: marketoneColors.ink,
+  color: merchflowColors.ink,
   background: 'transparent',
   fontFamily:
     'var(--font-geist-sans), Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
@@ -36,40 +36,39 @@ export const pageFrameStyle: CSSProperties = {
   maxWidth: 1280,
   margin: '0 auto',
   display: 'grid',
-  gap: 10,
+  gap: 8,
 };
 
 export const sectionIntroStyle: CSSProperties = {
   display: 'grid',
-  gap: 6,
+  gap: 4,
   maxWidth: 760,
 };
 
 export const pageIntroCardStyle: CSSProperties = {
   display: 'grid',
   gap: 6,
-  padding: 12,
-  borderRadius: 8,
-  border: `1px solid ${marketoneColors.border}`,
-  background: marketoneColors.surfaceSoft,
-  boxShadow: `inset 0 1px 0 rgba(255,255,255,0.7), 0 1px 2px ${marketoneColors.shadow}`,
+  padding: 10,
+  borderRadius: 4,
+  border: `1px solid ${merchflowColors.border}`,
+  background: merchflowColors.surfaceSoft,
+  boxShadow: `0 1px 2px ${merchflowColors.shadow}`,
 };
 
 export const sectionPanelStyle: CSSProperties = {
   display: 'grid',
-  gap: 12,
-  padding: 12,
-  borderRadius: 8,
-  border: `1px solid ${marketoneColors.border}`,
-  background: marketoneColors.backgroundAlt,
-  boxShadow: `inset 0 1px 0 rgba(255,255,255,0.45)`,
+  gap: 10,
+  padding: 10,
+  borderRadius: 4,
+  border: `1px solid ${merchflowColors.border}`,
+  background: merchflowColors.backgroundAlt,
 };
 
 export const sectionHeaderRowStyle: CSSProperties = {
   display: 'flex',
   justifyContent: 'space-between',
   alignItems: 'center',
-  gap: 12,
+  gap: 8,
   flexWrap: 'wrap',
 };
 
@@ -78,14 +77,14 @@ export const sectionLabelStyle: CSSProperties = {
   letterSpacing: '0.16em',
   textTransform: 'uppercase',
   fontWeight: 700,
-  color: marketoneColors.muted,
+  color: merchflowColors.muted,
 };
 
 export const pageTitleStyle: CSSProperties = {
   margin: 0,
-  fontSize: 'clamp(24px, 2.2vw, 32px)',
-  lineHeight: 1.1,
-  letterSpacing: '-0.03em',
+  fontSize: 'clamp(20px, 2vw, 28px)',
+  lineHeight: 1.15,
+  letterSpacing: '-0.025em',
   fontWeight: 600,
 };
 
@@ -94,29 +93,29 @@ export const pageLeadStyle: CSSProperties = {
   maxWidth: 65 * 8,
   fontSize: 13,
   lineHeight: 1.45,
-  color: marketoneColors.muted,
+  color: merchflowColors.muted,
 };
 
 export const surfaceCardStyle: CSSProperties = {
-  padding: 12,
-  borderRadius: 6,
-  background: marketoneColors.surface,
-  border: `1px solid ${marketoneColors.borderStrong}`,
-  boxShadow: `0 1px 2px ${marketoneColors.shadow}, 0 0 0 1px rgba(255,255,255,0.6) inset`,
+  padding: 10,
+  borderRadius: 4,
+  background: merchflowColors.surface,
+  border: `1px solid ${merchflowColors.borderStrong}`,
+  boxShadow: `0 1px 2px ${merchflowColors.shadow}`,
 };
 
 export const surfaceCardStrongStyle: CSSProperties = {
   ...surfaceCardStyle,
-  background: marketoneColors.surfaceSoft,
-  border: `1px solid ${marketoneColors.border}`,
+  background: merchflowColors.surfaceSoft,
+  border: `1px solid ${merchflowColors.border}`,
 };
 
 export const compactSurfaceCardStyle: CSSProperties = {
-  padding: 10,
-  borderRadius: 6,
-  background: marketoneColors.surfaceAlt,
-  border: `1px solid ${marketoneColors.borderStrong}`,
-  boxShadow: `0 1px 2px ${marketoneColors.shadow}`,
+  padding: 8,
+  borderRadius: 4,
+  background: merchflowColors.surfaceAlt,
+  border: `1px solid ${merchflowColors.borderStrong}`,
+  boxShadow: 'none',
 };
 
 export const metricLabelStyle: CSSProperties = {
@@ -126,22 +125,22 @@ export const metricLabelStyle: CSSProperties = {
   fontWeight: 700,
   letterSpacing: '0.08em',
   textTransform: 'uppercase',
-  color: marketoneColors.muted,
+  color: merchflowColors.muted,
 };
 
 export const metricValueStyle: CSSProperties = {
-  fontSize: 22,
-  lineHeight: 1.05,
+  fontSize: 20,
+  lineHeight: 1.1,
   fontWeight: 700,
   letterSpacing: '-0.02em',
-  color: marketoneColors.ink,
+  color: merchflowColors.ink,
 };
 
 export const metricNoteStyle: CSSProperties = {
   marginBottom: 0,
   opacity: 1,
   lineHeight: 1.5,
-  color: marketoneColors.muted,
+  color: merchflowColors.muted,
 };
 
 export const tokenMutedStyle: CSSProperties = {
@@ -149,16 +148,16 @@ export const tokenMutedStyle: CSSProperties = {
   lineHeight: 1.4,
   fontSize: 13,
   fontWeight: 400,
-  color: marketoneColors.muted,
+  color: merchflowColors.muted,
 };
 
 export const fieldStyle: CSSProperties = {
   width: '100%',
-  padding: '5px 9px',
-  borderRadius: 6,
-  border: `1px solid ${marketoneColors.borderStrong}`,
+  padding: '4px 8px',
+  borderRadius: 4,
+  border: `1px solid ${merchflowColors.borderStrong}`,
   background: 'var(--card)',
-  color: marketoneColors.ink,
+  color: merchflowColors.ink,
   font: 'inherit',
   fontSize: 12,
   outline: 'none',
@@ -169,9 +168,9 @@ const buttonBaseStyle: CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
-  minHeight: 30,
+  minHeight: 28,
   padding: '0 10px',
-  borderRadius: 6,
+  borderRadius: 4,
   font: 'inherit',
   fontSize: 12,
   fontWeight: 500,
@@ -183,16 +182,16 @@ const buttonBaseStyle: CSSProperties = {
 
 export const solidButtonStyle: CSSProperties = {
   ...buttonBaseStyle,
-  border: `1px solid ${marketoneColors.ink}`,
-  background: marketoneColors.ink,
+  border: `1px solid ${merchflowColors.ink}`,
+  background: merchflowColors.ink,
   color: 'var(--background)',
 };
 
 export const neutralButtonStyle: CSSProperties = {
   ...buttonBaseStyle,
-  border: `1px solid ${marketoneColors.borderStrong}`,
+  border: `1px solid ${merchflowColors.borderStrong}`,
   background: 'var(--card)',
-  color: marketoneColors.ink,
+  color: merchflowColors.ink,
 };
 
 export const accentButtonStyle: CSSProperties = {
@@ -211,25 +210,25 @@ export const dangerButtonStyle: CSSProperties = {
 
 export const subtleButtonStyle: CSSProperties = {
   ...buttonBaseStyle,
-  border: `1px solid ${marketoneColors.border}`,
-  background: marketoneColors.backgroundAlt,
-  color: marketoneColors.ink,
+  border: `1px solid ${merchflowColors.border}`,
+  background: merchflowColors.backgroundAlt,
+  color: merchflowColors.ink,
 };
 
 export const ghostButtonStyle: CSSProperties = {
   ...buttonBaseStyle,
-  border: `1px solid ${marketoneColors.border}`,
+  border: `1px solid ${merchflowColors.border}`,
   background: 'transparent',
-  color: marketoneColors.ink,
+  color: merchflowColors.ink,
 };
 
 export const tableActionButtonStyle: CSSProperties = {
   ...buttonBaseStyle,
   minHeight: 24,
   padding: '0 8px',
-  border: `1px solid ${marketoneColors.border}`,
+  border: `1px solid ${merchflowColors.border}`,
   background: 'transparent',
-  color: marketoneColors.ink,
+  color: merchflowColors.ink,
 };
 
 export const gray800ButtonStyle: CSSProperties = {
@@ -253,23 +252,23 @@ export const pillStyle: CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
   gap: 6,
-  padding: '3px 7px',
-  borderRadius: 6,
-  border: `1px solid ${marketoneColors.border}`,
+  padding: '2px 6px',
+  borderRadius: 4,
+  border: `1px solid ${merchflowColors.border}`,
   background: 'var(--card)',
   fontSize: 11,
   fontWeight: 500,
-  color: marketoneColors.ink,
+  color: merchflowColors.ink,
 };
 
 export const emptyStateStyle: CSSProperties = {
   display: 'grid',
   gap: 4,
-  padding: 10,
-  borderRadius: 6,
-  border: `1px dashed ${marketoneColors.border}`,
-  color: marketoneColors.muted,
-  background: marketoneColors.surfaceSoft,
+  padding: 8,
+  borderRadius: 4,
+  border: `1px dashed ${merchflowColors.border}`,
+  color: merchflowColors.muted,
+  background: merchflowColors.surfaceSoft,
   lineHeight: 1.45,
   fontSize: 12,
 };
@@ -278,10 +277,9 @@ export const tableWrapStyle: CSSProperties = {
   overflowX: 'auto',
   WebkitOverflowScrolling: 'touch',
   scrollBehavior: 'smooth',
-  border: `1px solid ${marketoneColors.borderStrong}`,
-  borderRadius: 8,
+  border: `1px solid ${merchflowColors.borderStrong}`,
+  borderRadius: 4,
   background: 'var(--card)',
-  boxShadow: `inset 0 1px 0 rgba(255,255,255,0.75)`,
 };
 
 export const tableStyle: CSSProperties = {
@@ -297,15 +295,15 @@ export const tableHeaderCellStyle: CSSProperties = {
   letterSpacing: '0.1em',
   textTransform: 'uppercase',
   fontWeight: 700,
-  color: marketoneColors.muted,
-  borderBottom: `1px solid ${marketoneColors.border}`,
-  background: marketoneColors.backgroundAlt,
+  color: merchflowColors.muted,
+  borderBottom: `1px solid ${merchflowColors.border}`,
+  background: merchflowColors.backgroundAlt,
   whiteSpace: 'nowrap',
 };
 
 export const tableCellStyle: CSSProperties = {
   padding: '7px 10px',
-  borderBottom: `1px solid ${marketoneColors.border}`,
-  color: marketoneColors.ink,
+  borderBottom: `1px solid ${merchflowColors.border}`,
+  color: merchflowColors.ink,
   verticalAlign: 'top',
 };

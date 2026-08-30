@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 
 import { CurrentAuthSession } from '../auth/current-auth.decorator.js';
@@ -12,6 +12,12 @@ const createAdminSchema = z.object({
   email: z.string().email(),
   phone: z.string().min(6).optional(),
   password: z.string().min(10),
+});
+
+const updateAdminSchema = z.object({
+  fullName: z.string().min(2).optional(),
+  email: z.string().email().optional(),
+  phone: z.string().min(6).optional(),
 });
 
 const passwordResetSchema = z.object({
@@ -45,6 +51,17 @@ export class AdminsController {
     @Param('membershipId') membershipId: string,
   ) {
     return this.adminsService.promoteAdminToOwner(authSession.user.tenantId, membershipId);
+  }
+
+  @Patch(':membershipId')
+  @RequireContext('admin')
+  @RequirePermissions('platform.admin.manage')
+  updateAdmin(
+    @CurrentAuthSession() authSession: AuthSession,
+    @Param('membershipId') membershipId: string,
+    @Body() payload: unknown,
+  ) {
+    return this.adminsService.updateAdmin(authSession.user.tenantId, membershipId, updateAdminSchema.parse(payload));
   }
 
   @Post(':membershipId/password')

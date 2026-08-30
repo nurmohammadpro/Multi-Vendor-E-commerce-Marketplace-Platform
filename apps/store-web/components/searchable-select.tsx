@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronsUpDown, X } from 'lucide-react';
 
-import { fieldStyle } from '../app/marketone-theme';
+import { fieldStyle } from '../app/merchflow-theme';
 
 type Option = {
   value: string;

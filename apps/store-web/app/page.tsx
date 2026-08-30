@@ -8,14 +8,14 @@ import {
   metricLabelStyle,
   metricNoteStyle,
   metricValueStyle,
-  marketoneColors,
+  merchflowColors,
   pageShellStyle,
   pageTitleStyle,
   sectionPanelStyle,
   sectionLabelStyle,
   surfaceCardStyle,
   tokenMutedStyle,
-} from './marketone-theme';
+} from './merchflow-theme';
 
 function formatQty(value: number | string | null | undefined) {
   const numeric = Number(value ?? 0);
@@ -223,16 +223,16 @@ export default async function StoreDashboard() {
                     style={{
                       ...surfaceCardStyle,
                       display: 'flex', gap: 16, alignItems: 'flex-start',
-                      textDecoration: 'none', color: marketoneColors.ink,
+                      textDecoration: 'none', color: merchflowColors.ink,
                       transition: 'border-color 0.15s, box-shadow 0.15s',
                     }}
                   >
                     <div style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       width: 44, height: 44, borderRadius: 10, flexShrink: 0,
-                      background: marketoneColors.backgroundAlt, border: `1px solid ${marketoneColors.border}`,
+                      background: merchflowColors.backgroundAlt, border: `1px solid ${merchflowColors.border}`,
                     }}>
-                      <Icon size={20} style={{ color: marketoneColors.ink }} />
+                      <Icon size={20} style={{ color: merchflowColors.ink }} />
                     </div>
                     <div>
                       <div style={{ fontWeight: 600, marginBottom: 4 }}>{action.title}</div>

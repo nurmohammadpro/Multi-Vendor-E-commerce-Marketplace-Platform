@@ -12,7 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { fieldStyle } from '../marketone-theme';
+import { fieldStyle } from '../merchflow-theme';
 import { useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
 import { fetchPrintAgentHealth, fetchPrintAgentPrinters, openCashDrawer, printLabel, printProductLabel, printReceipt, type PrintAgentHealth, type PrintAgentPrinter } from '../../lib/print-agent';
 import { loadWorkstationProfile, saveWorkstationProfile } from '../../lib/workstation-profile';

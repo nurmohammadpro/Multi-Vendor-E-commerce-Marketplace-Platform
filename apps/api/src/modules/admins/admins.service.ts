@@ -24,6 +24,12 @@ type CreateAdminPayload = {
   password: string;
 };
 
+type UpdateAdminPayload = {
+  fullName?: string;
+  email?: string;
+  phone?: string;
+};
+
 @Injectable()
 export class AdminsService {
   constructor(@Inject(DATABASE_POOL) private readonly pool: Pool) {}
@@ -251,6 +257,53 @@ export class AdminsService {
         userId: row.user_id,
         baseRoleCode: 'platform_owner',
       },
+    };
+  }
+
+  async updateAdmin(tenantId: string, membershipId: string, payload: UpdateAdminPayload) {
+    const memberResult = await this.pool.query<{
+      user_id: string;
+    }>(
+      `
+        select user_id
+        from access.admin_memberships
+        where id = $1
+          and tenant_id = $2
+        limit 1
+      `,
+      [membershipId, tenantId],
+    );
+
+    const member = memberResult.rows[0];
+    if (!member) {
+      throw new BadRequestException('Platform admin membership not found');
+    }
+
+    if (payload.email) {
+      const email = payload.email.trim().toLowerCase();
+      await this.pool.query(
+        `update identity.users set email = $2::citext, updated_at = now() where id = $1`,
+        [member.user_id, email],
+      );
+    }
+
+    if (payload.fullName) {
+      await this.pool.query(
+        `update identity.user_profiles set full_name = $2, updated_at = now() where user_id = $1`,
+        [member.user_id, payload.fullName.trim()],
+      );
+    }
+
+    if (payload.phone !== undefined) {
+      await this.pool.query(
+        `update identity.users set phone = $2, updated_at = now() where id = $1`,
+        [member.user_id, payload.phone?.trim() || null],
+      );
+    }
+
+    return {
+      success: true,
+      membershipId,
     };
   }
 

@@ -7,7 +7,7 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { getStoreConsoleAccess } from '../../lib/access';
-import { pageShellStyle } from '../marketone-theme';
+import { pageShellStyle } from '../merchflow-theme';
 import { SettingsWorkspace } from './settings-workspace';
 
 export default async function StoreSettingsPage() {

@@ -1,5 +1,5 @@
 import { getStoreConsoleAccess } from '../../lib/access';
-import { pageShellStyle } from '../marketone-theme';
+import { pageShellStyle } from '../merchflow-theme';
 import { ReportsWorkspace } from './reports-workspace';
 
 export default async function StoreReportsPage() {

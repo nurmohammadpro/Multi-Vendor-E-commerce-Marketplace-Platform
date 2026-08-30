@@ -20,7 +20,7 @@ import {
   tableStyle,
   tableWrapStyle,
   tokenMutedStyle,
-} from '../marketone-theme';
+} from '../merchflow-theme';
 import { searchRowStyle, stackedFilterGridStyle, useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
 
 type Plan = {

@@ -10,7 +10,7 @@ import {
   secondaryButtonStyle,
   surfaceCardStyle,
   tokenMutedStyle,
-} from '../marketone-theme';
+} from '../merchflow-theme';
 import { useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
 import { useTheme } from '@mvp/theme';
 

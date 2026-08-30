@@ -1,5 +1,5 @@
 import { getStoreConsoleAccess } from '../../lib/access';
-import { emptyStateStyle } from '../marketone-theme';
+import { emptyStateStyle } from '../merchflow-theme';
 import { ActivityWorkspace } from './activity-workspace';
 
 export default async function StoreActivityPage() {

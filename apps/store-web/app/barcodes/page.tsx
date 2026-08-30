@@ -13,7 +13,7 @@ import {
   tableHeaderCellStyle,
   tableStyle,
   tableWrapStyle,
-} from '../marketone-theme';
+} from '../merchflow-theme';
 import { WorkspaceTabs } from '../workspace-responsive';
 import { toast } from 'sonner';
 import { SearchableSelect } from '@/components/searchable-select';

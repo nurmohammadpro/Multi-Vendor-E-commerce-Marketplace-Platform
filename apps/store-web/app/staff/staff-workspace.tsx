@@ -17,7 +17,7 @@ import {
   tableStyle,
   tableWrapStyle,
   tokenMutedStyle,
-} from '../marketone-theme';
+} from '../merchflow-theme';
 import { ListPager, type PaginationState, totalPagesFor } from '../list-pager';
 import { useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
 

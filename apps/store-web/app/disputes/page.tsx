@@ -1,5 +1,5 @@
 import { getStoreConsoleAccess } from '../../lib/access';
-import { pageShellStyle } from '../marketone-theme';
+import { pageShellStyle } from '../merchflow-theme';
 import { SupportWorkspace } from '../support/support-workspace';
 
 export default async function StoreDisputesPage() {

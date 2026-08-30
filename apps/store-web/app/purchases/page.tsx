@@ -1,5 +1,5 @@
 import { getStoreConsoleAccess } from '../../lib/access';
-import { emptyStateStyle, pageShellStyle, surfaceCardStyle } from '../marketone-theme';
+import { emptyStateStyle, pageShellStyle, surfaceCardStyle } from '../merchflow-theme';
 
 import { PurchasesWorkspace } from './purchases-workspace';
 

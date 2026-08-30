@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -225,62 +226,60 @@ export function BillingWorkspace() {
           {plans.length === 0 ? (
             <p className="text-sm text-muted-foreground py-4">Loading plans…</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b text-left">
-                    <th className="py-2 pr-4 font-medium">Name</th>
-                    <th className="py-2 pr-4 font-medium">Code</th>
-                    <th className="py-2 pr-4 font-medium">Price</th>
-                    <th className="py-2 pr-4 font-medium">Signup Fee</th>
-                    <th className="py-2 pr-4 font-medium">Users</th>
-                    <th className="py-2 pr-4 font-medium">Locations</th>
-                    <th className="py-2 pr-4 font-medium">Cycle</th>
-                    <th className="py-2 pr-4 font-medium">Status</th>
-                    <th className="py-2 pr-4 font-medium">Features</th>
-                    <th className="py-2 font-medium">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {plans.map((plan) => (
-                    <tr key={plan.id} className="border-b last:border-0">
-                      <td className="py-2 pr-4">
-                        {plan.name}
-                        {plan.is_custom ? (
-                          <Badge className="ml-2" variant="secondary">Custom</Badge>
-                        ) : (
-                          <Badge className="ml-2" variant="outline">System</Badge>
-                        )}
-                      </td>
-                      <td className="py-2 pr-4 text-muted-foreground">{plan.code}</td>
-                      <td className="py-2 pr-4">BDT {Number(plan.price_amount).toLocaleString()}</td>
-                      <td className="py-2 pr-4">BDT {Number(plan.signup_fee).toLocaleString()}</td>
-                      <td className="py-2 pr-4">{plan.max_users}</td>
-                      <td className="py-2 pr-4">{plan.max_locations}</td>
-                      <td className="py-2 pr-4 text-muted-foreground">{plan.billing_cycle}</td>
-                      <td className="py-2 pr-4">
-                        <Badge variant={plan.status === 'active' ? 'default' : 'secondary'}>
-                          {plan.status}
-                        </Badge>
-                      </td>
-                      <td className="py-2 pr-4 max-w-[200px] truncate text-muted-foreground" title={formatFeatures(plan)}>
-                        {formatFeatures(plan)}
-                      </td>
-                      <td className="py-2">
-                        {plan.status === 'active' ? (
-                          <div className="flex gap-1">
-                            <Button variant="outline" size="sm" onClick={() => openEdit(plan)}>Edit</Button>
-                            <Button variant="destructive" size="sm" onClick={() => setDeleteId(plan.id)}>Deactivate</Button>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Code</TableHead>
+                  <TableHead>Price</TableHead>
+                  <TableHead>Signup Fee</TableHead>
+                  <TableHead>Users</TableHead>
+                  <TableHead>Locations</TableHead>
+                  <TableHead>Cycle</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Features</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {plans.map((plan) => (
+                  <TableRow key={plan.id}>
+                    <TableCell>
+                      {plan.name}
+                      {plan.is_custom ? (
+                        <Badge className="ml-2" variant="secondary">Custom</Badge>
+                      ) : (
+                        <Badge className="ml-2" variant="outline">System</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{plan.code}</TableCell>
+                    <TableCell>BDT {Number(plan.price_amount).toLocaleString()}</TableCell>
+                    <TableCell>BDT {Number(plan.signup_fee).toLocaleString()}</TableCell>
+                    <TableCell>{plan.max_users}</TableCell>
+                    <TableCell>{plan.max_locations}</TableCell>
+                    <TableCell className="text-muted-foreground">{plan.billing_cycle}</TableCell>
+                    <TableCell>
+                      <Badge variant={plan.status === 'active' ? 'default' : 'secondary'}>
+                        {plan.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="max-w-[200px] truncate text-muted-foreground" title={formatFeatures(plan)}>
+                      {formatFeatures(plan)}
+                    </TableCell>
+                    <TableCell>
+                      {plan.status === 'active' ? (
+                        <div className="flex gap-1">
+                          <Button variant="outline" size="sm" onClick={() => openEdit(plan)}>Edit</Button>
+                          <Button variant="destructive" size="sm" onClick={() => setDeleteId(plan.id)}>Deactivate</Button>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
         </CardContent>
       </Card>

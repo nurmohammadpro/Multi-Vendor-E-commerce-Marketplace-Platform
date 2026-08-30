@@ -89,9 +89,9 @@ cat > "$PLIST_FILE" <<PLISTEOF
     <key>KeepAlive</key>
     <true/>
     <key>StandardOutPath</key>
-    <string>$HOME/Library/Logs/marketone-print-agent.log</string>
+    <string>$HOME/Library/Logs/merchflow-print-agent.log</string>
     <key>StandardErrorPath</key>
-    <string>$HOME/Library/Logs/marketone-print-agent.log</string>
+    <string>$HOME/Library/Logs/merchflow-print-agent.log</string>
     <key>EnvironmentVariables</key>
     <dict>
         <key>MVP_PRINTER_NAME</key>
@@ -130,7 +130,7 @@ if curl -sf http://127.0.0.1:17668/health > /dev/null 2>&1; then
     echo "  Health: $HEALTH"
 else
     echo -e "  ${RED}✗${NC} Print agent failed to start. Check logs:"
-    echo "  cat $HOME/Library/Logs/marketone-print-agent.log"
+    echo "  cat $HOME/Library/Logs/merchflow-print-agent.log"
 fi
 
 echo ""

@@ -1,4 +1,4 @@
-import { pageShellStyle } from '../marketone-theme';
+import { pageShellStyle } from '../merchflow-theme';
 import { CustomersWorkspace } from './customers-workspace';
 
 export default function StoreCustomersPage() {

@@ -17,7 +17,7 @@ import {
   tableStyle,
   tableWrapStyle,
   tokenMutedStyle,
-} from '../marketone-theme';
+} from '../merchflow-theme';
 import { searchRowStyle, useCompactLayout } from '../workspace-responsive';
 import { SearchableSelect } from '@/components/searchable-select';
 

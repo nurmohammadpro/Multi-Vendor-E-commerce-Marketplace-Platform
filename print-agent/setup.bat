@@ -63,7 +63,7 @@ echo   Environment saved to %AGENT_DIR%\.env
 
 :: Install as scheduled task that runs at login
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-  "$taskName='MarketOnePrintAgent';" ^
+  "$taskName='MerchFlowPrintAgent';" ^
   "$agentDir='%AGENT_DIR%';" ^
   "try { Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue } catch {};" ^
   "$action = New-ScheduledTaskAction -Execute 'node' -Argument 'server.js' -WorkingDirectory $agentDir;" ^

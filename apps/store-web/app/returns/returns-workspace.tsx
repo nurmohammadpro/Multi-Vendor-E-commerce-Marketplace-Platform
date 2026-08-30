@@ -17,7 +17,7 @@ import {
   tableStyle,
   tableWrapStyle,
   tokenMutedStyle,
-} from '../marketone-theme';
+} from '../merchflow-theme';
 import { ListPager } from '../list-pager';
 import { searchRowStyle } from '../workspace-responsive';
 import { openInvoicePrintWindow } from '../../lib/print-agent';

@@ -174,8 +174,8 @@ services:
       - '4100:4000'
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.market-one-api.rule=Host(`api.tigerbhai.online`)"
-      - "traefik.http.services.market-one-api.loadbalancer.server.port=4000"
+      - "traefik.http.routers.merchflow-api.rule=Host(`api.tigerbhai.online`)"
+      - "traefik.http.services.merchflow-api.loadbalancer.server.port=4000"
     networks:
       - internal
       - easypanel

@@ -8,7 +8,7 @@ import {
   secondaryButtonStyle,
   surfaceCardStyle,
   tokenMutedStyle,
-} from '../marketone-theme';
+} from '../merchflow-theme';
 
 export default function OfflinePage() {
   return (

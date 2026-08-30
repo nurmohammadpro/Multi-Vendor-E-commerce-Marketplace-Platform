@@ -33,7 +33,7 @@ import {
   tableStyle,
   tableWrapStyle,
   tokenMutedStyle,
-} from '../marketone-theme';
+} from '../merchflow-theme';
 import { stackedFilterGridStyle, useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
 
 type Register = {

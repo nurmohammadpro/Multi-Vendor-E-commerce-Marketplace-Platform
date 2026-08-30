@@ -1,4 +1,4 @@
-import { pageShellStyle } from '../marketone-theme';
+import { pageShellStyle } from '../merchflow-theme';
 import { StockLedgerWorkspace } from './stock-ledger-workspace';
 
 export default async function StockLedgerPage() {

@@ -19,7 +19,7 @@ import {
   tableStyle,
   tableWrapStyle,
   tokenMutedStyle,
-} from '../marketone-theme';
+} from '../merchflow-theme';
 import { ListPager, type PaginationState } from '../list-pager';
 import { openInvoicePrintWindow } from '../../lib/print-agent';
 
@@ -316,7 +316,7 @@ export function SalesHistoryWorkspace() {
         <input
           ref={searchRef}
           type="text"
-          placeholder="Search by sale no, customer name, mobile..."
+          placeholder="Search by sale no, customer name, mobile... or scan barcode"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           style={{ ...fieldStyle, flex: 1, minWidth: 0 }}
@@ -367,42 +367,54 @@ export function SalesHistoryWorkspace() {
                       Sale No{sortIndicator('sale_no')}
                     </button>
                   </th>
-                  <th style={{ ...tableHeaderCellStyle, width: '15%' }}>
+                  <th style={{ ...tableHeaderCellStyle, width: '12%' }}>Barcode</th>
+                  <th style={{ ...tableHeaderCellStyle, width: '14%' }}>
                     <button onClick={() => handleSort('customer_name')} style={sortBtnStyle}>
                       Customer{sortIndicator('customer_name')}
                     </button>
                   </th>
-                  <th style={{ ...tableHeaderCellStyle, width: '13%' }}>
+                  <th style={{ ...tableHeaderCellStyle, width: '12%' }}>
                     <button onClick={() => handleSort('customer_phone')} style={sortBtnStyle}>
                       Mobile{sortIndicator('customer_phone')}
                     </button>
                   </th>
-                  <th style={{ ...tableHeaderCellStyle, width: '18%' }}>Items</th>
-                  <th style={{ ...tableHeaderCellStyle, width: '10%', textAlign: 'right' }}>
+                  <th style={{ ...tableHeaderCellStyle, width: '16%' }}>Items</th>
+                  <th style={{ ...tableHeaderCellStyle, width: '9%', textAlign: 'right' }}>
                     <button onClick={() => handleSort('total_amount')} style={sortBtnStyle}>
                       Total{sortIndicator('total_amount')}
                     </button>
                   </th>
-                  <th style={{ ...tableHeaderCellStyle, width: '11%' }}>
+                  <th style={{ ...tableHeaderCellStyle, width: '10%' }}>
                     <button onClick={() => handleSort('payment_status')} style={sortBtnStyle}>
                       Payment{sortIndicator('payment_status')}
                     </button>
                   </th>
-                  <th style={{ ...tableHeaderCellStyle, width: '12%' }}>
+                  <th style={{ ...tableHeaderCellStyle, width: '11%' }}>
                     <button onClick={() => handleSort('created_at')} style={sortBtnStyle}>
                       Date{sortIndicator('created_at')}
                     </button>
                   </th>
-                  <th style={{ ...tableHeaderCellStyle, width: '14%' }}>Action</th>
+                  <th style={{ ...tableHeaderCellStyle, width: '12%' }}>Action</th>
                 </tr>
               </thead>
               <tbody>
                 {sales.map((sale) => (
                   <tr key={sale.id}>
                     <td style={tableCellStyle}><strong>{sale.sale_no}</strong></td>
+                    <td style={{ ...tableCellStyle, padding: '4px 6px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                        <img
+                          src={`https://barcode.tec-it.com/barcode.ashx?data=${encodeURIComponent(sale.sale_no)}&code=Code128&translate-esc=true&dpi=72&imagetype=png`}
+                          alt={`Barcode ${sale.sale_no}`}
+                          style={{ width: 80, height: 28, objectFit: 'contain' }}
+                          loading="lazy"
+                        />
+                        <span style={{ fontSize: 8, color: '#94a3b8', fontFamily: 'monospace' }}>{sale.sale_no}</span>
+                      </div>
+                    </td>
                     <td style={tableCellStyle}>{sale.customer_name || '—'}</td>
                     <td style={tableCellStyle}>{sale.customer_phone || '—'}</td>
-                    <td style={{ ...tableCellStyle, fontSize: 12, maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <td style={{ ...tableCellStyle, fontSize: 12, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {sale.items_purchased || '—'}
                     </td>
                     <td style={{ ...tableCellStyle, textAlign: 'right', whiteSpace: 'nowrap' }}>

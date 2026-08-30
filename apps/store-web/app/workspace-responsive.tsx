@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type CSSProperties } from 'react';
 
-import { marketoneColors, subtleButtonStyle } from './marketone-theme';
+import { merchflowColors, subtleButtonStyle } from './merchflow-theme';
 
 export function useCompactLayout(maxWidth = 1024) {
   const [compact, setCompact] = useState(false);
@@ -37,8 +37,8 @@ export function WorkspaceTabs({
         gap: 8,
         padding: 8,
         borderRadius: 8,
-        border: `1px solid ${marketoneColors.border}`,
-        background: marketoneColors.backgroundAlt,
+        border: `1px solid ${merchflowColors.border}`,
+        background: merchflowColors.backgroundAlt,
       }}
     >
       {tabs.map((tab) => {
@@ -51,10 +51,10 @@ export function WorkspaceTabs({
             style={{
               ...subtleButtonStyle,
               minHeight: 32,
-              background: selected ? 'var(--card)' : marketoneColors.backgroundAlt,
-              border: selected ? `1px solid ${marketoneColors.borderStrong}` : `1px solid ${marketoneColors.border}`,
-              color: selected ? marketoneColors.ink : marketoneColors.muted,
-              boxShadow: selected ? `0 1px 2px ${marketoneColors.shadowStrong}` : 'none',
+              background: selected ? 'var(--card)' : merchflowColors.backgroundAlt,
+              border: selected ? `1px solid ${merchflowColors.borderStrong}` : `1px solid ${merchflowColors.border}`,
+              color: selected ? merchflowColors.ink : merchflowColors.muted,
+              boxShadow: selected ? `0 1px 2px ${merchflowColors.shadowStrong}` : 'none',
               fontWeight: selected ? 600 : 500,
             }}
           >

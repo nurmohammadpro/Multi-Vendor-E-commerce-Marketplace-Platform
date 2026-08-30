@@ -15,7 +15,7 @@ import {
   tableStyle,
   tableWrapStyle,
   tokenMutedStyle,
-} from '../marketone-theme';
+} from '../merchflow-theme';
 import { useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
 
 type SalesReport = {

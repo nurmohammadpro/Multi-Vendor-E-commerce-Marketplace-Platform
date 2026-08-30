@@ -1,9 +1,9 @@
-const CACHE_NAME = 'marketone-store-v2';
+const CACHE_NAME = 'merchflow-store-v2';
 const APP_SHELL = [
   '/',
   '/offline',
   '/manifest.webmanifest',
-  '/marketone-logo.svg',
+  '/merchflow-logo.svg',
   '/pwa/icon-192.png',
   '/pwa/icon-512.png',
   '/pwa/maskable-512.png',
@@ -48,7 +48,7 @@ self.addEventListener('fetch', (event) => {
   if (
     url.pathname.startsWith('/_next/static/')
     || url.pathname.startsWith('/pwa/')
-    || url.pathname === '/marketone-logo.svg'
+    || url.pathname === '/merchflow-logo.svg'
     || url.pathname.endsWith('.png')
     || url.pathname.endsWith('.svg')
     || url.pathname.endsWith('.css')
