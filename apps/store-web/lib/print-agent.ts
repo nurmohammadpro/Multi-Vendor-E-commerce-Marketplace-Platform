@@ -509,6 +509,91 @@ export async function printLabel(payload: {
   return response.json().catch(() => ({ ok: true }));
 }
 
+export type ProductLabelPayload = {
+  sku: string;
+  productName: string;
+  storeName: string;
+  sellingPrice?: number | null;
+  printerName?: string;
+  widthMm?: number;
+  heightMm?: number;
+  gap?: number;
+  barcodeType?: string;
+  copies?: number;
+  border?: boolean;
+};
+
+export async function printProductLabel(
+  payload: ProductLabelPayload,
+  baseUrl = DEFAULT_PRINT_AGENT_URL,
+) {
+  const response = await fetch(`${baseUrl}/print/label-product`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const result = (await response.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(result?.error || `Product label print failed with ${response.status}`);
+  }
+
+  return response.json().catch(() => ({ ok: true }));
+}
+
+export type BatchLabelPayload = {
+  items: Array<{
+    sku: string;
+    productName: string;
+    storeName: string;
+    sellingPrice?: number | null;
+    copies?: number;
+  }>;
+  printerName?: string;
+  widthMm?: number;
+  heightMm?: number;
+  gap?: number;
+  barcodeType?: string;
+  copies?: number;
+  border?: boolean;
+};
+
+export async function printProductLabelBatch(
+  payload: BatchLabelPayload,
+  baseUrl = DEFAULT_PRINT_AGENT_URL,
+) {
+  const response = await fetch(`${baseUrl}/print/label-product-batch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const result = (await response.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(result?.error || `Batch label print failed with ${response.status}`);
+  }
+
+  return response.json().catch(() => ({ ok: true }));
+}
+
+export async function printTsplLabel(
+  payload: { base64: string; printerName?: string },
+  baseUrl = DEFAULT_PRINT_AGENT_URL,
+) {
+  const response = await fetch(`${baseUrl}/print/label-tspl`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const result = (await response.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(result?.error || `TSPL label print failed with ${response.status}`);
+  }
+
+  return response.json().catch(() => ({ ok: true }));
+}
+
 export async function openCashDrawer(payload: {
   printerName?: string;
   pin?: 2 | 5;

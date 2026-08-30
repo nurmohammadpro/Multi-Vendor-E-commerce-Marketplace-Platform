@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/card';
 import { fieldStyle } from '../marketone-theme';
 import { useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
-import { fetchPrintAgentHealth, fetchPrintAgentPrinters, openCashDrawer, printLabel, printReceipt, type PrintAgentHealth, type PrintAgentPrinter } from '../../lib/print-agent';
+import { fetchPrintAgentHealth, fetchPrintAgentPrinters, openCashDrawer, printLabel, printProductLabel, printReceipt, type PrintAgentHealth, type PrintAgentPrinter } from '../../lib/print-agent';
 import { loadWorkstationProfile, saveWorkstationProfile } from '../../lib/workstation-profile';
 
 type CatalogItem = {
@@ -242,11 +242,19 @@ export function HardwareWorkspace({ canManageSettings }: { canManageSettings: bo
 
   const testLabel = async () => {
     try {
-      await printLabel({
+      await printProductLabel({
+        sku: 'HW-TEST-001',
+        productName: 'Hardware Test Product',
+        storeName: 'Test Store',
+        sellingPrice: 100,
         printerName: labelPrinterName || undefined,
-        text: 'Label test\nHW-TEST\nPrice: 0.00',
+        widthMm: 40,
+        heightMm: 25,
+        barcodeType: '128',
+        copies: 1,
+        border: true,
       }, effectiveAgentUrl);
-      setMessage('Label test sent successfully.');
+      setMessage('Label test sent successfully via TSPL.');
     } catch (error) {
       setMessage(`Label test failed: ${(error as Error).message}`);
     }

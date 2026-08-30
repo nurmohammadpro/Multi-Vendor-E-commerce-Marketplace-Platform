@@ -9,6 +9,7 @@ import {
   pageShellStyle,
   searchButtonStyle,
   secondaryButtonStyle,
+  subtleButtonStyle,
   surfaceCardStyle,
   tableCellStyle,
   tableHeaderCellStyle,
@@ -18,6 +19,9 @@ import {
 } from '../marketone-theme';
 import { ListPager, type PaginationState, totalPagesFor } from '../list-pager';
 import { searchRowStyle, useCompactLayout } from '../workspace-responsive';
+import { printProductLabel } from '../../lib/print-agent';
+import { loadWorkstationProfile } from '../../lib/workstation-profile';
+import { toast } from 'sonner';
 
 type Location = {
   id: string;
@@ -136,6 +140,31 @@ export function InventoryWorkspace({
   const [message, setMessage] = useState('Inventory live workspace is ready.');
   const [loading, setLoading] = useState(false);
   const [stockControlOpen, setStockControlOpen] = useState(false);
+  const [printingSkuId, setPrintingSkuId] = useState<string | null>(null);
+
+  const printBalanceLabel = async (balance: Balance) => {
+    setPrintingSkuId(balance.sku_id);
+    try {
+      const profile = loadWorkstationProfile();
+      await printProductLabel({
+        sku: balance.sku_code,
+        productName: balance.product_name,
+        storeName: 'Store',
+        sellingPrice: null,
+        printerName: profile.labelPrinterName || undefined,
+        widthMm: 40,
+        heightMm: 25,
+        barcodeType: '128',
+        copies: 1,
+        border: true,
+      }, profile.agentUrl);
+      toast.success(`Label printed for ${balance.sku_code}`);
+    } catch (error) {
+      toast.error((error as Error).message);
+    } finally {
+      setPrintingSkuId(null);
+    }
+  };
 
   const selectedSku = useMemo(
     () => skuResults.find((sku) => sku.id === selectedSkuId) ?? null,
@@ -395,7 +424,7 @@ export function InventoryWorkspace({
                     <th style={tableHeaderCellStyle}>Available</th>
                     <th style={tableHeaderCellStyle}>Reserved</th>
                     <th style={tableHeaderCellStyle}>Updated</th>
-                    <th style={tableHeaderCellStyle}>Action</th>
+                    <th style={tableHeaderCellStyle}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -409,26 +438,35 @@ export function InventoryWorkspace({
                       <td style={tableCellStyle}>{formatQty(balance.reserved_qty)}</td>
                       <td style={tableCellStyle}>{new Date(balance.updated_at).toLocaleString()}</td>
                       <td style={tableCellStyle}>
-                        <button
-                          onClick={() => {
-                            setSelectedLocationId(balance.location_id);
-                            setSelectedSkuId(balance.sku_id);
-                            setSkuSearch(balance.sku_code);
-                            setSkuResults([
-                              {
-                                id: balance.sku_id,
-                                sku_code: balance.sku_code,
-                                product_name: balance.product_name,
-                              },
-                            ]);
-                            setMessage(`Loaded ${balance.sku_code} into stock control.`);
-                            setStockControlOpen(true);
-                          }}
-                          style={secondaryButtonStyle}
-                          disabled={loading}
-                        >
-                          Use in Stock Control
-                        </button>
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          <button
+                            onClick={() => void printBalanceLabel(balance)}
+                            style={{ ...subtleButtonStyle, fontSize: 11, padding: '4px 8px' }}
+                            disabled={printingSkuId === balance.sku_id}
+                          >
+                            {printingSkuId === balance.sku_id ? 'Printing...' : 'Print Label'}
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedLocationId(balance.location_id);
+                              setSelectedSkuId(balance.sku_id);
+                              setSkuSearch(balance.sku_code);
+                              setSkuResults([
+                                {
+                                  id: balance.sku_id,
+                                  sku_code: balance.sku_code,
+                                  product_name: balance.product_name,
+                                },
+                              ]);
+                              setMessage(`Loaded ${balance.sku_code} into stock control.`);
+                              setStockControlOpen(true);
+                            }}
+                            style={secondaryButtonStyle}
+                            disabled={loading}
+                          >
+                            Stock Control
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}

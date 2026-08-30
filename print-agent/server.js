@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import fsSync from 'node:fs';
+import { buildProductLabel } from './tspl.js';
 
 // Load .env file from agent directory (created by setup.bat / setup.sh)
 try {
@@ -244,7 +245,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === 'GET' && req.url === '/health') {
-      json(res, 200, { ok: true, service: 'multivendor-print-agent', port: PORT, platform: process.platform, printerName: PRINTER_NAME || null, labelPrinterName: LABEL_PRINTER_NAME || null, polling: Boolean(STORE_ID && AUTH_TOKEN), apiBaseUrl: API_BASE_URL });
+      json(res, 200, { ok: true, service: 'multivendor-print-agent', port: PORT, platform: process.platform, printerName: PRINTER_NAME || null, labelPrinterName: LABEL_PRINTER_NAME || null, polling: Boolean(STORE_ID && AUTH_TOKEN), apiBaseUrl: API_BASE_URL, features: { receiptPrinting: true, labelPrinting: true, cashDrawer: true, barcodePrinting: true, rawPrinting: true, logoPrinting: true } });
       return;
     }
 
@@ -271,6 +272,72 @@ const server = http.createServer(async (req, res) => {
       if (process.platform === 'win32') await printWithWindows(text, p.printerName || LABEL_PRINTER_NAME);
       else await printWithCups(Buffer.from(text, 'utf8'), p.printerName || LABEL_PRINTER_NAME);
       json(res, 200, { ok: true }); return;
+    }
+
+    // TSPL raw bytes endpoint — accepts base64-encoded TSPL commands
+    if (req.method === 'POST' && req.url === '/print/label-tspl') {
+      const p = await parseBody(req);
+      const bytes = typeof p.base64 === 'string' ? Buffer.from(p.base64, 'base64') : Array.isArray(p.bytes) ? Buffer.from(p.bytes) : null;
+      if (!bytes?.length) { json(res, 400, { ok: false, error: 'Empty TSPL payload' }); return; }
+      if (process.platform === 'win32') await printRawWin(bytes, p.printerName || LABEL_PRINTER_NAME);
+      else await printWithCups(bytes, p.printerName || LABEL_PRINTER_NAME);
+      json(res, 200, { ok: true }); return;
+    }
+
+    // Structured product label endpoint — builds TSPL from product data
+    if (req.method === 'POST' && req.url === '/print/label-product') {
+      const p = await parseBody(req);
+      const data = {
+        sku: p.sku || 'NO-SKU',
+        productName: p.productName || 'Product',
+        storeName: p.storeName || 'Store',
+        sellingPrice: p.sellingPrice ?? null,
+      };
+      const opts = {
+        widthMm: p.widthMm || 40,
+        heightMm: p.heightMm || 25,
+        gap: p.gap || 3,
+        barcodeType: p.barcodeType || '128',
+        copies: p.copies || 1,
+        border: Boolean(p.border),
+      };
+      const bytes = buildProductLabel(data, opts);
+      const target = p.printerName || LABEL_PRINTER_NAME;
+      if (process.platform === 'win32') await printRawWin(bytes, target);
+      else await printWithCups(bytes, target);
+      json(res, 200, { ok: true, label: { sku: data.sku, copies: opts.copies } }); return;
+    }
+
+    // Batch product label endpoint — prints multiple labels in one job
+    if (req.method === 'POST' && req.url === '/print/label-product-batch') {
+      const p = await parseBody(req);
+      const items = Array.isArray(p.items) ? p.items : [];
+      if (!items.length) { json(res, 400, { ok: false, error: 'No items' }); return; }
+      const opts = {
+        widthMm: p.widthMm || 40,
+        heightMm: p.heightMm || 25,
+        gap: p.gap || 3,
+        barcodeType: p.barcodeType || '128',
+        copies: 1,
+        border: Boolean(p.border),
+      };
+      // Build one combined buffer for all labels
+      const chunks = [];
+      for (const item of items) {
+        const data = {
+          sku: item.sku || 'NO-SKU',
+          productName: item.productName || 'Product',
+          storeName: item.storeName || 'Store',
+          sellingPrice: item.sellingPrice ?? null,
+        };
+        const itemCopies = item.copies || p.copies || 1;
+        chunks.push(buildProductLabel(data, { ...opts, copies: itemCopies }));
+      }
+      const combined = Buffer.concat(chunks);
+      const target = p.printerName || LABEL_PRINTER_NAME;
+      if (process.platform === 'win32') await printRawWin(combined, target);
+      else await printWithCups(combined, target);
+      json(res, 200, { ok: true, printed: items.length }); return;
     }
 
     if (req.method === 'POST' && req.url === '/hardware/drawer-open') {

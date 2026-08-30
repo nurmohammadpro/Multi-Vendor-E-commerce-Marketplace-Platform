@@ -22,6 +22,8 @@ import { ListPager, type PaginationState, totalPagesFor } from '../list-pager';
 import { searchRowStyle, stackedFilterGridStyle, useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
 import { toast } from 'sonner';
 import { SearchableSelect } from '@/components/searchable-select';
+import { printProductLabelBatch, fetchPrintAgentHealth } from '../../lib/print-agent';
+import { loadWorkstationProfile } from '../../lib/workstation-profile';
 
 type Supplier = { id: string; company_name: string; contact_name?: string | null; phone?: string | null; opening_payable_amount?: string | number; current_payable_amount?: string | number };
 type Location = { id: string; code: string; name: string; location_type: string };
@@ -112,6 +114,9 @@ export function PurchasesWorkspace() {
   // Categories loaded from API
   const [categories, setCategories] = useState<Array<{ id: string; name: string; parent_id?: string | null; parent_name?: string | null }>>([]);
   const [brands, setBrands] = useState<Array<{ id: string; name: string }>>([]);
+  // Last received items for print labels prompt
+  const [lastReceivedItems, setLastReceivedItems] = useState<Array<{ sku: string; productName: string; sellingPrice?: number | null }>>([]);
+  const [printingLabels, setPrintingLabels] = useState(false);
   // Build hierarchical category display
   const categoryTree = useMemo(() => {
     const map = new Map<string, { id: string; name: string; parent_id: string | null; children: Array<{ id: string; name: string }> }>();
@@ -271,12 +276,52 @@ export function PurchasesWorkspace() {
         lastResult = await readJson<any>('/api/store-ops/quick-receive', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       }
       const count = bodies.length;
-      setMessage(`✓ Created ${count > 1 ? `${count} products` : `"${lastResult?.product?.name}"`} — stock updated. ${lastResult?.purchase?.purchaseNo ? `Purchase ${lastResult.purchase.purchaseNo}.` : ''}`);
+
+      // Store received items for print labels prompt
+      const receivedItems: Array<{ sku: string; productName: string; sellingPrice?: number | null }> = [];
+      if (lastResult?.sku) {
+        receivedItems.push({
+          sku: lastResult.sku.barcode || lastResult.sku.skuCode || lastResult.sku.id,
+          productName: lastResult.product?.name || quickName.trim(),
+          sellingPrice: lastResult.sku.salePrice || null,
+        });
+      }
+      setLastReceivedItems(receivedItems);
+
+      setMessage(`✓ Created ${count > 1 ? `${count} products` : `"${lastResult?.product?.name}"`} — stock updated. ${lastResult?.purchase?.purchaseNo ? `Purchase ${lastResult.purchase.purchaseNo}.` : ''} Print labels?`);
       setQuickName(''); setQuickVariantRows([]); setQuickHasVariants(false);
       setQuickPaid(''); setQuickCategoryId(''); setQuickBrandId('');
       await refresh();
     } catch (error) { const msg = (error as Error).message; setMessage(msg); toast.error(msg); }
     finally { setQuickSaving(false); }
+  };
+
+  const printReceivedLabels = async () => {
+    if (!lastReceivedItems.length) return;
+    setPrintingLabels(true);
+    try {
+      const profile = loadWorkstationProfile();
+      await printProductLabelBatch({
+        items: lastReceivedItems.map((item) => ({
+          sku: item.sku,
+          productName: item.productName,
+          storeName: 'Store',
+          sellingPrice: item.sellingPrice,
+        })),
+        printerName: profile.labelPrinterName || undefined,
+        widthMm: 40,
+        heightMm: 25,
+        barcodeType: '128',
+        border: true,
+      }, profile.agentUrl);
+      toast.success(`Printed ${lastReceivedItems.length} label(s)`);
+      setLastReceivedItems([]);
+      setMessage('Labels printed successfully.');
+    } catch (error) {
+      toast.error((error as Error).message);
+    } finally {
+      setPrintingLabels(false);
+    }
   };
 
 
@@ -424,6 +469,28 @@ export function PurchasesWorkspace() {
           <button onClick={quickReceive} style={{ ...gray800ButtonStyle, width: '100%', minHeight: 36 }} disabled={loading || quickSaving || !quickName.trim()}>
             {quickSaving ? 'Saving...' : `Create & Receive Stock (${quickHasVariants && quickVariantRows.length ? quickVariantRows.length : 1} item${quickHasVariants && quickVariantRows.length > 1 ? 's' : ''})`}
           </button>
+
+          {/* Print Labels Prompt */}
+          {lastReceivedItems.length > 0 && (
+            <div style={{ display: 'flex', gap: 8, marginTop: 10, padding: '10px 12px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8 }}>
+              <span style={{ fontSize: 13, color: '#166534', flex: 1 }}>
+                {lastReceivedItems.length} label(s) ready to print
+              </span>
+              <button
+                onClick={() => void printReceivedLabels()}
+                style={{ ...gray800ButtonStyle, fontSize: 12, padding: '6px 12px', minHeight: 'auto' }}
+                disabled={printingLabels}
+              >
+                {printingLabels ? 'Printing...' : 'Print Labels'}
+              </button>
+              <button
+                onClick={() => setLastReceivedItems([])}
+                style={{ ...subtleButtonStyle, fontSize: 12, padding: '6px 12px', minHeight: 'auto' }}
+              >
+                Skip
+              </button>
+            </div>
+          )}
         </article>
 
         {/* ── Regular Purchase (existing products) ── */}

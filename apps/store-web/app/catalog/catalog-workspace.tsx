@@ -21,6 +21,8 @@ import {
 } from '../marketone-theme';
 import { ListPager, type PaginationState, totalPagesFor } from '../list-pager';
 import { searchRowStyle, stackedFilterGridStyle, useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
+import { printProductLabel } from '../../lib/print-agent';
+import { loadWorkstationProfile } from '../../lib/workstation-profile';
 
 type Category = { id: string; parent_id?: string | null; parent_name?: string | null; code: string; name: string; status: string };
 type Brand = { id: string; name: string; status: string };
@@ -290,6 +292,31 @@ export function CatalogWorkspace({
   const [quickVariantLabels, setQuickVariantLabels] = useState('');
   const [quickVariantSalePrice, setQuickVariantSalePrice] = useState('');
   const [quickVariantCostPrice, setQuickVariantCostPrice] = useState('');
+  const [printingSkuId, setPrintingSkuId] = useState<string | null>(null);
+
+  const printSkuLabel = async (sku: { id: string; sku_code: string; barcode?: string | null; sale_price?: number | null; product_name?: string }) => {
+    setPrintingSkuId(sku.id);
+    try {
+      const profile = loadWorkstationProfile();
+      await printProductLabel({
+        sku: sku.barcode || sku.sku_code,
+        productName: sku.product_name || sku.sku_code,
+        storeName: 'Store',
+        sellingPrice: sku.sale_price ?? null,
+        printerName: profile.labelPrinterName || undefined,
+        widthMm: 40,
+        heightMm: 25,
+        barcodeType: '128',
+        copies: 1,
+        border: true,
+      }, profile.agentUrl);
+      toast.success(`Label printed for ${sku.sku_code}`);
+    } catch (error) {
+      toast.error((error as Error).message);
+    } finally {
+      setPrintingSkuId(null);
+    }
+  };
 
   const parentMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -1579,6 +1606,7 @@ export function CatalogWorkspace({
                       <th style={tableHeaderCellStyle}>Barcode</th>
                       <th style={tableHeaderCellStyle}>Available</th>
                       <th style={tableHeaderCellStyle}>Price</th>
+                      <th style={tableHeaderCellStyle}></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1590,6 +1618,21 @@ export function CatalogWorkspace({
                         <td style={tableCellStyle}>{sku.barcode || '—'}</td>
                         <td style={tableCellStyle}>{formatQty(sku.available_qty)}</td>
                         <td style={tableCellStyle}>{sku.sale_price ?? '—'}</td>
+                        <td style={tableCellStyle}>
+                          <button
+                            onClick={() => void printSkuLabel({
+                              id: sku.id,
+                              sku_code: sku.sku_code,
+                              barcode: sku.barcode,
+                              sale_price: sku.sale_price ? Number(sku.sale_price) : null,
+                              product_name: productDetail?.product?.name,
+                            })}
+                            style={{ ...subtleButtonStyle, fontSize: 11, padding: '4px 8px' }}
+                            disabled={printingSkuId === sku.id}
+                          >
+                            {printingSkuId === sku.id ? 'Printing...' : 'Print Label'}
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
