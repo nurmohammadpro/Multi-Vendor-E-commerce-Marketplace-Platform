@@ -3,12 +3,14 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useState } from 'react';
 import {
   Activity,
   AlertTriangle,
   BarChart3,
   Boxes,
   Building2,
+  ChevronRight,
   ClipboardCheck,
   CreditCard,
   Landmark,
@@ -46,6 +48,11 @@ import {
   SidebarTrigger,
   useSidebar,
 } from '@/components/ui/sidebar';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -152,6 +159,14 @@ function AppSidebar({
   access: StoreConsoleAccess;
 }) {
   const { setOpen, isMobile } = useSidebar();
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(
+      (Array.isArray(navItems) ? navItems : [])
+        .filter((g): g is NavGroup => 'items' in g)
+        .map((g) => [g.label, true])
+    )
+  );
+
   const filterVisible = (item: NavItem) =>
     (!item.permission || access.permissions.includes(item.permission))
     && canAccessStoreFeature(access, item.feature);
@@ -171,11 +186,14 @@ function AppSidebar({
       return filterVisible(item as NavItem);
     });
 
+  const toggleGroup = (label: string) =>
+    setOpenGroups((prev) => ({ ...prev, [label]: !prev[label] }));
+
   return (
     <Sidebar collapsible="icon" variant="sidebar" className="bg-sidebar border-r border-sidebar-border">
       <SidebarHeader>
-        <div className="px-2 pb-2 group-data-[collapsible=icon]:hidden">
-          <div className="rounded-md border bg-muted/40 px-2.5 py-2 text-[11px] text-muted-foreground">
+        <div className="px-2 pb-1 group-data-[collapsible=icon]:hidden">
+          <div className="rounded-md border bg-muted/40 px-2 py-1.5 text-[11px] text-muted-foreground">
             <div className="font-medium text-foreground">{access.planName} plan</div>
             <div>{access.storeName || 'Store workspace'}</div>
           </div>
@@ -185,42 +203,53 @@ function AppSidebar({
       <SidebarContent>
         {visibleNavItems.map((group) => {
           if ('items' in group) {
-            // Grouped navigation
+            const isOpen = openGroups[group.label] !== false;
             return (
-              <SidebarGroup key={group.label}>
-                <SidebarGroupLabel className="text-[10px] font-normal text-muted-foreground">
-                  {group.label}
-                </SidebarGroupLabel>
-                <SidebarGroupContent>
-                  <SidebarMenu>
-                    {group.items.map((item) => {
-                      const Icon = iconMap[item.href] || LayoutDashboard;
-                      const isActive =
-                        item.href === '/'
-                          ? pathname === '/'
-                          : pathname === item.href || pathname.startsWith(`${item.href}/`);
+              <Collapsible
+                key={group.label}
+                open={isOpen}
+                onOpenChange={() => toggleGroup(group.label)}
+              >
+                <SidebarGroup>
+                  <CollapsibleTrigger asChild>
+                    <SidebarGroupLabel className="cursor-pointer hover:bg-sidebar-accent/50 transition-colors">
+                      <ChevronRight className={`mr-1 size-3 shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`} />
+                      {group.label}
+                    </SidebarGroupLabel>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <SidebarGroupContent>
+                      <SidebarMenu>
+                        {group.items.map((item) => {
+                          const Icon = iconMap[item.href] || LayoutDashboard;
+                          const isActive =
+                            item.href === '/'
+                              ? pathname === '/'
+                              : pathname === item.href || pathname.startsWith(`${item.href}/`);
 
-                      return (
-                        <SidebarMenuItem key={item.href}>
-                          <SidebarMenuButton
-                            isActive={isActive}
-                            tooltip={item.label}
-                            onClick={() => {
-                              if (isMobile) setOpen(false);
-                            }}
-                            asChild
-                          >
-                            <Link href={item.href}>
-                              <Icon className="size-3.5" />
-                              <span className="text-xs font-normal">{item.label}</span>
-                            </Link>
-                          </SidebarMenuButton>
-                        </SidebarMenuItem>
-                      );
-                    })}
-                  </SidebarMenu>
-                </SidebarGroupContent>
-              </SidebarGroup>
+                          return (
+                            <SidebarMenuItem key={item.href}>
+                              <SidebarMenuButton
+                                isActive={isActive}
+                                tooltip={item.label}
+                                onClick={() => {
+                                  if (isMobile) setOpen(false);
+                                }}
+                                asChild
+                              >
+                                <Link href={item.href}>
+                                  <Icon className="size-3" />
+                                  <span className="text-[11px] font-normal">{item.label}</span>
+                                </Link>
+                              </SidebarMenuButton>
+                            </SidebarMenuItem>
+                          );
+                        })}
+                      </SidebarMenu>
+                    </SidebarGroupContent>
+                  </CollapsibleContent>
+                </SidebarGroup>
+              </Collapsible>
             );
           }
         })}
