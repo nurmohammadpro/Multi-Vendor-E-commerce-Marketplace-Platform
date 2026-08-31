@@ -88,6 +88,7 @@ export function PurchasesWorkspace() {
   const [receiveProductSearch, setReceiveProductSearch] = useState('');
   const [receiveProductResults, setReceiveProductResults] = useState<ProductWithProfile[]>([]);
   const [showProductSuggestions, setShowProductSuggestions] = useState(false);
+  const [highlightedProductIndex, setHighlightedProductIndex] = useState(0);
   const [receiveUnits, setReceiveUnits] = useState<ReceiveUnit[]>([]);
   const [receiveSkuId, setReceiveSkuId] = useState('');
   const [receiveSupplierId, setReceiveSupplierId] = useState('');
@@ -167,6 +168,11 @@ export function PurchasesWorkspace() {
     const t = setTimeout(() => { if (receiveProductSearch) searchReceiveProducts(receiveProductSearch); }, 200);
     return () => clearTimeout(t);
   }, [receiveProductSearch]);
+
+  // Reset highlighted index when results change
+  useEffect(() => {
+    setHighlightedProductIndex(0);
+  }, [receiveProductResults]);
 
   const selectReceiveProduct = async (product: ProductWithProfile) => {
     setReceiveProductId(product.id);
@@ -290,6 +296,8 @@ export function PurchasesWorkspace() {
     setReceiveSkuId('');
     setReceiveSupplierId('');
     setReceiveQty('1');
+    setHighlightedProductIndex(0);
+    setShowProductSuggestions(false);
   };
 
   // ── Quick Add Submit ──
@@ -382,15 +390,44 @@ export function PurchasesWorkspace() {
                 onChange={(e) => { setReceiveProductSearch(e.target.value); setShowProductSuggestions(true); }}
                 onFocus={() => { if (receiveProductResults.length > 0) setShowProductSuggestions(true); }}
                 onBlur={() => setTimeout(() => setShowProductSuggestions(false), 200)}
+                onKeyDown={(e) => {
+                  if (!showProductSuggestions || receiveProductResults.length === 0) return;
+                  if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    setHighlightedProductIndex((prev) => Math.min(prev + 1, receiveProductResults.length - 1));
+                  } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    setHighlightedProductIndex((prev) => Math.max(prev - 1, 0));
+                  } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const selected = receiveProductResults[highlightedProductIndex];
+                    if (selected) selectReceiveProduct(selected);
+                  } else if (e.key === 'Escape') {
+                    setShowProductSuggestions(false);
+                  }
+                }}
                 style={{ ...fieldStyle, width: '100%' }}
                 placeholder="Search product name or code..."
               />
               {showProductSuggestions && receiveProductResults.length > 0 && (
                 <div style={{ position: 'absolute', left: 0, right: 0, top: '100%', zIndex: 50, marginTop: 4, background: 'var(--card)', borderRadius: 10, border: '1px solid var(--border)', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', maxHeight: 240, overflowY: 'auto' }}>
-                  {receiveProductResults.map((p) => (
-                    <div key={p.id} onMouseDown={(e) => e.preventDefault()} onClick={() => selectReceiveProduct(p)} style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
+                  {receiveProductResults.map((p, idx) => (
+                    <div
+                      key={p.id}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => selectReceiveProduct(p)}
+                      onMouseEnter={() => setHighlightedProductIndex(idx)}
+                      ref={(el) => { if (idx === highlightedProductIndex && el) el.scrollIntoView({ block: 'nearest' }); }}
+                      style={{
+                        padding: '8px 12px',
+                        borderBottom: '1px solid var(--border)',
+                        cursor: 'pointer',
+                        background: idx === highlightedProductIndex ? 'var(--accent)' : 'transparent',
+                        color: idx === highlightedProductIndex ? 'var(--accent-foreground)' : 'inherit',
+                      }}
+                    >
                       <div style={{ fontWeight: 600, fontSize: 13 }}>{p.name}</div>
-                      <div style={{ color: 'var(--muted-foreground)', fontSize: 11 }}>{p.product_code}</div>
+                      <div style={{ fontSize: 11, opacity: 0.7 }}>{p.product_code}</div>
                     </div>
                   ))}
                 </div>
