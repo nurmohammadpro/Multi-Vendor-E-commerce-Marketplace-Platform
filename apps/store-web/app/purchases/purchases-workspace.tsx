@@ -97,6 +97,7 @@ export function PurchasesWorkspace() {
   const [receiveSaving, setReceiveSaving] = useState(false);
   const [receiveEntryMode, setReceiveEntryMode] = useState<'quick-scan' | 'batch-paste' | 'csv-upload'>('quick-scan');
   const [receiveQty, setReceiveQty] = useState('1');
+  const [receiveUnitCost, setReceiveUnitCost] = useState('');
 
   // Quick Add state
   const [showQuickAdd, setShowQuickAdd] = useState(false);
@@ -302,7 +303,14 @@ export function PurchasesWorkspace() {
 
     setReceiveSaving(true);
     try {
-      const body: Record<string, any> = { productId: receiveProductId, skuId: receiveSkuId || undefined, supplierId: receiveSupplierId, locationId: receiveLocationId, qty };
+      const body: Record<string, any> = {
+        productId: receiveProductId,
+        skuId: receiveSkuId || undefined,
+        supplierId: receiveSupplierId,
+        locationId: receiveLocationId,
+        qty,
+        unitCost: receiveUnitCost ? Number(receiveUnitCost) : undefined
+      };
       if (hasTracking) {
         body.trackingValuesList = receiveUnits.map((u) => u.values);
       }
@@ -333,6 +341,7 @@ export function PurchasesWorkspace() {
     setReceiveSkuId('');
     setReceiveSupplierId('');
     setReceiveQty('1');
+    setReceiveUnitCost('');
     setHighlightedProductIndex(0);
     setShowProductSuggestions(false);
   };
@@ -552,22 +561,21 @@ export function PurchasesWorkspace() {
               </div>
             )}
 
-            {/* Supplier, Location, Quantity in one line */}
-            <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : '2fr 2fr 1fr', gap: 8, alignItems: compact ? 'stretch' : 'end' }}>
+            {/* Supplier, Location, Quantity, Unit Cost in one line */}
+            <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : '2fr 2fr 1fr 1fr', gap: 8, alignItems: compact ? 'stretch' : 'end' }}>
               <SearchableSelect options={supplierOpts} value={receiveSupplierId} onChange={setReceiveSupplierId} placeholder="Supplier (required)" emptyMessage="No suppliers found" />
               <SearchableSelect options={locationOpts} value={receiveLocationId} onChange={setReceiveLocationId} placeholder="Location (required)" emptyMessage="No locations found" />
               {receiveProduct && (
-                <div>
-                  <label style={{ fontSize: 11, color: 'var(--muted-foreground)', marginBottom: 4, display: 'block' }}>Quantity to receive</label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <>
+                  <div>
+                    <label style={{ fontSize: 11, color: 'var(--muted-foreground)', marginBottom: 4, display: 'block' }}>Quantity</label>
                     <input type="number" min="1" max="100" value={receiveQty} onChange={(e) => setReceiveQty(e.target.value)} style={{ ...fieldStyle, width: '100%', fontSize: 12 }} placeholder="Qty" />
-                    {receiveProduct.trackingProfile && receiveProduct.trackingProfile.fields.length > 0 && (
-                      <span style={{ fontSize: 10, color: 'var(--muted-foreground)', whiteSpace: 'nowrap' }}>
-                        Tracking required
-                      </span>
-                    )}
                   </div>
-                </div>
+                  <div>
+                    <label style={{ fontSize: 11, color: 'var(--muted-foreground)', marginBottom: 4, display: 'block' }}>Unit Cost</label>
+                    <input type="number" min="0" step="0.01" value={receiveUnitCost} onChange={(e) => setReceiveUnitCost(e.target.value)} style={{ ...fieldStyle, width: '100%', fontSize: 12 }} placeholder="Cost" />
+                  </div>
+                </>
               )}
             </div>
           </article>
