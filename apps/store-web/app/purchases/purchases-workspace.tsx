@@ -28,6 +28,7 @@ import { loadWorkstationProfile } from '../../lib/workstation-profile';
 import { QuickScanTab } from './quick-scan-tab';
 import { BatchPasteTab } from './batch-paste-tab';
 import { CsvUploadTab } from './csv-upload-tab';
+import type { TrackingField } from './tracking-input';
 
 type Supplier = { id: string; company_name: string; contact_name?: string | null; phone?: string | null; opening_payable_amount?: string | number; current_payable_amount?: string | number };
 type Location = { id: string; code: string; name: string; location_type: string };
@@ -40,7 +41,7 @@ type ProductWithProfile = {
   name: string;
   product_code: string;
   category_id?: string;
-  trackingProfile?: { id: string; name: string; fields: Array<{ id: string; fieldKey: string; fieldLabel: string; fieldType: string; isRequired: boolean; isUnique: boolean; options?: string[] }> } | null;
+  trackingProfile?: { id: string; name: string; fields: TrackingField[] } | null;
   skus?: Array<{ id: string; sku_code: string; variant_label?: string; cost_price?: string | number; sale_price?: string | number }>;
 };
 type ReceiveUnit = {
