@@ -207,7 +207,7 @@ export function CatalogWorkspace({ canManageCatalog }: { canManageCatalog: boole
                     <td className="px-3 py-2 text-center">{product.sku_count}</td>
                     <td className="px-3 py-2 text-center">
                       <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${
-                        product.status === 'active' ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-600'
+                        product.status === 'active' ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'
                       }`}>
                         {product.status}
                       </span>

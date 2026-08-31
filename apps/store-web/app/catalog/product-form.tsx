@@ -287,7 +287,7 @@ export function ProductForm({
               type="checkbox"
               checked={form.isTrackable}
               onChange={(e) => setForm({ ...form, isTrackable: e.target.checked })}
-              className="size-4 rounded border-gray-300"
+              className="size-4 rounded border-input"
             />
             Trackable (serialized inventory)
           </label>

@@ -113,7 +113,7 @@ export function ProductDetail({
           <div>
             <div className="text-muted-foreground text-xs">Status</div>
             <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${
-              product.status === 'active' ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-600'
+              product.status === 'active' ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'
             }`}>
               {product.status}
             </span>
@@ -136,7 +136,7 @@ export function ProductDetail({
         <div className="rounded-md border bg-card p-4">
           <h3 className="text-sm font-medium mb-3">Tracking Profile</h3>
           <div className="mb-2">
-            <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
+            <span className="inline-flex items-center rounded-md bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent">
               {trackingProfile.name}
             </span>
           </div>
@@ -206,7 +206,7 @@ export function ProductDetail({
                     <td className="px-2 py-1.5 text-center text-xs">{sku.on_hand_qty ?? 0}</td>
                     <td className="px-2 py-1.5 text-center">
                       <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-xs ${
-                        sku.status === 'active' ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-600'
+                        sku.status === 'active' ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'
                       }`}>
                         {sku.status}
                       </span>
