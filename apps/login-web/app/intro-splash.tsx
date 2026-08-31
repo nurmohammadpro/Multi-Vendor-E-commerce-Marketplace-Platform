@@ -26,11 +26,11 @@ export function IntroSplash({ onComplete }: { onComplete?: () => void }) {
       <div className="intro-splash__card">
         <img
           src="/merchflow-logo.svg"
-          alt="Merch Flow logo"
+          alt="Merchant Flow logo"
           className="intro-splash__logo"
         />
         <div className="intro-splash__text">
-          <span className="intro-splash__eyebrow">Merch Flow</span>
+          <span className="intro-splash__eyebrow">Merchant Flow</span>
           <span className="intro-splash__title">A Complete Business Solution</span>
         </div>
       </div>

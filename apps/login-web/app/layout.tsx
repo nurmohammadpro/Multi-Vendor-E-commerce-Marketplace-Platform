@@ -4,7 +4,7 @@ import { ThemeProvider } from '@mvp/theme';
 import './globals.css';
 
 export const metadata = {
-  title: 'Merch Flow',
+  title: 'Merchant Flow',
   description: 'Multi-Vendor Platform — Login',
   icons: {
     icon: [{ url: '/favicon.png', sizes: '32x32', type: 'image/png' }],
