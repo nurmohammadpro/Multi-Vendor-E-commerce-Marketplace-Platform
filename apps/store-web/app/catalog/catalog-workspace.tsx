@@ -154,8 +154,8 @@ export function CatalogWorkspace({ canManageCatalog }: { canManageCatalog: boole
 
       {/* Filters */}
       <article style={surfaceCardStyle}>
-        <div style={searchRowStyle}>
-          <div style={{ position: 'relative', flex: 1 }}>
+        <div style={{ ...searchRowStyle, gap: 6 }}>
+          <div style={{ position: 'relative', flex: 3, minWidth: 0 }}>
             <Search style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', width: 14, height: 14, color: 'var(--muted-foreground)' }} />
             <input
               type="text"
@@ -163,13 +163,13 @@ export function CatalogWorkspace({ canManageCatalog }: { canManageCatalog: boole
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-              style={{ ...fieldStyle, flex: 1, width: 'auto', paddingLeft: 28 }}
+              style={{ ...fieldStyle, width: '100%', paddingLeft: 28 }}
             />
           </div>
           <select
             value={statusFilter}
             onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-            style={fieldStyle}
+            style={{ ...fieldStyle, flex: 1, minWidth: 100, maxWidth: 130 }}
           >
             <option value="">All Status</option>
             <option value="active">Active</option>
