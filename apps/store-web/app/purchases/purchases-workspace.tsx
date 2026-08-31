@@ -20,7 +20,7 @@ import {
   tokenMutedStyle,
 } from '../merchflow-theme';
 import { ListPager, type PaginationState, totalPagesFor } from '../list-pager';
-import { searchRowStyle, stackedFilterGridStyle, useCompactLayout } from '../workspace-responsive';
+import { useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
 import { toast } from 'sonner';
 import { SearchableSelect } from '@/components/searchable-select';
 import { printProductLabelBatch } from '../../lib/print-agent';
@@ -70,7 +70,7 @@ async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
 
 export function PurchasesWorkspace() {
   const compact = useCompactLayout();
-  const [activeTab, setActiveTab] = useState<'purchases' | 'suppliers' | 'payables'>('purchases');
+  const [activeTab, setActiveTab] = useState('purchases');
   const [message, setMessage] = useState('Purchases & stock management.');
   const [loading, setLoading] = useState(false);
 
@@ -396,59 +396,15 @@ export function PurchasesWorkspace() {
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
       {/* ── Tab Navigation ── */}
-      <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border)', paddingBottom: 0 }}>
-        <button
-          onClick={() => setActiveTab('purchases')}
-          style={{
-            ...secondaryButtonStyle,
-            borderBottom: activeTab === 'purchases' ? '2px solid var(--primary)' : '2px solid transparent',
-            borderRadius: '8px 8px 0 0',
-            marginBottom: -1,
-            fontSize: 12,
-            padding: '8px 16px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-          }}
-        >
-          <Truck style={{ width: 14, height: 14 }} />
-          Purchases & Receive
-        </button>
-        <button
-          onClick={() => setActiveTab('suppliers')}
-          style={{
-            ...secondaryButtonStyle,
-            borderBottom: activeTab === 'suppliers' ? '2px solid var(--primary)' : '2px solid transparent',
-            borderRadius: '8px 8px 0 0',
-            marginBottom: -1,
-            fontSize: 12,
-            padding: '8px 16px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-          }}
-        >
-          <Users style={{ width: 14, height: 14 }} />
-          Supplier Management
-        </button>
-        <button
-          onClick={() => setActiveTab('payables')}
-          style={{
-            ...secondaryButtonStyle,
-            borderBottom: activeTab === 'payables' ? '2px solid var(--primary)' : '2px solid transparent',
-            borderRadius: '8px 8px 0 0',
-            marginBottom: -1,
-            fontSize: 12,
-            padding: '8px 16px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-          }}
-        >
-          <FileText style={{ width: 14, height: 14 }} />
-          Payables & Ledger
-        </button>
-      </div>
+      <WorkspaceTabs
+        active={activeTab}
+        onChange={setActiveTab}
+        tabs={[
+          { key: 'purchases', label: 'Purchases & Receive' },
+          { key: 'suppliers', label: 'Supplier Management' },
+          { key: 'payables', label: 'Payables & Ledger' },
+        ]}
+      />
 
       {/* ── Tab Content ── */}
       {activeTab === 'purchases' && (
