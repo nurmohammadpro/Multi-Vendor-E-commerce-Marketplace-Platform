@@ -174,21 +174,6 @@ function AppSidebar({
   return (
     <Sidebar collapsible="icon" variant="sidebar" className="bg-sidebar border-r border-sidebar-border">
       <SidebarHeader>
-        <div className="flex items-center justify-between gap-1.5 px-1.5 py-1.5">
-          <div className="flex items-center gap-1.5">
-            <div className="flex items-center justify-center size-8 rounded-md bg-card text-primary border p-1">
-              <img
-                src="/merchflow-logo.svg"
-                alt="Merch Flow logo"
-                className="h-full w-full object-contain"
-              />
-            </div>
-            <div className="flex flex-col group-data-[collapsible=icon]:hidden">
-              <span className="font-semibold text-sm leading-tight">{title}</span>
-              <span className="text-[10px] text-muted-foreground">{badge}</span>
-            </div>
-          </div>
-        </div>
         <div className="px-2 pb-2 group-data-[collapsible=icon]:hidden">
           <div className="rounded-md border bg-muted/40 px-2.5 py-2 text-[11px] text-muted-foreground">
             <div className="font-medium text-foreground">{access.planName} plan</div>
