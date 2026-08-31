@@ -38,7 +38,7 @@ export function BatchPasteTab({
         onChange={(e) => setText(e.target.value)}
         rows={6}
         placeholder={`IMEI or serial per line...\n\nExample:\n123456789012345\n987654321098765`}
-        className="w-full rounded-md border bg-transparent px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+        className="w-full rounded-md border bg-transparent px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus-visible:border-ring outline-none"
       />
       <div className="flex items-center gap-2">
         <button

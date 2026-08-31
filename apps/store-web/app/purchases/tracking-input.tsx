@@ -38,7 +38,7 @@ export function TrackingInput({
             value={values[field.fieldKey] || ''}
             onChange={(e) => onChange(field.fieldKey, e.target.value)}
             placeholder={field.fieldLabel}
-            className={`h-8 w-full rounded-md border bg-transparent px-2.5 text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] ${
+            className={`h-8 w-full rounded-md border bg-transparent px-2.5 text-sm focus-visible:border-ring outline-none ${
               errors?.[field.fieldKey] ? 'border-destructive' : ''
             }`}
           />

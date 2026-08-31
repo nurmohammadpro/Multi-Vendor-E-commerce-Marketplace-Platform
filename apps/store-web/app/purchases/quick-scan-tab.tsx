@@ -50,7 +50,7 @@ export function QuickScanTab({
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleScan()}
           placeholder="Scan or paste barcode / IMEI / serial..."
-          className="h-9 flex-1 rounded-md border bg-transparent px-3 text-sm font-mono focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+          className="h-9 flex-1 rounded-md border bg-transparent px-3 text-sm font-mono focus-visible:border-ring outline-none"
           autoFocus
         />
         <button

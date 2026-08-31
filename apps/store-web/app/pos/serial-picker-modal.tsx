@@ -110,7 +110,7 @@ export function SerialPickerModal({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by serial, IMEI..."
-              className="h-8 w-full rounded-md border bg-transparent pl-8 pr-3 text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+              className="h-8 w-full rounded-md border bg-transparent pl-8 pr-3 text-sm focus-visible:border-ring outline-none"
               autoFocus
             />
           </div>
