@@ -572,11 +572,20 @@ export function PurchasesWorkspace() {
             </div>
           </article>
 
-          {/* Tracking Input */}
+          {/* Tracking & Units - merged section */}
           {receiveProduct?.trackingProfile && receiveProduct.trackingProfile.fields.length > 0 && (
             <article style={surfaceCardStyle}>
-              <h3 style={{ marginTop: 0, marginBottom: 4, fontSize: 14 }}>Tracking Information</h3>
-              <p style={{ margin: '0 0 10px', color: 'var(--muted-foreground)', fontSize: 11 }}>Enter tracking values for each unit. Fields marked with * are required.</p>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <div>
+                  <h3 style={{ margin: 0, marginBottom: 4, fontSize: 14 }}>Tracking Information & Units</h3>
+                  <p style={{ margin: 0, color: 'var(--muted-foreground)', fontSize: 11 }}>Enter tracking values for each unit. Fields marked with * are required.</p>
+                </div>
+                {receiveUnits.length > 0 && (
+                  <button onClick={() => setReceiveUnits([])} style={{ ...subtleButtonStyle, fontSize: 11 }}>Clear All</button>
+                )}
+              </div>
+
+              {/* Entry mode tabs */}
               <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
                 {(['quick-scan', 'batch-paste', 'csv-upload'] as const).map((mode) => (
                   <button key={mode} onClick={() => setReceiveEntryMode(mode)} style={{ padding: '5px 10px', fontSize: 11, fontWeight: 500, borderRadius: 6, border: 'none', cursor: 'pointer', background: receiveEntryMode === mode ? 'var(--primary)' : 'var(--muted)', color: receiveEntryMode === mode ? 'var(--primary-foreground)' : 'var(--muted-foreground)' }}>
@@ -584,45 +593,46 @@ export function PurchasesWorkspace() {
                   </button>
                 ))}
               </div>
+
+              {/* Entry input area */}
               {receiveEntryMode === 'quick-scan' && <QuickScanTab fields={receiveProduct.trackingProfile.fields} onAddUnit={addTrackingUnit} />}
               {receiveEntryMode === 'batch-paste' && <BatchPasteTab fields={receiveProduct.trackingProfile.fields} onAddUnits={addTrackingUnits} />}
               {receiveEntryMode === 'csv-upload' && <CsvUploadTab fields={receiveProduct.trackingProfile.fields} onAddUnits={addTrackingUnits} />}
-            </article>
-          )}
 
-          {/* Units List */}
-          {receiveUnits.length > 0 && (
-            <article style={surfaceCardStyle}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <h3 style={{ margin: 0, fontSize: 14 }}>Units to Receive ({receiveUnits.length})</h3>
-                <button onClick={() => setReceiveUnits([])} style={{ ...subtleButtonStyle, fontSize: 11 }}>Clear All</button>
-              </div>
-              <div style={tableWrapStyle}>
-                <table style={tableStyle}>
-                  <thead>
-                    <tr>
-                      <th style={{ ...tableHeaderCellStyle, width: 36 }}>#</th>
-                      {(receiveProduct?.trackingProfile?.fields || []).map((f) => <th key={f.id} style={tableHeaderCellStyle}>{f.fieldLabel}</th>)}
-                      <th style={{ ...tableHeaderCellStyle, width: 36 }}></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {receiveUnits.map((unit, idx) => (
-                      <tr key={unit.id}>
-                        <td style={tableCellStyle}>{idx + 1}</td>
-                        {(receiveProduct?.trackingProfile?.fields || []).map((f) => (
-                          <td key={f.id} style={tableCellStyle}>
-                            <input value={unit.values[f.fieldKey] || ''} onChange={(e) => updateUnitField(unit.id, f.fieldKey, e.target.value)} style={{ ...fieldStyle, fontSize: 12, borderColor: unit.errors[f.fieldKey] ? 'var(--destructive)' : undefined }} placeholder={f.fieldLabel} />
-                            {unit.errors[f.fieldKey] && <div style={{ fontSize: 10, color: 'var(--destructive)', marginTop: 2 }}>{unit.errors[f.fieldKey]}</div>}
-                          </td>
+              {/* Units table */}
+              {receiveUnits.length > 0 && (
+                <>
+                  <h4 style={{ margin: '10px 0 6px', fontSize: 13, fontWeight: 600 }}>Units to Receive ({receiveUnits.length})</h4>
+                  <div style={tableWrapStyle}>
+                    <table style={tableStyle}>
+                      <thead>
+                        <tr>
+                          <th style={{ ...tableHeaderCellStyle, width: 36 }}>#</th>
+                          {(receiveProduct?.trackingProfile?.fields || []).map((f) => <th key={f.id} style={tableHeaderCellStyle}>{f.fieldLabel}</th>)}
+                          <th style={{ ...tableHeaderCellStyle, width: 36 }}></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {receiveUnits.map((unit, idx) => (
+                          <tr key={unit.id}>
+                            <td style={tableCellStyle}>{idx + 1}</td>
+                            {(receiveProduct?.trackingProfile?.fields || []).map((f) => (
+                              <td key={f.id} style={tableCellStyle}>
+                                <input value={unit.values[f.fieldKey] || ''} onChange={(e) => updateUnitField(unit.id, f.fieldKey, e.target.value)} style={{ ...fieldStyle, fontSize: 12, borderColor: unit.errors[f.fieldKey] ? 'var(--destructive)' : undefined }} placeholder={f.fieldLabel} />
+                                {unit.errors[f.fieldKey] && <div style={{ fontSize: 10, color: 'var(--destructive)', marginTop: 2 }}>{unit.errors[f.fieldKey]}</div>}
+                              </td>
+                            ))}
+                            <td style={tableCellStyle}><button onClick={() => removeUnit(unit.id)} style={{ ...subtleButtonStyle, color: 'var(--destructive)', fontSize: 11, padding: '2px 6px' }}>✕</button></td>
+                          </tr>
                         ))}
-                        <td style={tableCellStyle}><button onClick={() => removeUnit(unit.id)} style={{ ...subtleButtonStyle, color: 'var(--destructive)', fontSize: 11, padding: '2px 6px' }}>✕</button></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+
+              {/* Receive button */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10, paddingTop: 10, borderTop: receiveUnits.length > 0 ? '1px solid var(--border)' : 'none' }}>
                 <button onClick={receiveStock} style={{ ...gray800ButtonStyle, minWidth: 180, minHeight: 36 }} disabled={receiveSaving || !receiveProductId || !receiveSupplierId || !receiveLocationId}>
                   {receiveSaving ? 'Saving...' : (() => {
                     const hasTracking = receiveProduct?.trackingProfile && receiveProduct.trackingProfile.fields.length > 0;
@@ -682,6 +692,20 @@ export function PurchasesWorkspace() {
           <button onClick={quickAddSubmit} style={{ ...gray800ButtonStyle, fontSize: 12, padding: '6px 14px', minHeight: 'auto' }} disabled={quickSaving || !quickName.trim()}>
             {quickSaving ? 'Saving...' : `Create & Receive (${quickQty} item${Number(quickQty) > 1 ? 's' : ''})`}
           </button>
+        </article>
+      )}
+
+      {/* ═══════════════ Non-Tracked Product Receive Button ═══════════════ */}
+      {receiveProduct && (!receiveProduct.trackingProfile || receiveProduct.trackingProfile.fields.length === 0) && (
+        <article style={surfaceCardStyle}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>
+              Ready to receive {Number(receiveQty) || 1} unit(s)
+            </span>
+            <button onClick={receiveStock} style={{ ...gray800ButtonStyle, minWidth: 180, minHeight: 36 }} disabled={receiveSaving || !receiveProductId || !receiveSupplierId || !receiveLocationId}>
+              {receiveSaving ? 'Saving...' : `Receive ${Number(receiveQty) || 1} Unit(s) into Stock`}
+            </button>
+          </div>
         </article>
       )}
 
