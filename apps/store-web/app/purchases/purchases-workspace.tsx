@@ -595,8 +595,11 @@ export function PurchasesWorkspace() {
             <input value={purchaseSearch} onChange={(e) => setPurchaseSearch(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void refresh(1)} style={{ ...fieldStyle, fontSize: 12, width: 200 }} placeholder="Search purchase no, supplier..." />
             <select value={purchaseStatus} onChange={(e) => setPurchaseStatus(e.target.value)} style={{ ...fieldStyle, fontSize: 12, width: 120 }}>
               <option value="">All Status</option>
-              <option value="received">Received</option>
               <option value="draft">Draft</option>
+              <option value="confirmed">Confirmed</option>
+              <option value="partially_received">Partially Received</option>
+              <option value="fully_received">Fully Received</option>
+              <option value="received">Received (Legacy)</option>
               <option value="cancelled">Cancelled</option>
             </select>
             <button onClick={() => { setPurchasePage(1); void refresh(1); }} style={{ ...searchButtonStyle, fontSize: 11, padding: '5px 10px', minHeight: 'auto' }} disabled={loading}>Search</button>

@@ -55,7 +55,8 @@ const createPurchaseSchema = z.object({
   paidAmount: z.number().nonnegative().default(0),
   paymentReferenceNo: z.string().max(100).optional(),
   paymentNote: z.string().max(500).optional(),
-  items: z.array(purchaseItemSchema).min(1),
+  status: z.enum(['draft', 'confirmed', 'partially_received', 'fully_received', 'received']).default('confirmed'),
+  items: z.array(purchaseItemSchema).min(0), // Allow empty for drafts
 });
 
 const purchasePaymentSchema = z.object({
@@ -63,6 +64,15 @@ const purchasePaymentSchema = z.object({
   paymentMethod: z.enum(['cash', 'card', 'mfs', 'bank_transfer']),
   referenceNo: z.string().max(100).optional(),
   note: z.string().max(500).optional(),
+});
+
+const purchaseUpdateSchema = z.object({
+  status: z.enum(['draft', 'confirmed', 'partially_received', 'fully_received', 'received', 'cancelled']).optional(),
+  invoiceNo: z.string().max(100).optional(),
+  discountAmount: z.number().nonnegative().optional(),
+  taxAmount: z.number().nonnegative().optional(),
+  shippingAmount: z.number().nonnegative().optional(),
+  note: z.string().max(1000).optional(),
 });
 
 const expenseSchema = z.object({
@@ -76,6 +86,17 @@ const expenseSchema = z.object({
 });
 
 const expenseUpdateSchema = expenseSchema.partial();
+
+// ── Receive Report: summary of received quantities by product/supplier ──
+
+const receiveReportSchema = z.object({
+  fromDate: z.string().date().optional(),
+  toDate: z.string().date().optional(),
+  productId: z.string().uuid().optional(),
+  supplierId: z.string().uuid().optional(),
+  locationId: z.string().uuid().optional(),
+  groupBy: z.enum(['product', 'supplier', 'location', 'date']).default('product'),
+});
 
 const returnDecisionSchema = z.object({
   decisionNote: z.string().max(500).optional(),
@@ -210,7 +231,16 @@ const receiveWithTrackingSchema = z.object({
   skuId: z.string().uuid().optional(),
   supplierId: z.string().uuid(),
   locationId: z.string().uuid(),
+  unitCost: z.number().nonnegative().optional(),
+  batchNo: z.string().max(120).optional(),
+  expiryDate: z.string().date().optional(),
   trackingValuesList: z.array(z.record(z.string(), z.string())).min(1),
+});
+
+// ── Bulk Receive: receive multiple products in a single transaction ──
+
+const bulkReceiveSchema = z.object({
+  items: z.array(receiveWithTrackingSchema).min(1).max(50),
 });
 
 // ── Quick Exchange: create exchange/trade-in product ──
@@ -418,6 +448,29 @@ export class StoreOpsController {
     });
   }
 
+  @Get('purchases/receive-summary')
+  @RequireContext('store')
+  @RequirePermissions('sales.report.view')
+  getReceiveSummary(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @Query('fromDate') fromDate?: string,
+    @Query('toDate') toDate?: string,
+    @Query('productId') productId?: string,
+    @Query('supplierId') supplierId?: string,
+    @Query('locationId') locationId?: string,
+    @Query('groupBy') groupBy?: string,
+  ) {
+    return this.storeOpsService.getReceiveSummary(headerStoreId, authContext, {
+      fromDate,
+      toDate,
+      productId,
+      supplierId,
+      locationId,
+      groupBy: (groupBy as 'product' | 'supplier' | 'location' | 'date') || 'product',
+    });
+  }
+
   @Get('purchases/:purchaseId')
   @RequireContext('store')
   @RequirePermissions('sales.report.view')
@@ -427,6 +480,18 @@ export class StoreOpsController {
     @CurrentAuthContext() authContext: StoreAuthContext | null,
   ) {
     return this.storeOpsService.getPurchase(purchaseId, headerStoreId, authContext);
+  }
+
+  @Patch('purchases/:purchaseId')
+  @RequireContext('store')
+  @RequirePermissions('procurement.manage')
+  updatePurchase(
+    @Param('purchaseId') purchaseId: string,
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @Body() payload: unknown,
+  ) {
+    return this.storeOpsService.updatePurchase(purchaseId, headerStoreId, authContext, purchaseUpdateSchema.parse(payload));
   }
 
   @Post('quick-receive')
@@ -451,6 +516,18 @@ export class StoreOpsController {
     @Body() payload: unknown,
   ) {
     return this.storeOpsService.receiveWithTracking(headerStoreId, authContext, session, receiveWithTrackingSchema.parse(payload));
+  }
+
+  @Post('purchases/receive-bulk')
+  @RequireContext('store')
+  @RequirePermissions('procurement.manage')
+  receiveBulk(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @CurrentAuthSession() session: AuthSession | null,
+    @Body() payload: unknown,
+  ) {
+    return this.storeOpsService.receiveBulk(headerStoreId, authContext, session, bulkReceiveSchema.parse(payload));
   }
 
   @Post('quick-exchange')

@@ -1,4 +1,4 @@
-import { ForbiddenException, Inject, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Inject, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import type { Pool, PoolClient } from 'pg';
 
 import type { AuthSession, StoreAuthContext } from '../auth/auth.types.js';
@@ -773,6 +773,140 @@ export class StoreOpsService {
     return { purchases: items, pagination: { page, limit, total } };
   }
 
+  async getReceiveSummary(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    params: {
+      fromDate?: string;
+      toDate?: string;
+      productId?: string;
+      supplierId?: string;
+      locationId?: string;
+      groupBy?: 'product' | 'supplier' | 'location' | 'date';
+    },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+
+    // Build date filters
+    const dateConditions: string[] = [];
+    const queryParams: any[] = [storeId];
+    let paramIndex = 2;
+
+    if (params.fromDate) {
+      dateConditions.push(`p.purchase_date >= $${paramIndex++}::date`);
+      queryParams.push(params.fromDate);
+    }
+    if (params.toDate) {
+      dateConditions.push(`p.purchase_date <= $${paramIndex++}::date`);
+      queryParams.push(params.toDate);
+    }
+
+    const dateFilter = dateConditions.length > 0 ? `and ${dateConditions.join(' and ')}` : '';
+
+    // Build additional filters
+    const filters: string[] = [];
+    if (params.productId) {
+      filters.push(`pi.sku_id in (select id from catalog.skus where product_id = $${paramIndex++})`);
+      queryParams.push(params.productId);
+    }
+    if (params.supplierId) {
+      filters.push(`p.supplier_id = $${paramIndex++}`);
+      queryParams.push(params.supplierId);
+    }
+    if (params.locationId) {
+      filters.push(`p.location_id = $${paramIndex++}`);
+      queryParams.push(params.locationId);
+    }
+
+    const additionalFilters = filters.length > 0 ? `and ${filters.join(' and ')}` : '';
+
+    // Build group by clause
+    let groupByClause: string;
+    let selectFields: string;
+
+    switch (params.groupBy) {
+      case 'product':
+        groupByClause = 'group by p.id, pi.product_name_snapshot, pi.sku_code_snapshot';
+        selectFields = `
+          pi.product_name_snapshot as product_name,
+          pi.sku_code_snapshot as sku_code,
+          coalesce(sum(pi.qty), 0) as total_quantity,
+          coalesce(sum(pi.line_total), 0) as total_value,
+          count(distinct p.id) as purchase_count
+        `;
+        break;
+      case 'supplier':
+        groupByClause = 'group by s.id, s.company_name';
+        selectFields = `
+          s.id as supplier_id,
+          s.company_name as supplier_name,
+          coalesce(sum(pi.qty), 0) as total_quantity,
+          coalesce(sum(pi.line_total), 0) as total_value,
+          count(distinct p.id) as purchase_count
+        `;
+        break;
+      case 'location':
+        groupByClause = 'group by l.id, l.name, l.code';
+        selectFields = `
+          l.id as location_id,
+          l.name as location_name,
+          l.code as location_code,
+          coalesce(sum(pi.qty), 0) as total_quantity,
+          coalesce(sum(pi.line_total), 0) as total_value,
+          count(distinct p.id) as purchase_count
+        `;
+        break;
+      case 'date':
+        groupByClause = 'group by p.purchase_date';
+        selectFields = `
+          p.purchase_date as receive_date,
+          coalesce(sum(pi.qty), 0) as total_quantity,
+          coalesce(sum(pi.line_total), 0) as total_value,
+          count(distinct p.id) as purchase_count
+        `;
+        break;
+      default:
+        groupByClause = 'group by p.id, pi.product_name_snapshot, pi.sku_code_snapshot';
+        selectFields = `
+          pi.product_name_snapshot as product_name,
+          pi.sku_code_snapshot as sku_code,
+          coalesce(sum(pi.qty), 0) as total_quantity,
+          coalesce(sum(pi.line_total), 0) as total_value,
+          count(distinct p.id) as purchase_count
+        `;
+    }
+
+    const query = `
+      select
+        ${selectFields}
+      from procurement.purchases p
+      left join procurement.purchase_items pi on pi.purchase_id = p.id
+      left join procurement.suppliers s on s.id = p.supplier_id
+      left join inventory.locations l on l.id = p.location_id
+      where p.store_id = $1
+        and (p.status = 'received' or p.status = 'partially_received' or p.status = 'fully_received')
+        ${dateFilter}
+        ${additionalFilters}
+      ${groupByClause}
+      order by total_quantity desc
+    `;
+
+    const result = await this.pool.query(query, queryParams);
+
+    return {
+      groupBy: params.groupBy || 'product',
+      filters: {
+        fromDate: params.fromDate || null,
+        toDate: params.toDate || null,
+        productId: params.productId || null,
+        supplierId: params.supplierId || null,
+        locationId: params.locationId || null,
+      },
+      summary: result.rows,
+      totalRecords: result.rows.length,
+    };
+  }
+
   async getPurchase(purchaseId: string, headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
     this.assertAllowedRoles(authContext, ['store_owner', 'store_manager']);
@@ -839,6 +973,7 @@ export class StoreOpsService {
       paidAmount: number;
       paymentReferenceNo?: string;
       paymentNote?: string;
+      status?: 'draft' | 'confirmed' | 'partially_received' | 'fully_received' | 'received';
       items: Array<{ skuId: string; qty: number; unitCost: number; batchNo?: string; expiryDate?: string }>;
     },
   ) {
@@ -847,12 +982,45 @@ export class StoreOpsService {
     const userId = this.requireUserId(session);
     const locationId = payload.locationId ?? await this.getDefaultInventoryLocationId(storeId);
     const purchaseNo = await this.generatePurchaseNumber(storeId, payload.purchaseDate);
+    const purchaseStatus = payload.status ?? 'confirmed';
 
     const supplierExists = await this.pool.query<{ id: string }>(
       `select id from procurement.suppliers where id = $1 and store_id = $2 limit 1`,
       [payload.supplierId, storeId],
     );
     if (!supplierExists.rows[0]) throw new NotFoundException('Supplier not found');
+
+    // For draft purchases, skip SKU validation and allow empty items
+    const skuMap = new Map<string, { id: string; sku_code: string; product_name: string; variant_label: string | null }>();
+    if (payload.items.length > 0) {
+      const skuResult = await this.pool.query<{
+        id: string;
+        sku_code: string;
+        product_name: string;
+        variant_label: string | null;
+      }>(
+        `
+          select
+            s.id,
+            s.sku_code,
+            p.name as product_name,
+            s.variant_label
+          from catalog.skus s
+          join catalog.products p on p.id = s.product_id
+          where p.store_id = $1
+            and s.id = any($2::uuid[])
+        `,
+        [storeId, payload.items.map((item) => item.skuId)],
+      );
+
+      if (skuResult.rows.length !== payload.items.length) {
+        throw new NotFoundException('One or more SKUs were not found for this store');
+      }
+
+      for (const row of skuResult.rows) {
+        skuMap.set(row.id, row);
+      }
+    }
 
     const skuResult = await this.pool.query<{
       id: string;
@@ -878,8 +1046,10 @@ export class StoreOpsService {
       throw new NotFoundException('One or more SKUs were not found for this store');
     }
 
-    const skuMap = new Map(skuResult.rows.map((row) => [row.id, row]));
-    const subtotalAmount = payload.items.reduce((sum, item) => sum + item.qty * item.unitCost, 0);
+    // Calculate totals (skip for empty draft purchases)
+    const subtotalAmount = payload.items.length > 0
+      ? payload.items.reduce((sum, item) => sum + item.qty * item.unitCost, 0)
+      : 0;
     const totalAmount = subtotalAmount - payload.discountAmount + payload.taxAmount + payload.shippingAmount;
     const paidAmount = Math.min(payload.paidAmount, totalAmount);
     const paymentStatus = paidAmount <= 0 ? 'pending' : paidAmount >= totalAmount ? 'paid' : 'partial';
@@ -893,7 +1063,8 @@ export class StoreOpsService {
           insert into procurement.purchases (
             id, tenant_id, store_id, supplier_id, location_id, purchase_no, purchase_date, invoice_no,
             subtotal_amount, discount_amount, tax_amount, shipping_amount, total_amount, paid_amount,
-            payment_status, status, note, created_by, received_at, created_at, updated_at
+            payment_status, status, note, created_by, received_at, created_at, updated_at,
+            received_items_qty, total_items_qty
           )
           select
             gen_random_uuid(),
@@ -901,7 +1072,11 @@ export class StoreOpsService {
             s.id,
             $2, $3, $4, $5, $6,
             $7, $8, $9, $10, $11, $12,
-            $13, 'received', $14, $15, now(), now(), now()
+            $13, $14, $15, $16,
+            case when $14 = 'received' then now() else null end,
+            now(), now(),
+            case when $14 = 'received' then $17 else 0 end,
+            $17
           from store.stores s
           where s.id = $1
           returning id
@@ -920,94 +1095,273 @@ export class StoreOpsService {
           totalAmount,
           paidAmount,
           paymentStatus,
+          purchaseStatus,
           payload.note ?? null,
           userId,
+          payload.items.length,
         ],
       );
 
       const purchaseId = purchaseResult.rows[0].id;
 
-      for (const item of payload.items) {
-        const sku = skuMap.get(item.skuId);
-        if (!sku) continue;
-        const lineTotal = item.qty * item.unitCost;
+      // Only process items if not a draft purchase
+      if (purchaseStatus !== 'draft' && payload.items.length > 0) {
+        for (const item of payload.items) {
+          const sku = skuMap.get(item.skuId);
+          if (!sku) continue;
+          const lineTotal = item.qty * item.unitCost;
 
-        await client.query(
-          `
-            insert into procurement.purchase_items (
-              id, purchase_id, sku_id, product_name_snapshot, sku_code_snapshot, variant_label_snapshot, qty, unit_cost, line_total, batch_no, expiry_date, created_at
-            )
-            values (
-              gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now()
-            )
-          `,
-          [
-            purchaseId,
-            item.skuId,
-            sku.product_name,
-            sku.sku_code,
-            sku.variant_label,
-            item.qty,
-            item.unitCost,
-            lineTotal,
-            item.batchNo?.trim() || null,
-            item.expiryDate ?? null,
-          ],
-        );
+          await client.query(
+            `
+              insert into procurement.purchase_items (
+                id, purchase_id, sku_id, product_name_snapshot, sku_code_snapshot, variant_label_snapshot, qty, unit_cost, line_total, batch_no, expiry_date, created_at
+              )
+              values (
+                gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now()
+              )
+            `,
+            [
+              purchaseId,
+              item.skuId,
+              sku.product_name,
+              sku.sku_code,
+              sku.variant_label,
+              item.qty,
+              item.unitCost,
+              lineTotal,
+              item.batchNo?.trim() || null,
+              item.expiryDate ?? null,
+            ],
+          );
 
-        await client.query(
-          `
-            insert into inventory.balances (
-              id, tenant_id, store_id, location_id, sku_id, on_hand_qty, reserved_qty, damaged_qty, returned_qty, updated_at
-            )
-            select
-              gen_random_uuid(),
-              s.tenant_id,
-              s.id,
-              $2, $3, $4, 0, 0, 0, now()
-            from store.stores s
-            where s.id = $1
-            on conflict (location_id, sku_id)
-            do update set
-              on_hand_qty = inventory.balances.on_hand_qty + excluded.on_hand_qty,
-              updated_at = now()
-          `,
-          [storeId, locationId, item.skuId, item.qty],
-        );
+          await client.query(
+            `
+              insert into inventory.balances (
+                id, tenant_id, store_id, location_id, sku_id, on_hand_qty, reserved_qty, damaged_qty, returned_qty, updated_at
+              )
+              select
+                gen_random_uuid(),
+                s.tenant_id,
+                s.id,
+                $2, $3, $4, 0, 0, 0, now()
+              from store.stores s
+              where s.id = $1
+              on conflict (location_id, sku_id)
+              do update set
+                on_hand_qty = inventory.balances.on_hand_qty + excluded.on_hand_qty,
+                updated_at = now()
+            `,
+            [storeId, locationId, item.skuId, item.qty],
+          );
 
-        await client.query(
-          `
-            insert into inventory.ledger (
-              id, tenant_id, store_id, location_id, sku_id, movement_type, qty_delta, reference_type, reference_id, note, actor_id, created_at
-            )
-            select
-              gen_random_uuid(),
-              s.tenant_id,
-              s.id,
-              $2, $3, 'purchase_receive', $4, 'purchase', $5, $6, $7, now()
-            from store.stores s
-            where s.id = $1
-          `,
-          [storeId, locationId, item.skuId, item.qty, purchaseId, `Purchase receive ${purchaseNo}`, userId],
-        );
+          await client.query(
+            `
+              insert into inventory.ledger (
+                id, tenant_id, store_id, location_id, sku_id, movement_type, qty_delta, reference_type, reference_id, note, actor_id, created_at
+              )
+              select
+                gen_random_uuid(),
+                s.tenant_id,
+                s.id,
+                $2, $3, 'purchase_receive', $4, 'purchase', $5, $6, $7, now()
+              from store.stores s
+              where s.id = $1
+            `,
+            [storeId, locationId, item.skuId, item.qty, purchaseId, `Purchase receive ${purchaseNo}`, userId],
+          );
+        }
+
+        if (paidAmount > 0) {
+          await client.query(
+            `
+              insert into procurement.purchase_payments (
+                id, purchase_id, payment_method, amount, reference_no, status, note, paid_at, created_by, created_at
+              )
+              values (
+                gen_random_uuid(), $1, $2, $3, $4, 'paid', $5, now(), $6, now()
+              )
+            `,
+            [purchaseId, payload.paymentMethod ?? 'cash', paidAmount, payload.paymentReferenceNo ?? null, payload.paymentNote ?? null, userId],
+          );
+        }
+      } else if (payload.items.length > 0) {
+        // For draft purchases, still create the purchase items but don't update inventory
+        for (const item of payload.items) {
+          const sku = skuMap.get(item.skuId);
+          if (!sku) continue;
+          const lineTotal = item.qty * item.unitCost;
+
+          await client.query(
+            `
+              insert into procurement.purchase_items (
+                id, purchase_id, sku_id, product_name_snapshot, sku_code_snapshot, variant_label_snapshot, qty, unit_cost, line_total, batch_no, expiry_date, created_at
+              )
+              values (
+                gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now()
+              )
+            `,
+            [
+              purchaseId,
+              item.skuId,
+              sku.product_name,
+              sku.sku_code,
+              sku.variant_label,
+              item.qty,
+              item.unitCost,
+              lineTotal,
+              item.batchNo?.trim() || null,
+              item.expiryDate ?? null,
+            ],
+          );
+        }
+
+        if (paidAmount > 0) {
+          await client.query(
+            `
+              insert into procurement.purchase_payments (
+                id, purchase_id, payment_method, amount, reference_no, status, note, paid_at, created_by, created_at
+              )
+              values (
+                gen_random_uuid(), $1, $2, $3, $4, 'paid', $5, now(), $6, now()
+              )
+            `,
+            [purchaseId, payload.paymentMethod ?? 'cash', paidAmount, payload.paymentReferenceNo ?? null, payload.paymentNote ?? null, userId],
+          );
+        }
       }
 
-      if (paidAmount > 0) {
+      await client.query('commit');
+      return { purchaseId, purchaseNo, totalAmount, paidAmount, paymentStatus, status: purchaseStatus };
+    } catch (error) {
+      await client.query('rollback').catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async updatePurchase(
+    purchaseId: string,
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    payload: {
+      status?: 'draft' | 'confirmed' | 'partially_received' | 'fully_received' | 'received' | 'cancelled';
+      invoiceNo?: string;
+      discountAmount?: number;
+      taxAmount?: number;
+      shippingAmount?: number;
+      note?: string;
+    },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    this.assertAllowedRoles(authContext, ['store_owner', 'store_manager']);
+
+    // Get current purchase
+    const currentResult = await this.pool.query<{
+      id: string;
+      status: string;
+      subtotal_amount: number;
+      discount_amount: number;
+      tax_amount: number;
+      shipping_amount: number;
+      total_amount: number;
+    }>(
+      'select id, status, subtotal_amount, discount_amount, tax_amount, shipping_amount, total_amount from procurement.purchases where id = $1 and store_id = $2',
+      [purchaseId, storeId],
+    );
+
+    if (currentResult.rows.length === 0) {
+      throw new NotFoundException('Purchase not found');
+    }
+
+    const current = currentResult.rows[0];
+
+    // Validate status transitions for enhanced workflow
+    const validTransitions: Record<string, string[]> = {
+      draft: ['confirmed', 'cancelled'],
+      confirmed: ['partially_received', 'fully_received', 'cancelled'],
+      partially_received: ['partially_received', 'fully_received', 'cancelled'],
+      fully_received: ['cancelled'],
+      received: ['cancelled'], // Legacy support
+      cancelled: [],
+    };
+
+    if (payload.status && payload.status !== current.status) {
+      const allowedTransitions = validTransitions[current.status] || [];
+      if (!allowedTransitions.includes(payload.status)) {
+        throw new ForbiddenException(`Cannot transition from ${current.status} to ${payload.status}`);
+      }
+    }
+
+    const client = await this.pool.connect();
+    try {
+      await client.query('begin');
+
+      // Build update query
+      const updates: string[] = [];
+      const values: any[] = [];
+      let paramIndex = 1;
+
+      if (payload.status !== undefined) {
+        updates.push(`status = $${paramIndex++}`);
+        values.push(payload.status);
+        if (payload.status === 'received' || payload.status === 'partially_received' || payload.status === 'fully_received') {
+          updates.push(`received_at = $${paramIndex++}`);
+          values.push(new Date().toISOString());
+        }
+      }
+
+      if (payload.invoiceNo !== undefined) {
+        updates.push(`invoice_no = $${paramIndex++}`);
+        values.push(payload.invoiceNo);
+      }
+
+      if (payload.discountAmount !== undefined) {
+        updates.push(`discount_amount = $${paramIndex++}`);
+        values.push(payload.discountAmount);
+      }
+
+      if (payload.taxAmount !== undefined) {
+        updates.push(`tax_amount = $${paramIndex++}`);
+        values.push(payload.taxAmount);
+      }
+
+      if (payload.shippingAmount !== undefined) {
+        updates.push(`shipping_amount = $${paramIndex++}`);
+        values.push(payload.shippingAmount);
+      }
+
+      if (payload.note !== undefined) {
+        updates.push(`note = $${paramIndex++}`);
+        values.push(payload.note);
+      }
+
+      updates.push(`updated_at = $${paramIndex++}`);
+      values.push(new Date().toISOString());
+
+      // Recalculate total if amounts changed
+      if (payload.discountAmount !== undefined || payload.taxAmount !== undefined || payload.shippingAmount !== undefined) {
+        const newSubtotal = current.subtotal_amount;
+        const newDiscount = payload.discountAmount !== undefined ? payload.discountAmount : current.discount_amount;
+        const newTax = payload.taxAmount !== undefined ? payload.taxAmount : current.tax_amount;
+        const newShipping = payload.shippingAmount !== undefined ? payload.shippingAmount : current.shipping_amount;
+        const newTotal = newSubtotal - newDiscount + newTax + newShipping;
+
+        updates.push(`total_amount = $${paramIndex++}`);
+        values.push(newTotal);
+      }
+
+      values.push(purchaseId, storeId);
+
+      if (updates.length > 0) {
         await client.query(
-          `
-            insert into procurement.purchase_payments (
-              id, purchase_id, payment_method, amount, reference_no, status, note, paid_at, created_by, created_at
-            )
-            values (
-              gen_random_uuid(), $1, $2, $3, $4, 'paid', $5, now(), $6, now()
-            )
-          `,
-          [purchaseId, payload.paymentMethod ?? 'cash', paidAmount, payload.paymentReferenceNo ?? null, payload.paymentNote ?? null, userId],
+          `update procurement.purchases set ${updates.join(', ')} where id = $${paramIndex++} and store_id = $${paramIndex++}`,
+          values,
         );
       }
 
       await client.query('commit');
-      return { purchaseId, purchaseNo, totalAmount, paidAmount, paymentStatus };
+      return { success: true, message: 'Purchase updated successfully' };
     } catch (error) {
       await client.query('rollback').catch(() => {});
       throw error;
@@ -2686,6 +3040,9 @@ export class StoreOpsService {
       skuId?: string;
       supplierId: string;
       locationId: string;
+      unitCost?: number;
+      batchNo?: string;
+      expiryDate?: string;
       trackingValuesList: Record<string, string>[];
     },
   ) {
@@ -2754,37 +3111,53 @@ export class StoreOpsService {
       const today = new Date().toISOString().slice(0, 10);
       const purchaseNo = await this.generatePurchaseNumber(storeId, today);
 
-      // 5. Create purchase record (total = 0, will be updated per unit)
+      // 5. Calculate costs
+      const unitCost = payload.unitCost ?? 0;
+      const qty = payload.trackingValuesList.length;
+      const lineTotal = unitCost * qty;
+
+      // 6. Create purchase record with proper totals
       const purchaseResult = await client.query<{ id: string }>(
         `insert into procurement.purchases (id, tenant_id, store_id, supplier_id, location_id, purchase_no, purchase_date, status, subtotal_amount, discount_amount, tax_amount, shipping_amount, total_amount, paid_amount, payment_status, note, created_by, received_at, created_at, updated_at)
-         values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, 'received', 0, 0, 0, 0, 0, 0, 'pending', $7, $8, now(), now(), now()) returning id`,
-        [tenantId, storeId, payload.supplierId, payload.locationId, purchaseNo, today, `Receive ${payload.trackingValuesList.length} unit(s)`, userId],
+         values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, 'received', $7, 0, 0, 0, $8, 0, 'pending', $9, $10, now(), now(), now()) returning id`,
+        [tenantId, storeId, payload.supplierId, payload.locationId, purchaseNo, today, lineTotal, lineTotal, `Receive ${qty} unit(s) of ${product.name}`, userId],
       );
       const purchaseId = purchaseResult.rows[0].id;
 
-      // 6. Create purchase item (qty = number of units)
-      const qty = payload.trackingValuesList.length;
+      // 7. Create purchase item with proper cost, batch, and expiry
       await client.query(
-        `insert into procurement.purchase_items (id, purchase_id, sku_id, product_name_snapshot, sku_code_snapshot, qty, unit_cost, line_total, created_at)
-         values (gen_random_uuid(), $1, $2, $3, $4, $5, 0, 0, now())`,
-        [purchaseId, skuId, product.name, skuCode, qty],
+        `insert into procurement.purchase_items (id, purchase_id, sku_id, product_name_snapshot, sku_code_snapshot, qty, unit_cost, line_total, batch_no, expiry_date, created_at)
+         values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, now())`,
+        [purchaseId, skuId, product.name, skuCode, qty, unitCost, lineTotal, payload.batchNo?.trim() || null, payload.expiryDate || null],
       );
 
-      // 7. Create device serials with tracking values for each unit
+      // 8. Create device serials with tracking values for each unit
       const createdSerials: Array<{ id: string; serialNumber: string; imeiNumber?: string }> = [];
       for (const trackingValues of payload.trackingValuesList) {
         // Determine serial number and IMEI from tracking values
         const serialNumber = trackingValues['serial_number'] || trackingValues['serial'] || `SN-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
         const imeiNumber = trackingValues['imei'] || trackingValues['imei_number'] || undefined;
 
-        // Validate global IMEI uniqueness
+        // Validate global IMEI uniqueness with enhanced error handling
         if (imeiNumber) {
-          const existingImei = await client.query(
-            'select id from inventory.device_serials where imei_number = $1',
-            [imeiNumber],
-          );
-          if (existingImei.rows.length > 0) {
-            throw new Error(`IMEI ${imeiNumber} already exists in the system`);
+          try {
+            const existingImei = await client.query(
+              'select id, serial_number, sku_id from inventory.device_serials where imei_number = $1',
+              [imeiNumber],
+            );
+            if (existingImei.rows.length > 0) {
+              const existing = existingImei.rows[0];
+              throw new ConflictException(
+                `IMEI ${imeiNumber} already exists in the system. ` +
+                `Previously registered as serial ${existing.serial_number} for SKU ${existing.sku_id}. ` +
+                `Please use a different device or contact support if this appears to be an error.`
+              );
+            }
+          } catch (imeiError: any) {
+            if (imeiError instanceof ConflictException) {
+              throw imeiError;
+            }
+            throw new Error(`Failed to validate IMEI uniqueness: ${imeiError.message}`);
           }
         }
 
@@ -2805,32 +3178,222 @@ export class StoreOpsService {
         createdSerials.push({ id: serialResult.rows[0].id, serialNumber, imeiNumber });
       }
 
-      // 8. Update inventory balance
-      await client.query(
-        `insert into inventory.balances (id, tenant_id, store_id, location_id, sku_id, on_hand_qty, updated_at)
-         values (gen_random_uuid(), $1, $2, $3, $4, $5, now())
-         on conflict (location_id, sku_id) do update set on_hand_qty = inventory.balances.on_hand_qty + $5, updated_at = now()`,
-        [tenantId, storeId, payload.locationId, skuId, qty],
-      );
-
-      // 9. Write ledger entries
-      for (const serial of createdSerials) {
+      // 9. Update inventory balance with enhanced error handling
+      try {
         await client.query(
-          `insert into inventory.ledger (id, tenant_id, store_id, location_id, sku_id, movement_type, qty_delta, reference_type, reference_id, note, actor_id, created_at)
-           values (gen_random_uuid(), $1, $2, $3, $4, 'purchase_receive', 1, 'purchase', $5, $6, $7, now())`,
-          [tenantId, storeId, payload.locationId, skuId, purchaseId, `Receive ${serial.serialNumber}${serial.imeiNumber ? ` (IMEI: ${serial.imeiNumber})` : ''}`, userId],
+          `insert into inventory.balances (id, tenant_id, store_id, location_id, sku_id, on_hand_qty, updated_at)
+             values (gen_random_uuid(), $1, $2, $3, $4, $5, now())
+             on conflict (location_id, sku_id) do update set on_hand_qty = inventory.balances.on_hand_qty + $5, updated_at = now()`,
+          [tenantId, storeId, payload.locationId, skuId, qty],
         );
+      } catch (balanceError: any) {
+        if (balanceError.code === '23503') {
+          throw new ConflictException('Invalid location or SKU reference');
+        } else if (balanceError.code === '23505') {
+          throw new ConflictException('Balance record already exists for this location and SKU combination');
+        }
+        throw new Error(`Failed to update inventory balance: ${balanceError.message}`);
+      }
+
+      // 10. Write ledger entries with enhanced error handling
+      for (const serial of createdSerials) {
+        try {
+          await client.query(
+            `insert into inventory.ledger (id, tenant_id, store_id, location_id, sku_id, movement_type, qty_delta, reference_type, reference_id, note, actor_id, created_at)
+               values (gen_random_uuid(), $1, $2, $3, $4, 'purchase_receive', 1, 'purchase', $5, $6, $7, now())`,
+            [tenantId, storeId, payload.locationId, skuId, purchaseId, `Receive ${serial.serialNumber}${serial.imeiNumber ? ` (IMEI: ${serial.imeiNumber})` : ''}`, userId],
+          );
+        } catch (ledgerError: any) {
+          if (ledgerError.code === '23503') {
+            throw new ConflictException('Invalid reference to location, SKU, or purchase in ledger entry');
+          } else if (ledgerError.code === '23514') {
+            throw new ConflictException('Invalid movement type for ledger entry');
+          }
+          throw new Error(`Failed to create ledger entry for ${serial.serialNumber}: ${ledgerError.message}`);
+        }
       }
 
       await client.query('commit');
 
       return {
         product: { id: product.id, name: product.name },
-        purchase: { id: purchaseId, purchaseNo },
+        purchase: { id: purchaseId, purchaseNo, totalAmount: lineTotal, unitCost },
         sku: { id: skuId, skuCode },
         serials: createdSerials,
         stockUpdated: true,
         unitsReceived: createdSerials.length,
+      };
+    } catch (error) {
+      await client.query('rollback').catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async receiveBulk(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    session: AuthSession | null,
+    payload: {
+      items: Array<{
+        productId: string;
+        skuId?: string;
+        supplierId: string;
+        locationId: string;
+        unitCost?: number;
+        batchNo?: string;
+        expiryDate?: string;
+        trackingValuesList: Record<string, string>[];
+      }>;
+    },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const userId = this.requireUserId(session);
+    const client = await this.pool.connect();
+
+    try {
+      await client.query('begin');
+
+      const results = [];
+      const errors = [];
+
+      // Process each item in the bulk receive
+      for (let i = 0; i < payload.items.length; i++) {
+        const item = payload.items[i];
+
+        try {
+          // Validate and get product info
+          const productResult = await client.query<{ id: string; name: string; is_trackable: boolean }>(
+            `select id, name, is_trackable from catalog.products where id = $1 and store_id = $2`,
+            [item.productId, storeId],
+          );
+
+          if (productResult.rows.length === 0) {
+            errors.push({ index: i, error: `Product ${item.productId} not found` });
+            continue;
+          }
+
+          const product = productResult.rows[0];
+
+          // Resolve SKU
+          let skuId = item.skuId;
+          let skuCode: string;
+          if (skuId) {
+            const skuResult = await client.query<{ id: string; sku_code: string }>(
+              `select id, sku_code from catalog.skus where id = $1 and product_id = $2`,
+              [skuId, item.productId],
+            );
+            if (skuResult.rows.length === 0) {
+              errors.push({ index: i, error: `SKU ${item.skuId} not found for this product` });
+              continue;
+            }
+            skuCode = skuResult.rows[0].sku_code;
+          } else {
+            const skuResult = await client.query<{ id: string; sku_code: string }>(
+              `select id, sku_code from catalog.skus where product_id = $1 and status = 'active' order by created_at asc limit 1`,
+              [item.productId],
+            );
+            if (skuResult.rows.length === 0) {
+              errors.push({ index: i, error: `No active SKU found for this product` });
+              continue;
+            }
+            skuId = skuResult.rows[0].id;
+            skuCode = skuResult.rows[0].sku_code;
+          }
+
+          // Generate purchase number for each item
+          const today = new Date().toISOString().slice(0, 10);
+          const purchaseNo = await this.generatePurchaseNumber(storeId, today);
+
+          // Calculate costs
+          const unitCost = item.unitCost ?? 0;
+          const qty = item.trackingValuesList.length;
+          const lineTotal = unitCost * qty;
+
+          // Create purchase record
+          const purchaseResult = await client.query<{ id: string }>(
+            `insert into procurement.purchases (id, tenant_id, store_id, supplier_id, location_id, purchase_no, purchase_date, status, subtotal_amount, discount_amount, tax_amount, shipping_amount, total_amount, paid_amount, payment_status, note, created_by, received_at, created_at, updated_at)
+             values (gen_random_uuid(), (select tenant_id from store.stores where id = $1), $1, $2, $3, $4, $5, 'received', $6, 0, 0, 0, $7, 0, 'pending', $8, $9, now(), now(), now()) returning id`,
+            [storeId, item.supplierId, item.locationId, purchaseNo, today, lineTotal, lineTotal, `Bulk receive ${qty} unit(s) of ${product.name}`, userId],
+          );
+          const purchaseId = purchaseResult.rows[0].id;
+
+          // Create purchase item
+          await client.query(
+            `insert into procurement.purchase_items (id, purchase_id, sku_id, product_name_snapshot, sku_code_snapshot, qty, unit_cost, line_total, batch_no, expiry_date, created_at)
+             values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, now())`,
+            [purchaseId, skuId, product.name, skuCode, qty, unitCost, lineTotal, item.batchNo?.trim() || null, item.expiryDate || null],
+          );
+
+          // Create device serials and update inventory
+          const createdSerials: Array<{ id: string; serialNumber: string; imeiNumber?: string }> = [];
+
+          for (const trackingValues of item.trackingValuesList) {
+            const serialNumber = trackingValues['serial_number'] || trackingValues['serial'] || `SN-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+            const imeiNumber = trackingValues['imei'] || trackingValues['imei_number'] || undefined;
+
+            if (imeiNumber) {
+              const existingImei = await client.query(
+                'select id from inventory.device_serials where imei_number = $1',
+                [imeiNumber],
+              );
+              if (existingImei.rows.length > 0) {
+                throw new Error(`IMEI ${imeiNumber} already exists in the system`);
+              }
+            }
+
+            const serialResult = await client.query<{ id: string }>(
+              `insert into inventory.device_serials (id, tenant_id, store_id, sku_id, serial_number, imei_number, tracking_values, current_location_id, status, received_date, created_at, updated_at)
+               values (gen_random_uuid(), (select tenant_id from store.stores where id = $1), $1, $2, $3, $4, $5, $6, 'in_stock', now(), now(), now()) returning id`,
+              [storeId, skuId, serialNumber, imeiNumber || null, JSON.stringify(trackingValues), item.locationId],
+            );
+            createdSerials.push({ id: serialResult.rows[0].id, serialNumber, imeiNumber });
+          }
+
+          // Update inventory balance
+          await client.query(
+            `insert into inventory.balances (id, tenant_id, store_id, location_id, sku_id, on_hand_qty, updated_at)
+             values (gen_random_uuid(), (select tenant_id from store.stores where id = $1), $1, $2, $3, $4, now())
+             on conflict (location_id, sku_id) do update set on_hand_qty = inventory.balances.on_hand_qty + $4, updated_at = now()`,
+            [storeId, item.locationId, skuId, qty],
+          );
+
+          // Write ledger entries
+          for (const serial of createdSerials) {
+            await client.query(
+              `insert into inventory.ledger (id, tenant_id, store_id, location_id, sku_id, movement_type, qty_delta, reference_type, reference_id, note, actor_id, created_at)
+               values (gen_random_uuid(), (select tenant_id from store.stores where id = $1), $1, $2, $3, 'purchase_receive', 1, 'purchase', $4, $5, $6, now())`,
+              [storeId, item.locationId, skuId, purchaseId, `Bulk receive ${serial.serialNumber}${serial.imeiNumber ? ` (IMEI: ${serial.imeiNumber})` : ''}`, userId],
+            );
+          }
+
+          results.push({
+            index: i,
+            productId: product.id,
+            productName: product.name,
+            purchaseId,
+            purchaseNo,
+            unitsReceived: createdSerials.length,
+            success: true,
+          });
+        } catch (error) {
+          errors.push({
+            index: i,
+            error: (error as Error).message,
+          });
+        }
+      }
+
+      await client.query('commit');
+
+      return {
+        success: true,
+        processed: payload.items.length,
+        successful: results.length,
+        failed: errors.length,
+        results,
+        errors,
       };
     } catch (error) {
       await client.query('rollback').catch(() => {});
