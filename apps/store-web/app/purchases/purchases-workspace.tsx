@@ -174,6 +174,46 @@ export function PurchasesWorkspace() {
     setHighlightedProductIndex(0);
   }, [receiveProductResults]);
 
+  // Auto-generate tracking units when quantity changes for tracked products
+  useEffect(() => {
+    if (!receiveProduct || !receiveProduct.trackingProfile || receiveProduct.trackingProfile.fields.length === 0) {
+      return;
+    }
+    const qty = Number(receiveQty) || 0;
+    if (qty <= 0) {
+      setReceiveUnits([]);
+      return;
+    }
+    // Only regenerate if the number of units doesn't match the quantity
+    if (receiveUnits.length !== qty) {
+      const fields = receiveProduct.trackingProfile.fields;
+      const newUnits: ReceiveUnit[] = [];
+      // Preserve existing units if possible, otherwise create new ones
+      for (let i = 0; i < qty; i++) {
+        const existingUnit = receiveUnits[i];
+        if (existingUnit) {
+          newUnits.push(existingUnit);
+        } else {
+          // Create new unit with empty tracking values
+          const values: Record<string, string> = {};
+          const errors: Record<string, string> = {};
+          for (const f of fields) {
+            values[f.fieldKey] = '';
+            if (f.isRequired) {
+              errors[f.fieldKey] = `${f.fieldLabel} is required`;
+            }
+          }
+          newUnits.push({
+            id: `auto-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 6)}`,
+            values,
+            errors
+          });
+        }
+      }
+      setReceiveUnits(newUnits);
+    }
+  }, [receiveQty, receiveProduct]);
+
   const selectReceiveProduct = async (product: ProductWithProfile) => {
     setReceiveProductId(product.id);
     setReceiveProductSearch(product.name);
@@ -190,6 +230,7 @@ export function PurchasesWorkspace() {
       });
       if (res.skus?.length === 1) setReceiveSkuId(res.skus[0].id);
       setReceiveUnits([]);
+      setReceiveQty('1');
     } catch { /* ignore */ }
   };
 
@@ -239,10 +280,12 @@ export function PurchasesWorkspace() {
     if (!receiveSupplierId) { setMessage('Select a supplier.'); return; }
     if (!receiveLocationId) { setMessage('Select a location.'); return; }
 
+    const qty = Number(receiveQty);
+    if (!qty || qty < 1) { setMessage('Enter a valid quantity.'); return; }
+
     const hasTracking = receiveProduct?.trackingProfile && receiveProduct.trackingProfile.fields.length > 0;
 
     if (hasTracking) {
-      if (receiveUnits.length === 0) { setMessage('Add at least one unit.'); return; }
       const fields = receiveProduct?.trackingProfile?.fields || [];
       let hasErrors = false;
       const validatedUnits = receiveUnits.map((unit) => {
@@ -254,19 +297,13 @@ export function PurchasesWorkspace() {
       });
       setReceiveUnits(validatedUnits);
       if (hasErrors) { setMessage('Fix the errors below.'); return; }
-    } else {
-      const qty = Number(receiveQty);
-      if (!qty || qty < 1) { setMessage('Enter a valid quantity.'); return; }
     }
 
     setReceiveSaving(true);
     try {
-      const hasTracking2 = receiveProduct?.trackingProfile && receiveProduct.trackingProfile.fields.length > 0;
-      const body: Record<string, any> = { productId: receiveProductId, skuId: receiveSkuId || undefined, supplierId: receiveSupplierId, locationId: receiveLocationId };
-      if (hasTracking2) {
+      const body: Record<string, any> = { productId: receiveProductId, skuId: receiveSkuId || undefined, supplierId: receiveSupplierId, locationId: receiveLocationId, qty };
+      if (hasTracking) {
         body.trackingValuesList = receiveUnits.map((u) => u.values);
-      } else {
-        body.qty = Number(receiveQty);
       }
       const res = await readJson<any>('/api/store-ops/purchases/receive', {
         method: 'POST',
@@ -276,9 +313,8 @@ export function PurchasesWorkspace() {
       const receivedItems: Array<{ sku: string; productName: string; sellingPrice?: number | null }> = [];
       if (res?.sku) receivedItems.push({ sku: res.sku.barcode || res.sku.skuCode || res.sku.id, productName: res.product?.name || receiveProduct?.name || '', sellingPrice: res.sku.salePrice || null });
       setLastReceivedItems(receivedItems);
-      const unitCount = hasTracking2 ? receiveUnits.length : Number(receiveQty);
-      setMessage(`✓ Received ${unitCount} unit(s) for "${receiveProduct?.name}". ${res?.purchase?.purchaseNo ? `Purchase ${res.purchase.purchaseNo}.` : ''}`);
-      toast.success(`Received ${unitCount} unit(s)`);
+      setMessage(`✓ Received ${qty} unit(s) for "${receiveProduct?.name}". ${res?.purchase?.purchaseNo ? `Purchase ${res.purchase.purchaseNo}.` : ''}`);
+      toast.success(`Received ${qty} unit(s)`);
       resetReceiveForm();
       await refresh();
     } catch (error) {
@@ -465,11 +501,16 @@ export function PurchasesWorkspace() {
               <SearchableSelect options={locationOpts} value={receiveLocationId} onChange={setReceiveLocationId} placeholder="Location (required)" emptyMessage="No locations found" />
             </div>
 
-            {/* Quantity for non-tracked products */}
-            {receiveProduct && !(receiveProduct.trackingProfile && receiveProduct.trackingProfile.fields.length > 0) && (
+            {/* Quantity - always shown for all products */}
+            {receiveProduct && (
               <div style={{ marginTop: 8 }}>
                 <label style={{ fontSize: 11, color: 'var(--muted-foreground)', marginBottom: 4, display: 'block' }}>Quantity to receive</label>
-                <input type="number" min="1" value={receiveQty} onChange={(e) => setReceiveQty(e.target.value)} style={{ ...fieldStyle, width: 120, fontSize: 12 }} placeholder="Qty" />
+                <input type="number" min="1" max="100" value={receiveQty} onChange={(e) => setReceiveQty(e.target.value)} style={{ ...fieldStyle, width: 120, fontSize: 12 }} placeholder="Qty" />
+                {receiveProduct.trackingProfile && receiveProduct.trackingProfile.fields.length > 0 && (
+                  <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--muted-foreground)' }}>
+                    Tracking will be required for each unit
+                  </span>
+                )}
               </div>
             )}
           </article>

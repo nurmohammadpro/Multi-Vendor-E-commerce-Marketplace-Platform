@@ -224,7 +224,7 @@ const quickReceiveSchema = z.object({
   note: z.string().max(500).optional(),
 });
 
-// ── Receive with Tracking: receive existing product with per-unit tracking values ──
+// ── Receive with Tracking: receive existing product with per-unit tracking values OR simple quantity for non-tracked products ──
 
 const receiveWithTrackingSchema = z.object({
   productId: z.string().uuid(),
@@ -234,7 +234,10 @@ const receiveWithTrackingSchema = z.object({
   unitCost: z.number().nonnegative().optional(),
   batchNo: z.string().max(120).optional(),
   expiryDate: z.string().date().optional(),
-  trackingValuesList: z.array(z.record(z.string(), z.string())).min(1),
+  qty: z.number().positive().optional(),
+  trackingValuesList: z.array(z.record(z.string(), z.string())).optional(),
+}).refine((data) => (data.qty ?? 0) > 0 || (data.trackingValuesList?.length ?? 0) > 0, {
+  message: 'Either qty or trackingValuesList must be provided',
 });
 
 // ── Bulk Receive: receive multiple products in a single transaction ──

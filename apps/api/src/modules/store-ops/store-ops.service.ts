@@ -3043,7 +3043,8 @@ export class StoreOpsService {
       unitCost?: number;
       batchNo?: string;
       expiryDate?: string;
-      trackingValuesList: Record<string, string>[];
+      qty?: number;
+      trackingValuesList?: Record<string, string>[];
     },
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
@@ -3111,9 +3112,10 @@ export class StoreOpsService {
       const today = new Date().toISOString().slice(0, 10);
       const purchaseNo = await this.generatePurchaseNumber(storeId, today);
 
-      // 5. Calculate costs
+      // 5. Determine quantity and costs
+      const isTracked = (payload.trackingValuesList?.length ?? 0) > 0;
       const unitCost = payload.unitCost ?? 0;
-      const qty = payload.trackingValuesList.length;
+      const qty = isTracked ? payload.trackingValuesList!.length : (payload.qty ?? 1);
       const lineTotal = unitCost * qty;
 
       // 6. Create purchase record with proper totals
@@ -3131,9 +3133,10 @@ export class StoreOpsService {
         [purchaseId, skuId, product.name, skuCode, qty, unitCost, lineTotal, payload.batchNo?.trim() || null, payload.expiryDate || null],
       );
 
-      // 8. Create device serials with tracking values for each unit
+      // 8. Create device serials with tracking values for each unit (only for tracked products)
       const createdSerials: Array<{ id: string; serialNumber: string; imeiNumber?: string }> = [];
-      for (const trackingValues of payload.trackingValuesList) {
+      if (isTracked) {
+        for (const trackingValues of payload.trackingValuesList!) {
         // Determine serial number and IMEI from tracking values
         const serialNumber = trackingValues['serial_number'] || trackingValues['serial'] || `SN-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
         const imeiNumber = trackingValues['imei'] || trackingValues['imei_number'] || undefined;
@@ -3176,6 +3179,7 @@ export class StoreOpsService {
           ],
         );
         createdSerials.push({ id: serialResult.rows[0].id, serialNumber, imeiNumber });
+        }
       }
 
       // 9. Update inventory balance with enhanced error handling
@@ -3196,12 +3200,30 @@ export class StoreOpsService {
       }
 
       // 10. Write ledger entries with enhanced error handling
-      for (const serial of createdSerials) {
+      if (isTracked) {
+        for (const serial of createdSerials) {
+          try {
+            await client.query(
+              `insert into inventory.ledger (id, tenant_id, store_id, location_id, sku_id, movement_type, qty_delta, reference_type, reference_id, note, actor_id, created_at)
+                 values (gen_random_uuid(), $1, $2, $3, $4, 'purchase_receive', 1, 'purchase', $5, $6, $7, now())`,
+              [tenantId, storeId, payload.locationId, skuId, purchaseId, `Receive ${serial.serialNumber}${serial.imeiNumber ? ` (IMEI: ${serial.imeiNumber})` : ''}`, userId],
+            );
+          } catch (ledgerError: any) {
+            if (ledgerError.code === '23503') {
+              throw new ConflictException('Invalid reference to location, SKU, or purchase in ledger entry');
+            } else if (ledgerError.code === '23514') {
+              throw new ConflictException('Invalid movement type for ledger entry');
+            }
+            throw new Error(`Failed to create ledger entry for ${serial.serialNumber}: ${ledgerError.message}`);
+          }
+        }
+      } else {
+        // Single ledger entry for non-tracked bulk receive
         try {
           await client.query(
             `insert into inventory.ledger (id, tenant_id, store_id, location_id, sku_id, movement_type, qty_delta, reference_type, reference_id, note, actor_id, created_at)
-               values (gen_random_uuid(), $1, $2, $3, $4, 'purchase_receive', 1, 'purchase', $5, $6, $7, now())`,
-            [tenantId, storeId, payload.locationId, skuId, purchaseId, `Receive ${serial.serialNumber}${serial.imeiNumber ? ` (IMEI: ${serial.imeiNumber})` : ''}`, userId],
+               values (gen_random_uuid(), $1, $2, $3, $4, 'purchase_receive', $5, 'purchase', $6, $7, $8, now())`,
+            [tenantId, storeId, payload.locationId, skuId, qty, purchaseId, `Receive ${qty} unit(s) of ${product.name}`, userId],
           );
         } catch (ledgerError: any) {
           if (ledgerError.code === '23503') {
@@ -3209,7 +3231,7 @@ export class StoreOpsService {
           } else if (ledgerError.code === '23514') {
             throw new ConflictException('Invalid movement type for ledger entry');
           }
-          throw new Error(`Failed to create ledger entry for ${serial.serialNumber}: ${ledgerError.message}`);
+          throw new Error(`Failed to create ledger entry: ${ledgerError.message}`);
         }
       }
 
@@ -3221,7 +3243,7 @@ export class StoreOpsService {
         sku: { id: skuId, skuCode },
         serials: createdSerials,
         stockUpdated: true,
-        unitsReceived: createdSerials.length,
+        unitsReceived: qty,
       };
     } catch (error) {
       await client.query('rollback').catch(() => {});
@@ -3244,7 +3266,8 @@ export class StoreOpsService {
         unitCost?: number;
         batchNo?: string;
         expiryDate?: string;
-        trackingValuesList: Record<string, string>[];
+        qty?: number;
+        trackingValuesList?: Record<string, string>[];
       }>;
     },
   ) {
@@ -3307,8 +3330,9 @@ export class StoreOpsService {
           const purchaseNo = await this.generatePurchaseNumber(storeId, today);
 
           // Calculate costs
+          const isTracked = (item.trackingValuesList?.length ?? 0) > 0;
           const unitCost = item.unitCost ?? 0;
-          const qty = item.trackingValuesList.length;
+          const qty = isTracked ? item.trackingValuesList!.length : (item.qty ?? 1);
           const lineTotal = unitCost * qty;
 
           // Create purchase record
@@ -3326,10 +3350,11 @@ export class StoreOpsService {
             [purchaseId, skuId, product.name, skuCode, qty, unitCost, lineTotal, item.batchNo?.trim() || null, item.expiryDate || null],
           );
 
-          // Create device serials and update inventory
+          // Create device serials and update inventory (tracked products only)
           const createdSerials: Array<{ id: string; serialNumber: string; imeiNumber?: string }> = [];
 
-          for (const trackingValues of item.trackingValuesList) {
+          if (isTracked) {
+            for (const trackingValues of item.trackingValuesList!) {
             const serialNumber = trackingValues['serial_number'] || trackingValues['serial'] || `SN-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
             const imeiNumber = trackingValues['imei'] || trackingValues['imei_number'] || undefined;
 
@@ -3348,8 +3373,9 @@ export class StoreOpsService {
                values (gen_random_uuid(), (select tenant_id from store.stores where id = $1), $1, $2, $3, $4, $5, $6, 'in_stock', now(), now(), now()) returning id`,
               [storeId, skuId, serialNumber, imeiNumber || null, JSON.stringify(trackingValues), item.locationId],
             );
-            createdSerials.push({ id: serialResult.rows[0].id, serialNumber, imeiNumber });
-          }
+              createdSerials.push({ id: serialResult.rows[0].id, serialNumber, imeiNumber });
+            }
+            }
 
           // Update inventory balance
           await client.query(
@@ -3360,11 +3386,20 @@ export class StoreOpsService {
           );
 
           // Write ledger entries
-          for (const serial of createdSerials) {
+          if (isTracked) {
+            for (const serial of createdSerials) {
+              await client.query(
+                `insert into inventory.ledger (id, tenant_id, store_id, location_id, sku_id, movement_type, qty_delta, reference_type, reference_id, note, actor_id, created_at)
+                 values (gen_random_uuid(), (select tenant_id from store.stores where id = $1), $1, $2, $3, 'purchase_receive', 1, 'purchase', $4, $5, $6, now())`,
+                [storeId, item.locationId, skuId, purchaseId, `Bulk receive ${serial.serialNumber}${serial.imeiNumber ? ` (IMEI: ${serial.imeiNumber})` : ''}`, userId],
+              );
+            }
+          } else {
+            // Single ledger entry for non-tracked bulk receive
             await client.query(
               `insert into inventory.ledger (id, tenant_id, store_id, location_id, sku_id, movement_type, qty_delta, reference_type, reference_id, note, actor_id, created_at)
-               values (gen_random_uuid(), (select tenant_id from store.stores where id = $1), $1, $2, $3, 'purchase_receive', 1, 'purchase', $4, $5, $6, now())`,
-              [storeId, item.locationId, skuId, purchaseId, `Bulk receive ${serial.serialNumber}${serial.imeiNumber ? ` (IMEI: ${serial.imeiNumber})` : ''}`, userId],
+               values (gen_random_uuid(), (select tenant_id from store.stores where id = $1), $1, $2, $3, 'purchase_receive', $4, 'purchase', $5, $6, $7, now())`,
+              [storeId, item.locationId, skuId, qty, purchaseId, `Bulk receive ${qty} unit(s) of ${product.name}`, userId],
             );
           }
 
@@ -3374,7 +3409,7 @@ export class StoreOpsService {
             productName: product.name,
             purchaseId,
             purchaseNo,
-            unitsReceived: createdSerials.length,
+            unitsReceived: qty,
             success: true,
           });
         } catch (error) {
