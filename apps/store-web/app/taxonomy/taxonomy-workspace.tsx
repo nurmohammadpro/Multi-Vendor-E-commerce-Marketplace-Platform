@@ -376,6 +376,7 @@ export function TaxonomyWorkspace({ canManageCatalog }: { canManageCatalog: bool
           {brandFormOpen ? (
             <div style={{ display: 'grid', gap: 8, marginBottom: 12, padding: 10, background: 'var(--muted)', borderRadius: 8 }}>
               <input
+                data-enter-nav="false"
                 value={brandForm.name}
                 onChange={(e) => setBrandForm((c) => ({ ...c, name: e.target.value }))}
                 style={fieldStyle}

@@ -45,6 +45,7 @@ export function QuickScanTab({
     <div className="space-y-3">
       <div className="flex gap-2">
         <input
+          data-enter-nav="false"
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}

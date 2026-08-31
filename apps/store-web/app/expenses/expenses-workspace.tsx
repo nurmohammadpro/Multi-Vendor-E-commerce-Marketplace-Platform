@@ -317,6 +317,7 @@ export function ExpensesWorkspace() {
           <h3 style={{ marginTop: 0, fontSize: 14 }}>Expense Categories</h3>
           <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
             <input
+              data-enter-nav="false"
               value={newCategoryName}
               onChange={(e) => setNewCategoryName(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') void addCategory(); }}

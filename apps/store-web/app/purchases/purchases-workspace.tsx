@@ -451,6 +451,7 @@ export function PurchasesWorkspace() {
 
             <div style={{ position: 'relative', marginBottom: 12 }}>
               <input
+                data-enter-nav="false"
                 value={receiveProductSearch}
                 onChange={(e) => { setReceiveProductSearch(e.target.value); setShowProductSuggestions(true); }}
                 onFocus={() => { if (receiveProductResults.length > 0) setShowProductSuggestions(true); }}

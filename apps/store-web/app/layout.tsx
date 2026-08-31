@@ -5,6 +5,7 @@ import { ThemeProvider } from '@mvp/theme';
 import { Toaster } from '@/components/ui/sonner';
 import './globals.css';
 import { WorkspaceShell } from './workspace-shell';
+import { GlobalEnterNavigation } from './lib/global-enter-navigation';
 import { getStoreConsoleAccess, type StoreConsoleFeature } from '../lib/access';
 
 export const metadata: Metadata = {
@@ -116,6 +117,7 @@ export default async function StoreLayout({ children }: { children: ReactNode })
     <html lang="en">
       <body>
         <ThemeProvider>
+        <GlobalEnterNavigation />
         <WorkspaceShell
           access={access}
           badge="Merch Flow"

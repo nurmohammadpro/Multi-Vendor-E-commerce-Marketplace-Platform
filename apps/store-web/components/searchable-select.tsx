@@ -79,9 +79,10 @@ export function SearchableSelect({
   };
 
   return (
-    <div ref={containerRef} style={{ position: 'relative', ...style }} className={className}>
+    <div ref={containerRef} data-searchable-select style={{ position: 'relative', ...style }} className={className}>
       {/* Trigger */}
       <button
+        data-searchable-select-trigger
         type="button"
         onClick={() => { if (!disabled) setOpen((prev) => !prev); }}
         disabled={disabled}

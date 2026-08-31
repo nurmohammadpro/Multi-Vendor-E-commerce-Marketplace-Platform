@@ -598,7 +598,7 @@ export function InventoryWorkspace({
           position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.4)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }} onClick={() => setStockControlOpen(false)}>
-          <div style={{
+          <div data-enter-container style={{
             background: 'var(--card)', borderRadius: 16, padding: 24, maxWidth: 480, width: '95%',
             maxHeight: '80vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
           }} onClick={(e) => e.stopPropagation()}>
