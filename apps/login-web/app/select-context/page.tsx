@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Wrench, Store, Shield, Loader2 } from 'lucide-react';
+import { Store, Shield, Loader2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -87,8 +87,12 @@ export default function SelectContextPage() {
     <div className="flex min-h-screen items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="flex flex-col items-center mb-8">
-          <div className="flex items-center justify-center size-12 rounded-xl bg-primary shadow-sm mb-4">
-            <Wrench className="size-6 text-primary-foreground" />
+          <div className="flex items-center justify-center size-12 rounded-xl bg-card border shadow-sm mb-4 p-1.5">
+            <img
+              src="/merchflow-logo.svg"
+              alt="Merch Flow logo"
+              className="h-full w-full object-contain"
+            />
           </div>
           <h1 className="text-xl font-semibold tracking-tight">Select workspace</h1>
           <p className="text-sm text-muted-foreground mt-1">
