@@ -98,6 +98,7 @@ export function PurchasesWorkspace() {
   const [receiveEntryMode, setReceiveEntryMode] = useState<'quick-scan' | 'batch-paste' | 'csv-upload'>('quick-scan');
   const [receiveQty, setReceiveQty] = useState('1');
   const [receiveUnitCost, setReceiveUnitCost] = useState('');
+  const [receiveSellPrice, setReceiveSellPrice] = useState('');
 
   // Quick Add state
   const [showQuickAdd, setShowQuickAdd] = useState(false);
@@ -233,6 +234,10 @@ export function PurchasesWorkspace() {
       if (res.skus?.length === 1) setReceiveSkuId(res.skus[0].id);
       setReceiveUnits([]);
       setReceiveQty('1');
+      // Auto-populate cost and sell price from catalog
+      const defaultSku = res.skus?.[0];
+      if (defaultSku?.cost_price) setReceiveUnitCost(String(defaultSku.cost_price));
+      if (defaultSku?.sale_price) setReceiveSellPrice(String(defaultSku.sale_price));
     } catch { /* ignore */ }
   };
 
@@ -342,6 +347,7 @@ export function PurchasesWorkspace() {
     setReceiveSupplierId('');
     setReceiveQty('1');
     setReceiveUnitCost('');
+    setReceiveSellPrice('');
     setHighlightedProductIndex(0);
     setShowProductSuggestions(false);
   };
@@ -495,7 +501,7 @@ export function PurchasesWorkspace() {
 
             {receiveProduct && (
               <div style={{ background: 'var(--muted)', borderRadius: 8, padding: 10, marginBottom: 12 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
                   <div>
                     <span style={{ fontWeight: 600, fontSize: 13 }}>{receiveProduct.name}</span>
                     <span style={{ fontSize: 11, color: 'var(--muted-foreground)', marginLeft: 4 }}>{receiveProduct.product_code}</span>
@@ -512,13 +518,37 @@ export function PurchasesWorkspace() {
                       {receiveProduct.skus.map((sku) => <option key={sku.id} value={sku.id}>{sku.sku_code}{sku.variant_label ? ` · ${sku.variant_label}` : ''}</option>)}
                     </select>
                   )}
-                  <button onClick={() => { setReceiveProduct(null); setReceiveProductId(''); setReceiveProductSearch(''); setReceiveUnits([]); }} style={{ ...subtleButtonStyle, fontSize: 11, marginLeft: 'auto' }}>Change</button>
+                  <button onClick={() => { setReceiveProduct(null); setReceiveProductId(''); setReceiveProductSearch(''); setReceiveUnits([]); setReceiveUnitCost(''); setReceiveSellPrice(''); }} style={{ ...subtleButtonStyle, fontSize: 11, marginLeft: 'auto' }}>Change</button>
+                </div>
+                {/* Show catalog prices */}
+                <div style={{ display: 'flex', gap: 12, fontSize: 11 }}>
+                  {receiveProduct.skus && receiveProduct.skus.length > 0 && (
+                    <>
+                      {(() => {
+                        const selectedSku = receiveProduct.skus.find(s => s.id === receiveSkuId) || receiveProduct.skus[0];
+                        return (
+                          <>
+                            {selectedSku.cost_price && (
+                              <span style={{ color: 'var(--muted-foreground)' }}>
+                                Catalog Cost: <strong>{formatMoney(selectedSku.cost_price)}</strong>
+                              </span>
+                            )}
+                            {selectedSku.sale_price && (
+                              <span style={{ color: 'var(--muted-foreground)' }}>
+                                Catalog Sell: <strong>{formatMoney(selectedSku.sale_price)}</strong>
+                              </span>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </>
+                  )}
                 </div>
               </div>
             )}
 
-            {/* Supplier, Location, Quantity, Unit Cost in one line */}
-            <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : '2fr 2fr 1fr 1fr', gap: 8, alignItems: compact ? 'stretch' : 'end' }}>
+            {/* Supplier, Location, Quantity, Unit Cost, Sell Price in one line */}
+            <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : '2fr 2fr 1fr 1fr 1fr', gap: 8, alignItems: compact ? 'stretch' : 'end' }}>
               <SearchableSelect options={supplierOpts} value={receiveSupplierId} onChange={setReceiveSupplierId} placeholder="Supplier (required)" emptyMessage="No suppliers found" />
               <SearchableSelect options={locationOpts} value={receiveLocationId} onChange={setReceiveLocationId} placeholder="Location (required)" emptyMessage="No locations found" />
               {receiveProduct && (
@@ -530,6 +560,10 @@ export function PurchasesWorkspace() {
                   <div>
                     <label style={{ fontSize: 11, color: 'var(--muted-foreground)', marginBottom: 4, display: 'block' }}>Unit Cost</label>
                     <input type="number" min="0" step="0.01" value={receiveUnitCost} onChange={(e) => setReceiveUnitCost(e.target.value)} style={{ ...fieldStyle, width: '100%', fontSize: 12 }} placeholder="Cost" />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, color: 'var(--muted-foreground)', marginBottom: 4, display: 'block' }}>Sell Price</label>
+                    <input type="number" min="0" step="0.01" value={receiveSellPrice} onChange={(e) => setReceiveSellPrice(e.target.value)} style={{ ...fieldStyle, width: '100%', fontSize: 12 }} placeholder="Price" />
                   </div>
                 </>
               )}
