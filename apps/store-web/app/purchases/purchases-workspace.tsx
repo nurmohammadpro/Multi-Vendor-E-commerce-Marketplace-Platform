@@ -94,6 +94,7 @@ export function PurchasesWorkspace() {
   const [receiveLocationId, setReceiveLocationId] = useState('');
   const [receiveSaving, setReceiveSaving] = useState(false);
   const [receiveEntryMode, setReceiveEntryMode] = useState<'quick-scan' | 'batch-paste' | 'csv-upload'>('quick-scan');
+  const [receiveQty, setReceiveQty] = useState('1');
 
   // Quick Add state
   const [showQuickAdd, setShowQuickAdd] = useState(false);
@@ -231,33 +232,47 @@ export function PurchasesWorkspace() {
     if (!receiveProductId) { setMessage('Select a product first.'); return; }
     if (!receiveSupplierId) { setMessage('Select a supplier.'); return; }
     if (!receiveLocationId) { setMessage('Select a location.'); return; }
-    if (receiveUnits.length === 0) { setMessage('Add at least one unit.'); return; }
 
-    const fields = receiveProduct?.trackingProfile?.fields || [];
-    let hasErrors = false;
-    const validatedUnits = receiveUnits.map((unit) => {
-      const errors: Record<string, string> = {};
-      for (const f of fields) {
-        if (f.isRequired && !unit.values[f.fieldKey]?.trim()) { errors[f.fieldKey] = `${f.fieldLabel} is required`; hasErrors = true; }
-      }
-      return { ...unit, errors };
-    });
-    setReceiveUnits(validatedUnits);
-    if (hasErrors) { setMessage('Fix the errors below.'); return; }
+    const hasTracking = receiveProduct?.trackingProfile && receiveProduct.trackingProfile.fields.length > 0;
+
+    if (hasTracking) {
+      if (receiveUnits.length === 0) { setMessage('Add at least one unit.'); return; }
+      const fields = receiveProduct?.trackingProfile?.fields || [];
+      let hasErrors = false;
+      const validatedUnits = receiveUnits.map((unit) => {
+        const errors: Record<string, string> = {};
+        for (const f of fields) {
+          if (f.isRequired && !unit.values[f.fieldKey]?.trim()) { errors[f.fieldKey] = `${f.fieldLabel} is required`; hasErrors = true; }
+        }
+        return { ...unit, errors };
+      });
+      setReceiveUnits(validatedUnits);
+      if (hasErrors) { setMessage('Fix the errors below.'); return; }
+    } else {
+      const qty = Number(receiveQty);
+      if (!qty || qty < 1) { setMessage('Enter a valid quantity.'); return; }
+    }
 
     setReceiveSaving(true);
     try {
-      const trackingValuesList = receiveUnits.map((u) => u.values);
+      const hasTracking2 = receiveProduct?.trackingProfile && receiveProduct.trackingProfile.fields.length > 0;
+      const body: Record<string, any> = { productId: receiveProductId, skuId: receiveSkuId || undefined, supplierId: receiveSupplierId, locationId: receiveLocationId };
+      if (hasTracking2) {
+        body.trackingValuesList = receiveUnits.map((u) => u.values);
+      } else {
+        body.qty = Number(receiveQty);
+      }
       const res = await readJson<any>('/api/store-ops/purchases/receive', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productId: receiveProductId, skuId: receiveSkuId || undefined, supplierId: receiveSupplierId, locationId: receiveLocationId, trackingValuesList }),
+        body: JSON.stringify(body),
       });
       const receivedItems: Array<{ sku: string; productName: string; sellingPrice?: number | null }> = [];
       if (res?.sku) receivedItems.push({ sku: res.sku.barcode || res.sku.skuCode || res.sku.id, productName: res.product?.name || receiveProduct?.name || '', sellingPrice: res.sku.salePrice || null });
       setLastReceivedItems(receivedItems);
-      setMessage(`✓ Received ${receiveUnits.length} unit(s) for "${receiveProduct?.name}". ${res?.purchase?.purchaseNo ? `Purchase ${res.purchase.purchaseNo}.` : ''}`);
-      toast.success(`Received ${receiveUnits.length} unit(s)`);
+      const unitCount = hasTracking2 ? receiveUnits.length : Number(receiveQty);
+      setMessage(`✓ Received ${unitCount} unit(s) for "${receiveProduct?.name}". ${res?.purchase?.purchaseNo ? `Purchase ${res.purchase.purchaseNo}.` : ''}`);
+      toast.success(`Received ${unitCount} unit(s)`);
       resetReceiveForm();
       await refresh();
     } catch (error) {
@@ -274,6 +289,7 @@ export function PurchasesWorkspace() {
     setReceiveProductSearch('');
     setReceiveSkuId('');
     setReceiveSupplierId('');
+    setReceiveQty('1');
   };
 
   // ── Quick Add Submit ──
@@ -411,6 +427,14 @@ export function PurchasesWorkspace() {
               <SearchableSelect options={supplierOpts} value={receiveSupplierId} onChange={setReceiveSupplierId} placeholder="Supplier (required)" emptyMessage="No suppliers found" />
               <SearchableSelect options={locationOpts} value={receiveLocationId} onChange={setReceiveLocationId} placeholder="Location (required)" emptyMessage="No locations found" />
             </div>
+
+            {/* Quantity for non-tracked products */}
+            {receiveProduct && !(receiveProduct.trackingProfile && receiveProduct.trackingProfile.fields.length > 0) && (
+              <div style={{ marginTop: 8 }}>
+                <label style={{ fontSize: 11, color: 'var(--muted-foreground)', marginBottom: 4, display: 'block' }}>Quantity to receive</label>
+                <input type="number" min="1" value={receiveQty} onChange={(e) => setReceiveQty(e.target.value)} style={{ ...fieldStyle, width: 120, fontSize: 12 }} placeholder="Qty" />
+              </div>
+            )}
           </article>
 
           {/* Tracking Input */}
@@ -465,7 +489,11 @@ export function PurchasesWorkspace() {
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
                 <button onClick={receiveStock} style={{ ...gray800ButtonStyle, minWidth: 180, minHeight: 36 }} disabled={receiveSaving || !receiveProductId || !receiveSupplierId || !receiveLocationId}>
-                  {receiveSaving ? 'Saving...' : `Receive ${receiveUnits.length} Unit(s) into Stock`}
+                  {receiveSaving ? 'Saving...' : (() => {
+                    const hasTracking = receiveProduct?.trackingProfile && receiveProduct.trackingProfile.fields.length > 0;
+                    const count = hasTracking ? receiveUnits.length : Number(receiveQty) || 0;
+                    return `Receive ${count} Unit(s) into Stock`;
+                  })()}
                 </button>
               </div>
             </article>
