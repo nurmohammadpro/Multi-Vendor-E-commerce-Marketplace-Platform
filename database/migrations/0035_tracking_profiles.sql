@@ -15,9 +15,11 @@ create table if not exists catalog.tracking_profiles (
   status text not null default 'active',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  constraint tracking_profiles_status_check check (status in ('active', 'inactive')),
-  constraint tracking_profiles_global_unique unique (tenant_id, category_id) where category_id is not null
+  constraint tracking_profiles_status_check check (status in ('active', 'inactive'))
 );
+
+create unique index if not exists tracking_profiles_global_unique
+  on catalog.tracking_profiles (tenant_id, category_id) where category_id is not null;
 
 create index if not exists tracking_profiles_tenant_status_idx
   on catalog.tracking_profiles (tenant_id, status);
