@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, ChevronUp, Package, Truck } from 'lucide-react';
+import { ChevronDown, ChevronUp, Package, Truck, Users, FileText } from 'lucide-react';
 
 import {
   dangerButtonStyle,
@@ -70,6 +70,7 @@ async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
 
 export function PurchasesWorkspace() {
   const compact = useCompactLayout();
+  const [activeTab, setActiveTab] = useState<'purchases' | 'suppliers' | 'payables'>('purchases');
   const [message, setMessage] = useState('Purchases & stock management.');
   const [loading, setLoading] = useState(false);
 
@@ -385,27 +386,84 @@ export function PurchasesWorkspace() {
 
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
-      {/* ── Header ── */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-        <p style={{ margin: 0, color: 'var(--muted-foreground)', fontSize: 13 }}>{message}</p>
-        <div style={{ display: 'flex', gap: 6 }}>
-          <button
-            onClick={() => { setShowQuickAdd(!showQuickAdd); if (!showQuickAdd) refreshCatalog(); }}
-            style={{ ...secondaryButtonStyle, fontSize: 12, padding: '6px 12px', minHeight: 'auto', display: 'flex', alignItems: 'center', gap: 4 }}
-          >
-            <Package style={{ width: 13, height: 13 }} />
-            Quick Add
-          </button>
-          <button
-            onClick={() => setShowReceiveForm(!showReceiveForm)}
-            style={{ ...gray800ButtonStyle, fontSize: 12, padding: '6px 14px', minHeight: 'auto', display: 'flex', alignItems: 'center', gap: 4 }}
-          >
-            <Truck style={{ width: 13, height: 13 }} />
-            Receive Stock
-            {showReceiveForm ? <ChevronUp style={{ width: 12, height: 12 }} /> : <ChevronDown style={{ width: 12, height: 12 }} />}
-          </button>
-        </div>
+      {/* ── Tab Navigation ── */}
+      <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border)', paddingBottom: 0 }}>
+        <button
+          onClick={() => setActiveTab('purchases')}
+          style={{
+            ...secondaryButtonStyle,
+            borderBottom: activeTab === 'purchases' ? '2px solid var(--primary)' : '2px solid transparent',
+            borderRadius: '8px 8px 0 0',
+            marginBottom: -1,
+            fontSize: 12,
+            padding: '8px 16px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+          }}
+        >
+          <Truck style={{ width: 14, height: 14 }} />
+          Purchases & Receive
+        </button>
+        <button
+          onClick={() => setActiveTab('suppliers')}
+          style={{
+            ...secondaryButtonStyle,
+            borderBottom: activeTab === 'suppliers' ? '2px solid var(--primary)' : '2px solid transparent',
+            borderRadius: '8px 8px 0 0',
+            marginBottom: -1,
+            fontSize: 12,
+            padding: '8px 16px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+          }}
+        >
+          <Users style={{ width: 14, height: 14 }} />
+          Supplier Management
+        </button>
+        <button
+          onClick={() => setActiveTab('payables')}
+          style={{
+            ...secondaryButtonStyle,
+            borderBottom: activeTab === 'payables' ? '2px solid var(--primary)' : '2px solid transparent',
+            borderRadius: '8px 8px 0 0',
+            marginBottom: -1,
+            fontSize: 12,
+            padding: '8px 16px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+          }}
+        >
+          <FileText style={{ width: 14, height: 14 }} />
+          Payables & Ledger
+        </button>
       </div>
+
+      {/* ── Tab Content ── */}
+      {activeTab === 'purchases' && (
+        <>
+          {/* ── Purchases Header ── */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+            <p style={{ margin: 0, color: 'var(--muted-foreground)', fontSize: 13 }}>{message}</p>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button
+                onClick={() => { setShowQuickAdd(!showQuickAdd); if (!showQuickAdd) refreshCatalog(); }}
+                style={{ ...secondaryButtonStyle, fontSize: 12, padding: '6px 12px', minHeight: 'auto', display: 'flex', alignItems: 'center', gap: 4 }}
+              >
+                <Package style={{ width: 13, height: 13 }} />
+                Quick Add
+              </button>
+              <button
+                onClick={() => setShowReceiveForm(!showReceiveForm)}
+                style={{ ...gray800ButtonStyle, fontSize: 12, padding: '6px 14px', minHeight: 'auto', display: 'flex', alignItems: 'center', gap: 4 }}
+              >
+                Receive Stock
+                {showReceiveForm ? <ChevronUp style={{ width: 12, height: 12 }} /> : <ChevronDown style={{ width: 12, height: 12 }} />}
+              </button>
+            </div>
+          </div>
 
       {/* ═══════════════ Receive Stock Form (inline) ═══════════════ */}
       {showReceiveForm && (
@@ -472,47 +530,46 @@ export function PurchasesWorkspace() {
 
             {receiveProduct && (
               <div style={{ background: 'var(--muted)', borderRadius: 8, padding: 10, marginBottom: 12 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <div>
-                    <div style={{ fontWeight: 600, fontSize: 13 }}>{receiveProduct.name}</div>
-                    <div style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>{receiveProduct.product_code}</div>
+                    <span style={{ fontWeight: 600, fontSize: 13 }}>{receiveProduct.name}</span>
+                    <span style={{ fontSize: 11, color: 'var(--muted-foreground)', marginLeft: 4 }}>{receiveProduct.product_code}</span>
                   </div>
-                  <button onClick={() => { setReceiveProduct(null); setReceiveProductId(''); setReceiveProductSearch(''); setReceiveUnits([]); }} style={{ ...subtleButtonStyle, fontSize: 11 }}>Change</button>
-                </div>
-                {receiveProduct.trackingProfile && (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', borderRadius: 6, background: 'var(--accent-soft)', color: 'var(--accent)', padding: '2px 8px', fontSize: 11, fontWeight: 600 }}>
-                    {receiveProduct.trackingProfile.name}
-                    <span style={{ marginLeft: 4, background: 'var(--accent)', borderRadius: 4, padding: '0 4px', fontSize: 10 }}>{receiveProduct.trackingProfile.fields.length} fields</span>
-                  </span>
-                )}
-                {receiveProduct.skus && receiveProduct.skus.length > 1 && (
-                  <div style={{ marginTop: 6 }}>
-                    <select value={receiveSkuId} onChange={(e) => setReceiveSkuId(e.target.value)} style={{ ...fieldStyle, width: '100%', fontSize: 12 }}>
+                  {receiveProduct.trackingProfile && (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', borderRadius: 6, background: 'var(--accent-soft)', color: 'var(--accent)', padding: '2px 8px', fontSize: 11, fontWeight: 600 }}>
+                      {receiveProduct.trackingProfile.name}
+                      <span style={{ marginLeft: 4, background: 'var(--accent)', borderRadius: 4, padding: '0 4px', fontSize: 10 }}>{receiveProduct.trackingProfile.fields.length} fields</span>
+                    </span>
+                  )}
+                  {receiveProduct.skus && receiveProduct.skus.length > 1 && (
+                    <select value={receiveSkuId} onChange={(e) => setReceiveSkuId(e.target.value)} style={{ ...fieldStyle, fontSize: 12, padding: '4px 8px', height: 'auto' }}>
                       <option value="">Default SKU</option>
                       {receiveProduct.skus.map((sku) => <option key={sku.id} value={sku.id}>{sku.sku_code}{sku.variant_label ? ` · ${sku.variant_label}` : ''}</option>)}
                     </select>
-                  </div>
-                )}
+                  )}
+                  <button onClick={() => { setReceiveProduct(null); setReceiveProductId(''); setReceiveProductSearch(''); setReceiveUnits([]); }} style={{ ...subtleButtonStyle, fontSize: 11, marginLeft: 'auto' }}>Change</button>
+                </div>
               </div>
             )}
 
-            <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : '1fr 1fr', gap: 8 }}>
+            {/* Supplier, Location, Quantity in one line */}
+            <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : '2fr 2fr 1fr', gap: 8, alignItems: compact ? 'stretch' : 'end' }}>
               <SearchableSelect options={supplierOpts} value={receiveSupplierId} onChange={setReceiveSupplierId} placeholder="Supplier (required)" emptyMessage="No suppliers found" />
               <SearchableSelect options={locationOpts} value={receiveLocationId} onChange={setReceiveLocationId} placeholder="Location (required)" emptyMessage="No locations found" />
+              {receiveProduct && (
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--muted-foreground)', marginBottom: 4, display: 'block' }}>Quantity to receive</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <input type="number" min="1" max="100" value={receiveQty} onChange={(e) => setReceiveQty(e.target.value)} style={{ ...fieldStyle, width: '100%', fontSize: 12 }} placeholder="Qty" />
+                    {receiveProduct.trackingProfile && receiveProduct.trackingProfile.fields.length > 0 && (
+                      <span style={{ fontSize: 10, color: 'var(--muted-foreground)', whiteSpace: 'nowrap' }}>
+                        Tracking required
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
-
-            {/* Quantity - always shown for all products */}
-            {receiveProduct && (
-              <div style={{ marginTop: 8 }}>
-                <label style={{ fontSize: 11, color: 'var(--muted-foreground)', marginBottom: 4, display: 'block' }}>Quantity to receive</label>
-                <input type="number" min="1" max="100" value={receiveQty} onChange={(e) => setReceiveQty(e.target.value)} style={{ ...fieldStyle, width: 120, fontSize: 12 }} placeholder="Qty" />
-                {receiveProduct.trackingProfile && receiveProduct.trackingProfile.fields.length > 0 && (
-                  <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--muted-foreground)' }}>
-                    Tracking will be required for each unit
-                  </span>
-                )}
-              </div>
-            )}
           </article>
 
           {/* Tracking Input */}
@@ -687,6 +744,141 @@ export function PurchasesWorkspace() {
           </>
         ) : <div style={emptyStateStyle}>No purchases found. Click "Receive Stock" to get started.</div>}
       </article>
+        </>
+      )}
+
+      {activeTab === 'suppliers' && (
+        <>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <p style={{ margin: 0, color: 'var(--muted-foreground)', fontSize: 13 }}>Supplier management and payable tracking.</p>
+            <button
+              onClick={() => { /* TODO: Add supplier form */ }}
+              style={{ ...gray800ButtonStyle, fontSize: 12, padding: '6px 14px', minHeight: 'auto', display: 'flex', alignItems: 'center', gap: 4 }}
+            >
+              Add Supplier
+            </button>
+          </div>
+
+          {/* Suppliers List */}
+          <article style={surfaceCardStyle}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
+              <h3 style={{ margin: 0, fontSize: 14 }}>Suppliers</h3>
+            </div>
+            {suppliers.length > 0 ? (
+              <div style={tableWrapStyle}>
+                <table style={tableStyle}>
+                  <thead>
+                    <tr>
+                      <th style={tableHeaderCellStyle}>Company Name</th>
+                      <th style={tableHeaderCellStyle}>Contact Name</th>
+                      <th style={tableHeaderCellStyle}>Phone</th>
+                      <th style={{ ...tableHeaderCellStyle, textAlign: 'right' }}>Current Payable</th>
+                      <th style={{ ...tableHeaderCellStyle, width: 80 }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {suppliers.map((supplier) => (
+                      <tr key={supplier.id}>
+                        <td style={tableCellStyle}>
+                          <div style={{ fontWeight: 600, fontSize: 13 }}>{supplier.company_name}</div>
+                        </td>
+                        <td style={{ ...tableCellStyle, fontSize: 12 }}>{supplier.contact_name || '-'}</td>
+                        <td style={{ ...tableCellStyle, fontSize: 12 }}>{supplier.phone || '-'}</td>
+                        <td style={{ ...tableCellStyle, textAlign: 'right', fontSize: 12 }}>
+                          {formatMoney(supplier.current_payable_amount || 0)}
+                        </td>
+                        <td style={tableCellStyle}>
+                          <button
+                            onClick={() => { /* TODO: Edit supplier */ }}
+                            style={{ ...subtleButtonStyle, fontSize: 11, padding: '2px 6px' }}
+                          >
+                            Edit
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div style={emptyStateStyle}>No suppliers found. Add your first supplier to get started.</div>
+            )}
+          </article>
+        </>
+      )}
+
+      {activeTab === 'payables' && (
+        <>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <p style={{ margin: 0, color: 'var(--muted-foreground)', fontSize: 13 }}>Payables aging and ledger management.</p>
+          </div>
+
+          {/* Payables Summary */}
+          <article style={surfaceCardStyle}>
+            <h3 style={{ margin: '0 0 16px', fontSize: 14 }}>Payables Summary</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+              <div style={{ padding: 12, background: 'var(--muted)', borderRadius: 8 }}>
+                <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginBottom: 4 }}>Today</div>
+                <div style={{ fontSize: 18, fontWeight: 600 }}>0 BDT</div>
+              </div>
+              <div style={{ padding: 12, background: 'var(--muted)', borderRadius: 8 }}>
+                <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginBottom: 4 }}>0-7 Days</div>
+                <div style={{ fontSize: 18, fontWeight: 600 }}>0 BDT</div>
+              </div>
+              <div style={{ padding: 12, background: 'var(--muted)', borderRadius: 8 }}>
+                <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginBottom: 4 }}>8-30 Days</div>
+                <div style={{ fontSize: 18, fontWeight: 600 }}>0 BDT</div>
+              </div>
+              <div style={{ padding: 12, background: 'var(--muted)', borderRadius: 8 }}>
+                <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginBottom: 4 }}>31-90 Days</div>
+                <div style={{ fontSize: 18, fontWeight: 600 }}>0 BDT</div>
+              </div>
+              <div style={{ padding: 12, background: 'var(--muted)', borderRadius: 8 }}>
+                <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginBottom: 4 }}>90+ Days</div>
+                <div style={{ fontSize: 18, fontWeight: 600 }}>0 BDT</div>
+              </div>
+            </div>
+          </article>
+
+          {/* Outstanding Payables */}
+          <article style={surfaceCardStyle}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
+              <h3 style={{ margin: 0, fontSize: 14 }}>Outstanding Payables</h3>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <input
+                  placeholder="Search supplier..."
+                  style={{ ...fieldStyle, fontSize: 12, width: 200 }}
+                />
+                <button style={{ ...searchButtonStyle, fontSize: 11, padding: '5px 10px', minHeight: 'auto' }}>
+                  Search
+                </button>
+              </div>
+            </div>
+            <div style={emptyStateStyle}>
+              No outstanding payables found. Payables will appear here when you make purchases on credit.
+            </div>
+          </article>
+
+          {/* Ledger */}
+          <article style={surfaceCardStyle}>
+            <h3 style={{ margin: '0 0 16px', fontSize: 14 }}>Supplier Ledger</h3>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              <select style={{ ...fieldStyle, fontSize: 12 }}>
+                <option value="">All Suppliers</option>
+                {suppliers.map((s) => <option key={s.id} value={s.id}>{s.company_name}</option>)}
+              </select>
+              <input type="date" style={{ ...fieldStyle, fontSize: 12 }} placeholder="From date" />
+              <input type="date" style={{ ...fieldStyle, fontSize: 12 }} placeholder="To date" />
+              <button style={{ ...searchButtonStyle, fontSize: 11, padding: '5px 10px', minHeight: 'auto' }}>
+                Generate
+              </button>
+            </div>
+            <div style={emptyStateStyle}>
+              Select a supplier and date range to generate ledger report.
+            </div>
+          </article>
+        </>
+      )}
     </section>
   );
 }
