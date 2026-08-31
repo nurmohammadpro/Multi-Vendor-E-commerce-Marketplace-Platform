@@ -2,6 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import { Loader2, Save } from 'lucide-react';
+import {
+  dangerButtonStyle,
+  fieldStyle,
+  gray800ButtonStyle,
+  neutralButtonStyle,
+  surfaceCardStyle,
+  tokenMutedStyle,
+} from '../merchflow-theme';
 
 type Category = { id: string; name: string; code: string };
 type Brand = { id: string; name: string };
@@ -20,6 +28,18 @@ type ProductFormData = {
   variantMode: string;
   trackingProfileId: string;
   warrantyPolicyId: string;
+};
+
+const labelStyle: React.CSSProperties = {
+  fontSize: 11,
+  fontWeight: 500,
+  display: 'block',
+  marginBottom: 4,
+};
+
+const fieldContainerStyle: React.CSSProperties = {
+  display: 'grid',
+  gap: 4,
 };
 
 export function ProductForm({
@@ -161,51 +181,58 @@ export function ProductForm({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="size-6 animate-spin text-muted-foreground" />
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '48px 0' }}>
+        <Loader2 style={{ width: 24, height: 24, animation: 'spin 1s linear infinite', color: 'var(--muted-foreground)' }} />
       </div>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} style={{ display: 'grid', gap: 20 }}>
       {error && (
-        <div className="rounded-md border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+        <div style={{
+          borderRadius: 4,
+          border: '1px solid var(--destructive)',
+          background: 'var(--destructive)',
+          color: '#ffffff',
+          padding: '8px 12px',
+          fontSize: 12,
+        }}>
           {error}
         </div>
       )}
 
       {/* Basic Info */}
-      <div className="rounded-md border bg-card p-4 space-y-4">
-        <h3 className="text-sm font-medium">Basic Information</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium">Product Name *</label>
+      <article style={surfaceCardStyle}>
+        <h3 style={{ margin: '0 0 16px', fontSize: 13, fontWeight: 600 }}>Basic Information</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+          <div style={fieldContainerStyle}>
+            <label style={labelStyle}>Product Name *</label>
             <input
               type="text"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               required
-              className="h-9 w-full rounded-md border bg-transparent px-3 text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+              style={fieldStyle}
               placeholder="e.g. iPhone 15 Pro Max"
             />
           </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium">Bengali Name</label>
+          <div style={fieldContainerStyle}>
+            <label style={labelStyle}>Bengali Name</label>
             <input
               type="text"
               value={form.nameBn}
               onChange={(e) => setForm({ ...form, nameBn: e.target.value })}
-              className="h-9 w-full rounded-md border bg-transparent px-3 text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+              style={fieldStyle}
               placeholder="Optional Bengali name"
             />
           </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium">Category</label>
+          <div style={fieldContainerStyle}>
+            <label style={labelStyle}>Category</label>
             <select
               value={form.categoryId}
               onChange={(e) => setForm({ ...form, categoryId: e.target.value })}
-              className="h-9 w-full rounded-md border bg-transparent px-3 text-sm"
+              style={fieldStyle}
             >
               <option value="">Select category</option>
               {categories.map((c) => (
@@ -213,12 +240,12 @@ export function ProductForm({
               ))}
             </select>
           </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium">Brand</label>
+          <div style={fieldContainerStyle}>
+            <label style={labelStyle}>Brand</label>
             <select
               value={form.brandId}
               onChange={(e) => setForm({ ...form, brandId: e.target.value })}
-              className="h-9 w-full rounded-md border bg-transparent px-3 text-sm"
+              style={fieldStyle}
             >
               <option value="">Select brand</option>
               {brands.map((b) => (
@@ -227,39 +254,39 @@ export function ProductForm({
             </select>
           </div>
         </div>
-        <div className="space-y-1.5">
-          <label className="text-xs font-medium">Description</label>
+        <div style={{ ...fieldContainerStyle, marginTop: 16 }}>
+          <label style={labelStyle}>Description</label>
           <textarea
             value={form.description}
             onChange={(e) => setForm({ ...form, description: e.target.value })}
             rows={3}
-            className="w-full rounded-md border bg-transparent px-3 py-2 text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+            style={{ ...fieldStyle, minHeight: 64, resize: 'vertical' }}
             placeholder="Optional product description"
           />
         </div>
-      </div>
+      </article>
 
       {/* Status & Tracking */}
-      <div className="rounded-md border bg-card p-4 space-y-4">
-        <h3 className="text-sm font-medium">Status & Tracking</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium">Status</label>
+      <article style={surfaceCardStyle}>
+        <h3 style={{ margin: '0 0 16px', fontSize: 13, fontWeight: 600 }}>Status & Tracking</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 16 }}>
+          <div style={fieldContainerStyle}>
+            <label style={labelStyle}>Status</label>
             <select
               value={form.status}
               onChange={(e) => setForm({ ...form, status: e.target.value })}
-              className="h-9 w-full rounded-md border bg-transparent px-3 text-sm"
+              style={fieldStyle}
             >
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
             </select>
           </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium">Tracking Profile</label>
+          <div style={fieldContainerStyle}>
+            <label style={labelStyle}>Tracking Profile</label>
             <select
               value={form.trackingProfileId}
               onChange={(e) => setForm({ ...form, trackingProfileId: e.target.value })}
-              className="h-9 w-full rounded-md border bg-transparent px-3 text-sm"
+              style={fieldStyle}
             >
               <option value="">No tracking</option>
               {trackingProfiles.map((p) => (
@@ -267,12 +294,12 @@ export function ProductForm({
               ))}
             </select>
           </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium">Warranty Policy</label>
+          <div style={fieldContainerStyle}>
+            <label style={labelStyle}>Warranty Policy</label>
             <select
               value={form.warrantyPolicyId}
               onChange={(e) => setForm({ ...form, warrantyPolicyId: e.target.value })}
-              className="h-9 w-full rounded-md border bg-transparent px-3 text-sm"
+              style={fieldStyle}
             >
               <option value="">No warranty</option>
               {warrantyPolicies.map((w) => (
@@ -281,59 +308,63 @@ export function ProductForm({
             </select>
           </div>
         </div>
-        <div className="flex items-center gap-6">
-          <label className="flex items-center gap-2 text-sm">
+        <div style={{ marginTop: 16 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
             <input
               type="checkbox"
               checked={form.isTrackable}
               onChange={(e) => setForm({ ...form, isTrackable: e.target.checked })}
-              className="size-4 rounded border-input"
+              style={{ width: 16, height: 16 }}
             />
             Trackable (serialized inventory)
           </label>
         </div>
-      </div>
+      </article>
 
       {/* Variant Mode */}
-      <div className="rounded-md border bg-card p-4 space-y-4">
-        <h3 className="text-sm font-medium">Variants</h3>
-        <div className="flex items-center gap-4">
+      <article style={surfaceCardStyle}>
+        <h3 style={{ margin: '0 0 16px', fontSize: 13, fontWeight: 600 }}>Variants</h3>
+        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
           {['none', 'single', 'multi'].map((mode) => (
-            <label key={mode} className="flex items-center gap-2 text-sm">
+            <label key={mode} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
               <input
                 type="radio"
                 name="variantMode"
                 value={mode}
                 checked={form.variantMode === mode}
                 onChange={(e) => setForm({ ...form, variantMode: e.target.value, hasVariants: e.target.value !== 'none' })}
-                className="size-4"
+                style={{ width: 16, height: 16 }}
               />
               {mode === 'none' ? 'No Variants' : mode === 'single' ? 'Single Variant' : 'Multiple Variants'}
             </label>
           ))}
         </div>
         {form.hasVariants && (
-          <p className="text-xs text-muted-foreground">
+          <p style={{ ...tokenMutedStyle, marginTop: 12 }}>
             Variant groups and options can be managed after creating the product.
           </p>
         )}
-      </div>
+      </article>
 
       {/* Actions */}
-      <div className="flex items-center justify-end gap-2">
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
         <button
           type="button"
           onClick={onCancel}
-          className="h-9 rounded-md border bg-transparent px-4 text-sm font-medium hover:bg-muted"
+          style={neutralButtonStyle}
         >
           Cancel
         </button>
         <button
           type="submit"
           disabled={saving || !form.name.trim()}
-          className="inline-flex items-center gap-2 h-9 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          style={{
+            ...gray800ButtonStyle,
+            opacity: saving || !form.name.trim() ? 0.5 : 1,
+            cursor: saving || !form.name.trim() ? 'not-allowed' : 'pointer',
+          }}
         >
-          {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+          {saving ? <Loader2 style={{ width: 14, height: 14, marginRight: 4, animation: 'spin 1s linear infinite' }} /> : <Save style={{ width: 14, height: 14, marginRight: 4 }} />}
           {isEdit ? 'Save Changes' : 'Create Product'}
         </button>
       </div>

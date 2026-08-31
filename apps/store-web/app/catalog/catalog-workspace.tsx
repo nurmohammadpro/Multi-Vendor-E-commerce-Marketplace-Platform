@@ -2,6 +2,21 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { Search, Plus, Package, ChevronRight, Loader2 } from 'lucide-react';
+import {
+  emptyStateStyle,
+  fieldStyle,
+  gray800ButtonStyle,
+  pageShellStyle,
+  searchButtonStyle,
+  subtleButtonStyle,
+  surfaceCardStyle,
+  tableCellStyle,
+  tableHeaderCellStyle,
+  tableStyle,
+  tableWrapStyle,
+  tokenMutedStyle,
+} from '../merchflow-theme';
+import { searchRowStyle } from '../workspace-responsive';
 import { ListPager } from '../list-pager';
 import { ProductForm } from './product-form';
 import { ProductDetail } from './product-detail';
@@ -80,109 +95,114 @@ export function CatalogWorkspace({ canManageCatalog }: { canManageCatalog: boole
 
   if (view === 'create' || view === 'edit') {
     return (
-      <div className="space-y-4">
-        <div className="flex items-center gap-2">
-          <button onClick={() => { setView('list'); setSelectedProductId(undefined); }} className="text-sm text-muted-foreground hover:text-foreground">
+      <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button onClick={() => { setView('list'); setSelectedProductId(undefined); }} style={{ ...tokenMutedStyle, cursor: 'pointer', background: 'none', border: 'none', padding: 0, font: 'inherit' }}>
             Catalog
           </button>
-          <ChevronRight className="size-3 text-muted-foreground" />
-          <span className="text-sm font-medium">{view === 'create' ? 'New Product' : 'Edit Product'}</span>
+          <ChevronRight style={{ width: 12, height: 12, color: 'var(--muted-foreground)' }} />
+          <span style={{ fontSize: 13, fontWeight: 500 }}>{view === 'create' ? 'New Product' : 'Edit Product'}</span>
         </div>
         <ProductForm
           productId={view === 'edit' ? selectedProductId : undefined}
           onSuccess={handleFormSuccess}
           onCancel={() => { setView('list'); setSelectedProductId(undefined); }}
         />
-      </div>
+      </section>
     );
   }
 
   if (view === 'detail' && selectedProductId) {
     return (
-      <div className="space-y-4">
-        <div className="flex items-center gap-2">
-          <button onClick={() => { setView('list'); setSelectedProductId(undefined); }} className="text-sm text-muted-foreground hover:text-foreground">
+      <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button onClick={() => { setView('list'); setSelectedProductId(undefined); }} style={{ ...tokenMutedStyle, cursor: 'pointer', background: 'none', border: 'none', padding: 0, font: 'inherit' }}>
             Catalog
           </button>
-          <ChevronRight className="size-3 text-muted-foreground" />
-          <span className="text-sm font-medium">Product Detail</span>
+          <ChevronRight style={{ width: 12, height: 12, color: 'var(--muted-foreground)' }} />
+          <span style={{ fontSize: 13, fontWeight: 500 }}>Product Detail</span>
         </div>
         <ProductDetail
           productId={selectedProductId}
           onEdit={() => setView('edit')}
           onBack={() => { setView('list'); setSelectedProductId(undefined); }}
         />
-      </div>
+      </section>
     );
   }
 
   return (
-    <div className="space-y-4">
+    <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
       {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-lg font-semibold tracking-tight">Product Catalog</h1>
-          <p className="text-xs text-muted-foreground">{pagination.total} products</p>
+      <article style={surfaceCardStyle}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 15 }}>Product Catalog</h3>
+            <p style={{ ...tokenMutedStyle, marginBottom: 0 }}>{pagination.total} products</p>
+          </div>
+          {canManageCatalog && (
+            <button
+              onClick={() => setView('create')}
+              style={gray800ButtonStyle}
+            >
+              <Plus style={{ width: 14, height: 14, marginRight: 4 }} />
+              Add Product
+            </button>
+          )}
         </div>
-        {canManageCatalog && (
-          <button
-            onClick={() => setView('create')}
-            className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-          >
-            <Plus className="size-4" />
-            Add Product
-          </button>
-        )}
-      </div>
+      </article>
 
       {/* Filters */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search products..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            className="h-9 w-full rounded-md border bg-transparent pl-9 pr-3 text-sm placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
-          />
+      <article style={surfaceCardStyle}>
+        <div style={searchRowStyle}>
+          <div style={{ position: 'relative', flex: 1 }}>
+            <Search style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', width: 14, height: 14, color: 'var(--muted-foreground)' }} />
+            <input
+              type="text"
+              placeholder="Search products..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+              style={{ ...fieldStyle, flex: 1, width: 'auto', paddingLeft: 28 }}
+            />
+          </div>
+          <select
+            value={statusFilter}
+            onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+            style={fieldStyle}
+          >
+            <option value="">All Status</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+          <button onClick={handleSearch} style={searchButtonStyle} disabled={loading}>Search</button>
         </div>
-        <select
-          value={statusFilter}
-          onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-          className="h-9 rounded-md border bg-transparent px-3 text-sm"
-        >
-          <option value="">All Status</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
-        </select>
-      </div>
+      </article>
 
       {/* Product Table */}
-      <div className="rounded-md border">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+      <article style={surfaceCardStyle}>
+        <div style={tableWrapStyle}>
+          <table style={tableStyle}>
             <thead>
-              <tr className="border-b bg-muted/50">
-                <th className="px-3 py-2 text-left font-medium text-muted-foreground">Product</th>
-                <th className="px-3 py-2 text-left font-medium text-muted-foreground">Category</th>
-                <th className="px-3 py-2 text-left font-medium text-muted-foreground">Brand</th>
-                <th className="px-3 py-2 text-center font-medium text-muted-foreground">SKUs</th>
-                <th className="px-3 py-2 text-center font-medium text-muted-foreground">Status</th>
-                <th className="px-3 py-2 text-right font-medium text-muted-foreground">Actions</th>
+              <tr>
+                <th style={tableHeaderCellStyle}>Product</th>
+                <th style={tableHeaderCellStyle}>Category</th>
+                <th style={tableHeaderCellStyle}>Brand</th>
+                <th style={{ ...tableHeaderCellStyle, textAlign: 'center' }}>SKUs</th>
+                <th style={{ ...tableHeaderCellStyle, textAlign: 'center' }}>Status</th>
+                <th style={{ ...tableHeaderCellStyle, textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-3 py-8 text-center text-muted-foreground">
-                    <Loader2 className="mx-auto size-4 animate-spin" />
+                  <td colSpan={6} style={{ ...tableCellStyle, textAlign: 'center', padding: '32px 10px' }}>
+                    <Loader2 style={{ width: 16, height: 16, margin: '0 auto', animation: 'spin 1s linear infinite', color: 'var(--muted-foreground)' }} />
                   </td>
                 </tr>
               ) : products.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-3 py-8 text-center text-muted-foreground">
+                  <td colSpan={6} style={emptyStateStyle}>
                     No products found
                   </td>
                 </tr>
@@ -190,33 +210,40 @@ export function CatalogWorkspace({ canManageCatalog }: { canManageCatalog: boole
                 products.map((product) => (
                   <tr
                     key={product.id}
-                    className="border-b last:border-0 hover:bg-muted/30 cursor-pointer"
+                    style={{ cursor: 'pointer' }}
                     onClick={() => handleViewProduct(product.id)}
                   >
-                    <td className="px-3 py-2">
-                      <div className="flex items-center gap-2">
-                        <Package className="size-4 text-muted-foreground shrink-0" />
+                    <td style={tableCellStyle}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Package style={{ width: 14, height: 14, color: 'var(--muted-foreground)', flexShrink: 0 }} />
                         <div>
-                          <div className="font-medium">{product.name}</div>
-                          <div className="text-xs text-muted-foreground">{product.product_code}</div>
+                          <div style={{ fontWeight: 500 }}>{product.name}</div>
+                          <div style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>{product.product_code}</div>
                         </div>
                       </div>
                     </td>
-                    <td className="px-3 py-2 text-muted-foreground">{product.category_name || '—'}</td>
-                    <td className="px-3 py-2 text-muted-foreground">{product.brand_name || '—'}</td>
-                    <td className="px-3 py-2 text-center">{product.sku_count}</td>
-                    <td className="px-3 py-2 text-center">
-                      <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${
-                        product.status === 'active' ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'
-                      }`}>
+                    <td style={tableCellStyle}>{product.category_name || '—'}</td>
+                    <td style={tableCellStyle}>{product.brand_name || '—'}</td>
+                    <td style={{ ...tableCellStyle, textAlign: 'center' }}>{product.sku_count}</td>
+                    <td style={{ ...tableCellStyle, textAlign: 'center' }}>
+                      <span style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        borderRadius: 4,
+                        padding: '2px 8px',
+                        fontSize: 11,
+                        fontWeight: 500,
+                        background: product.status === 'active' ? 'var(--success)' : 'var(--muted)',
+                        color: product.status === 'active' ? 'var(--success-foreground)' : 'var(--muted-foreground)',
+                      }}>
                         {product.status}
                       </span>
                     </td>
-                    <td className="px-3 py-2 text-right">
+                    <td style={{ ...tableCellStyle, textAlign: 'right' }}>
                       {canManageCatalog && (
                         <button
                           onClick={(e) => { e.stopPropagation(); handleEditProduct(product.id); }}
-                          className="text-xs text-muted-foreground hover:text-foreground"
+                          style={{ ...subtleButtonStyle, fontSize: 11, padding: '4px 8px' }}
                         >
                           Edit
                         </button>
@@ -228,7 +255,7 @@ export function CatalogWorkspace({ canManageCatalog }: { canManageCatalog: boole
             </tbody>
           </table>
         </div>
-      </div>
+      </article>
 
       {/* Pagination */}
       {pagination.total > pagination.limit && (
@@ -240,6 +267,6 @@ export function CatalogWorkspace({ canManageCatalog }: { canManageCatalog: boole
           label="products"
         />
       )}
-    </div>
+    </section>
   );
 }

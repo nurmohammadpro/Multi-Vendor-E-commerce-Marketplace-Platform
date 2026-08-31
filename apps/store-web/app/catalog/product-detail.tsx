@@ -2,6 +2,17 @@
 
 import { useEffect, useState } from 'react';
 import { Loader2, Edit, ArrowLeft, Package } from 'lucide-react';
+import {
+  emptyStateStyle,
+  neutralButtonStyle,
+  pageShellStyle,
+  surfaceCardStyle,
+  tableCellStyle,
+  tableHeaderCellStyle,
+  tableStyle,
+  tableWrapStyle,
+  tokenMutedStyle,
+} from '../merchflow-theme';
 
 type ProductDetailData = {
   product: {
@@ -60,15 +71,15 @@ export function ProductDetail({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="size-6 animate-spin text-muted-foreground" />
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '48px 0' }}>
+        <Loader2 style={{ width: 24, height: 24, animation: 'spin 1s linear infinite', color: 'var(--muted-foreground)' }} />
       </div>
     );
   }
 
   if (!data) {
     return (
-      <div className="text-center py-12 text-muted-foreground">
+      <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--muted-foreground)' }}>
         Product not found
       </div>
     );
@@ -77,96 +88,128 @@ export function ProductDetail({
   const { product, groups, skus, trackingProfile } = data;
 
   return (
-    <div className="space-y-4">
+    <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <button onClick={onBack} className="text-muted-foreground hover:text-foreground">
-            <ArrowLeft className="size-4" />
-          </button>
-          <div>
-            <h2 className="text-lg font-semibold">{product.name}</h2>
-            <p className="text-xs text-muted-foreground">{product.product_code}</p>
+      <article style={surfaceCardStyle}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button onClick={onBack} style={{ ...neutralButtonStyle, minWidth: 32, minHeight: 32, padding: 0 }}>
+              <ArrowLeft style={{ width: 14, height: 14 }} />
+            </button>
+            <div>
+              <h2 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>{product.name}</h2>
+              <p style={{ ...tokenMutedStyle, marginBottom: 0 }}>{product.product_code}</p>
+            </div>
           </div>
+          <button
+            onClick={onEdit}
+            style={neutralButtonStyle}
+          >
+            <Edit style={{ width: 13, height: 13, marginRight: 4 }} />
+            Edit
+          </button>
         </div>
-        <button
-          onClick={onEdit}
-          className="inline-flex items-center gap-2 rounded-md border bg-transparent px-3 py-1.5 text-sm font-medium hover:bg-muted"
-        >
-          <Edit className="size-3.5" />
-          Edit
-        </button>
-      </div>
+      </article>
 
       {/* Product Info */}
-      <div className="rounded-md border bg-card p-4">
-        <h3 className="text-sm font-medium mb-3">Product Information</h3>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+      <article style={surfaceCardStyle}>
+        <h3 style={{ margin: '0 0 12px', fontSize: 13, fontWeight: 600 }}>Product Information</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 16, fontSize: 13 }}>
           <div>
-            <div className="text-muted-foreground text-xs">Category</div>
+            <div style={{ color: 'var(--muted-foreground)', fontSize: 11 }}>Category</div>
             <div>{product.category_name || '—'}</div>
           </div>
           <div>
-            <div className="text-muted-foreground text-xs">Brand</div>
+            <div style={{ color: 'var(--muted-foreground)', fontSize: 11 }}>Brand</div>
             <div>{product.brand_name || '—'}</div>
           </div>
           <div>
-            <div className="text-muted-foreground text-xs">Status</div>
-            <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${
-              product.status === 'active' ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'
-            }`}>
+            <div style={{ color: 'var(--muted-foreground)', fontSize: 11 }}>Status</div>
+            <span style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              borderRadius: 4,
+              padding: '2px 8px',
+              fontSize: 11,
+              fontWeight: 500,
+              background: product.status === 'active' ? 'var(--success)' : 'var(--muted)',
+              color: product.status === 'active' ? 'var(--success-foreground)' : 'var(--muted-foreground)',
+            }}>
               {product.status}
             </span>
           </div>
           <div>
-            <div className="text-muted-foreground text-xs">Trackable</div>
+            <div style={{ color: 'var(--muted-foreground)', fontSize: 11 }}>Trackable</div>
             <div>{product.is_trackable ? 'Yes' : 'No'}</div>
           </div>
           {product.description && (
-            <div className="col-span-2 sm:col-span-4">
-              <div className="text-muted-foreground text-xs">Description</div>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <div style={{ color: 'var(--muted-foreground)', fontSize: 11 }}>Description</div>
               <div>{product.description}</div>
             </div>
           )}
         </div>
-      </div>
+      </article>
 
       {/* Tracking Profile */}
       {trackingProfile && (
-        <div className="rounded-md border bg-card p-4">
-          <h3 className="text-sm font-medium mb-3">Tracking Profile</h3>
-          <div className="mb-2">
-            <span className="inline-flex items-center rounded-md bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent">
+        <article style={surfaceCardStyle}>
+          <h3 style={{ margin: '0 0 12px', fontSize: 13, fontWeight: 600 }}>Tracking Profile</h3>
+          <div style={{ marginBottom: 8 }}>
+            <span style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              borderRadius: 4,
+              padding: '2px 8px',
+              fontSize: 11,
+              fontWeight: 500,
+              background: 'var(--accent-soft)',
+              color: 'var(--accent)',
+            }}>
               {trackingProfile.name}
             </span>
           </div>
           {trackingProfile.fields && trackingProfile.fields.length > 0 && (
-            <div className="flex flex-wrap gap-2">
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
               {trackingProfile.fields.map((f: any) => (
-                <span key={f.id || f.fieldKey} className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs">
+                <span key={f.id || f.fieldKey} style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  borderRadius: 4,
+                  padding: '2px 8px',
+                  background: 'var(--muted)',
+                  fontSize: 11,
+                }}>
                   {f.fieldLabel} ({f.fieldType})
-                  {f.isRequired && <span className="ml-1 text-destructive">*</span>}
-                  {f.isUnique && <span className="ml-1 text-muted-foreground">unique</span>}
+                  {f.isRequired && <span style={{ marginLeft: 4, color: 'var(--destructive)' }}>*</span>}
+                  {f.isUnique && <span style={{ marginLeft: 4, color: 'var(--muted-foreground)' }}>unique</span>}
                 </span>
               ))}
             </div>
           )}
-        </div>
+        </article>
       )}
 
       {/* Variant Groups */}
       {groups.length > 0 && (
-        <div className="rounded-md border bg-card p-4">
-          <h3 className="text-sm font-medium mb-3">Variant Groups</h3>
-          <div className="space-y-2">
+        <article style={surfaceCardStyle}>
+          <h3 style={{ margin: '0 0 12px', fontSize: 13, fontWeight: 600 }}>Variant Groups</h3>
+          <div style={{ display: 'grid', gap: 8 }}>
             {groups.map((g: any) => (
-              <div key={g.id} className="flex items-center gap-2">
-                <span className="text-sm font-medium">{g.name}</span>
-                <span className="text-xs text-muted-foreground">({g.input_type})</span>
+              <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 13, fontWeight: 500 }}>{g.name}</span>
+                <span style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>({g.input_type})</span>
                 {g.options && g.options.length > 0 && (
-                  <div className="flex gap-1">
+                  <div style={{ display: 'flex', gap: 4 }}>
                     {g.options.map((o: any) => (
-                      <span key={o.id} className="inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 text-xs">
+                      <span key={o.id} style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        borderRadius: 4,
+                        padding: '2px 6px',
+                        background: 'var(--muted)',
+                        fontSize: 11,
+                      }}>
                         {o.label || o.valueText || o.valueNumber}
                       </span>
                     ))}
@@ -175,39 +218,45 @@ export function ProductDetail({
               </div>
             ))}
           </div>
-        </div>
+        </article>
       )}
 
       {/* SKUs */}
-      <div className="rounded-md border bg-card p-4">
-        <h3 className="text-sm font-medium mb-3">SKUs ({skus.length})</h3>
+      <article style={surfaceCardStyle}>
+        <h3 style={{ margin: '0 0 12px', fontSize: 13, fontWeight: 600 }}>SKUs ({skus.length})</h3>
         {skus.length === 0 ? (
-          <p className="text-xs text-muted-foreground">No SKUs yet</p>
+          <p style={tokenMutedStyle}>No SKUs yet</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div style={tableWrapStyle}>
+            <table style={tableStyle}>
               <thead>
-                <tr className="border-b">
-                  <th className="px-2 py-1.5 text-left text-xs font-medium text-muted-foreground">SKU Code</th>
-                  <th className="px-2 py-1.5 text-left text-xs font-medium text-muted-foreground">Variant</th>
-                  <th className="px-2 py-1.5 text-right text-xs font-medium text-muted-foreground">Cost</th>
-                  <th className="px-2 py-1.5 text-right text-xs font-medium text-muted-foreground">Sale</th>
-                  <th className="px-2 py-1.5 text-center text-xs font-medium text-muted-foreground">Stock</th>
-                  <th className="px-2 py-1.5 text-center text-xs font-medium text-muted-foreground">Status</th>
+                <tr>
+                  <th style={tableHeaderCellStyle}>SKU Code</th>
+                  <th style={tableHeaderCellStyle}>Variant</th>
+                  <th style={{ ...tableHeaderCellStyle, textAlign: 'right' }}>Cost</th>
+                  <th style={{ ...tableHeaderCellStyle, textAlign: 'right' }}>Sale</th>
+                  <th style={{ ...tableHeaderCellStyle, textAlign: 'center' }}>Stock</th>
+                  <th style={{ ...tableHeaderCellStyle, textAlign: 'center' }}>Status</th>
                 </tr>
               </thead>
               <tbody>
                 {skus.map((sku: any) => (
-                  <tr key={sku.id} className="border-b last:border-0">
-                    <td className="px-2 py-1.5 font-mono text-xs">{sku.sku_code}</td>
-                    <td className="px-2 py-1.5 text-xs">{sku.variant_label || '—'}</td>
-                    <td className="px-2 py-1.5 text-right text-xs">{sku.cost_price ? `৳${sku.cost_price}` : '—'}</td>
-                    <td className="px-2 py-1.5 text-right text-xs">{sku.sale_price ? `৳${sku.sale_price}` : '—'}</td>
-                    <td className="px-2 py-1.5 text-center text-xs">{sku.on_hand_qty ?? 0}</td>
-                    <td className="px-2 py-1.5 text-center">
-                      <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-xs ${
-                        sku.status === 'active' ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'
-                      }`}>
+                  <tr key={sku.id}>
+                    <td style={{ ...tableCellStyle, fontFamily: 'monospace', fontSize: 11 }}>{sku.sku_code}</td>
+                    <td style={{ ...tableCellStyle, fontSize: 11 }}>{sku.variant_label || '—'}</td>
+                    <td style={{ ...tableCellStyle, textAlign: 'right', fontSize: 11 }}>{sku.cost_price ? `৳${sku.cost_price}` : '—'}</td>
+                    <td style={{ ...tableCellStyle, textAlign: 'right', fontSize: 11 }}>{sku.sale_price ? `৳${sku.sale_price}` : '—'}</td>
+                    <td style={{ ...tableCellStyle, textAlign: 'center', fontSize: 11 }}>{sku.on_hand_qty ?? 0}</td>
+                    <td style={{ ...tableCellStyle, textAlign: 'center' }}>
+                      <span style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        borderRadius: 4,
+                        padding: '2px 6px',
+                        fontSize: 11,
+                        background: sku.status === 'active' ? 'var(--success)' : 'var(--muted)',
+                        color: sku.status === 'active' ? 'var(--success-foreground)' : 'var(--muted-foreground)',
+                      }}>
                         {sku.status}
                       </span>
                     </td>
@@ -217,7 +266,7 @@ export function ProductDetail({
             </table>
           </div>
         )}
-      </div>
-    </div>
+      </article>
+    </section>
   );
 }
