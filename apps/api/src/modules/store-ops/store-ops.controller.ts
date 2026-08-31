@@ -203,6 +203,16 @@ const quickReceiveSchema = z.object({
   note: z.string().max(500).optional(),
 });
 
+// ── Receive with Tracking: receive existing product with per-unit tracking values ──
+
+const receiveWithTrackingSchema = z.object({
+  productId: z.string().uuid(),
+  skuId: z.string().uuid().optional(),
+  supplierId: z.string().uuid(),
+  locationId: z.string().uuid(),
+  trackingValuesList: z.array(z.record(z.string(), z.string())).min(1),
+});
+
 // ── Quick Exchange: create exchange/trade-in product ──
 
 const quickExchangeSchema = z.object({
@@ -429,6 +439,18 @@ export class StoreOpsController {
     @Body() payload: unknown,
   ) {
     return this.storeOpsService.quickReceive(headerStoreId, authContext, session, quickReceiveSchema.parse(payload));
+  }
+
+  @Post('purchases/receive')
+  @RequireContext('store')
+  @RequirePermissions('procurement.manage')
+  receiveWithTracking(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @CurrentAuthSession() session: AuthSession | null,
+    @Body() payload: unknown,
+  ) {
+    return this.storeOpsService.receiveWithTracking(headerStoreId, authContext, session, receiveWithTrackingSchema.parse(payload));
   }
 
   @Post('quick-exchange')

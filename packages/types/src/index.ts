@@ -24,6 +24,34 @@ export interface ProductCategory {
   updatedAt: Date;
 }
 
+// ==================== TRACKING PROFILES ====================
+export type TrackingFieldType = 'text' | 'number' | 'imei' | 'date';
+
+export interface TrackingField {
+  id: string;
+  profileId: string;
+  fieldKey: string;
+  fieldLabel: string;
+  fieldType: TrackingFieldType;
+  isRequired: boolean;
+  isUnique: boolean;
+  validationRules: Record<string, any>;
+  sortOrder: number;
+  createdAt: Date;
+}
+
+export interface TrackingProfile {
+  id: string;
+  tenantId: string;
+  name: string;
+  categoryId?: string;
+  isGlobal: boolean;
+  status: 'active' | 'inactive';
+  fields?: TrackingField[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 // ==================== DEVICE SERIALS ====================
 export type DeviceSerialStatus =
   | 'in_stock'
@@ -50,6 +78,8 @@ export interface DeviceSerial {
   status: DeviceSerialStatus;
   assignedToSaleId?: string;
   warrantyLinked: boolean;
+  trackingValues: Record<string, string>; // Custom tracking field values
+  trackingProfileId?: string;
   createdAt: Date;
   updatedAt: Date;
 }

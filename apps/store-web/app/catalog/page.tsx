@@ -1,12 +1,8 @@
-import { pageShellStyle } from '../merchflow-theme';
-import { getStoreConsoleAccess } from '../../lib/access';
+import { getStoreConsoleAccess } from '@/lib/access';
 import { CatalogWorkspace } from './catalog-workspace';
 
-export default async function StoreCatalogPage() {
+export default async function CatalogPage() {
   const access = await getStoreConsoleAccess();
-  return (
-    <main style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
-      <CatalogWorkspace canManageCatalog={access.canManageCatalog} canApprovePriceChanges={access.canApproveInventory} />
-    </main>
-  );
+
+  return <CatalogWorkspace canManageCatalog={access.canManageCatalog} />;
 }

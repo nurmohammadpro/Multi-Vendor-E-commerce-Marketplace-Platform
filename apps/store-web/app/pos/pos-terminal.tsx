@@ -15,6 +15,7 @@ import {
   type ReceiptPayload,
 } from '../../lib/print-agent';
 import { loadWorkstationProfile } from '../../lib/workstation-profile';
+import { SerialPickerModal } from './serial-picker-modal';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import {
   accentButtonStyle,
@@ -100,6 +101,8 @@ type CartItem = {
   barcode?: string | null;
   discountAmount: number;
   discountType: string;
+  isTrackable?: boolean;
+  selectedSerials?: Array<{ serialId: string; serialNumber: string; imei?: string | null }>;
 };
 
 type ShiftResponse = {
@@ -197,6 +200,13 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
   });
   const [exchangeItem, setExchangeItem] = useState<{ skuId: string; skuCode: string; productName: string; category: string; brand: string; costPrice: number; salePrice: number; exchangeAmount: number } | null>(null);
   const [exchangeModalOpen, setExchangeModalOpen] = useState(false);
+
+  // Serial picker state
+  const [serialPickerOpen, setSerialPickerOpen] = useState(false);
+  const [serialPickerSkuId, setSerialPickerSkuId] = useState('');
+  const [serialPickerSkuCode, setSerialPickerSkuCode] = useState('');
+  const [serialPickerProductName, setSerialPickerProductName] = useState('');
+  const [serialPickerCartIndex, setSerialPickerCartIndex] = useState<number>(-1);
   const [exchangeFormName, setExchangeFormName] = useState('');
   const [exchangeFormCategory, setExchangeFormCategory] = useState('');
   const [exchangeFormBrand, setExchangeFormBrand] = useState('');
@@ -480,9 +490,24 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
           barcode: sku.barcode,
           discountAmount,
           discountType,
+          isTrackable,
         },
       ];
     });
+
+    // Open serial picker for trackable products
+    if (isTrackable) {
+      setSerialPickerSkuId(sku.id);
+      setSerialPickerSkuCode(sku.sku_code);
+      setSerialPickerProductName(sku.product_name);
+      // Find the index of the newly added item
+      setCart((prev) => {
+        const idx = prev.findIndex((i) => i.skuId === sku.id);
+        setSerialPickerCartIndex(idx >= 0 ? idx : prev.length);
+        return prev;
+      });
+      setSerialPickerOpen(true);
+    }
   };
 
   const searchCatalog = async (queryText = search.trim()) => {
@@ -737,6 +762,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
             unitPrice: item.unitPrice,
             discountAmount: item.discountAmount,
             taxAmount: 0,
+            serialIds: item.selectedSerials?.map((s) => s.serialId),
           })),
           payments: usePartialPayments
             ? (() => {
@@ -1430,6 +1456,22 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
           </div>
         </div>
       )}
+
+      <SerialPickerModal
+        open={serialPickerOpen}
+        skuId={serialPickerSkuId}
+        skuCode={serialPickerSkuCode}
+        productName={serialPickerProductName}
+        onSelect={(serials) => {
+          setCart((prev) => prev.map((item, idx) => {
+            if (idx === serialPickerCartIndex) {
+              return { ...item, selectedSerials: serials };
+            }
+            return item;
+          }));
+        }}
+        onClose={() => setSerialPickerOpen(false)}
+      />
 
       {exchangeModalOpen && (
         <div

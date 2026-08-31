@@ -51,6 +51,7 @@ const createSaleSchema = z.object({
       unitPrice: z.number().nonnegative(),
       discountAmount: z.number().nonnegative().default(0),
       taxAmount: z.number().nonnegative().default(0),
+      serialIds: z.array(z.string().uuid()).optional(),
     }),
   ).min(1),
   payments: z.array(

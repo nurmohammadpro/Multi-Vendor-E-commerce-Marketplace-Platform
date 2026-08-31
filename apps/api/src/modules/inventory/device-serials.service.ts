@@ -26,6 +26,8 @@ export class DeviceSerialsService {
       batchCode: string;
       currentLocationId?: string;
       specificationsJson?: Record<string, any>;
+      trackingValues?: Record<string, string>;
+      trackingProfileId?: string;
     },
   ): Promise<DeviceSerial> {
     // Validate serial uniqueness within store
@@ -42,6 +44,25 @@ export class DeviceSerialsService {
         `Serial number ${data.serialNumber} already exists in this store`,
       );
     }
+
+    // Validate global IMEI uniqueness
+    if (data.imeiNumber) {
+      const existingImei = await this.pool.query(
+        `
+          SELECT id FROM inventory.device_serials
+          WHERE imei_number = $1
+        `,
+        [data.imeiNumber],
+      );
+
+      if (existingImei.rows.length > 0) {
+        throw new ConflictException(
+          `IMEI ${data.imeiNumber} already exists in the system`,
+        );
+      }
+    }
+
+    const trackingValues = data.trackingValues || {};
 
     const result = await this.pool.query(
       `
@@ -60,6 +81,8 @@ export class DeviceSerialsService {
           status,
           warranty_linked,
           specifications_json,
+          tracking_values,
+          tracking_profile_id,
           received_date,
           created_at,
           updated_at
@@ -79,6 +102,8 @@ export class DeviceSerialsService {
           'in_stock',
           false,
           $11,
+          $12,
+          $13,
           NOW(),
           NOW(),
           NOW()
@@ -98,6 +123,8 @@ export class DeviceSerialsService {
           status,
           warranty_linked,
           specifications_json,
+          tracking_values,
+          tracking_profile_id,
           received_date,
           assigned_to_sale_id,
           created_at,
@@ -115,6 +142,8 @@ export class DeviceSerialsService {
         data.batchCode,
         data.currentLocationId || null,
         data.specificationsJson ? JSON.stringify(data.specificationsJson) : null,
+        JSON.stringify(trackingValues),
+        data.trackingProfileId || null,
       ],
     );
 
@@ -135,6 +164,8 @@ export class DeviceSerialsService {
       batchCode: string;
       color?: string;
       specifications?: Record<string, any>;
+      trackingValues?: Record<string, string>;
+      trackingProfileId?: string;
     }>,
   ): Promise<{ imported: number; failed: number; errors: Array<{ serial: string; error: string }> }> {
     const errors: Array<{ serial: string; error: string }> = [];
@@ -150,6 +181,8 @@ export class DeviceSerialsService {
           batchCode: serial.batchCode,
           color: serial.color,
           specificationsJson: serial.specifications,
+          trackingValues: serial.trackingValues,
+          trackingProfileId: serial.trackingProfileId,
         });
         imported++;
       } catch (error) {
@@ -175,8 +208,8 @@ export class DeviceSerialsService {
         SELECT
           id, tenant_id, store_id, sku_id, serial_number, imei_number,
           device_model, color, manufacture_date, batch_code, current_location_id,
-          status, warranty_linked, specifications_json, assigned_to_sale_id,
-          received_date, created_at, updated_at
+          status, warranty_linked, specifications_json, tracking_values, tracking_profile_id,
+          assigned_to_sale_id, received_date, created_at, updated_at
         FROM inventory.device_serials
         WHERE id = $1 AND store_id = $2
       `,
@@ -254,8 +287,8 @@ export class DeviceSerialsService {
         SELECT
           id, tenant_id, store_id, sku_id, serial_number, imei_number,
           device_model, color, manufacture_date, batch_code, current_location_id,
-          status, warranty_linked, specifications_json, assigned_to_sale_id,
-          received_date, created_at, updated_at
+          status, warranty_linked, specifications_json, tracking_values, tracking_profile_id,
+          assigned_to_sale_id, received_date, created_at, updated_at
         FROM inventory.device_serials
         WHERE ${whereClause}
         ORDER BY created_at DESC
@@ -290,8 +323,8 @@ export class DeviceSerialsService {
         RETURNING
           id, tenant_id, store_id, sku_id, serial_number, imei_number,
           device_model, color, manufacture_date, batch_code, current_location_id,
-          status, warranty_linked, specifications_json, assigned_to_sale_id,
-          received_date, created_at, updated_at
+          status, warranty_linked, specifications_json, tracking_values, tracking_profile_id,
+          assigned_to_sale_id, received_date, created_at, updated_at
       `,
       [newStatus, assignedToSaleId || null, serialId, storeId],
     );
@@ -329,8 +362,8 @@ export class DeviceSerialsService {
         SELECT
           id, tenant_id, store_id, sku_id, serial_number, imei_number,
           device_model, color, manufacture_date, batch_code, current_location_id,
-          status, warranty_linked, specifications_json, assigned_to_sale_id,
-          received_date, created_at, updated_at
+          status, warranty_linked, specifications_json, tracking_values, tracking_profile_id,
+          assigned_to_sale_id, received_date, created_at, updated_at
         FROM inventory.device_serials
         WHERE batch_code = $1 AND store_id = $2
         ORDER BY created_at ASC
@@ -359,6 +392,8 @@ export class DeviceSerialsService {
       status: row.status,
       assignedToSaleId: row.assigned_to_sale_id,
       warrantyLinked: row.warranty_linked,
+      trackingValues: row.tracking_values || {},
+      trackingProfileId: row.tracking_profile_id,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };

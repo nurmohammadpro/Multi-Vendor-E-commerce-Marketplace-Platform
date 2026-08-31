@@ -2677,6 +2677,169 @@ export class StoreOpsService {
     }
   }
 
+  async receiveWithTracking(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    session: AuthSession | null,
+    payload: {
+      productId: string;
+      skuId?: string;
+      supplierId: string;
+      locationId: string;
+      trackingValuesList: Record<string, string>[];
+    },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const userId = this.requireUserId(session);
+    const client = await this.pool.connect();
+
+    try {
+      await client.query('begin');
+
+      // Resolve tenant
+      const tenantResult = await client.query<{ tenant_id: string }>(
+        'select tenant_id from store.stores where id = $1 limit 1', [storeId],
+      );
+      const { tenant_id: tenantId } = tenantResult.rows[0];
+
+      // 1. Validate product exists and belongs to this store
+      const productResult = await client.query<{ id: string; name: string; is_trackable: boolean }>(
+        `select id, name, is_trackable from catalog.products where id = $1 and store_id = $2`,
+        [payload.productId, storeId],
+      );
+      if (productResult.rows.length === 0) throw new Error('Product not found');
+      const product = productResult.rows[0];
+
+      // 2. Resolve SKU (use provided skuId or get the first/default SKU)
+      let skuId = payload.skuId;
+      let skuCode: string;
+      if (skuId) {
+        const skuResult = await client.query<{ id: string; sku_code: string }>(
+          `select id, sku_code from catalog.skus where id = $1 and product_id = $2`,
+          [skuId, payload.productId],
+        );
+        if (skuResult.rows.length === 0) throw new Error('SKU not found for this product');
+        skuCode = skuResult.rows[0].sku_code;
+      } else {
+        const skuResult = await client.query<{ id: string; sku_code: string }>(
+          `select id, sku_code from catalog.skus where product_id = $1 and status = 'active' order by created_at asc limit 1`,
+          [payload.productId],
+        );
+        if (skuResult.rows.length === 0) throw new Error('No active SKU found for this product');
+        skuId = skuResult.rows[0].id;
+        skuCode = skuResult.rows[0].sku_code;
+      }
+
+      // 3. Resolve tracking profile (if product has one)
+      let trackingProfileId: string | null = null;
+      const profileResult = await client.query<{ id: string }>(
+        `select tp.id from catalog.tracking_profiles tp
+         join catalog.products p on p.category_id = tp.category_id
+         where p.id = $1 and tp.is_global = false
+         union
+         select tp.id from catalog.tracking_profiles tp
+         where tp.is_global = true and not exists (
+           select 1 from catalog.tracking_profiles tp2
+           join catalog.products p2 on p2.category_id = tp2.category_id
+           where p2.id = $1 and tp2.is_global = false
+         )
+         limit 1`,
+        [payload.productId],
+      );
+      if (profileResult.rows.length > 0) {
+        trackingProfileId = profileResult.rows[0].id;
+      }
+
+      // 4. Generate purchase number
+      const today = new Date().toISOString().slice(0, 10);
+      const purchaseNo = await this.generatePurchaseNumber(storeId, today);
+
+      // 5. Create purchase record (total = 0, will be updated per unit)
+      const purchaseResult = await client.query<{ id: string }>(
+        `insert into procurement.purchases (id, tenant_id, store_id, supplier_id, location_id, purchase_no, purchase_date, status, subtotal_amount, discount_amount, tax_amount, shipping_amount, total_amount, paid_amount, payment_status, note, created_by, received_at, created_at, updated_at)
+         values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, 'received', 0, 0, 0, 0, 0, 0, 'pending', $7, $8, now(), now(), now()) returning id`,
+        [tenantId, storeId, payload.supplierId, payload.locationId, purchaseNo, today, `Receive ${payload.trackingValuesList.length} unit(s)`, userId],
+      );
+      const purchaseId = purchaseResult.rows[0].id;
+
+      // 6. Create purchase item (qty = number of units)
+      const qty = payload.trackingValuesList.length;
+      await client.query(
+        `insert into procurement.purchase_items (id, purchase_id, sku_id, product_name_snapshot, sku_code_snapshot, qty, unit_cost, line_total, created_at)
+         values (gen_random_uuid(), $1, $2, $3, $4, $5, 0, 0, now())`,
+        [purchaseId, skuId, product.name, skuCode, qty],
+      );
+
+      // 7. Create device serials with tracking values for each unit
+      const createdSerials: Array<{ id: string; serialNumber: string; imeiNumber?: string }> = [];
+      for (const trackingValues of payload.trackingValuesList) {
+        // Determine serial number and IMEI from tracking values
+        const serialNumber = trackingValues['serial_number'] || trackingValues['serial'] || `SN-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+        const imeiNumber = trackingValues['imei'] || trackingValues['imei_number'] || undefined;
+
+        // Validate global IMEI uniqueness
+        if (imeiNumber) {
+          const existingImei = await client.query(
+            'select id from inventory.device_serials where imei_number = $1',
+            [imeiNumber],
+          );
+          if (existingImei.rows.length > 0) {
+            throw new Error(`IMEI ${imeiNumber} already exists in the system`);
+          }
+        }
+
+        const serialResult = await client.query<{ id: string }>(
+          `insert into inventory.device_serials (id, tenant_id, store_id, sku_id, serial_number, imei_number, tracking_values, tracking_profile_id, current_location_id, status, received_date, created_at, updated_at)
+           values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, 'in_stock', now(), now(), now()) returning id`,
+          [
+            tenantId,
+            storeId,
+            skuId,
+            serialNumber,
+            imeiNumber || null,
+            JSON.stringify(trackingValues),
+            trackingProfileId,
+            payload.locationId,
+          ],
+        );
+        createdSerials.push({ id: serialResult.rows[0].id, serialNumber, imeiNumber });
+      }
+
+      // 8. Update inventory balance
+      await client.query(
+        `insert into inventory.balances (id, tenant_id, store_id, location_id, sku_id, on_hand_qty, updated_at)
+         values (gen_random_uuid(), $1, $2, $3, $4, $5, now())
+         on conflict (location_id, sku_id) do update set on_hand_qty = inventory.balances.on_hand_qty + $5, updated_at = now()`,
+        [tenantId, storeId, payload.locationId, skuId, qty],
+      );
+
+      // 9. Write ledger entries
+      for (const serial of createdSerials) {
+        await client.query(
+          `insert into inventory.ledger (id, tenant_id, store_id, location_id, sku_id, movement_type, qty_delta, reference_type, reference_id, note, actor_id, created_at)
+           values (gen_random_uuid(), $1, $2, $3, $4, 'purchase_receive', 1, 'purchase', $5, $6, $7, now())`,
+          [tenantId, storeId, payload.locationId, skuId, purchaseId, `Receive ${serial.serialNumber}${serial.imeiNumber ? ` (IMEI: ${serial.imeiNumber})` : ''}`, userId],
+        );
+      }
+
+      await client.query('commit');
+
+      return {
+        product: { id: product.id, name: product.name },
+        purchase: { id: purchaseId, purchaseNo },
+        sku: { id: skuId, skuCode },
+        serials: createdSerials,
+        stockUpdated: true,
+        unitsReceived: createdSerials.length,
+      };
+    } catch (error) {
+      await client.query('rollback').catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   async quickExchange(
     headerStoreId: string | undefined,
     authContext: StoreAuthContext | null,

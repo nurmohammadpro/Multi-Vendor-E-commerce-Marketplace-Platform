@@ -290,6 +290,7 @@ export class PosService {
         unitPrice: number;
         discountAmount: number;
         taxAmount: number;
+        serialIds?: string[];
       }>;
       payments: Array<{
         paymentMethod: string;
@@ -306,6 +307,13 @@ export class PosService {
 
     try {
       await client.query('begin');
+
+      // Resolve tenantId from store
+      const tenantResult = await client.query<{ tenant_id: string }>(
+        'select tenant_id from store.stores where id = $1 limit 1',
+        [storeId],
+      );
+      const tenantId = tenantResult.rows[0]?.tenant_id;
 
       if (payload.clientRequestId) {
         const existingSaleResult = await client.query<{
@@ -503,7 +511,7 @@ export class PosService {
 
       for (const item of payload.items) {
         const skuSnapshot = await this.getSkuSnapshot(client, item.skuId, storeId);
-        await client.query(
+        const saleItemResult = await client.query<{ id: string }>(
           `
             insert into sales.sale_items (
               id,
@@ -531,6 +539,7 @@ export class PosService {
               $9,
               now()
             )
+            returning id
           `,
           [
             sale.id,
@@ -544,6 +553,59 @@ export class PosService {
             item.qty * item.unitPrice - item.discountAmount + item.taxAmount,
           ],
         );
+        const saleItemId = saleItemResult.rows[0]?.id;
+
+        // Handle serial numbers for tracked products
+        if (item.serialIds && item.serialIds.length > 0 && saleItemId) {
+          for (const serialId of item.serialIds) {
+            // Mark serial as sold
+            await client.query(
+              `UPDATE inventory.device_serials SET status = 'sold', updated_at = NOW() WHERE id = $1`,
+              [serialId],
+            );
+
+            // Link serial to sale item
+            await client.query(
+              `INSERT INTO inventory.device_serial_sales (id, device_serial_id, sale_item_id, sale_id, created_at)
+               VALUES (gen_random_uuid(), $1, $2, $3, NOW())`,
+              [serialId, saleItemId, sale.id],
+            );
+
+            // Check for warranty policy on the product's category
+            const warrantyCheck = await client.query<{ policy_id: string; duration_months: number }>(
+              `SELECT wp.id as policy_id, wp.duration_months
+               FROM catalog.warranty_policies wp
+               JOIN catalog.tracking_profiles tp ON tp.category_id = wp.category_id
+               JOIN catalog.skus s ON s.product_id = tp.category_id
+               WHERE s.id = $1 AND wp.status = 'active'
+               LIMIT 1`,
+              [item.skuId],
+            );
+
+            if (warrantyCheck.rows.length > 0) {
+              const policy = warrantyCheck.rows[0];
+              const startDate = new Date();
+              const endDate = new Date(startDate);
+              endDate.setMonth(endDate.getMonth() + policy.duration_months);
+              const referenceNumber = `WAR-${Date.now()}-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
+
+              await client.query(
+                `INSERT INTO sales.sale_warranties (
+                  id, tenant_id, store_id, sale_id, sale_item_id, device_serial_id,
+                  warranty_policy_id, warranty_reference_number, warranty_start_date,
+                  warranty_end_date, warranty_purchased_price, status, created_at, updated_at
+                ) VALUES (
+                  gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'active', NOW(), NOW()
+                )`,
+                [
+                  tenantId, storeId, sale.id, saleItemId, serialId,
+                  policy.policy_id, referenceNumber, startDate, endDate,
+                  item.unitPrice,
+                ],
+              );
+            }
+          }
+        }
       }
 
       for (const payment of payload.payments) {

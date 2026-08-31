@@ -505,6 +505,13 @@ export class CatalogService {
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
 
+    // Resolve tenantId from store
+    const storeResult = await this.pool.query<{ tenant_id: string }>(
+      'select tenant_id from store.stores where id = $1 limit 1',
+      [storeId],
+    );
+    const tenantId = storeResult.rows[0]?.tenant_id;
+
     const productResult = await this.pool.query(
       `
         select
@@ -629,10 +636,48 @@ export class CatalogService {
       [productId, storeId],
     );
 
+    // Fetch tracking profile for this product's category (or global fallback)
+    const trackingResult = await this.pool.query(
+      `
+        with product_category as (
+          select p.product_category_id from catalog.products p where p.id = $1
+        )
+        select tp.id, tp.name, tp.is_global, tp.category_id,
+          coalesce(
+            json_agg(
+              json_build_object(
+                'id', tf.id,
+                'profileId', tf.profile_id,
+                'fieldKey', tf.field_key,
+                'fieldLabel', tf.field_label,
+                'fieldType', tf.field_type,
+                'isRequired', tf.is_required,
+                'isUnique', tf.is_unique,
+                'validationRules', tf.validation_rules,
+                'sortOrder', tf.sort_order
+              ) order by tf.sort_order
+            ) filter (where tf.id is not null),
+            '[]'::json
+          ) as fields
+        from catalog.tracking_profiles tp
+        left join catalog.tracking_fields tf on tf.profile_id = tp.id
+        where tp.tenant_id = $2
+          and tp.status = 'active'
+          and (
+            tp.category_id = (select product_category_id from product_category)
+            or (tp.is_global = true and (select product_category_id from product_category) is null)
+          )
+        group by tp.id
+        limit 1
+      `,
+      [productId, tenantId],
+    );
+
     return {
       product,
       groups: groupsResult.rows,
       skus: skuResult.rows,
+      trackingProfile: trackingResult.rows[0] || null,
     };
   }
 

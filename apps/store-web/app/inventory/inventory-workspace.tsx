@@ -142,6 +142,13 @@ export function InventoryWorkspace({
   const [stockControlOpen, setStockControlOpen] = useState(false);
   const [printingSkuId, setPrintingSkuId] = useState<string | null>(null);
 
+  // Serial visibility state
+  const [expandedSkuId, setExpandedSkuId] = useState<string | null>(null);
+  const [serials, setSerials] = useState<Record<string, Array<{ id: string; serial_number: string; imei_number?: string | null; tracking_values?: Record<string, string> | null; status: string }>>>({});
+  const [serialLoading, setSerialLoading] = useState(false);
+  const [imeiSearch, setImeiSearch] = useState('');
+  const [imeiResult, setImeiResult] = useState<{ found: boolean; serial?: any; balance?: any } | null>(null);
+
   const printBalanceLabel = async (balance: Balance) => {
     setPrintingSkuId(balance.sku_id);
     try {
@@ -163,6 +170,45 @@ export function InventoryWorkspace({
       toast.error((error as Error).message);
     } finally {
       setPrintingSkuId(null);
+    }
+  };
+
+  const fetchSerials = async (skuId: string) => {
+    if (expandedSkuId === skuId) {
+      setExpandedSkuId(null);
+      return;
+    }
+    setExpandedSkuId(skuId);
+    if (serials[skuId]) return; // Already loaded
+    setSerialLoading(true);
+    try {
+      const data = await readJson<{ serials: any[] }>(`/api/inventory/device-serials?skuId=${skuId}&limit=200`);
+      setSerials((prev) => ({ ...prev, [skuId]: data.serials || [] }));
+    } catch { /* ignore */ }
+    finally { setSerialLoading(false); }
+  };
+
+  const searchByImei = async () => {
+    if (!imeiSearch.trim()) { setImeiResult(null); return; }
+    try {
+      // Try IMEI first, then serial number
+      let data = await readJson<{ serials: any[] }>(`/api/inventory/device-serials/search/all?imeiNumber=${encodeURIComponent(imeiSearch.trim())}&limit=1`);
+      if (data.serials?.length > 0) {
+        setImeiResult({ found: true, serial: data.serials[0] });
+        setMessage(`Found serial: ${data.serials[0].serial_number || imeiSearch}`);
+        return;
+      }
+      data = await readJson<{ serials: any[] }>(`/api/inventory/device-serials/search/all?serialNumber=${encodeURIComponent(imeiSearch.trim())}&limit=1`);
+      if (data.serials?.length > 0) {
+        setImeiResult({ found: true, serial: data.serials[0] });
+        setMessage(`Found serial: ${data.serials[0].serial_number || imeiSearch}`);
+      } else {
+        setImeiResult({ found: false });
+        setMessage(`No serial found for "${imeiSearch}"`);
+      }
+    } catch {
+      setImeiResult({ found: false });
+      setMessage(`No serial found for "${imeiSearch}"`);
     }
   };
 
@@ -411,6 +457,27 @@ export function InventoryWorkspace({
           <input value={balanceSearch} onChange={(event) => setBalanceSearch(event.target.value)} style={{ ...fieldStyle, flex: 1, width: 'auto' }} placeholder="Search product, SKU, or location" />
           <button onClick={() => void refreshInventory(1, adjustmentPage, ledgerPage, selectedLocationId)} style={searchButtonStyle} disabled={loading}>Search</button>
         </div>
+        <div style={{ ...searchRowStyle, marginBottom: 12 }}>
+          <input value={imeiSearch} onChange={(e) => setImeiSearch(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && searchByImei()} style={{ ...fieldStyle, flex: 1, width: 'auto' }} placeholder="Search by IMEI or serial number" />
+          <button onClick={searchByImei} style={searchButtonStyle}>Find Serial</button>
+        </div>
+        {imeiResult && imeiResult.found && imeiResult.serial && (
+          <div style={{ ...surfaceCardStyle, marginBottom: 12, padding: 12, background: '#f0fdf4', border: '1px solid #bbf7d0' }}>
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Serial Found</div>
+            <div style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>
+              <span>Serial: <strong>{imeiResult.serial.serial_number}</strong></span>
+              {imeiResult.serial.imei_number && <span style={{ marginLeft: 12 }}>IMEI: <strong>{imeiResult.serial.imei_number}</strong></span>}
+              <span style={{ marginLeft: 12 }}>Status: <strong>{imeiResult.serial.status}</strong></span>
+            </div>
+            {imeiResult.serial.tracking_values && Object.keys(imeiResult.serial.tracking_values).length > 0 && (
+              <div style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                {Object.entries(imeiResult.serial.tracking_values).map(([key, val]) => (
+                  <span key={key} style={{ fontSize: 11, background: '#dcfce7', padding: '2px 6px', borderRadius: 4 }}>{key}: {String(val)}</span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         {balances.length ? (
           <>
             <div style={tableWrapStyle}>
@@ -429,46 +496,85 @@ export function InventoryWorkspace({
                 </thead>
                 <tbody>
                   {balances.map((balance) => (
-                    <tr key={`${balance.location_id}-${balance.sku_id}`}>
-                      <td style={tableCellStyle}>{balance.product_name}</td>
-                      <td style={tableCellStyle}>{balance.sku_code}</td>
-                      <td style={tableCellStyle}>{balance.location_name}</td>
-                      <td style={tableCellStyle}>{formatQty(balance.on_hand_qty)}</td>
-                      <td style={tableCellStyle}>{formatQty(balance.available_qty)}</td>
-                      <td style={tableCellStyle}>{formatQty(balance.reserved_qty)}</td>
-                      <td style={tableCellStyle}>{new Date(balance.updated_at).toLocaleString()}</td>
-                      <td style={tableCellStyle}>
-                        <div style={{ display: 'flex', gap: 4 }}>
-                          <button
-                            onClick={() => void printBalanceLabel(balance)}
-                            style={{ ...subtleButtonStyle, fontSize: 11, padding: '4px 8px' }}
-                            disabled={printingSkuId === balance.sku_id}
-                          >
-                            {printingSkuId === balance.sku_id ? 'Printing...' : 'Print Label'}
-                          </button>
-                          <button
-                            onClick={() => {
-                              setSelectedLocationId(balance.location_id);
-                              setSelectedSkuId(balance.sku_id);
-                              setSkuSearch(balance.sku_code);
-                              setSkuResults([
-                                {
-                                  id: balance.sku_id,
-                                  sku_code: balance.sku_code,
-                                  product_name: balance.product_name,
-                                },
-                              ]);
-                              setMessage(`Loaded ${balance.sku_code} into stock control.`);
-                              setStockControlOpen(true);
-                            }}
-                            style={secondaryButtonStyle}
-                            disabled={loading}
-                          >
-                            Stock Control
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
+                    <>
+                      <tr key={`${balance.location_id}-${balance.sku_id}`} style={balance.is_trackable ? { cursor: 'pointer' } : undefined} onClick={balance.is_trackable ? () => fetchSerials(balance.sku_id) : undefined}>
+                        <td style={tableCellStyle}>
+                          {balance.is_trackable && (
+                            <span style={{ marginRight: 4, fontSize: 10, color: 'var(--muted-foreground)' }}>
+                              {expandedSkuId === balance.sku_id ? '▼' : '▶'}
+                            </span>
+                          )}
+                          {balance.product_name}
+                        </td>
+                        <td style={tableCellStyle}>{balance.sku_code}</td>
+                        <td style={tableCellStyle}>{balance.location_name}</td>
+                        <td style={tableCellStyle}>{formatQty(balance.on_hand_qty)}</td>
+                        <td style={tableCellStyle}>{formatQty(balance.available_qty)}</td>
+                        <td style={tableCellStyle}>{formatQty(balance.reserved_qty)}</td>
+                        <td style={tableCellStyle}>{new Date(balance.updated_at).toLocaleString()}</td>
+                        <td style={tableCellStyle}>
+                          <div style={{ display: 'flex', gap: 4 }}>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); void printBalanceLabel(balance); }}
+                              style={{ ...subtleButtonStyle, fontSize: 11, padding: '4px 8px' }}
+                              disabled={printingSkuId === balance.sku_id}
+                            >
+                              {printingSkuId === balance.sku_id ? 'Printing...' : 'Print Label'}
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedLocationId(balance.location_id);
+                                setSelectedSkuId(balance.sku_id);
+                                setSkuSearch(balance.sku_code);
+                                setSkuResults([
+                                  {
+                                    id: balance.sku_id,
+                                    sku_code: balance.sku_code,
+                                    product_name: balance.product_name,
+                                  },
+                                ]);
+                                setMessage(`Loaded ${balance.sku_code} into stock control.`);
+                                setStockControlOpen(true);
+                              }}
+                              style={secondaryButtonStyle}
+                              disabled={loading}
+                            >
+                              Stock Control
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                      {balance.is_trackable && expandedSkuId === balance.sku_id && (
+                        <tr key={`serials-${balance.sku_id}`}>
+                          <td colSpan={8} style={{ padding: '0 16px 12px' }}>
+                            <div style={{ background: 'var(--muted)', borderRadius: 8, padding: 12 }}>
+                              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Serial Numbers</div>
+                              {serialLoading ? (
+                                <div style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>Loading...</div>
+                              ) : (serials[balance.sku_id]?.length ?? 0) === 0 ? (
+                                <div style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>No serials found</div>
+                              ) : (
+                                <div style={{ display: 'grid', gap: 4 }}>
+                                  {serials[balance.sku_id]?.map((serial) => (
+                                    <div key={serial.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', background: 'var(--card)', borderRadius: 6, fontSize: 12 }}>
+                                      <span style={{ fontFamily: 'monospace', fontWeight: 500 }}>{serial.serial_number}</span>
+                                      {serial.imei_number && <span style={{ color: 'var(--muted-foreground)' }}>IMEI: {serial.imei_number}</span>}
+                                      <span style={{ marginLeft: 'auto', padding: '2px 6px', borderRadius: 4, background: serial.status === 'in_stock' ? '#dcfce7' : serial.status === 'sold' ? '#fee2e2' : '#e0e7ff', fontSize: 10, fontWeight: 500 }}>{serial.status}</span>
+                                      {serial.tracking_values && Object.keys(serial.tracking_values).length > 0 && (
+                                        <span style={{ color: 'var(--muted-foreground)', fontSize: 10 }}>
+                                          {Object.entries(serial.tracking_values).map(([k, v]) => `${k}: ${v}`).join(' · ')}
+                                        </span>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </>
                   ))}
                 </tbody>
               </table>
