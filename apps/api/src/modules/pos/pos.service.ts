@@ -2189,7 +2189,7 @@ export class PosService {
             from sales.sale_exchange_items ei
             join sales.sale_exchanges e on e.id = ei.sale_exchange_id
             where ei.sale_item_id = si.id and ei.side = 'returned' and e.status = 'completed'
-          ), 0)::text as returned
+          ), 0))::text as returned
         from sales.sale_items si
         where si.sale_id = $1
       `,

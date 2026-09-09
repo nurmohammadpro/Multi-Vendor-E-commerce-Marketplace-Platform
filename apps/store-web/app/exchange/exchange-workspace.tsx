@@ -217,7 +217,6 @@ export function ExchangeWorkspace() {
   const [error, setError] = useState('');
 
   // ── New exchange: lookup ──
-  const [lookupMode, setLookupMode] = useState<'phone' | 'invoice'>('phone');
   const [lookupValue, setLookupValue] = useState('');
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupSales, setLookupSales] = useState<LookupSale[]>([]);
@@ -321,7 +320,7 @@ export function ExchangeWorkspace() {
   const runLookup = async () => {
     const value = lookupValue.trim();
     if (!value) {
-      setError(lookupMode === 'phone' ? 'Enter the customer phone number.' : 'Enter the sale or invoice number.');
+      setError('Enter a phone number, sale number, or invoice number.');
       return;
     }
     setLookupLoading(true);
@@ -330,8 +329,9 @@ export function ExchangeWorkspace() {
     setSelectedSale(null);
     try {
       const params = new URLSearchParams();
-      if (lookupMode === 'phone') params.set('phone', value);
-      else params.set('invoice', value);
+      params.set('phone', value);
+      params.set('saleNo', value);
+      params.set('invoice', value);
       const data = await readJson<{ sales: LookupSale[] }>(`/api/pos/exchanges/lookup?${params.toString()}`);
       setLookupSales(data.sales ?? []);
       if ((data.sales ?? []).length === 0) {
@@ -1356,23 +1356,14 @@ export function ExchangeWorkspace() {
         <>
           <article style={surfaceCardStyle}>
             <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: 12, color: 'var(--muted-foreground)', marginBottom: 4 }}>Find Sale By</label>
-                <select value={lookupMode} onChange={(e) => setLookupMode(e.target.value as 'phone' | 'invoice')} style={{ ...fieldStyle, width: 160 }}>
-                  <option value="phone">Customer Phone</option>
-                  <option value="invoice">Sale / Invoice No</option>
-                </select>
-              </div>
-              <div style={{ flex: 1, minWidth: 220 }}>
-                <label style={{ display: 'block', fontSize: 12, color: 'var(--muted-foreground)', marginBottom: 4 }}>
-                  {lookupMode === 'phone' ? 'Phone Number' : 'Sale or Invoice Number'}
-                </label>
+              <div style={{ flex: 1, minWidth: 260 }}>
+                <label style={{ display: 'block', fontSize: 12, color: 'var(--muted-foreground)', marginBottom: 4 }}>Find the Original Sale</label>
                 <input
                   value={lookupValue}
                   onChange={(e) => setLookupValue(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void runLookup(); } }}
                   style={{ ...fieldStyle, width: '100%' }}
-                  placeholder={lookupMode === 'phone' ? 'e.g. 01712345678' : 'e.g. SALE-000123'}
+                  placeholder="Search by customer phone, sale no, or invoice no"
                 />
               </div>
               <button onClick={() => void runLookup()} style={searchButtonStyle} disabled={lookupLoading}>
