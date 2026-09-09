@@ -291,7 +291,7 @@ export class DeviceSerialsService {
           assigned_to_sale_id, received_date, created_at, updated_at
         FROM inventory.device_serials
         WHERE ${whereClause}
-        ORDER BY created_at DESC
+        ORDER BY received_date ASC NULLS LAST, created_at ASC
         LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
       `,
       [...params, limit, offset],

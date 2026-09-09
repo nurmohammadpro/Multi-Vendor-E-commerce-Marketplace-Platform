@@ -2816,6 +2816,68 @@ export class StoreOpsService {
     return locationId;
   }
 
+  private async syncSkuPricesOnReceive(
+    client: PoolClient,
+    tenantId: string,
+    storeId: string,
+    skuId: string,
+    unitCost?: number,
+    sellPrice?: number,
+  ) {
+    const nextCost = unitCost && unitCost > 0 ? String(unitCost) : null;
+    const nextSell = sellPrice && sellPrice > 0 ? String(sellPrice) : null;
+    const latest = await client.query<{ cost_price: string; sale_price: string }>(
+      `select cost_price, sale_price from catalog.prices
+       where sku_id = $1
+       order by effective_from desc, created_at desc
+       limit 1`,
+      [skuId],
+    );
+    const prev = latest.rows[0];
+    if (!prev) {
+      await client.query(
+        `insert into catalog.prices (id, tenant_id, store_id, sku_id, sale_price, cost_price, effective_from, created_at)
+         values (gen_random_uuid(), $1, $2, $3, $4, $5, now(), now())`,
+        [tenantId, storeId, skuId, nextSell ?? '0', nextCost ?? '0'],
+      );
+      return;
+    }
+    const costChanged = nextCost !== null && Number(prev.cost_price) !== Number(nextCost);
+    const sellChanged = nextSell !== null && Number(prev.sale_price) !== Number(nextSell);
+    if (!costChanged && !sellChanged) return;
+    await client.query(
+      `insert into catalog.prices (id, tenant_id, store_id, sku_id, sale_price, cost_price, effective_from, created_at)
+       values (gen_random_uuid(), $1, $2, $3, $4, $5, now(), now())`,
+      [tenantId, storeId, skuId, nextSell ?? String(prev.sale_price), nextCost ?? String(prev.cost_price)],
+    );
+  }
+
+  private async addReceiveBatch(
+    client: PoolClient,
+    tenantId: string,
+    storeId: string,
+    skuId: string,
+    productId: string,
+    purchaseId: string,
+    supplierId: string | null,
+    qty: number,
+    unitCost: number,
+    receivedDate: string,
+    serialCount: number,
+  ) {
+    const batchCode = `B-${purchaseId.slice(0, 8)}-${skuId.slice(0, 8)}`;
+    await client.query(
+      `insert into inventory.stock_batches (id, tenant_id, store_id, batch_code, supplier_id, product_id, sku_id, received_date, received_quantity, current_quantity, serial_count, unit_cost, status, created_at, updated_at)
+       values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7::date, $8, $8, $9, $10, 'active', now(), now())
+       on conflict (store_id, batch_code) do update set
+         received_quantity = inventory.stock_batches.received_quantity + $8,
+         current_quantity = inventory.stock_batches.current_quantity + $8,
+         serial_count = inventory.stock_batches.serial_count + $9,
+         updated_at = now()`,
+      [tenantId, storeId, batchCode, supplierId, productId, skuId, receivedDate, qty, serialCount, unitCost],
+    );
+  }
+
   private async generatePurchaseNumber(storeId: string, purchaseDate: string) {
     const storeResult = await this.pool.query<{ store_code: string }>(
       `
@@ -3004,6 +3066,9 @@ export class StoreOpsService {
            values (gen_random_uuid(), $1, $2, $3, $4, 'purchase_receive', $5, 'purchase', $6, $7, $8, now())`,
           [tenantId, storeId, payload.locationId, sku.id, sku.qty, purchaseId, `Quick receive ${purchaseNo}`, userId],
         );
+
+        // FIFO batch layer for non-serialized costing
+        await this.addReceiveBatch(client, tenantId, storeId, sku.id, productId, purchaseId, payload.supplierId, sku.qty, sku.cost, today, 0);
       }
 
       // 5. Record payment if paid
@@ -3041,6 +3106,7 @@ export class StoreOpsService {
       supplierId: string;
       locationId: string;
       unitCost?: number;
+      sellPrice?: number;
       batchNo?: string;
       expiryDate?: string;
       qty?: number;
@@ -3235,6 +3301,11 @@ export class StoreOpsService {
         }
       }
 
+      // Sync per-SKU prices (cost + sell) into the price history
+      await this.syncSkuPricesOnReceive(client, tenantId, storeId, skuId, unitCost, payload.sellPrice);
+      // FIFO batch layer for non-serialized costing
+      await this.addReceiveBatch(client, tenantId, storeId, skuId, product.id, purchaseId, payload.supplierId, qty, unitCost, today, isTracked ? qty : 0);
+
       await client.query('commit');
 
       return {
@@ -3264,6 +3335,7 @@ export class StoreOpsService {
         supplierId: string;
         locationId: string;
         unitCost?: number;
+        sellPrice?: number;
         batchNo?: string;
         expiryDate?: string;
         qty?: number;
@@ -3277,6 +3349,11 @@ export class StoreOpsService {
 
     try {
       await client.query('begin');
+
+      const tenantResult = await client.query<{ tenant_id: string }>(
+        'select tenant_id from store.stores where id = $1 limit 1', [storeId],
+      );
+      const tenantId = tenantResult.rows[0].tenant_id;
 
       const results = [];
       const errors = [];
@@ -3402,6 +3479,9 @@ export class StoreOpsService {
               [storeId, item.locationId, skuId, qty, purchaseId, `Bulk receive ${qty} unit(s) of ${product.name}`, userId],
             );
           }
+
+          await this.syncSkuPricesOnReceive(client, tenantId, storeId, skuId, unitCost, item.sellPrice);
+          await this.addReceiveBatch(client, tenantId, storeId, skuId, product.id, purchaseId, item.supplierId, qty, unitCost, today, isTracked ? qty : 0);
 
           results.push({
             index: i,

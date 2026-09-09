@@ -398,10 +398,15 @@ export class PosService {
         skuProductResult.rows.map((row) => [row.sku_id, row.is_trackable]),
       );
 
+      const itemUnitCosts: number[] = [];
+      let saleCostAmount = 0;
       for (const item of payload.items) {
         if (trackableMap.get(item.skuId) !== false) {
           await this.reserveAndDeductInventory(client, storeId, payload.locationId, item.skuId, item.qty, userId, saleNo);
         }
+        const fifoUnitCost = await this.consumeFifoBatches(client, storeId, item.skuId, item.qty);
+        itemUnitCosts.push(fifoUnitCost);
+        saleCostAmount += fifoUnitCost * item.qty;
       }
 
       const saleResult = await client.query<{
@@ -509,7 +514,7 @@ export class PosService {
 
       const sale = saleResult.rows[0];
 
-      for (const item of payload.items) {
+      for (const [itemIndex, item] of payload.items.entries()) {
         const skuSnapshot = await this.getSkuSnapshot(client, item.skuId, storeId);
         const saleItemResult = await client.query<{ id: string }>(
           `
@@ -524,6 +529,7 @@ export class PosService {
               discount_amount,
               tax_amount,
               line_total,
+              unit_cost,
               created_at
             )
             values (
@@ -537,6 +543,7 @@ export class PosService {
               $7,
               $8,
               $9,
+              $10,
               now()
             )
             returning id
@@ -551,6 +558,7 @@ export class PosService {
             item.discountAmount,
             item.taxAmount,
             item.qty * item.unitPrice - item.discountAmount + item.taxAmount,
+            itemUnitCosts[itemIndex] ?? 0,
           ],
         );
         const saleItemId = saleItemResult.rows[0]?.id;
@@ -606,6 +614,13 @@ export class PosService {
             }
           }
         }
+      }
+
+      if (saleCostAmount > 0) {
+        await client.query(
+          `update sales.sales set cost_amount = $2, updated_at = now() where id = $1`,
+          [sale.id, Math.round(saleCostAmount * 100) / 100],
+        );
       }
 
       for (const payment of payload.payments) {
@@ -947,6 +962,8 @@ export class PosService {
     payload: {
       reason: string;
       refundAmount: number;
+      refundMethod?: string;
+      refundReference?: string;
       items: Array<{
         saleItemId: string;
         qty: number;
@@ -1001,6 +1018,8 @@ export class PosService {
             processed_by,
             reason,
             refund_amount,
+            refund_method,
+            refund_reference,
             status,
             created_at,
             updated_at
@@ -1014,25 +1033,28 @@ export class PosService {
             $4,
             $5,
             $6,
+            $7,
+            $8,
             now(),
             now()
           from store.stores s
           where s.id = $1
           returning id
         `,
-        [storeId, saleId, userId, payload.reason, payload.refundAmount, returnStatus],
+        [storeId, saleId, userId, payload.reason, payload.refundAmount, payload.refundMethod ?? null, payload.refundReference ?? null, returnStatus],
       );
 
       const saleReturnId = returnResult.rows[0].id;
 
       // Always insert return items (needed for approval/rejection too)
       for (const item of payload.items) {
-        const saleItemResult = await client.query<{ sku_id: string }>(
+        const saleItemResult = await client.query<{ sku_id: string; product_id: string | null; unit_cost: string }>(
           `
-            select sku_id
-            from sales.sale_items
-            where id = $1
-              and sale_id = $2
+            select si.sku_id, sk.product_id, si.unit_cost
+            from sales.sale_items si
+            left join catalog.skus sk on sk.id = si.sku_id
+            where si.id = $1
+              and si.sale_id = $2
             limit 1
           `,
           [item.saleItemId, saleId],
@@ -1070,6 +1092,7 @@ export class PosService {
         // Only restock inventory immediately if NOT pending approval
         if (!needsApproval && item.restockToInventory) {
           await this.upsertBalance(client, storeId, sale.location_id, saleItem.sku_id, item.qty);
+          const serialIds = await this.revertReturnSerials(client, storeId, item.saleItemId, sale.location_id, item.qty);
           await this.insertLedger(client, {
             storeId,
             locationId: sale.location_id,
@@ -1080,7 +1103,17 @@ export class PosService {
             referenceId: saleReturnId,
             note: payload.reason,
             actorId: userId,
+            deviceSerialId: serialIds.length === 1 ? serialIds[0] : null,
           });
+          await this.appendRestockBatch(
+            client,
+            storeId,
+            saleItem.sku_id,
+            saleItem.product_id,
+            item.qty,
+            Number(saleItem.unit_cost ?? 0),
+            `RET-${saleReturnId.slice(0, 8)}-${saleItem.sku_id.slice(0, 8)}`,
+          );
         }
       }
 
@@ -1276,9 +1309,10 @@ export class PosService {
       // Get return items to restock inventory
       const itemsResult = await client.query<any>(
         `
-          select sri.*, si.sku_id
+          select sri.*, si.sku_id, sk.product_id, si.unit_cost
           from sales.sale_return_items sri
           join sales.sale_items si on si.id = sri.sale_item_id
+          left join catalog.skus sk on sk.id = si.sku_id
           where sri.sale_return_id = $1
         `,
         [returnId],
@@ -1288,6 +1322,7 @@ export class PosService {
       for (const item of itemsResult.rows) {
         if (item.restock_to_inventory) {
           await this.upsertBalance(client, storeId, returnData.location_id, item.sku_id, item.qty);
+          const serialIds = await this.revertReturnSerials(client, storeId, item.sale_item_id, returnData.location_id, item.qty);
           await this.insertLedger(client, {
             storeId,
             locationId: returnData.location_id,
@@ -1298,7 +1333,17 @@ export class PosService {
             referenceId: returnId,
             note: returnData.reason + (decisionNote ? ' — ' + decisionNote : ''),
             actorId: userId,
+            deviceSerialId: serialIds.length === 1 ? serialIds[0] : null,
           });
+          await this.appendRestockBatch(
+            client,
+            storeId,
+            item.sku_id,
+            item.product_id,
+            item.qty,
+            Number(item.unit_cost ?? 0),
+            `RET-${returnId.slice(0, 8)}-${item.sku_id.slice(0, 8)}`,
+          );
         }
       }
 
@@ -1621,6 +1666,8 @@ export class PosService {
       saleNo: sale.sale_no,
       reason: returnData.reason,
       refundAmount: Number(returnData.refund_amount),
+      refundMethod: returnData.refund_method ?? null,
+      refundReference: returnData.refund_reference ?? null,
       processedAt: returnData.created_at,
       processedByName: returnData.processed_by_name,
       store: {
@@ -1668,6 +1715,7 @@ export class PosService {
     qty: number,
     actorId: string,
     saleNo: string,
+    reference?: { type: string; id: string | null },
   ) {
     const balanceResult = await client.query<{
       id: string;
@@ -1714,8 +1762,8 @@ export class PosService {
       skuId,
       movementType: 'sale',
       qtyDelta: -qty,
-      referenceType: 'sale',
-      referenceId: null,
+      referenceType: reference?.type ?? 'sale',
+      referenceId: reference?.id ?? null,
       note: `POS sale ${saleNo}`,
       actorId,
     });
@@ -1995,6 +2043,166 @@ export class PosService {
     );
   }
 
+  /**
+   * FIFO: consume quantity from the oldest active stock batches and return the
+   * weighted-average unit cost of what was consumed. Falls back to the latest
+   * catalog cost price for legacy stock without batch layers.
+   */
+  private async consumeFifoBatches(
+    client: PoolClient,
+    storeId: string,
+    skuId: string,
+    qty: number,
+  ): Promise<number> {
+    const batches = await client.query<{ id: string; current_quantity: string; unit_cost: string }>(
+      `select id, current_quantity, unit_cost
+       from inventory.stock_batches
+       where store_id = $1
+         and sku_id = $2
+         and status = 'active'
+         and current_quantity > 0
+       order by received_date asc nulls last, created_at asc
+       for update`,
+      [storeId, skuId],
+    );
+    let remaining = qty;
+    let totalCost = 0;
+    for (const batch of batches.rows) {
+      if (remaining <= 0) break;
+      const take = Math.min(Number(batch.current_quantity), remaining);
+      const newQty = Number(batch.current_quantity) - take;
+      await client.query(
+        `update inventory.stock_batches
+         set current_quantity = $2,
+             status = case when $2 <= 0 then 'depleted' else status end,
+             updated_at = now()
+         where id = $1`,
+        [batch.id, newQty],
+      );
+      totalCost += take * Number(batch.unit_cost);
+      remaining -= take;
+    }
+    if (remaining > 0) {
+      const fallback = await client.query<{ cost_price: string | null }>(
+        `select cost_price from catalog.prices
+         where sku_id = $1
+         order by effective_from desc, created_at desc
+         limit 1`,
+        [skuId],
+      );
+      totalCost += remaining * Number(fallback.rows[0]?.cost_price ?? 0);
+    }
+    return qty > 0 ? Math.round((totalCost / qty) * 100) / 100 : 0;
+  }
+
+  /** Append a FIFO batch layer when stock re-enters (returns / exchange trade-ins). */
+  private async appendRestockBatch(
+    client: PoolClient,
+    storeId: string,
+    skuId: string,
+    productId: string | null,
+    qty: number,
+    unitCost: number,
+    batchCode: string,
+  ): Promise<void> {
+    const today = new Date().toISOString().slice(0, 10);
+    const tenantResult = await client.query<{ tenant_id: string }>(
+      'select tenant_id from store.stores where id = $1 limit 1',
+      [storeId],
+    );
+    await client.query(
+      `insert into inventory.stock_batches (id, tenant_id, store_id, batch_code, product_id, sku_id, received_date, received_quantity, current_quantity, unit_cost, status, created_at, updated_at)
+       values (gen_random_uuid(), $1, $2, $3, $4, $5, $6::date, $7, $7, $8, 'active', now(), now())
+       on conflict (store_id, batch_code) do update set
+         received_quantity = inventory.stock_batches.received_quantity + $7,
+         current_quantity = inventory.stock_batches.current_quantity + $7,
+         updated_at = now()`,
+      [tenantResult.rows[0]?.tenant_id, storeId, batchCode, productId, skuId, today, qty, unitCost],
+    );
+  }
+
+  /**
+   * Flip the serialized units sold on a sale item back to 'returned' at the given
+   * location (up to qty units) and void their active warranties.
+   * Returns the affected serial ids (oldest first).
+   */
+  private async revertReturnSerials(
+    client: PoolClient,
+    storeId: string,
+    saleItemId: string,
+    locationId: string,
+    qty: number,
+  ): Promise<string[]> {
+    const serials = await client.query<{ id: string }>(
+      `select ds.id
+       from inventory.device_serial_sales dss
+       join inventory.device_serials ds on ds.id = dss.device_serial_id
+       where dss.sale_item_id = $1
+         and ds.store_id = $2
+         and ds.status = 'sold'
+       order by ds.received_date asc nulls last, ds.created_at asc
+       limit $3`,
+      [saleItemId, storeId, Math.ceil(qty)],
+    );
+    const serialIds = serials.rows.map((row) => row.id);
+    for (const serialId of serialIds) {
+      await client.query(
+        `update inventory.device_serials
+         set status = 'returned', current_location_id = $2, updated_at = now()
+         where id = $1`,
+        [serialId, locationId],
+      );
+      await client.query(
+        `update sales.sale_warranties
+         set status = 'voided', updated_at = now()
+         where device_serial_id = $1 and status = 'active'`,
+        [serialId],
+      );
+    }
+    return serialIds;
+  }
+
+  private async generateExchangeNumber(client: PoolClient, storeId: string): Promise<string> {
+    const countResult = await client.query<{ count: string }>(
+      'select count(*)::text as count from sales.sale_exchanges where store_id = $1',
+      [storeId],
+    );
+    const next = Number(countResult.rows[0]?.count ?? 0) + 1;
+    return `EXC-${next.toString().padStart(6, '0')}`;
+  }
+
+  /** Per sale item: qty still returnable (sale qty minus processed/pending returns and completed exchanges). */
+  private async getSaleRemainingQty(
+    client: PoolClient | Pool,
+    saleId: string,
+  ): Promise<Map<string, { remainingQty: number; soldQty: number }>> {
+    const result = await client.query<{ id: string; qty: string; returned: string }>(
+      `
+        select si.id, si.qty,
+          coalesce((
+            select sum(ri.qty)
+            from sales.sale_return_items ri
+            join sales.sale_returns r on r.id = ri.sale_return_id
+            where ri.sale_item_id = si.id and r.status in ('processed', 'pending_approval')
+          ), 0) + coalesce((
+            select sum(ei.qty)
+            from sales.sale_exchange_items ei
+            join sales.sale_exchanges e on e.id = ei.sale_exchange_id
+            where ei.sale_item_id = si.id and ei.side = 'returned' and e.status = 'completed'
+          ), 0)::text as returned
+        from sales.sale_items si
+        where si.sale_id = $1
+      `,
+      [saleId],
+    );
+    const map = new Map<string, { remainingQty: number; soldQty: number }>();
+    for (const row of result.rows) {
+      const soldQty = Number(row.qty);
+      map.set(row.id, { remainingQty: soldQty - Number(row.returned), soldQty });
+    }
+    return map;
+  }
+
   private async insertLedger(
     client: PoolClient,
     payload: {
@@ -2007,6 +2215,7 @@ export class PosService {
       referenceId: string | null;
       note: string | null;
       actorId: string;
+      deviceSerialId?: string | null;
     },
   ) {
     await client.query(
@@ -2023,6 +2232,7 @@ export class PosService {
           reference_id,
           note,
           actor_id,
+          device_serial_id,
           created_at
         )
         select
@@ -2037,6 +2247,7 @@ export class PosService {
           $7,
           $8,
           $9,
+          $10,
           now()
         from store.stores s
         where s.id = $1
@@ -2051,6 +2262,7 @@ export class PosService {
         payload.referenceId,
         payload.note,
         payload.actorId,
+        payload.deviceSerialId ?? null,
       ],
     );
   }
@@ -2317,5 +2529,690 @@ export class PosService {
     result = result.trim() + ' Taka';
     if (frac > 0) result += ' ' + convertBelowThousand(frac) + ' Paisa';
     return result + ' Only';
+  }
+
+  // ==================== Exchange ====================
+
+  async createExchange(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    session: AuthSession | null,
+    payload: {
+      originalSaleId: string;
+      locationId?: string;
+      registerId?: string;
+      shiftId?: string;
+      note?: string;
+      returnedItems: Array<{
+        saleItemId: string;
+        qty: number;
+        restock: boolean;
+        serialIds?: string[];
+      }>;
+      newItems: Array<{
+        skuId: string;
+        qty: number;
+        unitPrice: number;
+        discountAmount: number;
+        taxAmount: number;
+        serialIds?: string[];
+      }>;
+      payments: Array<{
+        paymentMethod: string;
+        gatewayProvider?: string;
+        amount: number;
+        referenceNo?: string;
+      }>;
+      refundMethod?: string;
+      refundReference?: string;
+    },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const userId = this.requireUserId(session);
+    const client = await this.pool.connect();
+
+    try {
+      await client.query('begin');
+
+      // 1. Lock the original sale
+      const saleResult = await client.query<any>(
+        `select id, tenant_id, store_id, location_id, sale_no, customer_id, customer_name,
+                customer_phone, customer_email, customer_shop_name, customer_address,
+                total_amount, paid_amount, payment_status, status
+         from sales.sales
+         where id = $1 and store_id = $2
+         limit 1
+         for update`,
+        [payload.originalSaleId, storeId],
+      );
+      const sale = saleResult.rows[0];
+      if (!sale) throw new NotFoundException('Original sale not found');
+      if (sale.status === 'cancelled' || sale.status === 'refunded') {
+        throw new ForbiddenException(`Sale is ${sale.status} and cannot be exchanged`);
+      }
+      const paidAmount = Number(sale.paid_amount ?? 0);
+      const totalAmount = Number(sale.total_amount ?? 0);
+      const paidRatio = totalAmount > 0 ? Math.min(paidAmount / totalAmount, 1) : 1;
+      if (paidRatio <= 0) {
+        throw new ForbiddenException('Nothing has been paid on the original sale — exchanges require a paid sale');
+      }
+
+      const exchangeLocationId = payload.locationId ?? sale.location_id;
+
+      // 2. Validate returned items and compute credit
+      const remainingMap = await this.getSaleRemainingQty(client, sale.id);
+      const round2 = (n: number) => Math.round(n * 100) / 100;
+      const returnedLines: Array<Record<string, any>> = [];
+      let tradeInCredit = 0;
+      for (const item of payload.returnedItems) {
+        const remaining = remainingMap.get(item.saleItemId);
+        if (!remaining) throw new NotFoundException(`Sale item ${item.saleItemId} not found on the original sale`);
+        if (item.qty > remaining.remainingQty + 1e-9) {
+          throw new ForbiddenException(`Cannot return ${item.qty} of an item — only ${remaining.remainingQty} returnable`);
+        }
+        const lineInfo = await client.query<any>(
+          `select si.sku_id, si.qty as sold_qty, si.unit_price, si.discount_amount, si.tax_amount,
+                  si.product_name_snapshot, si.sku_code_snapshot, sk.product_id, sk.requires_serial, sk.requires_imei
+           from sales.sale_items si
+           left join catalog.skus sk on sk.id = si.sku_id
+           where si.id = $1 and si.sale_id = $2
+           limit 1`,
+          [item.saleItemId, sale.id],
+        );
+        const line = lineInfo.rows[0];
+        if (!line) throw new NotFoundException('Sale item not found');
+        const soldQty = Number(line.sold_qty);
+        const share = soldQty > 0 ? item.qty / soldQty : 1;
+        const lineReturnTotal = round2(item.qty * Number(line.unit_price) - Number(line.discount_amount) * share + Number(line.tax_amount) * share);
+        const lineCredit = round2(lineReturnTotal * paidRatio);
+
+        let serialIds: string[] = [];
+        if (line.requires_serial || line.requires_imei) {
+          const requested = item.serialIds ?? [];
+          if (requested.length !== Math.ceil(item.qty)) {
+            throw new ForbiddenException(`Select ${Math.ceil(item.qty)} serial(s) for the returned device`);
+          }
+          const owned = await client.query<{ id: string }>(
+            `select ds.id
+             from inventory.device_serial_sales dss
+             join inventory.device_serials ds on ds.id = dss.device_serial_id
+             where dss.sale_item_id = $1 and ds.id = any($2::uuid[]) and ds.status = 'sold' for update`,
+            [item.saleItemId, requested],
+          );
+          if (owned.rows.length !== requested.length) {
+            throw new ForbiddenException('Returned serials do not match the units sold on this sale');
+          }
+          serialIds = owned.rows.map((r) => r.id);
+        }
+
+        tradeInCredit += lineCredit;
+        returnedLines.push({ item, line, lineCredit, serialIds });
+      }
+      tradeInCredit = round2(tradeInCredit);
+
+      // 3. Validate new items and compute totals
+      const newLines: Array<Record<string, any>> = [];
+      let newItemsTotal = 0;
+      for (const item of payload.newItems) {
+        const sku = await this.getSkuSnapshot(client, item.skuId, storeId);
+        const skuInfo = await client.query<any>(
+          `select sk.requires_serial, sk.requires_imei, sk.product_id from catalog.skus sk where sk.id = $1 and sk.store_id = $2 limit 1`,
+          [item.skuId, storeId],
+        );
+        const skuRow = skuInfo.rows[0];
+        if (!skuRow) throw new NotFoundException(`SKU ${item.skuId} not found`);
+
+        let serialIds: string[] = [];
+        if (skuRow.requires_serial || skuRow.requires_imei) {
+          const requested = item.serialIds ?? [];
+          if (requested.length !== Math.ceil(item.qty)) {
+            throw new ForbiddenException(`Select ${Math.ceil(item.qty)} serial(s) for the new device`);
+          }
+          const available = await client.query<{ id: string }>(
+            `select id from inventory.device_serials
+             where id = any($1::uuid[]) and sku_id = $2 and store_id = $3 and status = 'in_stock'
+             for update`,
+            [requested, item.skuId, storeId],
+          );
+          if (available.rows.length !== requested.length) {
+            throw new ForbiddenException('One or more selected serials are not in stock');
+          }
+          serialIds = available.rows.map((r) => r.id);
+        }
+
+        const lineTotal = round2(item.qty * item.unitPrice - item.discountAmount + item.taxAmount);
+        newItemsTotal += lineTotal;
+        newLines.push({ item, sku, productId: skuRow.product_id, lineTotal, serialIds });
+      }
+      newItemsTotal = round2(newItemsTotal);
+
+      const difference = round2(newItemsTotal - tradeInCredit);
+
+      // 4. Settlement guard
+      if (difference > 0.009) {
+        const paid = payload.payments.reduce((sum, p) => sum + Number(p.amount ?? 0), 0);
+        if (Math.abs(paid - difference) > 0.009) {
+          throw new ForbiddenException(`Payments must total the difference of ${difference.toFixed(2)}`);
+        }
+      } else if (difference < -0.009) {
+        if (!payload.refundMethod) {
+          throw new ForbiddenException('Refund method is required when the exchange results in a refund to the customer');
+        }
+        if (payload.refundMethod !== 'cash' && !payload.refundReference) {
+          throw new ForbiddenException('A reference is required for non-cash refunds');
+        }
+      }
+
+      // 5. Insert exchange header
+      const exchangeNo = await this.generateExchangeNumber(client, storeId);
+      const exchangeResult = await client.query<{ id: string }>(
+        `insert into sales.sale_exchanges (
+           tenant_id, store_id, exchange_no, original_sale_id,
+           customer_id, customer_name, customer_phone, customer_email, customer_shop_name, customer_address,
+           trade_in_credit, new_items_total, difference, payments,
+           refund_method, refund_reference, status,
+           location_id, register_id, shift_id, processed_by, note
+         )
+         select s.tenant_id, s.id, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14, $15, 'completed', $16, $17, $18, $19, $20
+         from store.stores s where s.id = $1
+         returning id`,
+        [
+          storeId, exchangeNo, sale.id,
+          sale.customer_id ?? null, sale.customer_name ?? null, sale.customer_phone ?? null,
+          sale.customer_email ?? null, sale.customer_shop_name ?? null, sale.customer_address ?? null,
+          tradeInCredit, newItemsTotal, difference,
+          JSON.stringify(payload.payments ?? []),
+          payload.refundMethod ?? null, payload.refundReference ?? null,
+          exchangeLocationId, payload.registerId ?? null, payload.shiftId ?? null, userId, payload.note ?? null,
+        ],
+      );
+      const exchangeId = exchangeResult.rows[0].id;
+
+      // 6. Returned side
+      for (const { item, line, lineCredit, serialIds } of returnedLines) {
+        const firstSerial = serialIds.length === 1 ? serialIds[0] : null;
+        const serialRows = serialIds.length
+          ? await client.query<any>(`select id, serial_number, imei_number from inventory.device_serials where id = any($1::uuid[])`, [serialIds])
+          : { rows: [] as any[] };
+        const serialInfo = serialRows.rows[0];
+        await client.query(
+          `insert into sales.sale_exchange_items (
+             sale_exchange_id, side, sku_id, sale_item_id, device_serial_id,
+             product_name_snapshot, sku_code_snapshot, serial_number, imei_number,
+             qty, unit_price, discount_amount, tax_amount, line_total, line_credit, restock, unit_cost
+           ) values ($1, 'returned', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+          [
+            exchangeId, line.sku_id, item.saleItemId, firstSerial,
+            line.product_name_snapshot, line.sku_code_snapshot,
+            serialInfo?.serial_number ?? null, serialInfo?.imei_number ?? null,
+            item.qty, line.unit_price,
+            round2(Number(line.discount_amount) * (Number(line.sold_qty) > 0 ? item.qty / Number(line.sold_qty) : 1)),
+            round2(Number(line.tax_amount) * (Number(line.sold_qty) > 0 ? item.qty / Number(line.sold_qty) : 1)),
+            round2(item.qty * Number(line.unit_price)),
+            lineCredit, item.restock, Number(line.unit_cost ?? 0),
+          ],
+        );
+
+        if (item.restock) {
+          await this.upsertBalance(client, storeId, exchangeLocationId, line.sku_id, item.qty);
+          for (const serialId of serialIds) {
+            await client.query(
+              `update inventory.device_serials set status = 'returned', current_location_id = $2, updated_at = now() where id = $1`,
+              [serialId, exchangeLocationId],
+            );
+            await client.query(
+              `update sales.sale_warranties set status = 'voided', updated_at = now() where device_serial_id = $1 and status = 'active'`,
+              [serialId],
+            );
+          }
+          await this.insertLedger(client, {
+            storeId,
+            locationId: exchangeLocationId,
+            skuId: line.sku_id,
+            movementType: 'return',
+            qtyDelta: item.qty,
+            referenceType: 'sale_exchange',
+            referenceId: exchangeId,
+            note: `Exchange ${exchangeNo} trade-in`,
+            actorId: userId,
+            deviceSerialId: firstSerial,
+          });
+          await this.appendRestockBatch(
+            client, storeId, line.sku_id, line.product_id, item.qty,
+            Number(line.unit_cost ?? 0),
+            `EXC-${exchangeId.slice(0, 8)}-${line.sku_id.slice(0, 8)}`,
+          );
+        }
+      }
+
+      // 7. New side
+      let newSideCost = 0;
+      for (const { item, sku, productId, lineTotal, serialIds } of newLines) {
+        const skuTrackable = await client.query<any>(
+          `select p.is_trackable from catalog.products p join catalog.skus s on s.product_id = p.id where s.id = $1 limit 1`,
+          [item.skuId],
+        );
+        if (skuTrackable.rows[0]?.is_trackable !== false) {
+          await this.reserveAndDeductInventory(
+            client, storeId, exchangeLocationId, item.skuId, item.qty, userId,
+            `Exchange ${exchangeNo}`, { type: 'sale_exchange', id: exchangeId },
+          );
+        }
+        const unitCost = await this.consumeFifoBatches(client, storeId, item.skuId, item.qty);
+        newSideCost += unitCost * item.qty;
+        const firstSerial = serialIds.length === 1 ? serialIds[0] : null;
+        const serialRows = serialIds.length
+          ? await client.query<any>(`select id, serial_number, imei_number from inventory.device_serials where id = any($1::uuid[])`, [serialIds])
+          : { rows: [] as any[] };
+        const serialInfo = serialRows.rows[0];
+        await client.query(
+          `insert into sales.sale_exchange_items (
+             sale_exchange_id, side, sku_id, device_serial_id,
+             product_name_snapshot, sku_code_snapshot, serial_number, imei_number,
+             qty, unit_price, discount_amount, tax_amount, line_total, unit_cost
+           ) values ($1, 'new', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+          [
+            exchangeId, item.skuId, firstSerial,
+            sku.product_name, sku.sku_code,
+            serialInfo?.serial_number ?? null, serialInfo?.imei_number ?? null,
+            item.qty, item.unitPrice, item.discountAmount, item.taxAmount, lineTotal, unitCost,
+          ],
+        );
+        for (const serialId of serialIds) {
+          await client.query(
+            `update inventory.device_serials set status = 'sold', updated_at = now() where id = $1`,
+            [serialId],
+          );
+        }
+      }
+
+      // 8. Update the original sale's returned amount (credit counts as returned value)
+      const creditResult = await client.query<{ total: string }>(
+        `select (
+           coalesce((select sum(refund_amount) from sales.sale_returns where sale_id = $1 and status = 'processed'), 0)
+           + coalesce((select sum(trade_in_credit) from sales.sale_exchanges where original_sale_id = $1 and status = 'completed'), 0)
+         )::text as total`,
+        [sale.id],
+      );
+      const totalReturned = Number(creditResult.rows[0]?.total ?? 0);
+      if (totalReturned >= totalAmount && totalAmount > 0) {
+        await client.query(
+          `update sales.sales set returned_amount = $2, payment_status = 'refunded', status = 'refunded', fulfillment_status = 'returned', updated_at = now() where id = $1`,
+          [sale.id, totalReturned],
+        );
+      } else {
+        await client.query(
+          `update sales.sales set returned_amount = $2, updated_at = now() where id = $1`,
+          [sale.id, totalReturned],
+        );
+      }
+
+      // 9. Outbox + receipt
+      await client.query(
+        `insert into integration.outbox_events (id, tenant_id, aggregate_type, aggregate_id, event_type, event_payload, status, available_at, created_at)
+         select gen_random_uuid(), s.tenant_id, 'sale_exchange', $2, 'exchange.completed', $3::jsonb, 'pending', now(), now()
+         from store.stores s where s.id = $1`,
+        [storeId, exchangeId, JSON.stringify({ exchangeId, exchangeNo, originalSaleId: sale.id, difference })],
+      );
+
+      await client.query('commit');
+
+      const exchangeReceipt = await this.buildExchangeReceipt(exchangeId, storeId);
+
+      await this.auditService.recordStoreAction({
+        storeId,
+        actorUserId: userId,
+        actionCode: 'sale.exchange',
+        resourceType: 'sale_exchange',
+        resourceId: exchangeId,
+        after: {
+          exchangeNo,
+          originalSaleId: sale.id,
+          tradeInCredit,
+          newItemsTotal,
+          difference,
+        },
+      });
+
+      return {
+        exchange: {
+          id: exchangeId,
+          exchangeNo,
+          originalSaleId: sale.id,
+          tradeInCredit,
+          newItemsTotal,
+          difference,
+          status: 'completed',
+        },
+        exchangeReceipt,
+      };
+    } catch (error) {
+      await client.query('rollback').catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async lookupExchangesForExchange(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    selectors: { phone?: string; saleNo?: string; invoice?: string },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const phone = selectors.phone?.trim() || null;
+    const saleNo = selectors.saleNo?.trim() || null;
+    const invoice = selectors.invoice?.trim() || null;
+    if (!phone && !saleNo && !invoice) {
+      throw new ForbiddenException('Provide a phone number, sale number, or invoice number');
+    }
+
+    const salesResult = await this.pool.query<any>(
+      `select id, sale_no, invoice_no, customer_name, customer_phone, total_amount, paid_amount, payment_status, created_at
+       from sales.sales
+       where store_id = $1
+         and status not in ('cancelled')
+         and (
+           ($2::varchar is not null and customer_phone = $2)
+           or ($3::varchar is not null and sale_no ilike '%' || $3 || '%')
+           or ($4::varchar is not null and (invoice_no ilike '%' || $4 or sale_no ilike '%' || $4))
+         )
+       order by created_at desc
+       limit 20`,
+      [storeId, phone, saleNo, invoice],
+    );
+
+    const client = this.pool;
+    const sales = [];
+    for (const sale of salesResult.rows) {
+      const totalAmount = Number(sale.total_amount ?? 0);
+      const paidRatio = totalAmount > 0 ? Math.min(Number(sale.paid_amount ?? 0) / totalAmount, 1) : 1;
+      const remainingMap = await this.getSaleRemainingQty(client, sale.id);
+      const itemsResult = await client.query<any>(
+        `select si.id, si.sku_id, si.product_name_snapshot, si.sku_code_snapshot,
+                sk.variant_label, sk.requires_serial, sk.requires_imei,
+                si.qty, si.unit_price, si.discount_amount, si.tax_amount, si.line_total
+         from sales.sale_items si
+         left join catalog.skus sk on sk.id = si.sku_id
+         where si.sale_id = $1
+         order by si.created_at asc`,
+        [sale.id],
+      );
+      const items = [];
+      for (const item of itemsResult.rows) {
+        const remaining = remainingMap.get(item.id);
+        const serialsResult = await client.query<any>(
+          `select ds.id, ds.serial_number, ds.imei_number
+           from inventory.device_serial_sales dss
+           join inventory.device_serials ds on ds.id = dss.device_serial_id
+           where dss.sale_item_id = $1 and ds.status = 'sold'`,
+          [item.id],
+        );
+        items.push({
+          saleItemId: item.id,
+          skuId: item.sku_id,
+          productName: item.product_name_snapshot,
+          skuCode: item.sku_code_snapshot,
+          variantLabel: item.variant_label ?? null,
+          requiresSerial: item.requires_serial || item.requires_imei,
+          qty: Number(item.qty),
+          remainingQty: remaining ? remaining.remainingQty : Number(item.qty),
+          unitPrice: Number(item.unit_price),
+          discountAmount: Number(item.discount_amount),
+          taxAmount: Number(item.tax_amount),
+          lineTotal: Number(item.line_total),
+          credit: Math.round(Number(item.line_total) * paidRatio * 100) / 100,
+          serials: serialsResult.rows.map((s: any) => ({
+            id: s.id, serialNumber: s.serial_number, imeiNumber: s.imei_number,
+          })),
+        });
+      }
+      sales.push({
+        saleId: sale.id,
+        saleNo: sale.sale_no,
+        invoiceNo: sale.invoice_no ?? null,
+        customerName: sale.customer_name,
+        customerPhone: sale.customer_phone,
+        totalAmount,
+        paidAmount: Number(sale.paid_amount ?? 0),
+        paidRatio: Math.round(paidRatio * 10000) / 10000,
+        paymentStatus: sale.payment_status,
+        soldAt: sale.created_at,
+        items,
+      });
+    }
+
+    return { sales };
+  }
+
+  async listExchanges(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    filters: { query?: string; page?: number; limit?: number } = {},
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const { page, limit, offset } = normalizePageQuery(filters);
+    const search = filters.query?.trim() || null;
+
+    const result = await this.pool.query(
+      `
+        select
+          e.id,
+          e.exchange_no,
+          e.original_sale_id,
+          s.sale_no as original_sale_no,
+          e.customer_name,
+          e.customer_phone,
+          e.trade_in_credit,
+          e.new_items_total,
+          e.difference,
+          e.refund_method,
+          e.status,
+          e.created_at,
+          coalesce((
+            select string_agg(ei.product_name_snapshot, ', ' order by ei.created_at)
+            from sales.sale_exchange_items ei
+            where ei.sale_exchange_id = e.id
+          ), '') as items_summary,
+          count(*) over()::int as total_count
+        from sales.sale_exchanges e
+        join sales.sales s on s.id = e.original_sale_id
+        where e.store_id = $1
+          and (
+            $2::text is null
+            or e.exchange_no ilike '%' || $2::text || '%'
+            or coalesce(e.customer_name, '') ilike '%' || $2::text || '%'
+            or coalesce(e.customer_phone, '') ilike '%' || $2::text || '%'
+            or s.sale_no ilike '%' || $2::text || '%'
+          )
+        order by e.created_at desc
+        limit $3 offset $4
+      `,
+      [storeId, search, limit, offset],
+    );
+
+    const { items, total } = stripPaginationTotal(result.rows);
+    return { exchanges: items, pagination: { page, limit, total } };
+  }
+
+  async getExchange(exchangeId: string, headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const exchangeResult = await this.pool.query<any>(
+      `select e.*, s.sale_no as original_sale_no, up.full_name as processed_by_name,
+              l.name as location_name
+       from sales.sale_exchanges e
+       join sales.sales s on s.id = e.original_sale_id
+       left join identity.user_profiles up on up.user_id = e.processed_by
+       left join inventory.locations l on l.id = e.location_id
+       where e.id = $1 and e.store_id = $2
+       limit 1`,
+      [exchangeId, storeId],
+    );
+    const exchange = exchangeResult.rows[0];
+    if (!exchange) throw new NotFoundException('Exchange not found');
+
+    const itemsResult = await this.pool.query<any>(
+      `select * from sales.sale_exchange_items where sale_exchange_id = $1 order by side desc, created_at asc`,
+      [exchangeId],
+    );
+
+    return {
+      exchange: {
+        ...exchange,
+        trade_in_credit: Number(exchange.trade_in_credit),
+        new_items_total: Number(exchange.new_items_total),
+        difference: Number(exchange.difference),
+      },
+      items: itemsResult.rows.map((row: any) => ({
+        ...row,
+        qty: Number(row.qty),
+        unit_price: Number(row.unit_price),
+        discount_amount: Number(row.discount_amount),
+        tax_amount: Number(row.tax_amount),
+        line_total: Number(row.line_total),
+        line_credit: Number(row.line_credit),
+        unit_cost: Number(row.unit_cost),
+      })),
+    };
+  }
+
+  async reprintExchangeReceipt(exchangeId: string, headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const exists = await this.pool.query('select id from sales.sale_exchanges where id = $1 and store_id = $2 limit 1', [exchangeId, storeId]);
+    if (!exists.rows[0]) throw new NotFoundException('Exchange not found');
+    const receipt = await this.buildExchangeReceipt(exchangeId, storeId);
+    return { receipt };
+  }
+
+  async updateReturnRefundDetails(
+    saleId: string,
+    returnId: string,
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    payload: { refundMethod?: string; refundReference?: string },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const result = await this.pool.query(
+      `update sales.sale_returns
+       set refund_method = coalesce($4, refund_method),
+           refund_reference = coalesce($5, refund_reference),
+           updated_at = now()
+       where id = $1 and sale_id = $2 and store_id = $3
+       returning id`,
+      [returnId, saleId, storeId, payload.refundMethod ?? null, payload.refundReference ?? null],
+    );
+    return { ok: result.rowCount === 1 };
+  }
+
+  private async buildExchangeReceipt(exchangeId: string, storeId: string) {
+    const exchangeResult = await this.pool.query<any>(
+      `select e.*, s.sale_no as original_sale_no, up.full_name as processed_by_name,
+              l.name as location_name
+       from sales.sale_exchanges e
+       join sales.sales s on s.id = e.original_sale_id
+       left join identity.user_profiles up on up.user_id = e.processed_by
+       left join inventory.locations l on l.id = e.location_id
+       where e.id = $1 and e.store_id = $2
+       limit 1`,
+      [exchangeId, storeId],
+    );
+    const exchange = exchangeResult.rows[0];
+    if (!exchange) return null;
+
+    const itemsResult = await this.pool.query<any>(
+      `select side, product_name_snapshot, sku_code_snapshot, serial_number, imei_number,
+              qty, line_total, line_credit, unit_price, restock
+       from sales.sale_exchange_items
+       where sale_exchange_id = $1
+       order by side desc, created_at asc`,
+      [exchangeId],
+    );
+
+    const storeResult = await this.pool.query(
+      'select name, logo_url, phone, email, address_text, receipt_footer from store.stores where id = $1 limit 1',
+      [storeId],
+    );
+    const store = storeResult.rows[0] ?? {};
+
+    const payments = (exchange.payments ?? []) as Array<any>;
+    const difference = Number(exchange.difference ?? 0);
+    const tradeInCredit = Number(exchange.trade_in_credit ?? 0);
+    const newItemsTotal = Number(exchange.new_items_total ?? 0);
+    const totalPaid = payments.reduce((sum, p) => sum + Number(p.amount ?? 0), 0);
+
+    const allItems = itemsResult.rows;
+    const tradeInItems = allItems.filter((r: any) => r.side === 'returned');
+    const newItems = allItems.filter((r: any) => r.side === 'new');
+
+    const stockNotes = [
+      ...tradeInItems.filter((r: any) => r.restock).map((r: any) => `${r.product_name_snapshot} ×${Number(r.qty)} returned to stock`),
+      ...newItems.map((r: any) => `${r.product_name_snapshot} ×${Number(r.qty)} deducted from stock`),
+    ];
+
+    return {
+      type: 'exchange',
+      exchangeId: exchange.id,
+      exchangeNo: exchange.exchange_no,
+      originalSaleId: exchange.original_sale_id,
+      originalSaleNo: exchange.original_sale_no,
+      status: exchange.status,
+      processedAt: exchange.created_at,
+      processedByName: exchange.processed_by_name,
+      locationName: exchange.location_name ?? null,
+      store: {
+        name: store.name ?? null,
+        logoUrl: store.logo_url ?? null,
+        phone: store.phone ?? null,
+        email: store.email ?? null,
+        address: store.address_text ?? null,
+        footer: store.receipt_footer ?? null,
+      },
+      customer: {
+        name: exchange.customer_name ?? null,
+        phone: exchange.customer_phone ?? null,
+        shopName: exchange.customer_shop_name ?? null,
+      },
+      tradeInItems: tradeInItems.map((r: any) => ({
+        productName: r.product_name_snapshot,
+        skuCode: r.sku_code_snapshot,
+        serialNumber: r.serial_number,
+        imeiNumber: r.imei_number,
+        qty: Number(r.qty),
+        lineCredit: Number(r.line_credit),
+        restock: r.restock,
+      })),
+      newItems: newItems.map((r: any) => ({
+        productName: r.product_name_snapshot,
+        skuCode: r.sku_code_snapshot,
+        serialNumber: r.serial_number,
+        imeiNumber: r.imei_number,
+        qty: Number(r.qty),
+        unitPrice: Number(r.unit_price),
+        lineTotal: Number(r.line_total),
+      })),
+      paymentSummary: {
+        tenders: payments.map((p: any) => ({
+          paymentMethod: p.paymentMethod ?? null,
+          amount: Number(p.amount ?? 0),
+          referenceNo: p.referenceNo ?? null,
+        })),
+        totalPaid,
+        tradeInCredit,
+        newItemsTotal,
+        exchangeAmount: difference,
+        exchangeAmountLabel:
+          difference >= 0
+            ? `Exchange Amount: ৳${difference.toFixed(2)} (New Total ৳${newItemsTotal.toFixed(2)} - Trade-in Value ৳${tradeInCredit.toFixed(2)})`
+            : `Refund Due: ৳${Math.abs(difference).toFixed(2)} (Trade-in Value ৳${tradeInCredit.toFixed(2)} - New Total ৳${newItemsTotal.toFixed(2)})`,
+        refund:
+          difference < 0
+            ? { method: exchange.refund_method, reference: exchange.refund_reference, amount: Math.abs(difference) }
+            : null,
+      },
+      stockNotes,
+      note: exchange.note ?? null,
+      amountInWords: this.numberToWords(Math.abs(difference)),
+      printedAt: new Date().toISOString(),
+    };
   }
 }

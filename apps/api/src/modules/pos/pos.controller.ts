@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 
 import { CurrentAuthContext, CurrentAuthSession } from '../auth/current-auth.decorator.js';
@@ -68,6 +68,8 @@ const createSaleSchema = z.object({
 const returnSaleSchema = z.object({
   reason: z.string().min(3),
   refundAmount: z.number().nonnegative(),
+  refundMethod: z.enum(['cash', 'card', 'mfs', 'bank_transfer']).optional(),
+  refundReference: z.string().max(100).optional(),
   items: z.array(
     z.object({
       saleItemId: z.string().uuid(),
@@ -76,6 +78,47 @@ const returnSaleSchema = z.object({
       lineRefundAmount: z.number().nonnegative(),
     }),
   ).min(1),
+});
+
+const createExchangeSchema = z.object({
+  originalSaleId: z.string().uuid(),
+  locationId: z.string().uuid().optional(),
+  registerId: z.string().uuid().optional(),
+  shiftId: z.string().uuid().optional(),
+  note: z.string().max(1000).optional(),
+  returnedItems: z.array(
+    z.object({
+      saleItemId: z.string().uuid(),
+      qty: z.number().positive(),
+      restock: z.boolean().default(true),
+      serialIds: z.array(z.string().uuid()).optional(),
+    }),
+  ).min(1),
+  newItems: z.array(
+    z.object({
+      skuId: z.string().uuid(),
+      qty: z.number().positive(),
+      unitPrice: z.number().nonnegative(),
+      discountAmount: z.number().nonnegative().default(0),
+      taxAmount: z.number().nonnegative().default(0),
+      serialIds: z.array(z.string().uuid()).optional(),
+    }),
+  ).min(1),
+  payments: z.array(
+    z.object({
+      paymentMethod: z.enum(['cash', 'card', 'mfs', 'bank_transfer', 'split']),
+      gatewayProvider: z.string().optional(),
+      amount: z.number().nonnegative(),
+      referenceNo: z.string().optional(),
+    }),
+  ).default([]),
+  refundMethod: z.enum(['cash', 'card', 'mfs', 'bank_transfer']).optional(),
+  refundReference: z.string().max(100).optional(),
+});
+
+const updateReturnRefundSchema = z.object({
+  refundMethod: z.enum(['cash', 'card', 'mfs', 'bank_transfer']).optional(),
+  refundReference: z.string().max(100).optional(),
 });
 
 const createExchangeItemSchema = z.object({
@@ -355,5 +398,94 @@ export class PosController {
     @Body() payload: { decisionNote?: string },
   ) {
     return this.posService.rejectReturn(returnId, headerStoreId, authContext, session, payload?.decisionNote);
+  }
+
+  @Patch('sales/:saleId/returns/:returnId')
+  @RequireContext('store')
+  @RequirePermissions('sales.pos.create')
+  updateReturnRefundDetails(
+    @Param('saleId') saleId: string,
+    @Param('returnId') returnId: string,
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @Body() payload: unknown,
+  ) {
+    return this.posService.updateReturnRefundDetails(
+      saleId,
+      returnId,
+      headerStoreId,
+      authContext,
+      updateReturnRefundSchema.parse(payload),
+    );
+  }
+
+  // ── Exchange documents ──
+
+  @Get('exchanges/lookup')
+  @RequireContext('store')
+  @RequirePermissions('sales.report.view')
+  lookupExchangesForExchange(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @Query('phone') phone?: string,
+    @Query('saleNo') saleNo?: string,
+    @Query('invoice') invoice?: string,
+  ) {
+    return this.posService.lookupExchangesForExchange(headerStoreId, authContext, {
+      phone,
+      saleNo,
+      invoice,
+    });
+  }
+
+  @Post('exchanges')
+  @RequireContext('store')
+  @RequirePermissions('sales.pos.create')
+  createExchange(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @CurrentAuthSession() session: AuthSession | null,
+    @Body() payload: unknown,
+  ) {
+    return this.posService.createExchange(headerStoreId, authContext, session, createExchangeSchema.parse(payload));
+  }
+
+  @Get('exchanges')
+  @RequireContext('store')
+  @RequirePermissions('sales.report.view')
+  listExchanges(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @Query('query') query?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.posService.listExchanges(headerStoreId, authContext, {
+      query,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
+  @Get('exchanges/:exchangeId')
+  @RequireContext('store')
+  @RequirePermissions('sales.report.view')
+  getExchange(
+    @Param('exchangeId') exchangeId: string,
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+  ) {
+    return this.posService.getExchange(exchangeId, headerStoreId, authContext);
+  }
+
+  @Post('exchanges/:exchangeId/reprint')
+  @RequireContext('store')
+  @RequirePermissions('sales.pos.create')
+  reprintExchangeReceipt(
+    @Param('exchangeId') exchangeId: string,
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+  ) {
+    return this.posService.reprintExchangeReceipt(exchangeId, headerStoreId, authContext);
   }
 }
