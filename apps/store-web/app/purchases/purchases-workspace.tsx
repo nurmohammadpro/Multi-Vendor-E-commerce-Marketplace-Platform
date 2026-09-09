@@ -314,7 +314,8 @@ export function PurchasesWorkspace() {
         supplierId: receiveSupplierId,
         locationId: receiveLocationId,
         qty,
-        unitCost: receiveUnitCost ? Number(receiveUnitCost) : undefined
+        unitCost: receiveUnitCost ? Number(receiveUnitCost) : undefined,
+        sellPrice: receiveSellPrice ? Number(receiveSellPrice) : undefined
       };
       if (hasTracking) {
         body.trackingValuesList = receiveUnits.map((u) => u.values);

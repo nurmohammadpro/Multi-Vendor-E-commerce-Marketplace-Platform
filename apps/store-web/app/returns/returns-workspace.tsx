@@ -62,6 +62,8 @@ type RefundReceipt = {
   saleNo: string;
   reason: string;
   refundAmount: number;
+  refundMethod?: string | null;
+  refundReference?: string | null;
   processedAt: string;
   processedByName: string;
   store: {
@@ -128,6 +130,8 @@ export function ReturnsWorkspace() {
   const [autoLoaded, setAutoLoaded] = useState(false);
   const [returnItems, setReturnItems] = useState<Record<string, { qty: number; refundAmount: number; restock: boolean }>>({});
   const [reason, setReason] = useState('');
+  const [refundMethod, setRefundMethod] = useState('');
+  const [refundReference, setRefundReference] = useState('');
   const [processing, setProcessing] = useState(false);
   const [success, setSuccess] = useState(false);
   const [refundReceipt, setRefundReceipt] = useState<RefundReceipt | null>(null);
@@ -294,6 +298,8 @@ export function ReturnsWorkspace() {
       }
       setReturnItems(initial);
       setReason('');
+      setRefundMethod('');
+      setRefundReference('');
       setSuccess(false);
       setRefundReceipt(null);
     } catch (err) {
@@ -342,6 +348,8 @@ export function ReturnsWorkspace() {
         body: JSON.stringify({
           reason: reason.trim(),
           refundAmount: Number(totalRefund),
+          refundMethod: refundMethod || undefined,
+          refundReference: refundReference.trim() || undefined,
           items,
         }),
       });
@@ -659,6 +667,11 @@ export function ReturnsWorkspace() {
                 <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#64748b', marginBottom: 2 }}>Processed By</div>
                 <div style={{ fontWeight: 600 }}>{rr.processedByName || '—'}</div>
                 <div style={{ fontSize: 11, color: '#64748b', marginTop: 1 }}>Reason: <span style={{ fontStyle: 'italic' }}>{rr.reason}</span></div>
+                {rr.refundMethod && (
+                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 1 }}>
+                    Refund via {rr.refundMethod}{rr.refundReference ? ` · Ref: ${rr.refundReference}` : ''}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -857,6 +870,28 @@ export function ReturnsWorkspace() {
               style={{ ...fieldStyle, minHeight: 80, width: '100%', boxSizing: 'border-box' }}
               placeholder="Reason for return (required)"
             />
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: 12, color: 'var(--muted-foreground)', marginBottom: 4 }}>Refund Method</label>
+              <select value={refundMethod} onChange={(e) => setRefundMethod(e.target.value)} style={{ ...fieldStyle, width: 180 }}>
+                <option value="">Select method</option>
+                <option value="cash">Cash</option>
+                <option value="card">Card</option>
+                <option value="mfs">Mobile Banking</option>
+                <option value="bank_transfer">Bank Transfer</option>
+              </select>
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 12, color: 'var(--muted-foreground)', marginBottom: 4 }}>Reference</label>
+              <input
+                value={refundReference}
+                onChange={(e) => setRefundReference(e.target.value)}
+                placeholder="Txn / cheque no. (optional)"
+                style={{ ...fieldStyle, width: 200 }}
+              />
+            </div>
           </div>
 
           <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
