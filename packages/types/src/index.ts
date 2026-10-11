@@ -177,6 +177,9 @@ export interface WarrantyClaim {
   claimSubmittedDate: Date;
   claimReferenceNumber: string;
   status: WarrantyClaimStatus;
+  complainerName?: string;
+  complainerPhone?: string;
+  complainerRelation?: string;
   rejectionReason?: string;
   approvalNotes?: string;
   approvedByUserId?: string;

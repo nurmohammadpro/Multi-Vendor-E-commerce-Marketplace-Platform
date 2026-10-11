@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
     const value = search.get(key);
     if (value) query.set(key, value);
   }
-  const path = query.toString() ? `/v1/warranty/claims?${query.toString()}` : '/v1/warranty/claims';
+  const path = query.toString() ? `/warranty/claims?${query.toString()}` : '/warranty/claims';
   const response = await requestStoreApi(path);
   const payload = await response.json().catch(() => ({ ok: false, error: 'Invalid upstream response' }));
   return NextResponse.json(payload, { status: response.status });
@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const response = await requestStoreApi('/v1/warranty/claims', {
+  const response = await requestStoreApi('/warranty/claims', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),

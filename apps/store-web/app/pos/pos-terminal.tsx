@@ -68,6 +68,8 @@ type SkuSearchResult = {
   available_qty?: string | number | null;
   discount_type?: string | null;
   discount_value?: string | number | null;
+  matched_serial_id?: string | null;
+  matched_serial_number?: string | null;
 };
 
 type ProductVariantDetail = {
@@ -207,6 +209,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
   const [serialPickerSkuCode, setSerialPickerSkuCode] = useState('');
   const [serialPickerProductName, setSerialPickerProductName] = useState('');
   const [serialPickerCartIndex, setSerialPickerCartIndex] = useState<number>(-1);
+  const [serialPickerPreferredId, setSerialPickerPreferredId] = useState<string>('');
   const [exchangeFormName, setExchangeFormName] = useState('');
   const [exchangeFormCategory, setExchangeFormCategory] = useState('');
   const [exchangeFormBrand, setExchangeFormBrand] = useState('');
@@ -446,7 +449,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
     setVariantPickerOpen(true);
   };
 
-  const addSkuToCart = (sku: Pick<SkuSearchResult, 'id' | 'sku_code' | 'product_name' | 'variant_label' | 'sale_price' | 'available_qty' | 'barcode' | 'is_trackable' | 'discount_type' | 'discount_value'>, discountOverride?: { discountAmount: number; discountType: string }) => {
+  const addSkuToCart = (sku: Pick<SkuSearchResult, 'id' | 'sku_code' | 'product_name' | 'variant_label' | 'sale_price' | 'available_qty' | 'barcode' | 'is_trackable' | 'discount_type' | 'discount_value' | 'matched_serial_id'>, discountOverride?: { discountAmount: number; discountType: string }) => {
     const isTrackable = sku.is_trackable !== false;
     const availableQty = isTrackable ? getSkuAvailableQty(sku) : 999999;
     if (isTrackable && availableQty <= 0) {
@@ -500,6 +503,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
       setSerialPickerSkuId(sku.id);
       setSerialPickerSkuCode(sku.sku_code);
       setSerialPickerProductName(sku.product_name);
+      setSerialPickerPreferredId(sku.matched_serial_id || '');
       // Find the index of the newly added item
       setCart((prev) => {
         const idx = prev.findIndex((i) => i.skuId === sku.id);
@@ -1462,6 +1466,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
         skuId={serialPickerSkuId}
         skuCode={serialPickerSkuCode}
         productName={serialPickerProductName}
+        preferredSerialId={serialPickerPreferredId}
         onSelect={(serials) => {
           setCart((prev) => prev.map((item, idx) => {
             if (idx === serialPickerCartIndex) {
@@ -1470,7 +1475,10 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
             return item;
           }));
         }}
-        onClose={() => setSerialPickerOpen(false)}
+        onClose={() => {
+          setSerialPickerOpen(false);
+          setSerialPickerPreferredId('');
+        }}
       />
 
       {exchangeModalOpen && (

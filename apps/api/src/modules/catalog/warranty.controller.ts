@@ -14,7 +14,7 @@ import { JwtGuard } from '../guard/jwt.guard.js';
 import { StoreGuard } from '../guard/store.guard.js';
 import { WarrantyService } from './warranty.service.js';
 
-@Controller('v1/warranty')
+@Controller('warranty')
 @UseGuards(JwtGuard, StoreGuard)
 export class WarrantyController {
   constructor(private readonly warrantyService: WarrantyService) {}
@@ -54,8 +54,46 @@ export class WarrantyController {
    */
   @Get('policies')
   async getPolicies(@Req() req: any) {
-    // TODO: Implement list warranties
-    return { message: 'List warranties not yet implemented' };
+    const storeId = req.headers['x-store-id'];
+    return { policies: await this.warrantyService.getWarrantyPolicies(storeId) };
+  }
+
+  /**
+   * Search registered sale warranties
+   * GET /v1/warranty/sale-warranties?q=&status=&limit=&offset=
+   */
+  @Get('sale-warranties')
+  async listSaleWarranties(
+    @Req() req: any,
+    @Query('q') q?: string,
+    @Query('status') status?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    const storeId = req.headers['x-store-id'];
+    return this.warrantyService.listSaleWarranties(storeId, {
+      q,
+      status,
+      limit: limit ? Number(limit) : undefined,
+      offset: offset ? Number(offset) : undefined,
+    });
+  }
+
+  /**
+   * Search sold serials eligible for warranty registration
+   * GET /v1/warranty/eligible-serials?q=
+   */
+  @Get('eligible-serials')
+  async searchEligibleSerials(
+    @Req() req: any,
+    @Query('q') q?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const storeId = req.headers['x-store-id'];
+    return this.warrantyService.searchWarrantyEligibleSerials(storeId, {
+      q,
+      limit: limit ? Number(limit) : undefined,
+    });
   }
 
   /**
@@ -79,6 +117,20 @@ export class WarrantyController {
     const storeId = req.headers['x-store-id'];
 
     return this.warrantyService.createSaleWarranty(storeId, session.user.tenantId, body);
+  }
+
+  /**
+   * Manually update a sale warranty's status (expire / void / transfer / reactivate)
+   * PATCH /v1/warranty/sale-warranties/:warrantyId
+   */
+  @Patch('sale-warranties/:warrantyId')
+  async updateSaleWarrantyStatus(
+    @Req() req: any,
+    @Param('warrantyId') warrantyId: string,
+    @Body() body: { status: string; note?: string },
+  ) {
+    const storeId = req.headers['x-store-id'];
+    return this.warrantyService.updateSaleWarrantyStatus(warrantyId, storeId, body);
   }
 
   /**
@@ -114,6 +166,9 @@ export class WarrantyController {
       claimType: string;
       issueDescription: string;
       issueDate: Date;
+      complainerName?: string;
+      complainerPhone?: string;
+      complainerRelation?: string;
     },
   ) {
     const session: AuthSession = req.user;
@@ -130,15 +185,15 @@ export class WarrantyController {
   async getClaims(
     @Req() req: any,
     @Query('status') status?: string,
-    @Query('limit') limit: number = 50,
-    @Query('offset') offset: number = 0,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
   ) {
     const storeId = req.headers['x-store-id'];
 
     return this.warrantyService.getWarrantyClaims(storeId, {
       status,
-      limit,
-      offset,
+      limit: limit ? Number(limit) : undefined,
+      offset: offset ? Number(offset) : undefined,
     });
   }
 

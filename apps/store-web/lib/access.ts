@@ -116,8 +116,8 @@ export function deriveStoreConsoleAccess(
   const planFeatures = options?.planFeatures ?? [];
   const isOwner = role === 'owner';
   const isOwnerOrManager = role === 'owner' || role === 'manager';
-  // No one can directly adjust stock — manager requests, owner approves
-  const canDirectAdjustInventory = false;
+  // Owner can directly adjust stock; managers with permission can too
+  const canDirectAdjustInventory = isOwner || (isOwnerOrManager && permissionSet.has('inventory.adjust.direct'));
   const canRequestAdjustInventory =
     permissionSet.has('inventory.adjust.request')
     && canAccessStoreFeature({ planCode, planFeatures }, 'inventory');

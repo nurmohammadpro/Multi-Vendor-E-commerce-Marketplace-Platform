@@ -14,7 +14,7 @@ import { JwtGuard } from '../guard/jwt.guard.js';
 import { StoreGuard } from '../guard/store.guard.js';
 import { DeviceSerialsService } from './device-serials.service.js';
 
-@Controller('v1/inventory/serials')
+@Controller('inventory/serials')
 @UseGuards(JwtGuard, StoreGuard)
 export class DeviceSerialsController {
   constructor(private readonly deviceSerialsService: DeviceSerialsService) {}
@@ -97,8 +97,8 @@ export class DeviceSerialsController {
     @Query('batchCode') batchCode?: string,
     @Query('status') status?: string,
     @Query('skuId') skuId?: string,
-    @Query('limit') limit: number = 50,
-    @Query('offset') offset: number = 0,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
   ) {
     const storeId = req.headers['x-store-id'];
 
@@ -111,8 +111,8 @@ export class DeviceSerialsController {
         status,
         skuId,
       },
-      limit,
-      offset,
+      limit ? Number(limit) : undefined,
+      offset ? Number(offset) : undefined,
     );
   }
 

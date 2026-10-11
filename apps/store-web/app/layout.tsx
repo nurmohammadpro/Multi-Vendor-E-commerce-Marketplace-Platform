@@ -52,6 +52,7 @@ const navGroups = [
       { href: '/sales-history', label: 'Sales History', permission: 'sales.report.view', feature: 'reports' },
       { href: '/returns', label: 'Returns & Refunds', permission: 'sales.returns.manage', feature: 'returns' },
       { href: '/exchange', label: 'Exchange', permission: 'sales.pos.create', feature: 'pos' },
+      { href: '/warranties', label: 'Warranties', permission: 'sales.pos.create', feature: 'pos' },
       { href: '/receivables', label: 'Receivables', permission: 'sales.report.view', feature: 'receivables' },
       { href: '/customers', label: 'Customers', permission: 'sales.report.view', feature: 'customers' },
       { href: '/shipping', label: 'Shipping', permission: 'sales.pos.create', feature: 'shipping' },

@@ -2983,11 +2983,12 @@ export class StoreOpsService {
       const paidAmount = Math.min(payload.paidAmount, totalAmount);
       const isFullyPaid = paidAmount >= totalAmount;
 
-      // 1. Create product
+      // 1. Create product — Quick Add makes simple non-variant products; trackable
+      // only when explicitly requested (serial intake comes through Receive Stock).
       const productResult = await client.query<{ id: string }>(
         `insert into catalog.products (id, tenant_id, store_id, product_code, name, category_id, brand_id, has_variants, variant_mode, is_trackable, status, created_at, updated_at)
          values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, 'active', now(), now()) returning id`,
-        [tenantId, storeId, productCode, productName, categoryId, brandId, payload.hasVariants, payload.hasVariants ? 'single' : 'none', payload.isTrackable ?? true],
+        [tenantId, storeId, productCode, productName, categoryId, brandId, payload.hasVariants, payload.hasVariants ? 'single' : 'none', payload.isTrackable ?? false],
       );
       const productId = productResult.rows[0].id;
 

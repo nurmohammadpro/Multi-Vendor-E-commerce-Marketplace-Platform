@@ -316,7 +316,7 @@ export function SalesHistoryWorkspace() {
         <input
           ref={searchRef}
           type="text"
-          placeholder="Search by sale no, customer name, mobile... or scan barcode"
+          placeholder="Search by sale no, invoice, customer, phone, serial, or IMEI"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           style={{ ...fieldStyle, flex: 1, minWidth: 0 }}

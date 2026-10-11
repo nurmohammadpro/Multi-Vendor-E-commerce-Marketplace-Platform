@@ -10,6 +10,127 @@ export class WarrantyService {
   ) {}
 
   /**
+   * List active warranty policies for a store
+   */
+  async getWarrantyPolicies(storeId: string): Promise<WarrantyPolicy[]> {
+    const result = await this.pool.query(
+      `
+        SELECT id, tenant_id, store_id, code, name, warranty_type, duration_months,
+          coverage_scope, applies_to_category_ids, cost_price, cost_to_store,
+          is_default, terms_text, exclusions_text, claim_process_text,
+          status, created_at, updated_at
+        FROM catalog.warranty_policies
+        WHERE store_id = $1 AND status = 'active'
+        ORDER BY is_default DESC, duration_months ASC
+      `,
+      [storeId],
+    );
+    return result.rows.map((row) => this.mapToWarrantyPolicy(row));
+  }
+
+  /**
+   * Search registered sale warranties by serial, IMEI, customer, phone,
+   * sale number, or warranty reference.
+   */
+  async listSaleWarranties(
+    storeId: string,
+    filters: { q?: string; status?: string; limit?: number; offset?: number } = {},
+  ): Promise<{ warranties: any[]; total: number }> {
+    const limit = filters.limit || 50;
+    const offset = filters.offset || 0;
+    const q = filters.q?.trim() || null;
+
+    const result = await this.pool.query(
+      `
+        select
+          sw.id, sw.warranty_reference_number, sw.warranty_start_date,
+          sw.warranty_end_date, sw.warranty_purchased_price, sw.status, sw.notes,
+          sw.created_at,
+          wp.name as policy_name, wp.warranty_type as policy_type,
+          wp.duration_months as policy_duration_months,
+          ds.id as device_serial_id, ds.serial_number, ds.imei_number,
+          ds.device_model, ds.color, ds.status as serial_status,
+          s.id as sale_id, s.sale_no, s.invoice_no, s.customer_name,
+          s.customer_phone, s.created_at as sold_at,
+          si.product_name_snapshot, si.sku_code_snapshot,
+          count(*) over()::int as total_count
+        from sales.sale_warranties sw
+        join catalog.warranty_policies wp on wp.id = sw.warranty_policy_id
+        join inventory.device_serials ds on ds.id = sw.device_serial_id
+        join sales.sales s on s.id = sw.sale_id
+        join sales.sale_items si on si.id = sw.sale_item_id
+        where sw.store_id = $1
+          and ($2::text is null or sw.status = $2::text)
+          and (
+            $3::text is null
+            or ds.serial_number ilike '%' || $3::text || '%'
+            or coalesce(ds.imei_number, '') ilike '%' || $3::text || '%'
+            or coalesce(s.customer_name, '') ilike '%' || $3::text || '%'
+            or coalesce(s.customer_phone, '') ilike '%' || $3::text || '%'
+            or s.sale_no ilike '%' || $3::text || '%'
+            or coalesce(s.invoice_no, '') ilike '%' || $3::text || '%'
+            or sw.warranty_reference_number ilike '%' || $3::text || '%'
+            or coalesce(si.product_name_snapshot, '') ilike '%' || $3::text || '%'
+          )
+        order by sw.created_at desc
+        limit $4 offset $5
+      `,
+      [storeId, filters.status ?? null, q, limit, offset],
+    );
+
+    const total = result.rows[0]?.total_count ?? 0;
+    return { warranties: result.rows, total: Number(total) };
+  }
+
+  /**
+   * Search sold serials that can still be registered under a warranty,
+   * by serial, IMEI, customer, phone, or sale number.
+   */
+  async searchWarrantyEligibleSerials(
+    storeId: string,
+    filters: { q?: string; limit?: number } = {},
+  ): Promise<{ serials: any[] }> {
+    const q = filters.q?.trim() || null;
+    if (!q) return { serials: [] };
+    const limit = filters.limit || 20;
+
+    const result = await this.pool.query(
+      `
+        select
+          ds.id as device_serial_id, ds.serial_number, ds.imei_number,
+          ds.device_model, ds.color,
+          s.id as sale_id, s.sale_no, s.invoice_no, s.customer_name,
+          s.customer_phone, s.created_at as sold_at,
+          si.id as sale_item_id, si.product_name_snapshot, si.sku_code_snapshot,
+          si.unit_price
+        from inventory.device_serials ds
+        join inventory.device_serial_sales dss on dss.device_serial_id = ds.id
+        join sales.sales s on s.id = dss.sale_id
+        join sales.sale_items si on si.id = dss.sale_item_id
+        where ds.store_id = $1
+          and ds.status = 'sold'
+          and not exists (
+            select 1 from sales.sale_warranties sw
+            where sw.device_serial_id = ds.id and sw.status in ('active', 'claimed')
+          )
+          and (
+            ds.serial_number ilike '%' || $2::text || '%'
+            or coalesce(ds.imei_number, '') ilike '%' || $2::text || '%'
+            or coalesce(s.customer_name, '') ilike '%' || $2::text || '%'
+            or coalesce(s.customer_phone, '') ilike '%' || $2::text || '%'
+            or s.sale_no ilike '%' || $2::text || '%'
+            or coalesce(si.product_name_snapshot, '') ilike '%' || $2::text || '%'
+          )
+        order by s.created_at desc
+        limit $3
+      `,
+      [storeId, q, limit],
+    );
+
+    return { serials: result.rows };
+  }
+
+  /**
    * Create a warranty policy
    */
   async createWarrantyPolicy(
@@ -45,16 +166,16 @@ export class WarrantyService {
         INSERT INTO catalog.warranty_policies (
           id, tenant_id, store_id, code, name, warranty_type, duration_months,
           coverage_scope, applies_to_category_ids, cost_price, cost_to_store,
-          is_default_policy, terms_text, exclusions_text, claim_process_text,
+          is_default, terms_text, exclusions_text, claim_process_text,
           status, created_at, updated_at
         )
         VALUES (
-          gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'active', NOW(), NOW()
+          gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8::uuid[], $9, $10, $11, $12, $13, $14, 'active', NOW(), NOW()
         )
         RETURNING
           id, tenant_id, store_id, code, name, warranty_type, duration_months,
           coverage_scope, applies_to_category_ids, cost_price, cost_to_store,
-          is_default_policy, terms_text, exclusions_text, claim_process_text,
+          is_default, terms_text, exclusions_text, claim_process_text,
           status, created_at, updated_at
       `,
       [
@@ -65,7 +186,7 @@ export class WarrantyService {
         data.warrantyType,
         data.durationMonths,
         data.coverageScope,
-        JSON.stringify(data.appliesToCategoryIds),
+        data.appliesToCategoryIds ?? [],
         data.costPrice || null,
         data.costToStore || null,
         data.isDefaultPolicy || false,
@@ -180,6 +301,9 @@ export class WarrantyService {
       claimType: string;
       issueDescription: string;
       issueDate: Date;
+      complainerName?: string;
+      complainerPhone?: string;
+      complainerRelation?: string;
     },
   ): Promise<WarrantyClaim> {
     // Validate warranty is active and not expired
@@ -212,15 +336,17 @@ export class WarrantyService {
         INSERT INTO sales.warranty_claims (
           id, tenant_id, store_id, sale_warranty_id, device_serial_id,
           claim_type, issue_description, issue_date, claim_submitted_date,
-          claim_reference_number, status, created_at, updated_at
+          claim_reference_number, status, complainer_name, complainer_phone,
+          complainer_relation, created_at, updated_at
         )
         VALUES (
-          gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, NOW(), $8, 'submitted', NOW(), NOW()
+          gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, NOW(), $8, 'submitted', $9, $10, $11, NOW(), NOW()
         )
         RETURNING
           id, tenant_id, store_id, sale_warranty_id, device_serial_id,
           claim_type, issue_description, issue_date, claim_submitted_date,
-          claim_reference_number, status, rejection_reason, approval_notes,
+          claim_reference_number, status, complainer_name, complainer_phone,
+          complainer_relation, rejection_reason, approval_notes,
           approved_by_user_id, approved_at, resolution_type, replacement_serial_id,
           created_at, updated_at
       `,
@@ -233,7 +359,16 @@ export class WarrantyService {
         data.issueDescription,
         data.issueDate,
         claimRefNumber,
+        data.complainerName || null,
+        data.complainerPhone || null,
+        data.complainerRelation || 'customer',
       ],
+    );
+
+    // A submitted claim moves the warranty into 'claimed' until the claim is resolved
+    await this.pool.query(
+      `UPDATE sales.sale_warranties SET status = 'claimed', updated_at = NOW() WHERE id = $1`,
+      [data.saleWarrantyId],
     );
 
     return this.mapToWarrantyClaim(result.rows[0]);
@@ -294,6 +429,14 @@ export class WarrantyService {
       throw new NotFoundException('Warranty claim not found');
     }
 
+    // Resolved claims (rejected/cancelled/completed) release the warranty back to 'active'
+    if (['rejected', 'cancelled', 'completed'].includes(data.status)) {
+      await this.pool.query(
+        `UPDATE sales.sale_warranties SET status = 'active', updated_at = NOW() WHERE id = $1`,
+        [result.rows[0].sale_warranty_id],
+      );
+    }
+
     return this.mapToWarrantyClaim(result.rows[0]);
   }
 
@@ -303,46 +446,95 @@ export class WarrantyService {
   async getWarrantyClaims(
     storeId: string,
     filters: { status?: string; limit?: number; offset?: number } = {},
-  ): Promise<{ claims: WarrantyClaim[]; total: number }> {
+  ): Promise<{ claims: any[]; total: number }> {
     const limit = filters.limit || 50;
     const offset = filters.offset || 0;
 
-    let whereClause = 'store_id = $1';
+    let whereClause = 'wc.store_id = $1';
     const params: any[] = [storeId];
 
     if (filters.status) {
-      whereClause += ` AND status = $${params.length + 1}`;
+      whereClause += ` AND wc.status = $${params.length + 1}`;
       params.push(filters.status);
     }
 
     // Get count
     const countResult = await this.pool.query<{ count: string }>(
-      `SELECT COUNT(*) as count FROM sales.warranty_claims WHERE ${whereClause}`,
+      `SELECT COUNT(*) as count FROM sales.warranty_claims wc WHERE ${whereClause}`,
       params,
     );
     const total = parseInt(countResult.rows[0].count);
 
-    // Get results
+    // Get results with warranty/device/sale context for the claims workspace
     const result = await this.pool.query(
       `
         SELECT
-          id, tenant_id, store_id, sale_warranty_id, device_serial_id,
-          claim_type, issue_description, issue_date, claim_submitted_date,
-          claim_reference_number, status, rejection_reason, approval_notes,
-          approved_by_user_id, approved_at, resolution_type, replacement_serial_id,
-          created_at, updated_at
-        FROM sales.warranty_claims
+          wc.id, wc.tenant_id, wc.store_id, wc.sale_warranty_id, wc.device_serial_id,
+          wc.claim_type, wc.issue_description, wc.issue_date, wc.claim_submitted_date,
+          wc.claim_reference_number, wc.status, wc.complainer_name, wc.complainer_phone,
+          wc.complainer_relation, wc.rejection_reason, wc.approval_notes,
+          wc.approved_by_user_id, wc.approved_at, wc.resolution_type, wc.replacement_serial_id,
+          wc.created_at, wc.updated_at,
+          sw.warranty_reference_number, sw.warranty_end_date,
+          ds.serial_number, ds.imei_number, ds.device_model,
+          s.sale_no, s.customer_name, s.customer_phone
+        FROM sales.warranty_claims wc
+        LEFT JOIN sales.sale_warranties sw ON sw.id = wc.sale_warranty_id
+        LEFT JOIN inventory.device_serials ds ON ds.id = wc.device_serial_id
+        LEFT JOIN sales.sales s ON s.id = sw.sale_id
         WHERE ${whereClause}
-        ORDER BY claim_submitted_date DESC
+        ORDER BY wc.claim_submitted_date DESC
         LIMIT $${params.length + 1} OFFSET $${params.length + 2}
       `,
       [...params, limit, offset],
     );
 
     return {
-      claims: result.rows.map(row => this.mapToWarrantyClaim(row)),
+      claims: result.rows.map((row) => ({
+        ...this.mapToWarrantyClaim(row),
+        warrantyReferenceNumber: row.warranty_reference_number,
+        warrantyEndDate: row.warranty_end_date,
+        serialNumber: row.serial_number,
+        imeiNumber: row.imei_number,
+        deviceModel: row.device_model,
+        saleNo: row.sale_no,
+        customerName: row.customer_name,
+        customerPhone: row.customer_phone,
+      })),
       total,
     };
+  }
+
+  /**
+   * Manually transition a sale warranty's status (expire, void, transfer, reactivate)
+   */
+  async updateSaleWarrantyStatus(
+    warrantyId: string,
+    storeId: string,
+    data: { status: string; note?: string },
+  ): Promise<SaleWarranty> {
+    if (!['active', 'claimed', 'expired', 'voided', 'transferred'].includes(data.status)) {
+      throw new BadRequestException('Invalid warranty status');
+    }
+
+    const result = await this.pool.query(
+      `
+        UPDATE sales.sale_warranties
+        SET status = $1, notes = $2, updated_at = NOW()
+        WHERE id = $3 AND store_id = $4
+        RETURNING
+          id, tenant_id, store_id, sale_id, sale_item_id, device_serial_id,
+          warranty_policy_id, warranty_reference_number, warranty_start_date,
+          warranty_end_date, warranty_purchased_price, status, notes, created_at, updated_at
+      `,
+      [data.status, data.note ?? null, warrantyId, storeId],
+    );
+
+    if (result.rows.length === 0) {
+      throw new NotFoundException('Warranty not found');
+    }
+
+    return this.mapToSaleWarranty(result.rows[0]);
   }
 
   private mapToWarrantyPolicy(row: any): WarrantyPolicy {
@@ -358,7 +550,7 @@ export class WarrantyService {
       appliesToCategoryIds: row.applies_to_category_ids,
       costPrice: row.cost_price,
       costToStore: row.cost_to_store,
-      isDefaultPolicy: row.is_default_policy,
+      isDefaultPolicy: row.is_default,
       termsText: row.terms_text,
       exclusionsText: row.exclusions_text,
       claimProcessText: row.claim_process_text,
@@ -401,6 +593,9 @@ export class WarrantyService {
       claimSubmittedDate: row.claim_submitted_date,
       claimReferenceNumber: row.claim_reference_number,
       status: row.status,
+      complainerName: row.complainer_name,
+      complainerPhone: row.complainer_phone,
+      complainerRelation: row.complainer_relation,
       rejectionReason: row.rejection_reason,
       approvalNotes: row.approval_notes,
       approvedByUserId: row.approved_by_user_id,

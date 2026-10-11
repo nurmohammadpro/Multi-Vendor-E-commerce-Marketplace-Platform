@@ -223,12 +223,22 @@ export function PurchasesWorkspace() {
     setShowProductSuggestions(false);
     try {
       const res = await readJson<{ product: any; trackingProfile: any; skus: any[] }>(`/api/catalog/products/${product.id}`);
+      const fallbackProfile = res.product.is_trackable && !res.trackingProfile
+        ? {
+            id: 'default-serial-profile',
+            name: 'Serial tracking',
+            fields: [
+              { id: 'field-serial', fieldKey: 'serial_number', fieldLabel: 'Serial Number', fieldType: 'text', isRequired: true, isUnique: true, sortOrder: 0 },
+              { id: 'field-imei', fieldKey: 'imei_number', fieldLabel: 'IMEI', fieldType: 'text', isRequired: false, isUnique: false, sortOrder: 1 },
+            ],
+          }
+        : null;
       setReceiveProduct({
         id: res.product.id,
         name: res.product.name,
         product_code: res.product.product_code,
         category_id: res.product.category_id,
-        trackingProfile: res.trackingProfile ?? null,
+        trackingProfile: res.trackingProfile ?? fallbackProfile,
         skus: res.skus ?? [],
       });
       if (res.skus?.length === 1) setReceiveSkuId(res.skus[0].id);

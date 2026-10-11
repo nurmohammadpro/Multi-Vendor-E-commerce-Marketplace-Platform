@@ -129,7 +129,27 @@ export class PosService {
           lp.discount_type,
           lp.discount_value,
           st.on_hand_qty,
-          st.available_qty
+          st.available_qty,
+          (
+            select ds.id
+            from inventory.device_serials ds
+            where ds.store_id = $1
+              and ds.sku_id = sku.id
+              and ds.status = 'in_stock'
+              and $3::text is not null
+              and (ds.serial_number = $3::text or ds.imei_number = $3::text)
+            limit 1
+          ) as matched_serial_id,
+          (
+            select ds.serial_number
+            from inventory.device_serials ds
+            where ds.store_id = $1
+              and ds.sku_id = sku.id
+              and ds.status = 'in_stock'
+              and $3::text is not null
+              and (ds.serial_number = $3::text or ds.imei_number = $3::text)
+            limit 1
+          ) as matched_serial_number
         from catalog.skus sku
         join catalog.products p on p.id = sku.product_id
         left join latest_prices lp on lp.sku_id = sku.id
@@ -148,9 +168,25 @@ export class PosService {
             or sku.sku_code ilike '%' || $3::text || '%'
             or coalesce(sku.barcode, '') ilike '%' || $3::text || '%'
             or coalesce(sku.variant_label, '') ilike '%' || $3::text || '%'
+            or exists (
+              select 1
+              from inventory.device_serials ds
+              where ds.store_id = $1
+                and ds.sku_id = sku.id
+                and (ds.serial_number ilike '%' || $3::text || '%'
+                  or coalesce(ds.imei_number, '') ilike '%' || $3::text || '%')
+            )
           )
         order by
           case when $2::varchar is not null and sku.barcode = $2::varchar then 0 else 1 end,
+          case
+            when $3::text is not null and exists (
+              select 1 from inventory.device_serials ds
+              where ds.store_id = $1 and ds.sku_id = sku.id and ds.status = 'in_stock'
+                and (ds.serial_number = $3::text or ds.imei_number = $3::text)
+            ) then 0
+            else 1
+          end,
           p.name asc,
           sku.variant_label asc nulls first,
           sku.created_at asc
@@ -579,15 +615,18 @@ export class PosService {
               [serialId, saleItemId, sale.id],
             );
 
-            // Check for warranty policy on the product's category
+            // Auto-attach the store's default warranty policy when the product's category is covered
             const warrantyCheck = await client.query<{ policy_id: string; duration_months: number }>(
               `SELECT wp.id as policy_id, wp.duration_months
-               FROM catalog.warranty_policies wp
-               JOIN catalog.tracking_profiles tp ON tp.category_id = wp.category_id
-               JOIN catalog.skus s ON s.product_id = tp.category_id
-               WHERE s.id = $1 AND wp.status = 'active'
+               FROM catalog.skus s
+               JOIN catalog.products p ON p.id = s.product_id
+               JOIN catalog.warranty_policies wp
+                 ON wp.store_id = $2 AND wp.status = 'active' AND wp.is_default = true
+                AND p.category_id = ANY(wp.applies_to_category_ids)
+               WHERE s.id = $1
+               ORDER BY wp.duration_months ASC
                LIMIT 1`,
-              [item.skuId],
+              [item.skuId, storeId],
             );
 
             if (warrantyCheck.rows.length > 0) {
@@ -802,9 +841,18 @@ export class PosService {
           and (
             $2::text is null
             or s.sale_no ilike '%' || $2::text || '%'
+            or coalesce(s.invoice_no, '') ilike '%' || $2::text || '%'
             or coalesce(s.customer_name, '') ilike '%' || $2::text || '%'
             or coalesce(s.customer_phone, '') ilike '%' || $2::text || '%'
             or coalesce(s.customer_shop_name, '') ilike '%' || $2::text || '%'
+            or exists (
+              select 1
+              from inventory.device_serial_sales dss
+              join inventory.device_serials ds on ds.id = dss.device_serial_id
+              where dss.sale_id = s.id
+                and (ds.serial_number ilike '%' || $2::text || '%'
+                  or coalesce(ds.imei_number, '') ilike '%' || $2::text || '%')
+            )
           )
         order by ${sortColumn} ${sortDir}, s.created_at desc
         limit $3
@@ -2074,10 +2122,10 @@ export class PosService {
       await client.query(
         `update inventory.stock_batches
          set current_quantity = $2,
-             status = case when $2 <= 0 then 'depleted' else status end,
+             status = case when $3 <= 0 then 'depleted' else status end,
              updated_at = now()
          where id = $1`,
-        [batch.id, newQty],
+        [batch.id, newQty, newQty],
       );
       totalCost += take * Number(batch.unit_cost);
       remaining -= take;

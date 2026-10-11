@@ -19,6 +19,7 @@ export function SerialPickerModal({
   skuId,
   skuCode,
   productName,
+  preferredSerialId,
   onSelect,
   onClose,
 }: {
@@ -26,6 +27,7 @@ export function SerialPickerModal({
   skuId: string;
   skuCode: string;
   productName: string;
+  preferredSerialId?: string | null;
   onSelect: (serials: Array<{ serialId: string; serialNumber: string; imei?: string | null }>) => void;
   onClose: () => void;
 }) {
@@ -40,11 +42,15 @@ export function SerialPickerModal({
     fetch(`/api/inventory/device-serials?skuId=${skuId}&status=in_stock&limit=200`)
       .then((res) => res.json())
       .then((data) => {
-        setSerials(data.serials || data || []);
+        const list: DeviceSerial[] = data.serials || data || [];
+        setSerials(list);
+        if (preferredSerialId && list.some((s) => s.id === preferredSerialId)) {
+          setSelected(new Set([preferredSerialId]));
+        }
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, [open, skuId]);
+  }, [open, skuId, preferredSerialId]);
 
   useEffect(() => {
     if (!open) {
