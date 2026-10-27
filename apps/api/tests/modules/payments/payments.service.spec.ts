@@ -19,19 +19,19 @@ describe('PaymentsService', () => {
   describe('listGateways', () => {
     it('should return gateways for a store', async () => {
       mockPool.query.mockResolvedValueOnce({ rows: [{ id: 'g1', provider_code: 'bkash', display_name: 'bKash' }] });
-      const svc = new PaymentsService('DATABASE_POOL', mockAudit);
+      const svc = new PaymentsService(mockPool as any, mockAudit);
       const result = await svc.listGateways('store-1', { type: 'store', storeId: 'store-1' });
       expect(result.gateways).toHaveLength(1);
     });
     it('should reject missing store context', async () => {
-      const svc = new PaymentsService('DATABASE_POOL', mockAudit);
+      const svc = new PaymentsService(mockPool as any, mockAudit);
       await expect(svc.listGateways(undefined, null)).rejects.toThrow('Store context is required');
     });
   });
 
   describe('listProviders', () => {
     it('should return bKash and SSLCommerz', async () => {
-      const svc = new PaymentsService('DATABASE_POOL', mockAudit);
+      const svc = new PaymentsService(mockPool as any, mockAudit);
       const result = await svc.listProviders();
       const codes = result.providers.map((p: any) => p.code);
       expect(codes).toContain('bkash');
