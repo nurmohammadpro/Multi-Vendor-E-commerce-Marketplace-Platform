@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import {
-  accentButtonStyle,
   emptyStateStyle,
   fieldStyle,
   gray800ButtonStyle,
@@ -488,7 +487,7 @@ export function SuppliersWorkspace() {
             />
 
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={saveSupplier} style={{ ...accentButtonStyle, flex: 1 }} disabled={loading || !form.companyName.trim()}>
+              <button onClick={saveSupplier} style={{ ...gray800ButtonStyle, flex: 1 }} disabled={loading || !form.companyName.trim()}>
                 {loading ? 'Saving...' : editingSupplier ? 'Update Supplier' : 'Create Supplier'}
               </button>
               <button onClick={() => { resetForm(); setActiveTab('directory'); }} style={secondaryButtonStyle} disabled={loading}>Cancel</button>
