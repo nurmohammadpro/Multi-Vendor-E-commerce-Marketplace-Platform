@@ -37,6 +37,8 @@ type StoreRow = {
   email?: string | null;
   status: StoreStatus;
   subscription_status: string;
+  plan_code?: string | null;
+  plan_name?: string | null;
   owner_name?: string | null;
   owner_email?: string | null;
   staff_count: number;
@@ -60,6 +62,7 @@ type BillingPlan = {
   price_amount: string;
   billing_cycle: string;
   features_json: string[];
+  max_users?: number;
 };
 
 type StoreFormState = {
@@ -154,6 +157,9 @@ export function StoresWorkspace() {
   const [ownerPassword, setOwnerPassword] = useState('');
   const [showPasswordOwner, setShowPasswordOwner] = useState(false);
   const [showPasswordReset, setShowPasswordReset] = useState(false);
+  const [planTarget, setPlanTarget] = useState<StoreRow | null>(null);
+  const [planCode, setPlanCode] = useState('basic');
+  const [planAutoRenew, setPlanAutoRenew] = useState(true);
 
   const refresh = async () => {
     const payload = await readJson<{ stores: StoreRow[] }>('/api/stores');
@@ -321,6 +327,32 @@ export function StoresWorkspace() {
       });
       await refresh();
       setMessage(`Store status changed to ${status}.`);
+    } catch (error) {
+      setMessage((error as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const beginPlanChange = (store: StoreRow) => {
+    setPlanTarget(store);
+    setPlanCode(store.plan_code || 'basic');
+    setPlanAutoRenew(store.subscription_auto_renew ?? true);
+  };
+
+  const changePlan = async () => {
+    if (!planTarget) return;
+    setLoading(true);
+    try {
+      await readJson(`/api/admin/billing/stores/${planTarget.id}/subscription`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planCode, autoRenew: planAutoRenew }),
+      });
+      await refresh();
+      setPlanTarget(null);
+      const plan = plans.find((p) => p.code === planCode);
+      setMessage(`${planTarget.name} moved to the ${plan?.name || planCode} plan.`);
     } catch (error) {
       setMessage((error as Error).message);
     } finally {
@@ -753,6 +785,10 @@ export function StoresWorkspace() {
                     <div className="border-t border-border/40 pt-2.5">
                       <div className="grid gap-x-4 gap-y-1.5 text-sm sm:grid-cols-2 xl:grid-cols-3">
                         <div className="flex items-center justify-between gap-2 sm:flex-col sm:items-start">
+                          <span className="text-muted-foreground text-xs font-medium">Plan</span>
+                          <span className="font-medium">{store.plan_name || store.plan_code || '—'}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2 sm:flex-col sm:items-start">
                           <span className="text-muted-foreground text-xs font-medium">Subscription</span>
                           <span className="font-medium capitalize">{store.subscription_status}</span>
                         </div>
@@ -797,6 +833,9 @@ export function StoresWorkspace() {
                     </Button>
                     <Button variant="outline" size="sm" onClick={() => setOwnerPasswordTarget(store)} disabled={loading || saving}>
                       Reset pwd
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => beginPlanChange(store)} disabled={loading || saving || plans.length === 0}>
+                      Plan
                     </Button>
                     <Button
                       variant="outline"
@@ -928,6 +967,57 @@ export function StoresWorkspace() {
                 <Button variant="outline" onClick={() => setOwnerPasswordTarget(null)}>Cancel</Button>
                 <Button onClick={() => void rotateOwnerPassword()} disabled={ownerPassword.length < 10}>
                   Update password
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={Boolean(planTarget)} onOpenChange={(open) => {
+            if (!open) setPlanTarget(null);
+          }}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Change subscription plan</DialogTitle>
+                <DialogDescription>
+                  Move {planTarget?.name || 'the store'} to another plan. The current subscription is
+                  cancelled immediately and the new one starts today.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="planSelect">Plan</Label>
+                  <Select value={planCode} onValueChange={(value) => setPlanCode(value)}>
+                    <SelectTrigger id="planSelect">
+                      <SelectValue placeholder="Select a plan" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {plans.map((plan) => (
+                        <SelectItem key={plan.id} value={plan.code}>
+                          {plan.name} ({plan.code}) — BDT {Number(plan.price_amount).toFixed(0)}/{plan.billing_cycle} · {plan.max_users ?? 1} user(s)
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {plans.find((p) => p.code === planCode) ? (
+                    <p className="text-xs text-muted-foreground">
+                      Features: {(plans.find((p) => p.code === planCode)?.features_json ?? []).join(', ')}
+                    </p>
+                  ) : null}
+                </div>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={planAutoRenew}
+                    onChange={(event) => setPlanAutoRenew(event.target.checked)}
+                    className="h-4 w-4"
+                  />
+                  Auto renew
+                </label>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setPlanTarget(null)}>Cancel</Button>
+                <Button onClick={() => void changePlan()} disabled={loading || !planCode}>
+                  Change plan
                 </Button>
               </DialogFooter>
             </DialogContent>

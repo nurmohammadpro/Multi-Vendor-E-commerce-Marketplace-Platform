@@ -203,4 +203,21 @@ export class AdminBillingController {
     if (!session) throw new Error('Missing admin session');
     return this.billingService.deactivatePlan(planId, session.user.tenantId);
   }
+
+  @Post('stores/:storeId/subscription')
+  @RequireContext('admin')
+  @RequirePermissions('platform.store.manage')
+  changeStorePlan(
+    @Param('storeId') storeId: string,
+    @CurrentAuthSession() session: AuthSession | null,
+    @Body() payload: unknown,
+  ) {
+    if (!session) throw new Error('Missing admin session');
+    return this.billingService.adminChangeStorePlan(
+      session.user.tenantId,
+      storeId,
+      session,
+      changeSubscriptionSchema.parse(payload),
+    );
+  }
 }

@@ -293,6 +293,97 @@ export class BillingService {
     }
   }
 
+  async adminChangeStorePlan(
+    tenantId: string,
+    storeId: string,
+    session: AuthSession | null,
+    payload: { planCode: string; autoRenew: boolean },
+  ) {
+    const userId = this.requireUserId(session);
+
+    const storeResult = await this.pool.query<{ id: string; name: string }>(
+      'select id, name from store.stores where id = $1 and tenant_id = $2 limit 1',
+      [storeId, tenantId],
+    );
+    if (!storeResult.rows[0]) throw new NotFoundException('Store not found');
+
+    const planResult = await this.pool.query<{ id: string; code: string; name: string; billing_cycle: 'monthly' | 'yearly' }>(
+      "select id, code, name, billing_cycle from billing.plans where tenant_id = $1 and code = $2 and status = 'active' limit 1",
+      [tenantId, payload.planCode],
+    );
+    const plan = planResult.rows[0];
+    if (!plan) throw new NotFoundException(`Plan '${payload.planCode}' not found`);
+
+    const client = await this.pool.connect();
+    try {
+      await client.query('begin');
+
+      await client.query(
+        `
+          update billing.subscriptions
+          set status = 'cancelled',
+              end_at = now(),
+              updated_at = now()
+          where store_id = $1
+            and status in ('trial', 'active', 'past_due', 'suspended')
+        `,
+        [storeId],
+      );
+
+      const renewalAt = this.computeRenewalAt(plan.billing_cycle);
+      const result = await client.query(
+        `
+          insert into billing.subscriptions (
+            id,
+            tenant_id,
+            store_id,
+            plan_id,
+            start_at,
+            renewal_at,
+            status,
+            auto_renew,
+            created_at,
+            updated_at
+          )
+          values (
+            gen_random_uuid(), $1, $2, $3, now(), $4, 'active', $5, now(), now()
+          )
+          returning id, store_id, plan_id, start_at, renewal_at, status, auto_renew
+        `,
+        [tenantId, storeId, plan.id, renewalAt, payload.autoRenew],
+      );
+
+      await client.query('commit');
+      await this.auditService.recordUserAction({
+        tenantId,
+        actorUserId: userId,
+        storeId,
+        actionCode: 'platform.subscription.change',
+        resourceType: 'subscription',
+        resourceId: String(result.rows[0]?.id ?? ''),
+        after: {
+          storeName: storeResult.rows[0].name,
+          planCode: plan.code,
+          autoRenew: payload.autoRenew,
+          renewalAt,
+        },
+      });
+
+      return {
+        subscription: {
+          ...result.rows[0],
+          planCode: plan.code,
+          planName: plan.name,
+        },
+      };
+    } catch (error) {
+      await client.query('rollback').catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   async getInvoices(
     headerStoreId: string | undefined,
     authContext: StoreAuthContext | null,

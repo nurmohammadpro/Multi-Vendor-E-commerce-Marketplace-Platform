@@ -615,6 +615,8 @@ export class StoreService {
           coalesce(count(distinct sm.id), 0)::int as staff_count,
           sub.id as subscription_id,
           sub.status as billing_status,
+          sub.plan_code,
+          sub.plan_name,
           sub.start_at as subscription_start_at,
           sub.end_at as subscription_end_at,
           sub.renewal_at as billing_due_at,
@@ -655,8 +657,11 @@ export class StoreService {
             sub.start_at,
             sub.end_at,
             sub.renewal_at,
-            sub.auto_renew
+            sub.auto_renew,
+            p.code as plan_code,
+            p.name as plan_name
           from billing.subscriptions sub
+          join billing.plans p on p.id = sub.plan_id
           where sub.store_id = s.id
           order by coalesce(sub.renewal_at, sub.end_at, sub.start_at) desc nulls last, sub.created_at desc
           limit 1
@@ -677,6 +682,8 @@ export class StoreService {
           sub.end_at,
           sub.renewal_at,
           sub.auto_renew,
+          p.code,
+          p.name,
           sales_count.cnt
         order by s.created_at desc
       `,
