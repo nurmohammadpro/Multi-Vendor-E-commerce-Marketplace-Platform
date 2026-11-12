@@ -26,6 +26,8 @@ import { SearchableSelect } from '@/components/searchable-select';
 import { printProductLabelBatch } from '../../lib/print-agent';
 import { loadWorkstationProfile } from '../../lib/workstation-profile';
 import { QuickScanTab } from './quick-scan-tab';
+import { SuppliersPanel } from './suppliers-panel';
+import { ComboboxAddNew } from '../combobox-add-new';
 import { BatchPasteTab } from './batch-paste-tab';
 import { CsvUploadTab } from './csv-upload-tab';
 import type { TrackingField } from './tracking-input';
@@ -68,9 +70,9 @@ async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
   return payload as T;
 }
 
-export function PurchasesWorkspace() {
+export function PurchasesWorkspace({ initialTab = 'purchases' }: { initialTab?: string }) {
   const compact = useCompactLayout();
-  const [activeTab, setActiveTab] = useState('purchases');
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [message, setMessage] = useState('Purchases & stock management.');
   const [loading, setLoading] = useState(false);
 
@@ -361,6 +363,53 @@ export function PurchasesWorkspace() {
     setReceiveSellPrice('');
     setHighlightedProductIndex(0);
     setShowProductSuggestions(false);
+  };
+
+  // ── Quick Add inline creation (category / brand / supplier) ──
+
+  const quickCreateCategory = async (name: string) => {
+    const payload = await readJson<{ category?: { id: string; name: string } }>('/api/catalog/categories', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name.trim(), code: name.trim().slice(0, 50), status: 'active' }),
+    });
+    const created = payload.category ?? null;
+    if (created?.id) {
+      setCategories((current) => (current.some((c) => c.id === created.id) ? current : [...current, created]));
+      toast.success(`Category "${created.name}" created`);
+      return { id: created.id, label: created.name };
+    }
+    return null;
+  };
+
+  const quickCreateBrand = async (name: string) => {
+    const payload = await readJson<{ brand?: { id: string; name: string } }>('/api/catalog/brands', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name.trim(), status: 'active' }),
+    });
+    const created = payload.brand ?? null;
+    if (created?.id) {
+      setBrands((current) => (current.some((b) => b.id === created.id) ? current : [...current, created]));
+      toast.success(`Brand "${created.name}" created`);
+      return { id: created.id, label: created.name };
+    }
+    return null;
+  };
+
+  const quickCreateSupplier = async (name: string) => {
+    const payload = await readJson<{ supplier?: { id: string; company_name: string } }>('/api/store-ops/suppliers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ companyName: name.trim(), supplierType: 'supplier' }),
+    });
+    const created = payload.supplier ?? null;
+    if (created?.id) {
+      setSuppliers((current) => (current.some((s) => s.id === created.id) ? current : [...current, created as Supplier]));
+      toast.success(`Supplier "${created.company_name}" created`);
+      return { id: created.id, label: created.company_name };
+    }
+    return null;
   };
 
   // ── Quick Add Submit ──
@@ -677,23 +726,38 @@ export function PurchasesWorkspace() {
           </div>
           <input value={quickName} onChange={(e) => setQuickName(e.target.value)} style={{ ...fieldStyle, marginBottom: 8, width: '100%' }} placeholder="Product name (required)" />
           <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(3, minmax(0, 1fr))', gap: 8, marginBottom: 8 }}>
-            <select value={quickCategoryId} onChange={(e) => setQuickCategoryId(e.target.value)} style={{ ...fieldStyle, fontSize: 12 }}>
-              <option value="">No category</option>
-              {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-            <select value={quickBrandId} onChange={(e) => setQuickBrandId(e.target.value)} style={{ ...fieldStyle, fontSize: 12 }}>
-              <option value="">No brand</option>
-              {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-            </select>
+            <ComboboxAddNew
+              value={quickCategoryId}
+              onChange={setQuickCategoryId}
+              options={categories.map((c) => ({ id: c.id, label: c.name }))}
+              onCreate={quickCreateCategory}
+              placeholder="Category (optional)"
+              addNewLabel="New category"
+              ariaLabel="Category"
+            />
+            <ComboboxAddNew
+              value={quickBrandId}
+              onChange={setQuickBrandId}
+              options={brands.map((b) => ({ id: b.id, label: b.name }))}
+              onCreate={quickCreateBrand}
+              placeholder="Brand (optional)"
+              addNewLabel="New brand"
+              ariaLabel="Brand"
+            />
             <input type="number" min="1" value={quickQty} onChange={(e) => setQuickQty(e.target.value)} style={{ ...fieldStyle, fontSize: 12 }} placeholder="Quantity" />
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr 1fr' : 'repeat(4, minmax(0, 1fr))', gap: 8, marginBottom: 10 }}>
             <input type="number" min="0" step="0.01" value={quickPrice} onChange={(e) => setQuickPrice(e.target.value)} style={{ ...fieldStyle, fontSize: 12 }} placeholder="Sale price (BDT)" />
             <input type="number" min="0" step="0.01" value={quickCost} onChange={(e) => setQuickCost(e.target.value)} style={{ ...fieldStyle, fontSize: 12 }} placeholder="Unit cost (BDT)" />
-            <select value={quickSupplierId} onChange={(e) => setQuickSupplierId(e.target.value)} style={{ ...fieldStyle, fontSize: 12 }}>
-              <option value="">Supplier (required)</option>
-              {suppliers.map((s) => <option key={s.id} value={s.id}>{s.company_name}</option>)}
-            </select>
+            <ComboboxAddNew
+              value={quickSupplierId}
+              onChange={setQuickSupplierId}
+              options={suppliers.map((s) => ({ id: s.id, label: s.company_name }))}
+              onCreate={quickCreateSupplier}
+              placeholder="Supplier (required)"
+              addNewLabel="New supplier"
+              ariaLabel="Supplier"
+            />
             <select value={quickLocationId} onChange={(e) => setQuickLocationId(e.target.value)} style={{ ...fieldStyle, fontSize: 12 }}>
               <option value="">Location (required)</option>
               {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
@@ -782,63 +846,7 @@ export function PurchasesWorkspace() {
       )}
 
       {activeTab === 'suppliers' && (
-        <>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <p style={{ margin: 0, color: 'var(--muted-foreground)', fontSize: 13 }}>Supplier management and payable tracking.</p>
-            <button
-              onClick={() => { /* TODO: Add supplier form */ }}
-              style={{ ...gray800ButtonStyle, fontSize: 12, padding: '6px 14px', minHeight: 'auto', display: 'flex', alignItems: 'center', gap: 4 }}
-            >
-              Add Supplier
-            </button>
-          </div>
-
-          {/* Suppliers List */}
-          <article style={surfaceCardStyle}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
-              <h3 style={{ margin: 0, fontSize: 14 }}>Suppliers</h3>
-            </div>
-            {suppliers.length > 0 ? (
-              <div style={tableWrapStyle}>
-                <table style={tableStyle}>
-                  <thead>
-                    <tr>
-                      <th style={tableHeaderCellStyle}>Company Name</th>
-                      <th style={tableHeaderCellStyle}>Contact Name</th>
-                      <th style={tableHeaderCellStyle}>Phone</th>
-                      <th style={{ ...tableHeaderCellStyle, textAlign: 'right' }}>Current Payable</th>
-                      <th style={{ ...tableHeaderCellStyle, width: 80 }}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {suppliers.map((supplier) => (
-                      <tr key={supplier.id}>
-                        <td style={tableCellStyle}>
-                          <div style={{ fontWeight: 600, fontSize: 13 }}>{supplier.company_name}</div>
-                        </td>
-                        <td style={{ ...tableCellStyle, fontSize: 12 }}>{supplier.contact_name || '-'}</td>
-                        <td style={{ ...tableCellStyle, fontSize: 12 }}>{supplier.phone || '-'}</td>
-                        <td style={{ ...tableCellStyle, textAlign: 'right', fontSize: 12 }}>
-                          {formatMoney(supplier.current_payable_amount || 0)}
-                        </td>
-                        <td style={tableCellStyle}>
-                          <button
-                            onClick={() => { /* TODO: Edit supplier */ }}
-                            style={{ ...subtleButtonStyle, fontSize: 11, padding: '2px 6px' }}
-                          >
-                            Edit
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div style={emptyStateStyle}>No suppliers found. Add your first supplier to get started.</div>
-            )}
-          </article>
-        </>
+        <SuppliersPanel />
       )}
 
       {activeTab === 'payables' && (

@@ -64,10 +64,8 @@ const navGroups = [
     items: [
       { href: '/inventory', label: 'Stock', permission: 'inventory.view', feature: 'inventory' },
       { href: '/catalog', label: 'Catalog', permission: 'inventory.view', feature: 'inventory' },
-      { href: '/taxonomy', label: 'Categories & Brands', feature: 'inventory' },
       { href: '/locations', label: 'Locations', permission: 'inventory.view', feature: 'inventory' },
       { href: '/purchases', label: 'Purchases', feature: 'purchases' },
-      { href: '/suppliers', label: 'Suppliers', feature: 'purchases' },
       { href: '/barcodes', label: 'Barcode Labels', permission: 'inventory.view', feature: 'inventory' },
       { href: '/approvals', label: 'Approvals', permission: 'inventory.adjust.approve', feature: 'inventory' },
     ],

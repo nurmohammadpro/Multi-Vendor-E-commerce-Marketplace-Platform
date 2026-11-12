@@ -16,10 +16,11 @@ import {
   tableWrapStyle,
   tokenMutedStyle,
 } from '../merchflow-theme';
-import { searchRowStyle } from '../workspace-responsive';
+import { searchRowStyle, WorkspaceTabs } from '../workspace-responsive';
 import { ListPager } from '../list-pager';
 import { ProductForm } from './product-form';
 import { ProductDetail } from './product-detail';
+import { BrandsPanel, CategoriesPanel } from './taxonomy-panels';
 
 type Product = {
   id: string;
@@ -38,8 +39,10 @@ type Product = {
 };
 
 type View = 'list' | 'create' | 'edit' | 'detail';
+type CatalogTab = 'products' | 'categories' | 'brands';
 
 export function CatalogWorkspace({ canManageCatalog }: { canManageCatalog: boolean }) {
+  const [tab, setTab] = useState<CatalogTab>('products');
   const [view, setView] = useState<View>('list');
   const [selectedProductId, setSelectedProductId] = useState<string | undefined>(undefined);
   const [products, setProducts] = useState<Product[]>([]);
@@ -133,6 +136,21 @@ export function CatalogWorkspace({ canManageCatalog }: { canManageCatalog: boole
 
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
+      <WorkspaceTabs
+        active={tab}
+        onChange={(key) => setTab(key as CatalogTab)}
+        tabs={[
+          { key: 'products', label: 'Products' },
+          { key: 'categories', label: 'Categories' },
+          { key: 'brands', label: 'Brands' },
+        ]}
+      />
+
+      {tab === 'categories' ? <CategoriesPanel canManageCatalog={canManageCatalog} /> : null}
+      {tab === 'brands' ? <BrandsPanel canManageCatalog={canManageCatalog} /> : null}
+
+      {tab === 'products' ? (
+      <>
       {/* Header */}
       <article style={surfaceCardStyle}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
@@ -267,6 +285,8 @@ export function CatalogWorkspace({ canManageCatalog }: { canManageCatalog: boole
           label="products"
         />
       )}
+      </>
+      ) : null}
     </section>
   );
 }

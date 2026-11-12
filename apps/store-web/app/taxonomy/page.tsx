@@ -1,12 +1,6 @@
-import { getStoreConsoleAccess } from '../../lib/access';
-import { pageShellStyle } from '../merchflow-theme';
-import { TaxonomyWorkspace } from './taxonomy-workspace';
+import { redirect } from 'next/navigation';
 
-export default async function StoreTaxonomyPage() {
-  const access = await getStoreConsoleAccess();
-  return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
-      <TaxonomyWorkspace canManageCatalog={access.canManageCatalog} />
-    </section>
-  );
+// Categories & brands live in the Catalog workspace tabs now.
+export default function StoreTaxonomyPage() {
+  redirect('/catalog');
 }
