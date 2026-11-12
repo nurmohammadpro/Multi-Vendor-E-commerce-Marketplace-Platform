@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   gray800ButtonStyle,
@@ -17,8 +17,7 @@ import {
   tableWrapStyle,
 } from '../merchflow-theme';
 import { ListPager } from '../list-pager';
-import { openInvoicePrintWindow, type ReceiptPayload } from '../../lib/print-agent';
-import { renderInvoice } from '../../lib/invoice-template';
+import { openInvoicePrintWindow, renderInvoicePreview, type ReceiptPayload } from '../../lib/print-agent';
 
 type InvoiceSale = {
   id: string;
@@ -89,6 +88,12 @@ export function InvoicesWorkspace() {
   const [collectSale, setCollectSale] = useState<InvoiceSale | null>(null);
   const [collectAmount, setCollectAmount] = useState('');
   const [collectMethod, setCollectMethod] = useState('cash');
+
+  // Scoped so the invoice's own stylesheet cannot reset the page behind it.
+  const invoiceViewerPreview = useMemo(
+    () => (viewPayload ? renderInvoicePreview(viewPayload, 'a4', 'invoice-viewer-preview') : ''),
+    [viewPayload],
+  );
   const [collectReference, setCollectReference] = useState('');
   const [collectNote, setCollectNote] = useState('');
   const [collectLoading, setCollectLoading] = useState(false);
@@ -341,7 +346,11 @@ export function InvoicesWorkspace() {
                 <button onClick={() => setViewPayload(null)} style={secondaryButtonStyle}>Close</button>
               </div>
             </div>
-            <div dangerouslySetInnerHTML={{ __html: renderInvoice(viewPayload, 'a4') }} />
+            <div
+              id="invoice-viewer-preview"
+              style={{ background: '#fff', overflow: 'auto' }}
+              dangerouslySetInnerHTML={{ __html: invoiceViewerPreview }}
+            />
           </div>
         </div>
       ) : null}

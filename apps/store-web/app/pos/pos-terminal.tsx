@@ -10,7 +10,7 @@ import {
   openInvoicePrintWindow,
   printLabel,
   printReceipt,
-  renderInvoiceHtml,
+  renderInvoicePreview,
   type PrintAgentHealth,
   type ReceiptPayload,
 } from '../../lib/print-agent';
@@ -145,6 +145,11 @@ const compactCardStyle = compactSurfaceCardStyle;
 const inputStyle = fieldStyle;
 const buttonStyle = secondaryButtonStyle;
 
+// Rendered paper width in CSS pixels (96dpi) of the invoice document itself:
+// the A4 sheet is 192mm wide inside its margins, A5 is 140mm. Keeping the
+// preview at true paper width is what makes A4 and A5 read as different paper.
+const PAPER_WIDTH_PX: Record<'a4' | 'a5', number> = { a4: 726, a5: 529 };
+
 function isLoopbackAgent(url: string) {
   return url.includes('127.0.0.1') || url.includes('localhost');
 }
@@ -231,13 +236,22 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
 
   const [printHealth, setPrintHealth] = useState<PrintAgentHealth | null>(null);
   const [printError, setPrintError] = useState<string | null>(null);
-  const [lastReceiptText, setLastReceiptText] = useState('');
   const [lastInvoice, setLastInvoice] = useState<ReceiptPayload | null>(null);
   const [lastInvoiceMode, setLastInvoiceMode] = useState<'a5' | 'a4'>('a5');
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
   const [receiptPrinterName, setReceiptPrinterName] = useState('');
   const [labelPrinterName, setLabelPrinterName] = useState('');
   const [agentUrl, setAgentUrl] = useState(DEFAULT_PRINT_AGENT_URL);
+  // Scoped renderings of the print document. The scope id keeps the
+  // document's own stylesheet from resetting the POS page it is embedded in.
+  const invoiceSheetPreview = useMemo(
+    () => (lastInvoice ? renderInvoicePreview(lastInvoice, lastInvoiceMode, 'pos-invoice-sheet-preview') : ''),
+    [lastInvoice, lastInvoiceMode],
+  );
+  const invoiceNotesPreview = useMemo(
+    () => (lastInvoice ? renderInvoicePreview(lastInvoice, lastInvoiceMode, 'pos-invoice-notes-preview') : ''),
+    [lastInvoice, lastInvoiceMode],
+  );
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [searching, setSearching] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -861,9 +875,6 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
       );
 
       if (documentPayload.receipt) {
-        if (!paperDoc) {
-          setLastReceiptText(JSON.stringify(documentPayload.receipt, null, 2));
-        }
         setLastInvoice(documentPayload.receipt);
         setLastInvoiceMode(documentMode === 'a4' ? 'a4' : 'a5');
         setCollectAmount(Number(documentPayload.receipt.totals?.due || 0) > 0 ? String(Number(documentPayload.receipt.totals?.due)) : '');
@@ -990,7 +1001,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
 
   const handlePrintInvoice = () => {
     if (!lastInvoice) return;
-    openInvoicePrintWindow(lastInvoice);
+    openInvoicePrintWindow(lastInvoice, lastInvoiceMode);
   };
 
   if (!canUsePos) {
@@ -1761,8 +1772,9 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
           ) : null}
           {lastInvoice ? (
             <div
-              style={{ marginTop: 16 }}
-              dangerouslySetInnerHTML={{ __html: renderInvoiceHtml(lastInvoice, lastInvoiceMode) }}
+              id="pos-invoice-sheet-preview"
+              style={{ marginTop: 16, background: '#fff', overflow: 'auto' }}
+              dangerouslySetInnerHTML={{ __html: invoiceSheetPreview }}
             />
           ) : null}
         </SheetContent>
@@ -1832,73 +1844,53 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
         <p style={{ marginTop: 0, color: 'var(--muted-foreground)' }}>{message}</p>
         {lastInvoice ? (
           <div style={{ marginBottom: 16, display: 'grid', gap: 10 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
               <strong>Latest invoice preview</strong>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <button onClick={() => lastInvoice && downloadReceiptHtml(lastInvoice)} style={{ ...buttonStyle, fontSize: 11 }}>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                <div style={{ display: 'inline-flex', border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
+                  {(['a4', 'a5'] as const).map((paper) => (
+                    <button
+                      key={paper}
+                      type="button"
+                      onClick={() => setLastInvoiceMode(paper)}
+                      aria-pressed={lastInvoiceMode === paper}
+                      style={{
+                        padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', border: 'none',
+                        background: lastInvoiceMode === paper ? 'var(--primary)' : 'transparent',
+                        color: lastInvoiceMode === paper ? 'var(--primary-foreground)' : 'var(--muted-foreground)',
+                      }}
+                    >
+                      {paper.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+                <button onClick={() => lastInvoice && downloadReceiptHtml(lastInvoice, lastInvoiceMode)} style={{ ...buttonStyle, fontSize: 11 }}>
                   Download
                 </button>
                 <button onClick={handlePrintInvoice} style={buttonStyle}>
-                  Print Invoice
+                  {lastInvoiceMode === 'a4' ? 'Print A4' : 'Print A5'}
                 </button>
               </div>
             </div>
             <div
               style={{
                 border: '1px solid var(--border)',
-                borderRadius: 12,
-                background: 'var(--card)',
-                padding: 16,
+                borderRadius: 8,
+                background: '#fff',
+                maxHeight: 520,
+                overflow: 'auto',
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'flex-start', borderBottom: '1px solid var(--border)', paddingBottom: 14 }}>
-                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                  {lastInvoice.store?.logoUrl ? (
-                    <img
-                      src={lastInvoice.store.logoUrl}
-                      alt={`${lastInvoice.store?.name || 'Store'} logo`}
-                      style={{ width: 60, height: 60, objectFit: 'contain', border: '1px solid var(--border)', borderRadius: 10, padding: 6, background: 'var(--card)' }}
-                    />
-                  ) : null}
-                  <div>
-                    <div style={{ fontSize: 20, fontWeight: 700 }}>{lastInvoice.store?.name || 'Store'}</div>
-                    {lastInvoice.store?.phone ? <div style={{ color: 'var(--muted-foreground)' }}>{lastInvoice.store.phone}</div> : null}
-                    {lastInvoice.store?.email ? <div style={{ color: 'var(--muted-foreground)' }}>{lastInvoice.store.email}</div> : null}
-                    {lastInvoice.store?.address ? <div style={{ color: 'var(--muted-foreground)' }}>{lastInvoice.store.address}</div> : null}
-                  </div>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 22, fontWeight: 700 }}>Invoice</div>
-                  <div style={{ color: 'var(--muted-foreground)' }}>No: {lastInvoice.invoiceNo || lastInvoice.saleNo || '—'}</div>
-                </div>
-              </div>
-              <div style={{ marginTop: 14, display: 'grid', gap: 8 }}>
-                <div><strong>Customer:</strong> {lastInvoice.customer?.name || 'Walk-in customer'}</div>
-                {lastInvoice.customer?.phone ? <div><strong>Phone:</strong> {lastInvoice.customer.phone}</div> : null}
-                {lastInvoice.customer?.address ? <div><strong>Address:</strong> {lastInvoice.customer.address}</div> : null}
-              </div>
-              <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border)', textAlign: 'center', color: 'var(--muted-foreground)', fontSize: 12 }}>
-                {canUseInvoices ? 'Thank you for your business' : 'Developed and maintained by Merch Flow'}
-              </div>
+              <div
+                id="pos-invoice-notes-preview"
+                style={{ minWidth: PAPER_WIDTH_PX[lastInvoiceMode], background: '#fff' }}
+                dangerouslySetInnerHTML={{ __html: invoiceNotesPreview }}
+              />
+            </div>
+            <div style={{ textAlign: 'center', color: 'var(--muted-foreground)', fontSize: 12 }}>
+              {canUseInvoices ? 'Thank you for your business' : 'Developed and maintained by Merch Flow'}
             </div>
           </div>
-        ) : null}
-        {lastReceiptText ? (
-          <pre
-            style={{
-              marginBottom: 0,
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word',
-              background: 'var(--card)',
-              padding: 12,
-              borderRadius: 6,
-              border: '1px solid var(--border)',
-              overflowX: 'auto',
-              color: 'var(--foreground)',
-            }}
-          >
-            {lastReceiptText}
-          </pre>
         ) : null}
       </article>
     </section>

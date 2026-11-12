@@ -611,6 +611,7 @@ export function SettingsWorkspace({ canManageSettings }: { canManageSettings: bo
                 <span style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>{option.detail}</span>
                 <span style={{ display: 'block', height: 200, overflow: 'hidden', borderRadius: 8, border: '1px solid var(--border)', background: '#fff' }}>
                   <span
+                    id={`receipt-preview-${option.key}`}
                     style={{ display: 'block', transform: `scale(${option.scale})`, transformOrigin: 'top left', width: option.docWidth }}
                     dangerouslySetInnerHTML={{ __html: receiptPreviews[option.key] }}
                   />

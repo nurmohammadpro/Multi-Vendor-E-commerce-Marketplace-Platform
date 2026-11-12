@@ -1,4 +1,4 @@
-import { renderInvoice } from "./invoice-template.js";
+import { renderInvoice, renderInvoiceFragment } from "./invoice-template.js";
 export const DEFAULT_PRINT_AGENT_URL =
   process.env.NEXT_PUBLIC_PRINT_AGENT_URL || 'http://127.0.0.1:17668';
 
@@ -421,6 +421,15 @@ export function resolvePrintMode(receipt: ReceiptPayload, mode?: InvoicePrintMod
 
 export function renderInvoiceHtml(receipt: ReceiptPayload, mode?: InvoicePrintMode) {
   return renderInvoice(receipt as any, resolvePrintMode(receipt, mode));
+}
+
+// Markup for embedding a print document inside an already-rendered page.
+// `renderInvoice` returns a whole HTML document whose stylesheet resets every
+// margin on the host page, so anything embedded in the UI goes through this
+// instead: the document CSS is rewritten to a single id scope and the caller
+// puts that id on the wrapper element.
+export function renderInvoicePreview(receipt: ReceiptPayload, mode: InvoicePrintMode | undefined, scopeId: string) {
+  return renderInvoiceFragment(receipt as any, resolvePrintMode(receipt, mode), scopeId);
 }
 
 export function openInvoicePrintWindow(receipt: ReceiptPayload, mode?: InvoicePrintMode) {
