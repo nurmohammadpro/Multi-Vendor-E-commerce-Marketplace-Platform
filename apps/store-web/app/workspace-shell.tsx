@@ -76,6 +76,7 @@ type NavItem = {
   label: string;
   permission?: string;
   feature?: StoreConsoleFeature;
+  hideForWholesale?: boolean;
 };
 
 type NavGroup = {
@@ -173,7 +174,8 @@ function AppSidebar({
 
   const filterVisible = (item: NavItem) =>
     (!item.permission || access.permissions.includes(item.permission))
-    && canAccessStoreFeature(access, item.feature);
+    && canAccessStoreFeature(access, item.feature)
+    && !(item.hideForWholesale && access.planCode === 'wholesale');
 
   const visibleNavItems: (NavGroup | NavItem)[] = navItems
     .map((item: NavItem | NavGroup) => {

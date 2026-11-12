@@ -86,6 +86,7 @@ export default async function StoreDashboard() {
   let totalSuppliers = '—';
   let totalPayables = '—';
   let payableAging: PayablesAgingResult['aging'] | undefined;
+  let customerDues: { total: string; today: string } | null = null;
 
   if (apiAvailable) {
     try {
@@ -99,6 +100,21 @@ export default async function StoreDashboard() {
         pendingApprovals = String(approvalsPayload.adjustmentRequests.length);
       }
     } catch {}
+
+    if (access.planCode === 'wholesale') {
+      try {
+        const duesPayload = await fetchStoreApi<PayablesAgingResult>('/store-ops/due-sales/aging');
+        if (duesPayload?.aging) {
+          const totalDue =
+            metricNumber(duesPayload.aging.today_amount)
+            + metricNumber(duesPayload.aging.days_7_amount)
+            + metricNumber(duesPayload.aging.days_30_amount)
+            + metricNumber(duesPayload.aging.days_90_amount)
+            + metricNumber(duesPayload.aging.days_90_plus_amount);
+          customerDues = { total: formatMoney(totalDue), today: formatMoney(metricNumber(duesPayload.aging.today_amount)) };
+        }
+      } catch {}
+    }
 
     if (canViewSuppliers) {
       try {
@@ -146,6 +162,15 @@ export default async function StoreDashboard() {
           <div style={metricValueStyle}>{todaySales}</div>
           <div style={metricNoteStyle}>{todayOrders} orders</div>
         </article>
+        {access.planCode === 'wholesale' && customerDues ? (
+          <article style={surfaceCardStyle}>
+            <div style={metricLabelStyle}>Outstanding Dues</div>
+            <div style={{ ...metricValueStyle, color: '#b45309' }}>BDT {customerDues.total}</div>
+            <div style={metricNoteStyle}>
+              <Link href="/invoices" style={{ color: 'inherit' }}>due today BDT {customerDues.today} · collect →</Link>
+            </div>
+          </article>
+        ) : null}
         <article style={surfaceCardStyle}>
           <div style={metricLabelStyle}>Pending Approvals</div>
           <div style={metricValueStyle}>{pendingApprovals}</div>

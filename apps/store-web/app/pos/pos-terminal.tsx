@@ -17,6 +17,7 @@ import {
 import { loadWorkstationProfile } from '../../lib/workstation-profile';
 import { SerialPickerModal } from './serial-picker-modal';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { toast } from 'sonner';
 import {
   accentButtonStyle,
   compactSurfaceCardStyle,
@@ -187,6 +188,11 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
   const [dueDate, setDueDate] = useState(new Date().toISOString().slice(0, 10));
   const [saleMode, setSaleMode] = useState<'paid' | 'due' | 'cod'>('paid');
   const [documentMode, setDocumentMode] = useState<'pos' | 'a5' | 'a4'>('pos');
+  const [customerLookup, setCustomerLookup] = useState<{ checking: boolean; matched: { name: string; shopName: string; address: string; email: string } | null }>({ checking: false, matched: null });
+  const [lastSoldCart, setLastSoldCart] = useState<CartItem[]>([]);
+  const [collectAmount, setCollectAmount] = useState('');
+  const [collectMethod, setCollectMethod] = useState('cash');
+  const [collecting, setCollecting] = useState(false);
   const [exchangeEnabled, setExchangeEnabled] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'mfs' | 'bank_transfer'>('cash');
   const [paymentReference, setPaymentReference] = useState('');
@@ -266,6 +272,40 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
     setLabelPrinterName(profile.labelPrinterName);
     setAgentUrl(profile.agentUrl);
   }, []);
+
+  // Customer picker: typing a known phone number autofills name/shop/address.
+  useEffect(() => {
+    const digits = customerPhone.replace(/\D/g, '');
+    if (digits.length < 6) {
+      setCustomerLookup({ checking: false, matched: null });
+      return;
+    }
+    setCustomerLookup((cur) => ({ ...cur, checking: true }));
+    const timer = setTimeout(async () => {
+      try {
+        const payload = await readJson<{ customers: Array<{ id: string; full_name?: string | null; mobile_no?: string | null; email?: string | null; shop_name?: string | null; address?: string | null }> }>(
+          `/api/store-ops/customers?query=${encodeURIComponent(customerPhone.trim())}&limit=5`,
+        );
+        const list = payload.customers ?? [];
+        const tail = digits.slice(-9);
+        const match =
+          list.find((c) => (c.mobile_no || '').replace(/\D/g, '').endsWith(tail)) ??
+          (list.length === 1 ? list[0] : null);
+        if (match) {
+          setCustomerLookup({ checking: false, matched: { name: match.full_name || '', shopName: match.shop_name || '', address: match.address || '', email: match.email || '' } });
+          if (match.full_name) setCustomerName((cur) => cur || match.full_name!);
+          if (match.shop_name) setCustomerShopName((cur) => cur || match.shop_name!);
+          if (match.address) setCustomerAddress((cur) => cur || match.address!);
+          if (match.email) setCustomerEmail((cur) => cur || match.email!);
+        } else {
+          setCustomerLookup({ checking: false, matched: null });
+        }
+      } catch {
+        setCustomerLookup({ checking: false, matched: null });
+      }
+    }, 450);
+    return () => clearTimeout(timer);
+  }, [customerPhone]);
 
   useEffect(() => {
     const runningHostedStore =
@@ -737,6 +777,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
 
     setLoading(true);
     try {
+      setLastSoldCart(cart.map((item) => ({ ...item })));
       const saleIsDue = saleMode === 'due';
       const saleIsCod = saleMode === 'cod';
       const saleIsPayableLater = saleIsDue || saleIsCod;
@@ -825,6 +866,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
         }
         setLastInvoice(documentPayload.receipt);
         setLastInvoiceMode(documentMode === 'a4' ? 'a4' : 'a5');
+        setCollectAmount(Number(documentPayload.receipt.totals?.due || 0) > 0 ? String(Number(documentPayload.receipt.totals?.due)) : '');
 
         // The local print agent polls the backend for pending jobs and prints silently.
         // Browser-to-localhost fetch is blocked by mixed-content on hosted HTTPS origins.
@@ -862,6 +904,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
       setCustomerEmail('');
       setCustomerShopName('');
       setCustomerAddress('');
+      setCustomerLookup({ checking: false, matched: null });
       setDueDate(new Date().toISOString().slice(0, 10));
       setSaleMode('paid');
       setExchangeEnabled(false);
@@ -879,6 +922,42 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
     } finally {
       setLoading(false);
     }
+  };
+
+  const collectFromModal = async () => {
+    const saleId = lastInvoice?.saleId;
+    const amount = Number(collectAmount || 0);
+    if (!saleId || !amount) {
+      setMessage('Enter a collection amount first.');
+      return;
+    }
+    setCollecting(true);
+    try {
+      const payload = await readJson<{ saleNo: string; outstandingAmount: number }>(
+        `/api/store-ops/due-sales/${saleId}/collections`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ amount, paymentMethod: collectMethod }),
+        },
+      );
+      setLastInvoice((cur) => (cur
+        ? { ...cur, totals: { ...cur.totals, paid: Number(cur.totals?.paid || 0) + amount, due: Math.max(Number(cur.totals?.due || 0) - amount, 0) } }
+        : cur));
+      setCollectAmount('');
+      toast.success(`Collection posted for ${payload.saleNo} — remaining due ${payload.outstandingAmount.toFixed(2)}`);
+    } catch (error) {
+      toast.error((error as Error).message);
+    } finally {
+      setCollecting(false);
+    }
+  };
+
+  const repeatLastSale = () => {
+    if (!lastSoldCart.length) return;
+    setCart(lastSoldCart.map((item) => ({ ...item })));
+    setInvoiceModalOpen(false);
+    setMessage('Cart restored from the last sale — review and check out again.');
   };
 
   const handlePrintLabel = async (sku: SkuSearchResult) => {
@@ -1180,6 +1259,14 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
           <div style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
             <input value={customerName} onChange={(event) => setCustomerName(event.target.value)} style={inputStyle} placeholder="Customer name (optional)" />
             <input value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} style={inputStyle} placeholder={saleMode !== 'paid' ? 'Customer mobile number (recommended)' : 'Customer mobile number (optional)'} />
+            {customerLookup.checking && customerPhone.replace(/\D/g, '').length >= 6 ? (
+              <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginTop: -4 }}>Looking up customer…</div>
+            ) : null}
+            {customerLookup.matched ? (
+              <div style={{ fontSize: 11, color: '#166534', marginTop: -4, background: 'rgba(22,163,74,0.08)', padding: '4px 8px', borderRadius: 6 }}>
+                ✓ Known customer{customerLookup.matched.name ? ` — ${customerLookup.matched.name}` : ''} — details autofilled
+              </div>
+            ) : null}
             <input value={customerEmail} onChange={(event) => setCustomerEmail(event.target.value)} style={inputStyle} placeholder="Customer email (optional)" />
             <input value={customerShopName} onChange={(event) => setCustomerShopName(event.target.value)} style={inputStyle} placeholder={saleMode !== 'paid' ? 'Shop name (optional but helpful)' : 'Shop name (optional)'} />
             <textarea value={customerAddress} onChange={(event) => setCustomerAddress(event.target.value)} style={{ ...inputStyle, minHeight: 76 }} placeholder={saleMode !== 'paid' ? 'Shop / customer address for due tracking' : 'Customer address (optional)'} />
@@ -1616,7 +1703,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
               Printer unavailable. Review the invoice and print using your browser.
             </SheetDescription>
           </SheetHeader>
-          <div style={{ marginTop: 16, display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <div style={{ marginTop: 16, display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
             <button
               onClick={() => {
                 if (lastInvoice) {
@@ -1637,10 +1724,41 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
             >
               Download
             </button>
+            <button onClick={repeatLastSale} style={secondaryButtonStyle} disabled={!lastSoldCart.length}>
+              Repeat Sale
+            </button>
             <button onClick={() => setInvoiceModalOpen(false)} style={neutralButtonStyle}>
               Close
             </button>
           </div>
+          {lastInvoice?.saleId && Number(lastInvoice.totals?.due || 0) > 0 ? (
+            <div style={{ marginTop: 12, padding: 12, border: '1px solid rgba(217,119,6,0.35)', borderRadius: 8, display: 'grid', gap: 8, background: 'rgba(217,119,6,0.06)' }}>
+              <div style={{ fontSize: 13, fontWeight: 600 }}>
+                Collect payment — due {currency(Number(lastInvoice.totals?.due || 0))}
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={collectAmount}
+                  onChange={(event) => setCollectAmount(event.target.value)}
+                  placeholder="Amount"
+                  aria-label="Collection amount"
+                  style={{ ...inputStyle, width: 140 }}
+                />
+                <select value={collectMethod} onChange={(event) => setCollectMethod(event.target.value)} aria-label="Collection method" style={{ ...inputStyle, width: 140 }}>
+                  <option value="cash">Cash</option>
+                  <option value="card">Card</option>
+                  <option value="mfs">MFS</option>
+                  <option value="bank_transfer">Bank</option>
+                </select>
+                <button onClick={() => void collectFromModal()} style={primaryButtonStyle} disabled={collecting || !Number(collectAmount)}>
+                  {collecting ? 'Posting…' : 'Post Collection'}
+                </button>
+              </div>
+            </div>
+          ) : null}
           {lastInvoice ? (
             <div
               style={{ marginTop: 16 }}
