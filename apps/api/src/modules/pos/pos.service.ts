@@ -4,6 +4,7 @@ import type { Pool, PoolClient } from 'pg';
 
 import type { AuthSession, StoreAuthContext } from '../auth/auth.types.js';
 import { AuditService } from '../audit/audit.service.js';
+import { BillingService } from '../billing/billing.service.js';
 import { DATABASE_POOL } from '../database/database.constants.js';
 
 @Injectable()
@@ -11,6 +12,7 @@ export class PosService {
   constructor(
     @Inject(DATABASE_POOL) private readonly pool: Pool,
     private readonly auditService: AuditService,
+    private readonly billingService: BillingService,
   ) {}
 
   private async ensureDefaultRegister(storeId: string) {
@@ -812,6 +814,8 @@ export class PosService {
         select
           s.id,
           s.sale_no,
+          s.invoice_no,
+          s.sale_date,
           s.total_amount,
           s.subtotal_amount,
           s.discount_amount,
@@ -828,6 +832,17 @@ export class PosService {
           s.due_date,
           s.note,
           s.created_at,
+          coalesce(
+            (select sum(sp.amount)
+             from sales.sale_payments sp
+             where sp.sale_id = s.id and sp.status = 'paid'),
+            0
+          ) as paid_amount,
+          (
+            select count(*)
+            from sales.sale_payments sp
+            where sp.sale_id = s.id and sp.payment_method = 'cod' and sp.status <> 'refunded'
+          )::int as cod_count,
           coalesce(
             (select string_agg(si.product_name_snapshot, ', ' order by si.created_at)
              from sales.sale_items si
@@ -998,6 +1013,83 @@ export class PosService {
         suggestedPrinterType: 'receipt',
       },
     };
+  }
+
+  async getSaleInvoice(saleId: string, headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+
+    const hasInvoiceFeature = await this.billingService.hasStoreFeature(storeId, 'invoices');
+    if (!hasInvoiceFeature) {
+      throw new ForbiddenException(
+        'Custom invoices require the Wholesale plan. Upgrade your plan to create invoices.',
+      );
+    }
+
+    const invoiceNo = await this.assignInvoiceNumber(saleId, storeId);
+    const { sale, items, payments } = await this.getSaleAggregate(saleId, storeId);
+    const receipt = await this.buildReceiptPayload(sale, items.rows, payments.rows, storeId);
+
+    return {
+      sale: {
+        id: sale.id,
+        saleNo: sale.sale_no,
+        invoiceNo,
+        totalAmount: sale.total_amount,
+        createdAt: sale.created_at,
+      },
+      receipt,
+      printIntent: {
+        agentPath: '/print/receipt',
+        suggestedPrinterType: 'invoice_a4',
+      },
+    };
+  }
+
+  private async assignInvoiceNumber(saleId: string, storeId: string): Promise<string> {
+    const readInvoiceNo = async () => {
+      const current = await this.pool.query<{ invoice_no: string | null }>(
+        'select invoice_no from sales.sales where id = $1 and store_id = $2 limit 1',
+        [saleId, storeId],
+      );
+      return current.rows[0];
+    };
+
+    const existing = await readInvoiceNo();
+    if (!existing) throw new NotFoundException('Sale not found');
+    if (existing.invoice_no) return existing.invoice_no;
+
+    const settingsResult = await this.pool.query<{ invoice_prefix: string | null }>(
+      'select invoice_prefix from store.store_settings where store_id = $1 limit 1',
+      [storeId],
+    );
+    const prefix = (settingsResult.rows[0]?.invoice_prefix ?? '').trim().toUpperCase() || 'INV';
+
+    // The per-store unique index on (store_id, invoice_no) is the race backstop:
+    // on conflict the count re-runs and the next sequence number is tried.
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const countResult = await this.pool.query<{ count: string }>(
+        'select count(*)::text as count from sales.sales where store_id = $1 and invoice_no is not null',
+        [storeId],
+      );
+      const seq = Number(countResult.rows[0]?.count ?? '0') + 1 + attempt;
+      const invoiceNo = `${prefix}-${String(seq).padStart(4, '0')}`;
+
+      const updateResult = await this.pool.query<{ invoice_no: string }>(
+        `update sales.sales
+         set invoice_no = $3,
+           sale_date = coalesce(sale_date, created_at::date),
+           updated_at = now()
+         where id = $1 and store_id = $2 and invoice_no is null
+         returning invoice_no`,
+        [saleId, storeId, invoiceNo],
+      );
+      if (updateResult.rows[0]) return updateResult.rows[0].invoice_no;
+
+      const raced = await readInvoiceNo();
+      if (raced?.invoice_no) return raced.invoice_no;
+    }
+
+    throw new Error('Could not assign an invoice number. Please try again.');
   }
 
   private readonly REFUND_APPROVAL_THRESHOLD = 5000;
@@ -1933,9 +2025,18 @@ export class PosService {
         ? 'due'
         : 'paid';
 
+    const paymentTerms = payments.some((p) => p.payment_method === 'cod' && p.status !== 'refunded')
+      ? 'cod'
+      : sale.payment_status === 'paid'
+        ? 'paid'
+        : 'due';
+
     return {
       saleId: sale.id ?? null,
       saleNo: sale.sale_no ?? null,
+      invoiceNo: sale.invoice_no ?? null,
+      saleDate: sale.sale_date ?? null,
+      paymentTerms,
       saleType,
       paymentStatus: sale.payment_status ?? null,
       dueDate: sale.due_date ?? null,

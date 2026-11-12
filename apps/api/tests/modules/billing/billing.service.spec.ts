@@ -121,4 +121,24 @@ describe('BillingService', () => {
       expect(result.usage).toBeNull();
     });
   });
+
+  describe('hasStoreFeature', () => {
+    it('should return true when the active plan features include the feature', async () => {
+      mockPool.query.mockResolvedValueOnce({ rows: [{ features_json: ['pos', 'invoices'] }] });
+      const svc = new BillingService(mockPool, mockAudit);
+      await expect(svc.hasStoreFeature('store-123', 'invoices')).resolves.toBe(true);
+    });
+
+    it('should return false when the active plan features omit the feature', async () => {
+      mockPool.query.mockResolvedValueOnce({ rows: [{ features_json: ['pos'] }] });
+      const svc = new BillingService(mockPool, mockAudit);
+      await expect(svc.hasStoreFeature('store-123', 'invoices')).resolves.toBe(false);
+    });
+
+    it('should return false when no active subscription exists', async () => {
+      mockPool.query.mockResolvedValueOnce({ rows: [] });
+      const svc = new BillingService(mockPool, mockAudit);
+      await expect(svc.hasStoreFeature('store-123', 'invoices')).resolves.toBe(false);
+    });
+  });
 });

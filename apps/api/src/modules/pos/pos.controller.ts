@@ -56,7 +56,7 @@ const createSaleSchema = z.object({
   ).min(1),
   payments: z.array(
     z.object({
-      paymentMethod: z.enum(['cash', 'card', 'mfs', 'bank_transfer', 'split']),
+      paymentMethod: z.enum(['cash', 'card', 'mfs', 'bank_transfer', 'split', 'cod']),
       gatewayProvider: z.string().optional(),
       amount: z.number().nonnegative(),
       referenceNo: z.string().optional(),
@@ -106,7 +106,7 @@ const createExchangeSchema = z.object({
   ).min(1),
   payments: z.array(
     z.object({
-      paymentMethod: z.enum(['cash', 'card', 'mfs', 'bank_transfer', 'split']),
+      paymentMethod: z.enum(['cash', 'card', 'mfs', 'bank_transfer', 'split', 'cod']),
       gatewayProvider: z.string().optional(),
       amount: z.number().nonnegative(),
       referenceNo: z.string().optional(),
@@ -289,6 +289,17 @@ export class PosController {
     @CurrentAuthContext() authContext: StoreAuthContext | null,
   ) {
     return this.posService.reprintSaleReceipt(saleId, headerStoreId, authContext);
+  }
+
+  @Post('sales/:saleId/invoice')
+  @RequireContext('store')
+  @RequirePermissions('sales.pos.create')
+  getSaleInvoice(
+    @Param('saleId') saleId: string,
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+  ) {
+    return this.posService.getSaleInvoice(saleId, headerStoreId, authContext);
   }
 
   // ── Print-job polling for local print agent ──

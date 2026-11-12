@@ -308,6 +308,33 @@ export function SettingsWorkspace({ canManageSettings }: { canManageSettings: bo
               placeholder="Store logo URL or image data URL"
               disabled={!canManageSettings || loading}
             />
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/svg+xml"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (!file) return;
+                if (!file.type.startsWith('image/')) {
+                  setMessage('Logo must be an image file.');
+                  return;
+                }
+                if (file.size > 1024 * 1024) {
+                  setMessage('Logo must be 1 MB or smaller.');
+                  return;
+                }
+                const reader = new FileReader();
+                reader.onload = () => {
+                  setProfileForm((current) => ({ ...current, logoUrl: String(reader.result || '') }));
+                };
+                reader.readAsDataURL(file);
+                event.target.value = '';
+              }}
+              style={{ ...fieldStyle, fontSize: 12 }}
+              disabled={!canManageSettings || loading}
+            />
+            <div style={{ color: 'var(--muted-foreground)', fontSize: 12, marginTop: -4 }}>
+              Used on receipts and white-label invoices. Upload an image (max 1 MB) or paste a URL above.
+            </div>
             {profileForm.logoUrl ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <img
@@ -371,9 +398,12 @@ export function SettingsWorkspace({ canManageSettings }: { canManageSettings: bo
               value={settingsForm.invoicePrefix}
               onChange={(event) => setSettingsForm((current) => ({ ...current, invoicePrefix: event.target.value }))}
               style={fieldStyle}
-              placeholder="Invoice prefix"
+              placeholder="Invoice prefix (e.g. INV)"
               disabled={!canManageSettings || loading}
             />
+            <div style={{ color: 'var(--muted-foreground)', fontSize: 12, marginTop: -4 }}>
+              Prefixes generated invoice numbers on Wholesale A4 invoices, e.g. {settingsForm.invoicePrefix?.trim()?.toUpperCase() || 'INV'}-0042.
+            </div>
             <textarea
               value={settingsForm.receiptFooter}
               onChange={(event) => setSettingsForm((current) => ({ ...current, receiptFooter: event.target.value }))}

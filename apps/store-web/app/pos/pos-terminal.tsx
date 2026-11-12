@@ -167,7 +167,7 @@ async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
   return payload as T;
 }
 
-export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
+export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: boolean; canUseInvoices?: boolean }) {
   const compact = useCompactLayout();
   const [registers, setRegisters] = useState<Register[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
@@ -185,7 +185,8 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
   const [customerShopName, setCustomerShopName] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
   const [dueDate, setDueDate] = useState(new Date().toISOString().slice(0, 10));
-  const [saleMode, setSaleMode] = useState<'paid' | 'due'>('paid');
+  const [saleMode, setSaleMode] = useState<'paid' | 'due' | 'cod'>('paid');
+  const [documentMode, setDocumentMode] = useState<'receipt' | 'a4'>('receipt');
   const [exchangeEnabled, setExchangeEnabled] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'mfs' | 'bank_transfer'>('cash');
   const [paymentReference, setPaymentReference] = useState('');
@@ -226,6 +227,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
   const [printError, setPrintError] = useState<string | null>(null);
   const [lastReceiptText, setLastReceiptText] = useState('');
   const [lastInvoice, setLastInvoice] = useState<ReceiptPayload | null>(null);
+  const [lastInvoiceMode, setLastInvoiceMode] = useState<'laser_a5' | 'a4'>('laser_a5');
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
   const [receiptPrinterName, setReceiptPrinterName] = useState('');
   const [labelPrinterName, setLabelPrinterName] = useState('');
@@ -703,8 +705,8 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
       setMessage('Add at least one item to the cart.');
       return;
     }
-    if (saleMode === 'due' && !customerName.trim() && !customerPhone.trim()) {
-      setMessage('Due sales need a customer name or phone number.');
+    if ((saleMode === 'due' || saleMode === 'cod') && !customerName.trim() && !customerPhone.trim()) {
+      setMessage(`${saleMode === 'cod' ? 'Cash-on-delivery' : 'Due'} sales need a customer name or phone number.`);
       return;
     }
     if (exchangeEnabled && !exchangeItem) {
@@ -716,7 +718,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
         setMessage('Total payment is less than the required amount.');
         return;
       }
-      if (saleMode === 'due' && totalPaidFromPartial > paymentRequired) {
+      if ((saleMode === 'due' || saleMode === 'cod') && totalPaidFromPartial > paymentRequired) {
         setMessage('Payment exceeds the total amount.');
         return;
       }
@@ -733,6 +735,8 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
     setLoading(true);
     try {
       const saleIsDue = saleMode === 'due';
+      const saleIsCod = saleMode === 'cod';
+      const saleIsPayableLater = saleIsDue || saleIsCod;
       const saleIsExchange = exchangeEnabled && !!exchangeItem;
       const clientRequestId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
         ? crypto.randomUUID()
@@ -753,7 +757,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
           customerEmail: customerEmail || undefined,
           customerShopName: customerShopName || undefined,
           customerAddress: customerAddress || undefined,
-          dueDate: saleIsDue && dueDate ? dueDate : undefined,
+          dueDate: saleIsPayableLater && dueDate ? dueDate : undefined,
           exchangeSkuId: saleIsExchange ? exchangeItem!.skuId : undefined,
           exchangeAmount: saleIsExchange ? exchangeItem!.exchangeAmount : 0,
           discountAmount: orderDiscountAmount,
@@ -768,7 +772,16 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
             taxAmount: 0,
             serialIds: item.selectedSerials?.map((s) => s.serialId),
           })),
-          payments: usePartialPayments
+          payments: saleIsCod
+            ? [
+                {
+                  paymentMethod: 'cod',
+                  amount: paymentRequired,
+                  referenceNo: paymentReference || undefined,
+                  status: 'pending',
+                },
+              ]
+            : usePartialPayments
             ? (() => {
                 const paid = (Object.entries(partialPayments) as Array<[string, { amount: string; reference: string }]>)
                   .filter(([, entry]) => Number(entry.amount) > 0)
@@ -796,23 +809,29 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
         throw new Error('Sale saved but sale id is missing');
       }
 
-      const reprintPayload = await readJson<ReprintResponse>(`/api/pos/sales/${saleId}/reprint`, {
-        method: 'POST',
-      });
+      const printA4Invoice = canUseInvoices && documentMode === 'a4';
+      const documentPayload = await readJson<ReprintResponse>(
+        `/api/pos/sales/${saleId}/${printA4Invoice ? 'invoice' : 'reprint'}`,
+        { method: 'POST' },
+      );
 
-      if (reprintPayload.receipt) {
-        setLastReceiptText(JSON.stringify(reprintPayload.receipt, null, 2));
-        setLastInvoice(reprintPayload.receipt);
+      if (documentPayload.receipt) {
+        if (!printA4Invoice) {
+          setLastReceiptText(JSON.stringify(documentPayload.receipt, null, 2));
+        }
+        setLastInvoice(documentPayload.receipt);
+        setLastInvoiceMode(printA4Invoice ? 'a4' : 'laser_a5');
 
         // The local print agent polls the backend for pending jobs and prints silently.
         // Browser-to-localhost fetch is blocked by mixed-content on hosted HTTPS origins.
+        // A4 invoices always go through the browser print dialog (laser printer).
         const isLocalDev = typeof window !== 'undefined' &&
           ['localhost', '127.0.0.1'].includes(window.location.hostname);
         let printed = false;
 
-        if (isLocalDev) {
+        if (isLocalDev && !printA4Invoice) {
           try {
-            await printReceipt(reprintPayload.receipt, receiptPrinterName || undefined, agentUrl);
+            await printReceipt(documentPayload.receipt, receiptPrinterName || undefined, agentUrl);
             printed = true;
             if (!saleIsDue && (usePartialPayments ? Number(partialPayments.cash?.amount || 0) > 0 : paymentMethod === 'cash')) {
               await openCashDrawer({ printerName: receiptPrinterName || undefined }, agentUrl).catch(() => {});
@@ -824,9 +843,11 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
           setMessage(`${saleIsDue ? 'Due sale' : 'Sale'} ${salePayload.sale?.saleNo ?? ''} completed and receipt printed.`);
         } else {
           setInvoiceModalOpen(true);
-          openInvoicePrintWindow(reprintPayload.receipt);
+          openInvoicePrintWindow(documentPayload.receipt, printA4Invoice ? 'a4' : 'laser_a5');
           setMessage(
-            `Sale ${salePayload.sale?.saleNo ?? ''} completed. Browser print dialog should open automatically.`,
+            printA4Invoice
+              ? `Invoice ${documentPayload.receipt.invoiceNo ?? salePayload.sale?.saleNo ?? ''} ready. Browser print dialog should open automatically.`
+              : `Sale ${salePayload.sale?.saleNo ?? ''} completed. Browser print dialog should open automatically.`,
           );
         }
       }
@@ -1154,20 +1175,37 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
 
           <div style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
             <input value={customerName} onChange={(event) => setCustomerName(event.target.value)} style={inputStyle} placeholder="Customer name (optional)" />
-            <input value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} style={inputStyle} placeholder={saleMode === 'due' ? 'Customer mobile number (recommended)' : 'Customer mobile number (optional)'} />
+            <input value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} style={inputStyle} placeholder={saleMode !== 'paid' ? 'Customer mobile number (recommended)' : 'Customer mobile number (optional)'} />
             <input value={customerEmail} onChange={(event) => setCustomerEmail(event.target.value)} style={inputStyle} placeholder="Customer email (optional)" />
-            <input value={customerShopName} onChange={(event) => setCustomerShopName(event.target.value)} style={inputStyle} placeholder={saleMode === 'due' ? 'Shop name (optional but helpful)' : 'Shop name (optional)'} />
-            <textarea value={customerAddress} onChange={(event) => setCustomerAddress(event.target.value)} style={{ ...inputStyle, minHeight: 76 }} placeholder={saleMode === 'due' ? 'Shop / customer address for due tracking' : 'Customer address (optional)'} />
-            {saleMode === 'due' ? (
-              <input type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} style={inputStyle} />
+            <input value={customerShopName} onChange={(event) => setCustomerShopName(event.target.value)} style={inputStyle} placeholder={saleMode !== 'paid' ? 'Shop name (optional but helpful)' : 'Shop name (optional)'} />
+            <textarea value={customerAddress} onChange={(event) => setCustomerAddress(event.target.value)} style={{ ...inputStyle, minHeight: 76 }} placeholder={saleMode !== 'paid' ? 'Shop / customer address for due tracking' : 'Customer address (optional)'} />
+            {saleMode !== 'paid' ? (
+              <input type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} style={inputStyle} aria-label={saleMode === 'cod' ? 'Expected delivery date' : 'Due date'} />
             ) : null}
           </div>
 
-          <div style={{ marginBottom: 12 }}>
-            <select aria-label="Sale mode" value={saleMode} onChange={(event) => setSaleMode(event.target.value as 'paid' | 'due')} style={inputStyle}>
+          <div style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
+            <select
+              aria-label="Sale mode"
+              value={saleMode}
+              onChange={(event) => setSaleMode(event.target.value as 'paid' | 'due' | 'cod')}
+              style={inputStyle}
+            >
               <option value="paid">Cash sale</option>
               <option value="due">Due sale</option>
+              {canUseInvoices ? <option value="cod">Cash on delivery</option> : null}
             </select>
+            {canUseInvoices ? (
+              <select
+                aria-label="Invoice document"
+                value={documentMode}
+                onChange={(event) => setDocumentMode(event.target.value as 'receipt' | 'a4')}
+                style={inputStyle}
+              >
+                <option value="receipt">POS receipt (thermal / A5)</option>
+                <option value="a4">A4 invoice (branded, white-label)</option>
+              </select>
+            ) : null}
           </div>
 
           <div style={{ marginBottom: 12 }}>
@@ -1258,7 +1296,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
             </div>
           </div>
 
-          {!usePartialPayments ? (
+          {!usePartialPayments && saleMode !== 'cod' ? (
             <div style={{ marginBottom: 12 }}>
               <select
                 aria-label="Payment method"
@@ -1274,12 +1312,14 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
             </div>
           ) : null}
 
+          {saleMode !== 'cod' ? (
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, cursor: 'pointer', fontSize: 13 }}>
             <input type="checkbox" checked={usePartialPayments} onChange={(e) => setUsePartialPayments(e.target.checked)} style={{ accentColor: '#0f172a' }} />
             <span style={{ color: 'var(--muted-foreground)' }}>Split payment across multiple methods</span>
           </label>
+          ) : null}
 
-          {usePartialPayments ? (
+          {saleMode !== 'cod' && usePartialPayments ? (
             <div style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
               {(['cash', 'card', 'mfs', 'bank_transfer'] as const).map((method) => {
                 const entry = partialPayments[method];
@@ -1343,14 +1383,14 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
               </div>
             ) : null
           ) : null}
-          {saleMode === 'due' ? (
+          {saleMode !== 'paid' ? (
             <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--muted-foreground)', marginBottom: 12 }}>
-              <span>Due amount</span>
+              <span>{saleMode === 'cod' ? 'Payable on delivery' : 'Due amount'}</span>
               <strong>{currency(usePartialPayments ? Math.max(paymentRequired - totalPaidFromPartial, 0) : paymentRequired)}</strong>
             </div>
           ) : null}
             <button onClick={checkout} style={gray800ButtonStyle} disabled={loading || cart.length === 0 || !selectedLocationId || (exchangeEnabled && !exchangeItem)}>
-              {saleMode === 'due' ? 'Save Due Sale' : 'Complete Sale'}
+              {saleMode === 'due' ? 'Save Due Sale' : saleMode === 'cod' ? 'Save COD Sale' : 'Complete Sale'}
             </button>
             {!selectedLocationId ? (
               <div style={{ fontSize: 12, color: '#b45309' }}>
@@ -1566,7 +1606,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
       <Sheet open={invoiceModalOpen} onOpenChange={setInvoiceModalOpen}>
         <SheetContent side="bottom" className="sm:max-w-full sm:max-h-[90vh] overflow-auto">
           <SheetHeader>
-            <SheetTitle>Invoice {lastInvoice?.saleNo || ''}</SheetTitle>
+            <SheetTitle>{lastInvoiceMode === 'a4' ? 'Invoice' : 'Receipt'} {lastInvoice?.invoiceNo || lastInvoice?.saleNo || ''}</SheetTitle>
             <SheetDescription>
               Printer unavailable. Review the invoice and print using your browser.
             </SheetDescription>
@@ -1575,22 +1615,22 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
             <button
               onClick={() => {
                 if (lastInvoice) {
-                  openInvoicePrintWindow(lastInvoice);
+                  openInvoicePrintWindow(lastInvoice, lastInvoiceMode);
                 }
               }}
               style={primaryButtonStyle}
             >
-              Print Invoice
+              {lastInvoiceMode === 'a4' ? 'Print A4 Invoice' : 'Print Invoice'}
             </button>
             <button
               onClick={() => {
                 if (lastInvoice) {
-                  downloadReceiptHtml(lastInvoice);
+                  downloadReceiptHtml(lastInvoice, lastInvoiceMode);
                 }
               }}
               style={secondaryButtonStyle}
             >
-              Download Receipt
+              Download
             </button>
             <button onClick={() => setInvoiceModalOpen(false)} style={neutralButtonStyle}>
               Close
@@ -1599,7 +1639,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
           {lastInvoice ? (
             <div
               style={{ marginTop: 16 }}
-              dangerouslySetInnerHTML={{ __html: renderInvoiceHtml(lastInvoice) }}
+              dangerouslySetInnerHTML={{ __html: renderInvoiceHtml(lastInvoice, lastInvoiceMode) }}
             />
           ) : null}
         </SheetContent>
@@ -1706,7 +1746,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: 22, fontWeight: 700 }}>Invoice</div>
-                  <div style={{ color: 'var(--muted-foreground)' }}>No: {lastInvoice.saleNo || '—'}</div>
+                  <div style={{ color: 'var(--muted-foreground)' }}>No: {lastInvoice.invoiceNo || lastInvoice.saleNo || '—'}</div>
                 </div>
               </div>
               <div style={{ marginTop: 14, display: 'grid', gap: 8 }}>
@@ -1715,7 +1755,7 @@ export function PosTerminal({ canUsePos }: { canUsePos: boolean }) {
                 {lastInvoice.customer?.address ? <div><strong>Address:</strong> {lastInvoice.customer.address}</div> : null}
               </div>
               <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border)', textAlign: 'center', color: 'var(--muted-foreground)', fontSize: 12 }}>
-                Developed and maintained by Merch Flow
+                {canUseInvoices ? 'Thank you for your business' : 'Developed and maintained by Merch Flow'}
               </div>
             </div>
           </div>

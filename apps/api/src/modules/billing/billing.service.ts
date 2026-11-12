@@ -33,6 +33,7 @@ export class BillingService {
         order by
           case when p.is_custom then 1 else 0 end,
           case p.code
+            when 'wholesale' then 0
             when 'basic' then 1
             when 'standard' then 2
             when 'pro' then 3
@@ -68,6 +69,7 @@ export class BillingService {
           and p.status = 'active'
         order by
           case p.code
+            when 'wholesale' then 0
             when 'basic' then 1
             when 'standard' then 2
             when 'pro' then 3
@@ -525,6 +527,26 @@ export class BillingService {
     } finally {
       client.release();
     }
+  }
+
+  async hasStoreFeature(storeId: string, feature: string): Promise<boolean> {
+    const result = await this.pool.query<{ features_json: unknown }>(
+      `select p.features_json
+       from billing.subscriptions sub
+       join billing.plans p on p.id = sub.plan_id
+       where sub.store_id = $1 and sub.status in ('trial', 'active', 'past_due')
+       order by sub.created_at desc limit 1`,
+      [storeId],
+    );
+    const row = result.rows[0];
+    if (!row) return false;
+    const raw = row.features_json;
+    const features = Array.isArray(raw)
+      ? raw
+      : raw && typeof raw === 'object'
+        ? Object.keys(raw as Record<string, unknown>).filter((k) => Boolean((raw as Record<string, unknown>)[k]))
+        : [];
+    return features.includes(feature);
   }
 
   async checkUserLimit(storeId: string): Promise<{ current: number; max: number }> {

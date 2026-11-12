@@ -42,6 +42,7 @@ const ALL_FEATURES = [
   { key: 'settings', label: 'Settings' },
   { key: 'hardware', label: 'Hardware' },
   { key: 'session', label: 'Session' },
+  { key: 'invoices', label: 'Custom Invoices' },
 ];
 
 type Plan = {

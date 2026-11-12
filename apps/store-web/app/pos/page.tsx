@@ -8,7 +8,7 @@ export default async function StorePosPage() {
 
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
-      <PosTerminal canUsePos={access.canUsePos} />
+      <PosTerminal canUsePos={access.canUsePos} canUseInvoices={access.canUseInvoices} />
     </section>
   );
 }

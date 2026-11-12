@@ -1,4 +1,5 @@
 import { renderReceipt } from "./receipt-template.js";
+import { renderInvoiceA4 } from "./invoice-template.js";
 export const DEFAULT_PRINT_AGENT_URL =
   process.env.NEXT_PUBLIC_PRINT_AGENT_URL || 'http://127.0.0.1:17668';
 
@@ -38,6 +39,9 @@ export type PrintAgentPrinterList = {
 export type ReceiptPayload = {
   saleId?: string | null;
   saleNo?: string | null;
+  invoiceNo?: string | null;
+  saleDate?: string | null;
+  paymentTerms?: 'paid' | 'due' | 'cod' | null;
   saleType?: 'paid' | 'due' | 'exchange' | null;
   paymentStatus?: string | null;
   dueDate?: string | null;
@@ -404,11 +408,16 @@ function bytesToBase64(bytes: Uint8Array) {
   return btoa(binary);
 }
 
-export function renderInvoiceHtml(receipt: ReceiptPayload) {
+export type InvoicePrintMode = 'laser_a5' | 'a4';
+
+export function renderInvoiceHtml(receipt: ReceiptPayload, mode: InvoicePrintMode = 'laser_a5') {
+  if (mode === 'a4') {
+    return renderInvoiceA4(receipt as any);
+  }
   return renderReceipt(receipt as any, 'laser_a5');
 }
 
-export function openInvoicePrintWindow(receipt: ReceiptPayload) {
+export function openInvoicePrintWindow(receipt: ReceiptPayload, mode: InvoicePrintMode = 'laser_a5') {
   if (typeof document === 'undefined') {
     return false;
   }
@@ -420,7 +429,7 @@ export function openInvoicePrintWindow(receipt: ReceiptPayload) {
   iframe.style.height = '0';
   iframe.style.border = '0';
   iframe.setAttribute('aria-hidden', 'true');
-  iframe.srcdoc = renderInvoiceHtml(receipt);
+  iframe.srcdoc = renderInvoiceHtml(receipt, mode);
   document.body.appendChild(iframe);
 
   const cleanup = () => {
@@ -475,9 +484,9 @@ export async function printReceipt(receipt: ReceiptPayload, printerName?: string
   return response.json().catch(() => ({ ok: true }));
 }
 
-export function downloadReceiptHtml(receipt: ReceiptPayload) {
-  const saleNo = receipt.saleNo || 'receipt';
-  const html = renderInvoiceHtml(receipt);
+export function downloadReceiptHtml(receipt: ReceiptPayload, mode: InvoicePrintMode = 'laser_a5') {
+  const saleNo = receipt.invoiceNo || receipt.saleNo || 'receipt';
+  const html = renderInvoiceHtml(receipt, mode);
   const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

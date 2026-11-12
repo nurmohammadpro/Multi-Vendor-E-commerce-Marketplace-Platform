@@ -49,6 +49,7 @@ const navGroups = [
     label: 'Sales',
     items: [
       { href: '/pos', label: 'Point of Sale', permission: 'sales.pos.create', feature: 'pos' },
+      { href: '/invoices', label: 'Invoices', permission: 'sales.pos.create', feature: 'invoices' },
       { href: '/sales-history', label: 'Sales History', permission: 'sales.report.view', feature: 'reports' },
       { href: '/returns', label: 'Returns & Refunds', permission: 'sales.returns.manage', feature: 'returns' },
       { href: '/exchange', label: 'Exchange', permission: 'sales.pos.create', feature: 'pos' },

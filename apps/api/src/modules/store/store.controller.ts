@@ -37,7 +37,7 @@ const adminCreateStoreSchema = createStoreSchema.extend({
   ownerEmail: z.string().email().optional(),
   ownerPhone: z.string().min(8).max(30).optional(),
   ownerPassword: z.string().min(10),
-  planCode: z.enum(['basic', 'standard', 'pro']).default('basic'),
+  planCode: z.enum(['basic', 'standard', 'pro', 'wholesale']).default('basic'),
 }).refine((value) => Boolean(value.ownerEmail || value.ownerPhone), {
   message: 'ownerEmail or ownerPhone is required',
 });
