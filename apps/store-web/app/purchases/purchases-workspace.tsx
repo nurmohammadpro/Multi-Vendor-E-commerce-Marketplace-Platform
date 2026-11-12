@@ -120,7 +120,6 @@ export function PurchasesWorkspace({ initialTab = 'purchases' }: { initialTab?: 
   const [lastReceivedItems, setLastReceivedItems] = useState<Array<{ sku: string; productName: string; sellingPrice?: number | null }>>([]);
   const [printingLabels, setPrintingLabels] = useState(false);
 
-  const supplierOpts = useMemo(() => suppliers.map((s) => ({ value: s.id, label: s.company_name, indent: false })), [suppliers]);
   const locationOpts = useMemo(() => locations.map((l) => ({ value: l.id, label: `${l.name} · ${l.code}`, indent: false })), [locations]);
 
   // ── Data loading ──
@@ -610,7 +609,15 @@ export function PurchasesWorkspace({ initialTab = 'purchases' }: { initialTab?: 
 
             {/* Supplier, Location, Quantity, Unit Cost, Sell Price in one line */}
             <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : '2fr 2fr 1fr 1fr 1fr', gap: 8, alignItems: compact ? 'stretch' : 'end' }}>
-              <SearchableSelect options={supplierOpts} value={receiveSupplierId} onChange={setReceiveSupplierId} placeholder="Supplier (required)" emptyMessage="No suppliers found" />
+              <ComboboxAddNew
+                value={receiveSupplierId}
+                onChange={setReceiveSupplierId}
+                options={suppliers.map((s) => ({ id: s.id, label: s.company_name }))}
+                onCreate={quickCreateSupplier}
+                placeholder="Supplier (required)"
+                addNewLabel="New supplier"
+                ariaLabel="Supplier"
+              />
               <SearchableSelect options={locationOpts} value={receiveLocationId} onChange={setReceiveLocationId} placeholder="Location (required)" emptyMessage="No locations found" />
               {receiveProduct && (
                 <>
