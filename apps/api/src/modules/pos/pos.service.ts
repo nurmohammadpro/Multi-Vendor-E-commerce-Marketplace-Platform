@@ -1794,7 +1794,7 @@ export class PosService {
     if (!returnData) return null;
 
     const storeResult = await this.pool.query(
-      'select name, logo_url, phone, email, address_text, receipt_footer from store.stores where id = $1 limit 1',
+      'select s.name, s.logo_url, s.phone, s.email, s.address_text, ss.receipt_footer, ss.receipt_type from store.stores s left join store.store_settings ss on ss.store_id = s.id where s.id = $1 limit 1',
       [storeId],
     );
     const store = storeResult.rows[0] ?? {};
@@ -1817,6 +1817,7 @@ export class PosService {
         email: store.email ?? null,
         address: store.address_text ?? null,
         footer: store.receipt_footer ?? null,
+        receiptType: store.receipt_type ?? 'pos',
       },
       customer: {
         name: sale.customer_name ?? null,
@@ -1966,7 +1967,9 @@ export class PosService {
           s.phone,
           s.email,
           s.address_text,
-          ss.receipt_footer
+          ss.receipt_footer,
+          ss.receipt_type,
+          ss.invoice_prefix
         from store.stores s
         left join store.store_settings ss on ss.store_id = s.id
         where s.id = $1
@@ -2048,6 +2051,7 @@ export class PosService {
         email: store.email ?? null,
         address: store.address_text ?? null,
         footer: store.receipt_footer ?? null,
+        receiptType: store.receipt_type ?? 'pos',
       },
       customer: {
         name: sale.customer_name ?? null,
@@ -3278,7 +3282,7 @@ export class PosService {
     );
 
     const storeResult = await this.pool.query(
-      'select name, logo_url, phone, email, address_text, receipt_footer from store.stores where id = $1 limit 1',
+      'select s.name, s.logo_url, s.phone, s.email, s.address_text, ss.receipt_footer, ss.receipt_type from store.stores s left join store.store_settings ss on ss.store_id = s.id where s.id = $1 limit 1',
       [storeId],
     );
     const store = storeResult.rows[0] ?? {};
@@ -3315,6 +3319,7 @@ export class PosService {
         email: store.email ?? null,
         address: store.address_text ?? null,
         footer: store.receipt_footer ?? null,
+        receiptType: store.receipt_type ?? 'pos',
       },
       customer: {
         name: exchange.customer_name ?? null,

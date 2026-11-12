@@ -1,5 +1,4 @@
-import { renderReceipt } from "./receipt-template.js";
-import { renderInvoiceA4 } from "./invoice-template.js";
+import { renderInvoice } from "./invoice-template.js";
 export const DEFAULT_PRINT_AGENT_URL =
   process.env.NEXT_PUBLIC_PRINT_AGENT_URL || 'http://127.0.0.1:17668';
 
@@ -55,6 +54,8 @@ export type ReceiptPayload = {
     email?: string | null;
     address?: string | null;
     footer?: string | null;
+    receiptType?: 'pos' | 'a5' | 'a4' | null;
+    invoicePrefix?: string | null;
   };
   customer?: {
     name?: string | null;
@@ -408,16 +409,21 @@ function bytesToBase64(bytes: Uint8Array) {
   return btoa(binary);
 }
 
-export type InvoicePrintMode = 'laser_a5' | 'a4';
+export type InvoicePrintMode = 'pos' | 'a5' | 'a4';
 
-export function renderInvoiceHtml(receipt: ReceiptPayload, mode: InvoicePrintMode = 'laser_a5') {
-  if (mode === 'a4') {
-    return renderInvoiceA4(receipt as any);
-  }
-  return renderReceipt(receipt as any, 'laser_a5');
+// Paper document mode for a receipt payload: the store's configured receipt
+// type when present ('pos' still renders as A5 in a browser — thermal printing
+// goes through the local agent's ESC/POS path instead).
+export function resolvePrintMode(receipt: ReceiptPayload, mode?: InvoicePrintMode): 'a5' | 'a4' {
+  if (mode === 'a4' || mode === 'a5') return mode;
+  return receipt.store?.receiptType === 'a4' ? 'a4' : 'a5';
 }
 
-export function openInvoicePrintWindow(receipt: ReceiptPayload, mode: InvoicePrintMode = 'laser_a5') {
+export function renderInvoiceHtml(receipt: ReceiptPayload, mode?: InvoicePrintMode) {
+  return renderInvoice(receipt as any, resolvePrintMode(receipt, mode));
+}
+
+export function openInvoicePrintWindow(receipt: ReceiptPayload, mode?: InvoicePrintMode) {
   if (typeof document === 'undefined') {
     return false;
   }
@@ -484,7 +490,7 @@ export async function printReceipt(receipt: ReceiptPayload, printerName?: string
   return response.json().catch(() => ({ ok: true }));
 }
 
-export function downloadReceiptHtml(receipt: ReceiptPayload, mode: InvoicePrintMode = 'laser_a5') {
+export function downloadReceiptHtml(receipt: ReceiptPayload, mode?: InvoicePrintMode) {
   const saleNo = receipt.invoiceNo || receipt.saleNo || 'receipt';
   const html = renderInvoiceHtml(receipt, mode);
   const blob = new Blob([html], { type: 'text/html;charset=utf-8' });

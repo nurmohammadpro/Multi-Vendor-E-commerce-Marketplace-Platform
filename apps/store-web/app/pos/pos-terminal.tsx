@@ -186,7 +186,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
   const [customerAddress, setCustomerAddress] = useState('');
   const [dueDate, setDueDate] = useState(new Date().toISOString().slice(0, 10));
   const [saleMode, setSaleMode] = useState<'paid' | 'due' | 'cod'>('paid');
-  const [documentMode, setDocumentMode] = useState<'receipt' | 'a4'>('receipt');
+  const [documentMode, setDocumentMode] = useState<'pos' | 'a5' | 'a4'>('pos');
   const [exchangeEnabled, setExchangeEnabled] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'mfs' | 'bank_transfer'>('cash');
   const [paymentReference, setPaymentReference] = useState('');
@@ -227,7 +227,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
   const [printError, setPrintError] = useState<string | null>(null);
   const [lastReceiptText, setLastReceiptText] = useState('');
   const [lastInvoice, setLastInvoice] = useState<ReceiptPayload | null>(null);
-  const [lastInvoiceMode, setLastInvoiceMode] = useState<'laser_a5' | 'a4'>('laser_a5');
+  const [lastInvoiceMode, setLastInvoiceMode] = useState<'a5' | 'a4'>('a5');
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
   const [receiptPrinterName, setReceiptPrinterName] = useState('');
   const [labelPrinterName, setLabelPrinterName] = useState('');
@@ -243,14 +243,17 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
       readJson<{ locations: Location[] }>('/api/pos/locations'),
       readJson<{ categories: Category[] }>('/api/catalog/categories?status=active&limit=200'),
       readJson<{ brands: Brand[] }>('/api/catalog/brands?status=active&limit=200'),
+      readJson<{ settings: { receipt_type?: 'pos' | 'a5' | 'a4' } }>('/api/store/settings').catch(() => ({ settings: {} as { receipt_type?: 'pos' | 'a5' | 'a4' } })),
     ])
-      .then(([registerPayload, locationPayload, catPayload, brandPayload]) => {
+      .then(([registerPayload, locationPayload, catPayload, brandPayload, settingsPayload]) => {
         setRegisters(registerPayload.registers ?? []);
         setLocations(locationPayload.locations ?? []);
         setSelectedRegisterId(registerPayload.registers?.[0]?.id ?? '');
         setSelectedLocationId(locationPayload.locations?.[0]?.id ?? '');
         setCategories(catPayload.categories ?? []);
         setBrands(brandPayload.brands ?? []);
+        const receiptType = settingsPayload.settings?.receipt_type;
+        setDocumentMode(receiptType === 'a4' ? 'a4' : receiptType === 'a5' ? 'a5' : 'pos');
       })
       .catch((error: Error) => {
         setMessage(error.message);
@@ -809,18 +812,19 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
         throw new Error('Sale saved but sale id is missing');
       }
 
-      const printA4Invoice = canUseInvoices && documentMode === 'a4';
+      const useInvoiceDoc = canUseInvoices && documentMode === 'a4';
+      const paperDoc = documentMode !== 'pos';
       const documentPayload = await readJson<ReprintResponse>(
-        `/api/pos/sales/${saleId}/${printA4Invoice ? 'invoice' : 'reprint'}`,
+        `/api/pos/sales/${saleId}/${useInvoiceDoc ? 'invoice' : 'reprint'}`,
         { method: 'POST' },
       );
 
       if (documentPayload.receipt) {
-        if (!printA4Invoice) {
+        if (!paperDoc) {
           setLastReceiptText(JSON.stringify(documentPayload.receipt, null, 2));
         }
         setLastInvoice(documentPayload.receipt);
-        setLastInvoiceMode(printA4Invoice ? 'a4' : 'laser_a5');
+        setLastInvoiceMode(documentMode === 'a4' ? 'a4' : 'a5');
 
         // The local print agent polls the backend for pending jobs and prints silently.
         // Browser-to-localhost fetch is blocked by mixed-content on hosted HTTPS origins.
@@ -829,7 +833,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
           ['localhost', '127.0.0.1'].includes(window.location.hostname);
         let printed = false;
 
-        if (isLocalDev && !printA4Invoice) {
+        if (isLocalDev && !paperDoc) {
           try {
             await printReceipt(documentPayload.receipt, receiptPrinterName || undefined, agentUrl);
             printed = true;
@@ -843,9 +847,9 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
           setMessage(`${saleIsDue ? 'Due sale' : 'Sale'} ${salePayload.sale?.saleNo ?? ''} completed and receipt printed.`);
         } else {
           setInvoiceModalOpen(true);
-          openInvoicePrintWindow(documentPayload.receipt, printA4Invoice ? 'a4' : 'laser_a5');
+          openInvoicePrintWindow(documentPayload.receipt, paperDoc ? documentMode : 'a5');
           setMessage(
-            printA4Invoice
+            useInvoiceDoc
               ? `Invoice ${documentPayload.receipt.invoiceNo ?? salePayload.sale?.saleNo ?? ''} ready. Browser print dialog should open automatically.`
               : `Sale ${salePayload.sale?.saleNo ?? ''} completed. Browser print dialog should open automatically.`,
           );
@@ -1199,11 +1203,12 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
               <select
                 aria-label="Invoice document"
                 value={documentMode}
-                onChange={(event) => setDocumentMode(event.target.value as 'receipt' | 'a4')}
+                onChange={(event) => setDocumentMode(event.target.value as 'pos' | 'a5' | 'a4')}
                 style={inputStyle}
               >
-                <option value="receipt">POS receipt (thermal / A5)</option>
-                <option value="a4">A4 invoice (branded, white-label)</option>
+                <option value="pos">POS receipt (thermal)</option>
+                <option value="a5">A5 receipt (laser)</option>
+                <option value="a4">A4 invoice (laser)</option>
               </select>
             ) : null}
           </div>
@@ -1606,7 +1611,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
       <Sheet open={invoiceModalOpen} onOpenChange={setInvoiceModalOpen}>
         <SheetContent side="bottom" className="sm:max-w-full sm:max-h-[90vh] overflow-auto">
           <SheetHeader>
-            <SheetTitle>{lastInvoiceMode === 'a4' ? 'Invoice' : 'Receipt'} {lastInvoice?.invoiceNo || lastInvoice?.saleNo || ''}</SheetTitle>
+            <SheetTitle>{lastInvoice?.invoiceNo ? 'Invoice' : 'Receipt'} {lastInvoice?.invoiceNo || lastInvoice?.saleNo || ''}</SheetTitle>
             <SheetDescription>
               Printer unavailable. Review the invoice and print using your browser.
             </SheetDescription>
@@ -1620,7 +1625,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
               }}
               style={primaryButtonStyle}
             >
-              {lastInvoiceMode === 'a4' ? 'Print A4 Invoice' : 'Print Invoice'}
+              {lastInvoiceMode === 'a4' ? 'Print A4 Invoice' : 'Print A5 Receipt'}
             </button>
             <button
               onClick={() => {

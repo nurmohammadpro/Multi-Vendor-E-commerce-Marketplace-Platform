@@ -113,6 +113,7 @@ type UpdateStoreSettingsPayload = {
   locale?: 'en' | 'bn';
   receiptFooter?: string | null;
   invoicePrefix?: string | null;
+  receiptType?: 'pos' | 'a5' | 'a4';
   allowNegativeStock?: boolean;
   lowStockThresholdDefault?: number | null;
 };
@@ -1084,6 +1085,7 @@ export class StoreService {
           locale,
           receipt_footer,
           invoice_prefix,
+          receipt_type,
           allow_negative_stock,
           low_stock_threshold_default
         from store.store_settings
@@ -1119,6 +1121,7 @@ export class StoreService {
       locale: string;
       receipt_footer: string | null;
       invoice_prefix: string | null;
+      receipt_type: 'pos' | 'a5' | 'a4';
       allow_negative_stock: boolean;
       low_stock_threshold_default: number | null;
       updated_at: string;
@@ -1131,6 +1134,7 @@ export class StoreService {
           locale = coalesce($4, locale),
           receipt_footer = case when $5::text is null then receipt_footer else $5 end,
           invoice_prefix = case when $6::text is null then invoice_prefix else $6 end,
+          receipt_type = coalesce($9, receipt_type),
           allow_negative_stock = coalesce($7, allow_negative_stock),
           low_stock_threshold_default = case when $8::integer is null then low_stock_threshold_default else $8 end,
           updated_at = now()
@@ -1142,6 +1146,7 @@ export class StoreService {
           locale,
           receipt_footer,
           invoice_prefix,
+          receipt_type,
           allow_negative_stock,
           low_stock_threshold_default,
           updated_at
@@ -1155,6 +1160,7 @@ export class StoreService {
         payload.invoicePrefix === undefined ? null : payload.invoicePrefix,
         payload.allowNegativeStock ?? null,
         payload.lowStockThresholdDefault === undefined ? null : payload.lowStockThresholdDefault,
+        payload.receiptType ?? null,
       ],
     );
 

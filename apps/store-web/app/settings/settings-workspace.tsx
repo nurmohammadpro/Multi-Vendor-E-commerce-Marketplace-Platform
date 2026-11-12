@@ -13,6 +13,26 @@ import {
 } from '../merchflow-theme';
 import { useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
 import { useTheme } from '@mvp/theme';
+import { renderInvoiceFragment } from '../../lib/invoice-template';
+import { renderReceipt } from '../../lib/receipt-template.js';
+
+function scopeDocumentCss(html: string, scopeId: string) {
+  const styleMatch = html.match(/<style>([\s\S]*?)<\/style>/);
+  const css = (styleMatch ? styleMatch[1] : '').replace(/@media print\{[\s\S]*$/, '');
+  const page = html.slice(html.indexOf('<div class="page">'), html.lastIndexOf('</div></body>'));
+  const scope = '#' + scopeId;
+  const scoped = css.split('}').map((chunk) => {
+    const i = chunk.indexOf('{');
+    if (i < 0) return chunk;
+    const sel = chunk.slice(0, i).trim();
+    if (!sel) return chunk;
+    if (sel === 'body') return scope + chunk.slice(i);
+    return scope + ' ' + sel + chunk.slice(i);
+  }).join('}');
+  return '<style>' + scoped + '</style>' + page;
+}
+
+type ReceiptType = 'pos' | 'a5' | 'a4';
 
 type StoreProfile = {
   id: string;
@@ -34,6 +54,7 @@ type StoreSettings = {
   locale: 'en' | 'bn';
   receipt_footer?: string | null;
   invoice_prefix?: string | null;
+  receipt_type?: ReceiptType | null;
   allow_negative_stock: boolean;
   low_stock_threshold_default?: number | null;
   points_per_amount?: number | null;
@@ -41,6 +62,12 @@ type StoreSettings = {
   gold_threshold?: number | null;
   platinum_threshold?: number | null;
 };
+
+const RECEIPT_TYPES: Array<{ key: ReceiptType; label: string; detail: string; scale: number; docWidth: number }> = [
+  { key: 'pos', label: 'POS thermal', detail: '80mm roll — silent print via the local print agent', scale: 0.62, docWidth: 302 },
+  { key: 'a5', label: 'A5 receipt', detail: 'Half-letter laser paper — compact design', scale: 0.48, docWidth: 529 },
+  { key: 'a4', label: 'A4 invoice', detail: 'Full-page invoice for wholesale orders', scale: 0.35, docWidth: 725 },
+];
 
 async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
   const response = await fetch(input, init);
@@ -83,6 +110,7 @@ export function SettingsWorkspace({ canManageSettings }: { canManageSettings: bo
     platinumThreshold: '2000',
   });
   const [activeTab, setActiveTab] = useState<'identity' | 'operations' | 'appearance'>('identity');
+  const [savingReceipt, setSavingReceipt] = useState(false);
   const { theme: currentTheme, setTheme, mode: currentMode, setMode, resolvedMode } = useTheme();
 
   const THEME_ITEMS: Array<{ id: string; label: string }> = [
@@ -236,6 +264,58 @@ export function SettingsWorkspace({ canManageSettings }: { canManageSettings: bo
       setLoading(false);
     }
   };
+
+  const saveReceiptType = async (receiptType: ReceiptType) => {
+    setSavingReceipt(true);
+    try {
+      await readJson('/api/store/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ receiptType }),
+      });
+      await refresh();
+      setMessage('Receipt type updated.');
+    } catch (error) {
+      setMessage((error as Error).message);
+    } finally {
+      setSavingReceipt(false);
+    }
+  };
+
+  const sampleReceipt = useMemo(() => {
+    const prefix = (settings?.invoice_prefix || 'INV').trim().toUpperCase() || 'INV';
+    return {
+      saleNo: 'SALE-000042',
+      invoiceNo: `${prefix}-0042`,
+      saleDate: new Date().toISOString(),
+      paymentTerms: 'paid' as const,
+      saleType: 'paid' as const,
+      store: {
+        name: profile?.name || 'My Shop',
+        logoUrl: profile?.logo_url || '',
+        phone: profile?.phone || '',
+        email: profile?.email || '',
+        address: profile?.address_text || '',
+        footer: settings?.receipt_footer || '',
+      },
+      customer: { name: 'Sample Customer', phone: '01700-000000' },
+      items: [
+        { name: 'Sample Product A', skuCode: 'SKU-001', qty: 2, unitPrice: 450, lineTotal: 900 },
+        { name: 'Sample Product B', skuCode: 'SKU-002', qty: 1, unitPrice: 1250, lineTotal: 1250 },
+        { name: 'Sample Product C', skuCode: 'SKU-003', qty: 5, unitPrice: 80, lineTotal: 400 },
+        { name: 'Sample Product D', skuCode: 'SKU-004', qty: 3, unitPrice: 150, lineTotal: 450 },
+      ],
+      totals: { subtotal: 3000, discount: 100, vat: 0, tax: 0, shipping: 0, total: 2900, paid: 2900, due: 0, change: 0 },
+      payments: [{ paymentMethod: 'cash', amount: 2900 }],
+      amountInWords: 'Two Thousand Nine Hundred Taka Only',
+    };
+  }, [profile, settings]);
+
+  const receiptPreviews = useMemo(() => ({
+    pos: scopeDocumentCss(renderReceipt(sampleReceipt as any, 'thermal'), 'receipt-preview-pos'),
+    a5: renderInvoiceFragment(sampleReceipt as any, 'a5', 'receipt-preview-a5'),
+    a4: renderInvoiceFragment(sampleReceipt as any, 'a4', 'receipt-preview-a4'),
+  }), [sampleReceipt]);
 
   if (!profile || !settings) {
     return (
@@ -493,6 +573,54 @@ export function SettingsWorkspace({ canManageSettings }: { canManageSettings: bo
               disabled={!canManageSettings || loading}
             />
           </div>
+        </div>
+      </article>
+      ) : null}
+
+      {!compact || activeTab === 'operations' ? (
+      <article style={surfaceCardStyle}>
+        <h3 style={{ marginTop: 0 }}>Receipts &amp; invoices</h3>
+        <p style={{ ...tokenMutedStyle, marginTop: -4 }}>
+          Choose the document printed after every sale. Previews use your store branding — POS thermal
+          prints silently through the print agent; A5 and A4 open the browser print dialog. Wholesale
+          stores printing A4 also get sequential invoice numbers.
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(3, 1fr)', gap: 12 }}>
+          {RECEIPT_TYPES.map((option) => {
+            const selected = (settings?.receipt_type ?? 'pos') === option.key;
+            return (
+              <label
+                key={option.key}
+                style={{
+                  display: 'grid', gap: 8, padding: 12, borderRadius: 10, cursor: 'pointer', alignContent: 'start',
+                  border: selected ? '2px solid #0f172a' : '1px solid var(--border)',
+                  background: selected ? 'rgba(15,23,42,0.03)' : 'transparent',
+                }}
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, fontSize: 13 }}>
+                  <input
+                    type="radio"
+                    name="receipt-type"
+                    checked={selected}
+                    onChange={() => void saveReceiptType(option.key)}
+                    disabled={!canManageSettings || savingReceipt}
+                    style={{ accentColor: '#0f172a' }}
+                  />
+                  {option.label}
+                </span>
+                <span style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>{option.detail}</span>
+                <span style={{ display: 'block', height: 200, overflow: 'hidden', borderRadius: 8, border: '1px solid var(--border)', background: '#fff' }}>
+                  <span
+                    style={{ display: 'block', transform: `scale(${option.scale})`, transformOrigin: 'top left', width: option.docWidth }}
+                    dangerouslySetInnerHTML={{ __html: receiptPreviews[option.key] }}
+                  />
+                </span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: selected ? '#0f172a' : 'var(--muted-foreground)' }}>
+                  {selected ? '✓ Selected' : 'Select'}
+                </span>
+              </label>
+            );
+          })}
         </div>
       </article>
       ) : null}

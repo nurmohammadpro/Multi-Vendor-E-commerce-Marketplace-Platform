@@ -18,7 +18,7 @@ import {
 } from '../merchflow-theme';
 import { ListPager } from '../list-pager';
 import { openInvoicePrintWindow, type ReceiptPayload } from '../../lib/print-agent';
-import { renderInvoiceA4 } from '../../lib/invoice-template';
+import { renderInvoice } from '../../lib/invoice-template';
 
 type InvoiceSale = {
   id: string;
@@ -341,7 +341,7 @@ export function InvoicesWorkspace() {
                 <button onClick={() => setViewPayload(null)} style={secondaryButtonStyle}>Close</button>
               </div>
             </div>
-            <div dangerouslySetInnerHTML={{ __html: renderInvoiceA4(viewPayload) }} />
+            <div dangerouslySetInnerHTML={{ __html: renderInvoice(viewPayload, 'a4') }} />
           </div>
         </div>
       ) : null}
