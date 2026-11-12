@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 
 const ALL_FEATURES = [
   { key: 'dashboard', label: 'Dashboard' },
@@ -54,6 +55,7 @@ type Plan = {
   billing_cycle: string;
   max_users: number;
   max_locations: number;
+  trial_days?: number;
   features_json: string[] | Record<string, unknown> | null;
   is_custom: boolean;
   status: string;
@@ -67,6 +69,7 @@ type PlanForm = {
   billingCycle: 'monthly' | 'yearly';
   maxUsers: string;
   maxLocations: string;
+  trialDays: string;
   features: string[];
 };
 
@@ -78,18 +81,91 @@ const emptyForm: PlanForm = {
   billingCycle: 'monthly',
   maxUsers: '1',
   maxLocations: '1',
+  trialDays: '15',
   features: ['dashboard', 'inventory', 'pos', 'purchases', 'billing', 'settings'],
 };
 
+type RenewalStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
+
+type RenewalRequest = {
+  id: string;
+  store_id: string;
+  store_name: string;
+  plan_code: string;
+  plan_name: string;
+  billing_cycle: 'monthly' | 'yearly';
+  amount: string;
+  payment_method: 'banglaqr' | 'bkash' | 'bank_transfer' | 'cash' | 'other';
+  sender_number: string;
+  transaction_id: string | null;
+  note: string | null;
+  status: RenewalStatus;
+  decision_note: string | null;
+  created_at: string;
+  decided_at: string | null;
+};
+
+type RenewalStatusFilter = RenewalStatus | 'all';
+
+type RenewalDecision = {
+  request: RenewalRequest;
+  action: 'approve' | 'reject';
+};
+
+const RENEWAL_STATUS_FILTERS: Array<{ value: RenewalStatusFilter; label: string }> = [
+  { value: 'all', label: 'All statuses' },
+  { value: 'pending', label: 'Pending' },
+  { value: 'approved', label: 'Approved' },
+  { value: 'rejected', label: 'Rejected' },
+  { value: 'cancelled', label: 'Cancelled' },
+];
+
+const RENEWAL_STATUS_VARIANTS: Record<RenewalStatus, 'default' | 'secondary' | 'destructive' | 'outline'> = {
+  pending: 'default',
+  approved: 'secondary',
+  rejected: 'destructive',
+  cancelled: 'outline',
+};
+
+const PAYMENT_METHOD_LABELS: Record<RenewalRequest['payment_method'], string> = {
+  banglaqr: 'BanglaQR',
+  bkash: 'bKash',
+  bank_transfer: 'Bank transfer',
+  cash: 'Cash',
+  other: 'Other',
+};
+
+function formatAmount(value: string | number | null | undefined) {
+  const amount = Number(value ?? 0);
+  return Number.isFinite(amount) ? amount.toLocaleString() : '0';
+}
+
+function formatLabel(value: string | null | undefined) {
+  if (!value) return '—';
+  return value.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function formatDate(value: string | null | undefined) {
+  if (!value) return '—';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString();
+}
+
+function readErrorDetail(payload: unknown) {
+  if (!payload || typeof payload !== 'object') return '';
+  const record = payload as { error?: unknown; message?: unknown };
+  for (const candidate of [record.message, record.error]) {
+    if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
+    if (Array.isArray(candidate) && candidate.length) return candidate.map(String).join(', ');
+  }
+  return '';
+}
+
 async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
   const response = await fetch(input, init);
-  const payload = (await response.json().catch(() => null)) as T | { error?: string } | null;
+  const payload = (await response.json().catch(() => null)) as T | null;
   if (!response.ok) {
-    throw new Error(
-      payload && typeof payload === 'object' && 'error' in payload && (payload as any).error
-        ? (payload as any).error
-        : `Request failed with ${response.status}`,
-    );
+    throw new Error(readErrorDetail(payload) || `Request failed with ${response.status}`);
   }
   return payload as T;
 }
@@ -102,6 +178,12 @@ export function BillingWorkspace() {
   const [editPlan, setEditPlan] = useState<Plan | null>(null);
   const [form, setForm] = useState<PlanForm>(emptyForm);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [renewalRequests, setRenewalRequests] = useState<RenewalRequest[]>([]);
+  const [renewalStatus, setRenewalStatus] = useState<RenewalStatusFilter>('all');
+  const [renewalLoading, setRenewalLoading] = useState(false);
+  const [decision, setDecision] = useState<RenewalDecision | null>(null);
+  const [decisionNote, setDecisionNote] = useState('');
+  const [decisionBusy, setDecisionBusy] = useState(false);
 
   const refresh = async () => {
     try {
@@ -112,9 +194,31 @@ export function BillingWorkspace() {
     }
   };
 
+  const refreshRenewals = async (status: RenewalStatusFilter) => {
+    setRenewalLoading(true);
+    try {
+      const query = status === 'all' ? '' : `?status=${encodeURIComponent(status)}`;
+      const payload = await readJson<{ requests: RenewalRequest[] }>(
+        `/api/admin/billing/renewal-requests${query}`,
+      );
+      const requests = [...(payload.requests ?? [])].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      );
+      setRenewalRequests(requests);
+    } catch (err) {
+      setMessage((err as Error).message);
+    } finally {
+      setRenewalLoading(false);
+    }
+  };
+
   useEffect(() => {
     void refresh();
   }, []);
+
+  useEffect(() => {
+    void refreshRenewals(renewalStatus);
+  }, [renewalStatus]);
 
   const openCreate = () => {
     setForm(emptyForm);
@@ -135,6 +239,7 @@ export function BillingWorkspace() {
       signupFee: String(Number(plan.signup_fee)),
       billingCycle: plan.billing_cycle as 'monthly' | 'yearly',
       maxUsers: String(plan.max_users),
+      trialDays: String(plan.trial_days ?? 15),
       maxLocations: String(plan.max_locations),
       features,
     });
@@ -161,6 +266,7 @@ export function BillingWorkspace() {
         signupFee: Number(form.signupFee),
         billingCycle: form.billingCycle,
         maxUsers: Number(form.maxUsers),
+        trialDays: Number(form.trialDays),
         maxLocations: Number(form.maxLocations),
         features: form.features,
       };
@@ -214,6 +320,41 @@ export function BillingWorkspace() {
     return features.length
       ? features.map((f) => f.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())).join(', ')
       : 'All basic features';
+  };
+
+  const pendingCount = renewalRequests.filter((request) => request.status === 'pending').length;
+
+  const openDecision = (request: RenewalRequest, action: 'approve' | 'reject') => {
+    setDecision({ request, action });
+    setDecisionNote('');
+  };
+
+  const closeDecision = () => {
+    setDecision(null);
+    setDecisionNote('');
+  };
+
+  const submitDecision = async () => {
+    if (!decision) return;
+    setDecisionBusy(true);
+    try {
+      await readJson(`/api/admin/billing/renewal-requests/${decision.request.id}/${decision.action}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note: decisionNote.trim() || undefined }),
+      });
+      setMessage(
+        `Renewal request for ${decision.request.store_name} ${
+          decision.action === 'approve' ? 'approved.' : 'rejected.'
+        }`,
+      );
+      closeDecision();
+      await refreshRenewals(renewalStatus);
+    } catch (err) {
+      setMessage((err as Error).message);
+    } finally {
+      setDecisionBusy(false);
+    }
   };
 
   return (
@@ -285,6 +426,129 @@ export function BillingWorkspace() {
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-3">
+          <div className="space-y-1">
+            <CardTitle>Renewal Requests</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Manual renewals paid outside the platform. Tenants scan our Bank Asia BanglaQR merchant
+              code and send the number the money was sent from, so match the sender number against our
+              statement before approving.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {pendingCount > 0 && <Badge>{pendingCount} pending</Badge>}
+            <Select
+              value={renewalStatus}
+              onValueChange={(value: string) => setRenewalStatus(value as RenewalStatusFilter)}
+            >
+              <SelectTrigger size="sm" className="w-[170px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {RENEWAL_STATUS_FILTERS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {renewalLoading && renewalRequests.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4">Loading renewal requests…</p>
+          ) : renewalRequests.length === 0 ? (
+            <div className="rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground">
+              No renewal requests yet. When a tenant pays manually and submits a renewal request, it will appear here for review.
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Store</TableHead>
+                  <TableHead>Plan</TableHead>
+                  <TableHead>Amount</TableHead>
+                  <TableHead>Cycle</TableHead>
+                  <TableHead>Payment</TableHead>
+                  <TableHead>Sender Number</TableHead>
+                  <TableHead>Transaction ID</TableHead>
+                  <TableHead>Tenant Note</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {renewalRequests.map((request) => (
+                  <TableRow
+                    key={request.id}
+                    className={request.status === 'pending' ? 'bg-amber-500/5' : undefined}
+                  >
+                    <TableCell className="font-medium">{request.store_name}</TableCell>
+                    <TableCell>
+                      <div>{request.plan_name}</div>
+                      <div className="text-xs text-muted-foreground">{request.plan_code}</div>
+                    </TableCell>
+                    <TableCell className="font-medium">BDT {formatAmount(request.amount)}</TableCell>
+                    <TableCell className="text-muted-foreground">{formatLabel(request.billing_cycle)}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {PAYMENT_METHOD_LABELS[request.payment_method] ?? formatLabel(request.payment_method)}
+                    </TableCell>
+                    <TableCell>
+                      <span className="inline-flex items-center rounded-sm border border-primary/40 bg-primary/10 px-1.5 py-0.5 font-mono text-xs font-semibold text-primary">
+                        {request.sender_number}
+                      </span>
+                    </TableCell>
+                    <TableCell className="font-mono text-xs text-muted-foreground">
+                      {request.transaction_id || '—'}
+                    </TableCell>
+                    <TableCell
+                      className="max-w-[220px] truncate text-muted-foreground"
+                      title={request.note || ''}
+                    >
+                      {request.note || '—'}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col items-start gap-1">
+                        <Badge variant={RENEWAL_STATUS_VARIANTS[request.status] ?? 'outline'}>
+                          {formatLabel(request.status)}
+                        </Badge>
+                        {request.decision_note ? (
+                          <span
+                            className="max-w-[200px] truncate text-xs text-muted-foreground"
+                            title={request.decision_note}
+                          >
+                            {request.decision_note}
+                          </span>
+                        ) : null}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{formatDate(request.created_at)}</TableCell>
+                    <TableCell>
+                      {request.status === 'pending' ? (
+                        <div className="flex gap-1">
+                          <Button size="sm" onClick={() => openDecision(request, 'approve')}>Approve</Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => openDecision(request, 'reject')}
+                          >
+                            Reject
+                          </Button>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
       {message && (
         <Card>
           <CardContent className="pt-4">
@@ -319,7 +583,7 @@ export function BillingWorkspace() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-1.5">
-                <Label>Price (BDT/month)</Label>
+                <Label>Price (BDT/{form.billingCycle === 'yearly' ? 'year' : 'month'})</Label>
                 <Input type="number" min="0" value={form.priceAmount} onChange={(e) => setForm((p) => ({ ...p, priceAmount: e.target.value }))} />
               </div>
               <div className="grid gap-1.5">
@@ -348,6 +612,13 @@ export function BillingWorkspace() {
               <div className="grid gap-1.5">
                 <Label>Max Locations</Label>
                 <Input type="number" min="1" value={form.maxLocations} onChange={(e) => setForm((p) => ({ ...p, maxLocations: e.target.value }))} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-1.5">
+                <Label>Free Trial (days)</Label>
+                <Input type="number" min="0" max="365" value={form.trialDays} onChange={(e) => setForm((p) => ({ ...p, trialDays: e.target.value }))} />
               </div>
             </div>
 
@@ -391,6 +662,77 @@ export function BillingWorkspace() {
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => void deactivatePlan(deleteId!)} disabled={busy}>
               {busy ? 'Deactivating…' : 'Deactivate'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Renewal Request Decision */}
+      <Dialog open={!!decision} onOpenChange={(open) => { if (!open) closeDecision(); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {decision?.action === 'approve' ? 'Approve Renewal Request' : 'Reject Renewal Request'}
+            </DialogTitle>
+            <DialogDescription>
+              {decision?.action === 'approve'
+                ? 'Confirm the sender number matches our Bank Asia statement. Approving cancels the current subscription and starts a fresh billing cycle for this store.'
+                : 'Rejecting leaves the current subscription untouched and closes the request.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          {decision ? (
+            <div className="grid gap-1.5 rounded-md border border-border bg-muted/20 px-3 py-2 text-sm">
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-muted-foreground">Store</span>
+                <span className="font-medium">{decision.request.store_name}</span>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-muted-foreground">Plan</span>
+                <span className="font-medium">
+                  {decision.request.plan_name} ({decision.request.plan_code})
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-muted-foreground">Amount</span>
+                <span className="font-medium">BDT {formatAmount(decision.request.amount)}</span>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-muted-foreground">Sender number</span>
+                <span className="font-mono font-semibold">{decision.request.sender_number}</span>
+              </div>
+              {decision.request.transaction_id ? (
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-muted-foreground">Transaction</span>
+                  <span className="font-mono text-xs">{decision.request.transaction_id}</span>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          <div className="grid gap-1.5">
+            <Label htmlFor="renewalDecisionNote">Decision note (optional)</Label>
+            <Textarea
+              id="renewalDecisionNote"
+              rows={3}
+              value={decisionNote}
+              onChange={(event) => setDecisionNote(event.target.value)}
+              placeholder="e.g. Payment confirmed against the Bank Asia statement for the sender number"
+            />
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={closeDecision}>Cancel</Button>
+            <Button
+              variant={decision?.action === 'reject' ? 'destructive' : 'default'}
+              onClick={() => void submitDecision()}
+              disabled={decisionBusy}
+            >
+              {decisionBusy
+                ? 'Saving…'
+                : decision?.action === 'approve'
+                  ? 'Approve request'
+                  : 'Reject request'}
             </Button>
           </DialogFooter>
         </DialogContent>

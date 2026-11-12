@@ -7,6 +7,7 @@ import { hashPassword } from '@mvp/auth';
 import type { AdminAuthContext, AuthSession, StoreAuthContext } from '../auth/auth.types.js';
 import { AuditService } from '../audit/audit.service.js';
 import { BillingService } from '../billing/billing.service.js';
+import { computeTrialEnd, DEFAULT_TRIAL_DAYS } from '../billing/billing-cycle.js';
 import { normalizePageQuery, stripPaginationTotal } from '../common/pagination.js';
 import { DATABASE_POOL } from '../database/database.constants.js';
 
@@ -495,17 +496,19 @@ export class StoreService {
         [tenantId, store.id, ownerUserId, roleId],
       );
 
-      // Create subscription for the selected plan (defaults to 'basic').
+      // Create the subscription for the selected plan (defaults to 'basic').
+      // Every new store starts on the plan's free trial; the trial end is the
+      // subscription's first renewal date. The paid period that follows is
+      // driven by the plan's own billing cycle, never a fixed month.
       const planCode = payload.planCode || 'basic';
-      const planResult = await client.query<{ id: string }>(
-        `select id from billing.plans where tenant_id = $1 and code = $2 and status = 'active' limit 1`,
+      const planResult = await client.query<{ id: string; trial_days: number }>(
+        `select id, trial_days from billing.plans where tenant_id = $1 and code = $2 and status = 'active' limit 1`,
         [tenantId, planCode],
       );
-      const planId = planResult.rows[0]?.id;
-      if (planId) {
+      const plan = planResult.rows[0];
+      if (plan) {
         const now = new Date();
-        const renewalAt = new Date(now);
-        renewalAt.setMonth(renewalAt.getMonth() + 1);
+        const trialEndsAt = computeTrialEnd(plan.trial_days ?? DEFAULT_TRIAL_DAYS, now);
         await client.query(
           `
             insert into billing.subscriptions (
@@ -513,11 +516,15 @@ export class StoreService {
               start_at, renewal_at, auto_renew, created_at, updated_at
             )
             values (
-              gen_random_uuid(), $1, $2, $3, 'active',
+              gen_random_uuid(), $1, $2, $3, 'trial',
               $4, $5, true, now(), now()
             )
           `,
-          [tenantId, store.id, planId, now.toISOString(), renewalAt.toISOString()],
+          [tenantId, store.id, plan.id, now.toISOString(), trialEndsAt],
+        );
+        await client.query(
+          `update store.stores set subscription_status = 'trial', updated_at = now() where id = $1`,
+          [store.id],
         );
       }
 
@@ -683,8 +690,8 @@ export class StoreService {
           sub.end_at,
           sub.renewal_at,
           sub.auto_renew,
-          p.code,
-          p.name,
+          sub.plan_code,
+          sub.plan_name,
           sales_count.cnt
         order by s.created_at desc
       `,

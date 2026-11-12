@@ -6,6 +6,7 @@ import type { AuthSession, StoreAuthContext } from '../auth/auth.types.js';
 import { RequireContext, RequirePermissions } from '../rbac/rbac.decorators.js';
 import { PermissionsGuard } from '../rbac/permissions.guard.js';
 import { BillingService } from './billing.service.js';
+import { DEFAULT_TRIAL_DAYS } from './billing-cycle.js';
 
 const changeSubscriptionSchema = z.object({
   planCode: z.string().min(1).max(50),
@@ -20,6 +21,7 @@ const createPlanSchema = z.object({
   billingCycle: z.enum(['monthly', 'yearly']).default('monthly'),
   maxUsers: z.number().int().min(1).default(1),
   maxLocations: z.number().int().min(1).default(1),
+  trialDays: z.number().int().min(0).max(365).default(DEFAULT_TRIAL_DAYS),
   features: z.array(z.string()).default([]),
 });
 
@@ -30,6 +32,7 @@ const updatePlanSchema = z.object({
   billingCycle: z.enum(['monthly', 'yearly']).optional(),
   maxUsers: z.number().int().min(1).optional(),
   maxLocations: z.number().int().min(1).optional(),
+  trialDays: z.number().int().min(0).max(365).optional(),
   features: z.array(z.string()).optional(),
   status: z.enum(['active', 'inactive']).optional(),
 });
@@ -41,6 +44,19 @@ const invoicePaymentSchema = z.object({
   referenceNo: z.string().max(100).optional(),
   status: z.enum(['pending', 'paid', 'failed', 'refunded']).default('paid'),
   paidAt: z.string().datetime().optional(),
+});
+
+const renewalRequestSchema = z.object({
+  paymentMethod: z.enum(['banglaqr', 'bkash', 'bank_transfer', 'cash', 'other']).default('banglaqr'),
+  // Mandatory: the tenant scans the Bank Asia BanglaQR merchant code, so we
+  // need the number the money was sent from to match it against our statement.
+  senderNumber: z.string().trim().min(4).max(32),
+  transactionId: z.string().trim().max(100).optional(),
+  note: z.string().trim().max(1000).optional(),
+});
+
+const renewalDecisionSchema = z.object({
+  note: z.string().trim().max(1000).optional(),
 });
 
 @Controller('billing')
@@ -153,6 +169,33 @@ export class BillingController {
       invoicePaymentSchema.parse(payload),
     );
   }
+
+  @Get('renewal-requests')
+  @RequireContext('store')
+  @RequirePermissions('billing.subscription.manage')
+  getRenewalRequests(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+  ) {
+    return this.billingService.getRenewalRequests(headerStoreId, authContext);
+  }
+
+  @Post('renewal-requests')
+  @RequireContext('store')
+  @RequirePermissions('billing.subscription.manage')
+  createRenewalRequest(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @CurrentAuthSession() session: AuthSession | null,
+    @Body() payload: unknown,
+  ) {
+    return this.billingService.createRenewalRequest(
+      headerStoreId,
+      authContext,
+      session,
+      renewalRequestSchema.parse(payload),
+    );
+  }
 }
 
 @Controller('admin/billing')
@@ -218,6 +261,51 @@ export class AdminBillingController {
       storeId,
       session,
       changeSubscriptionSchema.parse(payload),
+    );
+  }
+
+  @Get('renewal-requests')
+  @RequireContext('admin')
+  @RequirePermissions('platform.store.manage')
+  getRenewalRequests(
+    @CurrentAuthSession() session: AuthSession | null,
+    @Query('status') status?: string,
+  ) {
+    if (!session) throw new Error('Missing admin session');
+    return this.billingService.getAdminRenewalRequests(session.user.tenantId, status);
+  }
+
+  @Post('renewal-requests/:requestId/approve')
+  @RequireContext('admin')
+  @RequirePermissions('platform.store.manage')
+  approveRenewalRequest(
+    @Param('requestId') requestId: string,
+    @CurrentAuthSession() session: AuthSession | null,
+    @Body() payload: unknown,
+  ) {
+    if (!session) throw new Error('Missing admin session');
+    return this.billingService.approveRenewalRequest(
+      session.user.tenantId,
+      requestId,
+      session,
+      renewalDecisionSchema.parse(payload).note,
+    );
+  }
+
+  @Post('renewal-requests/:requestId/reject')
+  @RequireContext('admin')
+  @RequirePermissions('platform.store.manage')
+  rejectRenewalRequest(
+    @Param('requestId') requestId: string,
+    @CurrentAuthSession() session: AuthSession | null,
+    @Body() payload: unknown,
+  ) {
+    if (!session) throw new Error('Missing admin session');
+    return this.billingService.rejectRenewalRequest(
+      session.user.tenantId,
+      requestId,
+      session,
+      renewalDecisionSchema.parse(payload).note,
     );
   }
 }

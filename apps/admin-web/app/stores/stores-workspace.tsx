@@ -1029,7 +1029,7 @@ export function StoresWorkspace() {
             </CardHeader>
             <CardContent className="space-y-2 text-sm text-muted-foreground">
               <p>Active and inactive states are separate from billing eligibility.</p>
-              <p>Stores become review-ready seven days after the subscription due date.</p>
+              <p>Stores become review-ready three months after the subscription due date.</p>
               <p>Admins can only delete stores that are inactive and overdue by three months.</p>
               <p>No store is deleted automatically.</p>
               <p>{message}</p>
