@@ -211,14 +211,6 @@ export function InvoicesWorkspace() {
 
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 10 }}>
-      <div>
-        <h1 style={pageTitleStyle}>Invoices</h1>
-        <p style={{ margin: '4px 0 0', fontSize: 14, color: 'var(--muted-foreground)' }}>
-          White-label A4 invoices for wholesale and retail customers. Printing an invoice assigns its
-          sequential invoice number; collect due payments right from this list.
-        </p>
-      </div>
-
       <div style={{ ...surfaceCardStyle, padding: 14 }}>
         <form
           onSubmit={(event) => {

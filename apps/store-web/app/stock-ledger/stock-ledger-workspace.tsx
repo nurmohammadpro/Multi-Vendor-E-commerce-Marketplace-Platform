@@ -114,23 +114,7 @@ export function StockLedgerWorkspace() {
 
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 10 }}>
-      <div style={{ marginBottom: 12 }}>
-        <h1
-          style={{
-            margin: '0 0 6px',
-            fontSize: 'clamp(24px, 2.2vw, 32px)',
-            lineHeight: 1.1,
-            letterSpacing: '-0.03em',
-            fontWeight: 500,
-          }}
-        >
-          Stock Ledger
-        </h1>
-        <p style={{ ...tokenMutedStyle, margin: 0 }}>
-          View complete stock movement history and adjustments.
-        </p>
-      </div>
-
+      
       <section style={{ ...sectionPanelStyle, gridTemplateColumns: '1fr' }}>
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Stock Movement Ledger</h3>
@@ -202,10 +186,7 @@ export function StockLedgerWorkspace() {
         </article>
       </section>
 
-      <article style={surfaceCardStyle}>
-        <h3 style={{ marginTop: 0 }}>Operator Notes</h3>
-        <p style={tokenMutedStyle}>{message}</p>
-      </article>
+      <p style={tokenMutedStyle}>{message}</p>
     </section>
   );
 }

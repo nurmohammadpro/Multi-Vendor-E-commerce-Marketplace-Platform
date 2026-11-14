@@ -315,10 +315,7 @@ export function ReportsWorkspace({ canViewReports }: { canViewReports: boolean }
       </article>
       ) : null}
 
-      <article style={surfaceCardStyle}>
-        <h3 style={{ marginTop: 0 }}>Operator Notes</h3>
-        <p style={tokenMutedStyle}>{message}</p>
-      </article>
+      <p style={tokenMutedStyle}>{message}</p>
     </section>
   );
 }

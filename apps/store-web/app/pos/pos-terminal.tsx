@@ -232,7 +232,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
   const [openingCash, setOpeningCash] = useState('0');
   const [closingCash, setClosingCash] = useState('0');
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('POS ready for barcode-first checkout.');
+  const [message, setMessage] = useState('POS ready.');
 
   const [printHealth, setPrintHealth] = useState<PrintAgentHealth | null>(null);
   const [printError, setPrintError] = useState<string | null>(null);
@@ -1037,7 +1037,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
               <div>
                 <h3 style={{ marginTop: 0, marginBottom: 4, fontSize: 14 }}>Product Search</h3>
                 <p style={{ margin: 0, color: 'var(--muted-foreground)', fontSize: 12, lineHeight: 1.35 }}>
-                  Search, scan, and select the exact sellable item fast.
+                  Search by barcode, product or SKU.
                 </p>
               </div>
               <div style={{ display: 'grid', gap: 2, fontSize: 11, color: 'var(--muted-foreground)', textAlign: 'right' }}>
@@ -1154,7 +1154,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
               <div>
                 <h3 style={{ marginTop: 0, marginBottom: 6 }}>Cart</h3>
                 <p style={{ margin: 0, color: 'var(--muted-foreground)' }}>
-                  Keep the cart tight: selling price, quantity, line total, and nothing distracting.
+                  Add products to build the sale.
                 </p>
               </div>
               <div style={{ fontSize: 12, color: 'var(--muted-foreground)', textAlign: 'right' }}>
@@ -1840,7 +1840,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
 
       
 <article style={cardStyle}>
-        <h3 style={{ marginTop: 0 }}>Operator Notes</h3>
+        <h3 style={{ marginTop: 0 }}>Last Sale</h3>
         <p style={{ marginTop: 0, color: 'var(--muted-foreground)' }}>{message}</p>
         {lastInvoice ? (
           <div style={{ marginBottom: 10, display: 'grid', gap: 10 }}>

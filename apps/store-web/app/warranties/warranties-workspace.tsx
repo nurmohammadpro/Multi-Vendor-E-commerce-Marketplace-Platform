@@ -216,15 +216,6 @@ export function WarrantiesWorkspace() {
 
   return (
     <div style={pageShellStyle}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 12, marginBottom: 12 }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em' }}>Warranties</h1>
-          <p style={{ ...tokenMutedStyle, marginTop: 2 }}>
-            Register sold devices under warranty policies and track coverage by serial or IMEI.
-          </p>
-        </div>
-      </div>
-
       <WorkspaceTabs
         active={activeTab}
         onChange={(key) => setActiveTab(key as 'register' | 'history')}

@@ -442,11 +442,6 @@ export function TaxonomyWorkspace({ canManageCatalog }: { canManageCatalog: bool
 
       </div>
 
-      {/* Operator Notes */}
-      <article style={surfaceCardStyle}>
-        <h3 style={{ marginTop: 0 }}>Operator Notes</h3>
-        <p style={tokenMutedStyle}>{message}</p>
-      </article>
     </section>
   );
 }

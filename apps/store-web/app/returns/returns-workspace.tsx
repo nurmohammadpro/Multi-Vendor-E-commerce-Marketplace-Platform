@@ -776,11 +776,7 @@ export function ReturnsWorkspace() {
 
   return (
     <div style={pageShellStyle}>
-      <div style={{ marginBottom: 12 }}>
-        <h1 style={{ margin: '0 0 6px', fontSize: 'clamp(24px, 2.2vw, 32px)', lineHeight: 1.1, letterSpacing: '-0.03em', fontWeight: 500 }}>
-          Returns & Refunds
-        </h1>
-      </div>
+      
       <button onClick={() => { setSelectedSale(null); setError(''); }} style={{ ...secondaryButtonStyle, marginBottom: 10 }}>
         &larr; Back to Sales List
       </button>

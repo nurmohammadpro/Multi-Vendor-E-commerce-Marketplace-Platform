@@ -808,11 +808,7 @@ export function ExchangeWorkspace() {
   if (tab === 'new' && selectedSale) {
     return (
       <div style={pageShellStyle}>
-        <div style={{ marginBottom: 12 }}>
-          <h1 style={{ margin: '0 0 6px', fontSize: 'clamp(24px, 2.2vw, 32px)', lineHeight: 1.1, letterSpacing: '-0.03em', fontWeight: 500 }}>
-            New Exchange
-          </h1>
-        </div>
+        
         <button onClick={() => { setSelectedSale(null); setError(''); }} style={{ ...secondaryButtonStyle, marginBottom: 10 }}>
           &larr; Back to Lookup
         </button>
@@ -1321,15 +1317,7 @@ export function ExchangeWorkspace() {
   // ── Lookup view (new tab) / history list (history tab) ──
   return (
     <div style={pageShellStyle}>
-      <div style={{ marginBottom: 12 }}>
-        <h1 style={{ margin: '0 0 6px', fontSize: 'clamp(24px, 2.2vw, 32px)', lineHeight: 1.1, letterSpacing: '-0.03em', fontWeight: 500 }}>
-          Exchange
-        </h1>
-        <p style={{ ...tokenMutedStyle, margin: 0, fontSize: 14 }}>
-          Swap a customer&apos;s purchased item for another product — collect or refund the difference.
-        </p>
-      </div>
-
+      
       <div style={{ marginBottom: 10 }}>
         <WorkspaceTabs
           tabs={[

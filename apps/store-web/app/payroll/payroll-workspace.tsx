@@ -677,10 +677,7 @@ export function PayrollWorkspace({ embedded = false }: { embedded?: boolean }) {
         ) : <div style={emptyStateStyle}>No payroll runs created yet.</div>}
       </article>
 
-      <article style={surfaceCardStyle}>
-        <h3 style={{ marginTop: 0 }}>Operator Notes</h3>
-        <p style={tokenMutedStyle}>{message}</p>
-      </article>
+      <p style={tokenMutedStyle}>{message}</p>
     </section>
   );
 }

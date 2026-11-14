@@ -459,10 +459,7 @@ export function ExpensesWorkspace() {
         </article>
       </section>
 
-        <article style={surfaceCardStyle}>
-          <h3 style={{ marginTop: 0, fontSize: 14 }}>Operator Notes</h3>
-          <p style={tokenMutedStyle}>{message}</p>
-        </article>
+      <p style={tokenMutedStyle}>{message}</p>
     </section>
   );
 }

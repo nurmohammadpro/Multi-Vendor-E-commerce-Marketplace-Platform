@@ -303,15 +303,6 @@ export function SalesHistoryWorkspace() {
 
   return (
     <div style={pageShellStyle}>
-      <div style={{ marginBottom: 12 }}>
-        <h1 style={{ margin: '0 0 6px', fontSize: 'clamp(24px, 2.2vw, 32px)', lineHeight: 1.1, letterSpacing: '-0.03em', fontWeight: 500 }}>
-          Sales History
-        </h1>
-        <p style={{ ...tokenMutedStyle, margin: 0 }}>
-          View, search, and reprint past sales.
-        </p>
-      </div>
-
       <form onSubmit={handleSearch} style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
         <input
           ref={searchRef}

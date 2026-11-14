@@ -368,10 +368,7 @@ export function ShippingWorkspace({
         ) : null}
       </section>
 
-      <article style={cardStyle}>
-        <h3 style={{ marginTop: 0 }}>Operator Notes</h3>
-        <p style={{ marginBottom: 0, color: 'var(--muted-foreground)' }}>{message}</p>
-      </article>
+      <p style={tokenMutedStyle}>{message}</p>
     </section>
   );
 }
