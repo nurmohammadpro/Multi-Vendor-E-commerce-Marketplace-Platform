@@ -241,10 +241,10 @@ export function TaxonomyWorkspace({ canManageCatalog }: { canManageCatalog: bool
   });
 
   return (
-    <section style={{ display: 'grid', gap: 16 }}>
+    <section style={{ display: 'grid', gap: 10 }}>
       <p style={{ margin: 0, color: 'var(--muted-foreground)', fontSize: 13 }}>{message}</p>
 
-      <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : '1fr 1fr', gap: 16, alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : '1fr 1fr', gap: 10, alignItems: 'start' }}>
 
         {/* ═══════════ Categories Panel ═══════════ */}
         <article style={surfaceCardStyle}>
@@ -269,7 +269,7 @@ export function TaxonomyWorkspace({ canManageCatalog }: { canManageCatalog: bool
 
           {/* Category create/edit form */}
           {categoryFormOpen ? (
-            <div style={{ display: 'grid', gap: 8, marginBottom: 12, padding: 10, background: 'var(--muted)', borderRadius: 8 }}>
+            <div style={{ display: 'grid', gap: 8, marginBottom: 12, padding: 10, background: 'var(--muted)', borderRadius: 6 }}>
               <input
                 value={categoryForm.code}
                 onChange={(e) => setCategoryForm((c) => ({ ...c, code: e.target.value }))}
@@ -374,7 +374,7 @@ export function TaxonomyWorkspace({ canManageCatalog }: { canManageCatalog: bool
 
           {/* Brand create/edit form */}
           {brandFormOpen ? (
-            <div style={{ display: 'grid', gap: 8, marginBottom: 12, padding: 10, background: 'var(--muted)', borderRadius: 8 }}>
+            <div style={{ display: 'grid', gap: 8, marginBottom: 12, padding: 10, background: 'var(--muted)', borderRadius: 6 }}>
               <input
                 data-enter-nav="false"
                 value={brandForm.name}

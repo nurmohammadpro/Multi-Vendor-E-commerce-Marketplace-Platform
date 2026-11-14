@@ -5,7 +5,7 @@ import { SupportWorkspace } from './support-workspace';
 export default async function StoreSupportPage() {
   const access = await getStoreConsoleAccess();
   return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
+    <section style={{ ...pageShellStyle, display: 'grid', gap: 12 }}>
       <SupportWorkspace canUseSupport={access.canUseSupport} kind="support" />
     </section>
   );

@@ -106,8 +106,8 @@ export function ComboboxAddNew({
         <div
           style={{
             position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 40,
-            background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8,
-            boxShadow: '0 10px 24px rgba(0,0,0,0.14)', maxHeight: 240, overflowY: 'auto', marginTop: 2,
+            background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 6,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.12)', maxHeight: 240, overflowY: 'auto', marginTop: 2,
           }}
         >
           {creatingName === null ? (
@@ -118,7 +118,7 @@ export function ComboboxAddNew({
                   type="button"
                   onClick={() => { onChange(option.id); setOpen(false); }}
                   style={{
-                    display: 'block', width: '100%', textAlign: 'left', padding: '7px 10px',
+                    display: 'block', width: '100%', textAlign: 'left', padding: '5px 8px',
                     fontSize: 13, background: option.id === value ? 'rgba(15,23,42,0.05)' : 'transparent',
                     color: 'var(--foreground)', border: 'none', borderBottom: '1px solid var(--border)', cursor: 'pointer',
                   }}
@@ -127,7 +127,7 @@ export function ComboboxAddNew({
                 </button>
               ))}
               {matches.length === 0 && filter.trim() ? (
-                <div style={{ padding: '7px 10px', fontSize: 12, color: 'var(--muted-foreground)' }}>No matches.</div>
+                <div style={{ padding: '5px 8px', fontSize: 12, color: 'var(--muted-foreground)' }}>No matches.</div>
               ) : null}
               <button
                 type="button"
@@ -158,14 +158,14 @@ export function ComboboxAddNew({
                   type="button"
                   onClick={() => void submitCreate()}
                   disabled={creatingBusy || !creatingName.trim()}
-                  style={{ flex: 1, padding: '7px 10px', fontSize: 12.5, fontWeight: 600, borderRadius: 8, border: 'none', background: '#0f172a', color: '#fff', cursor: 'pointer' }}
+                  style={{ flex: 1, padding: '5px 8px', fontSize: 12.5, fontWeight: 600, borderRadius: 6, border: 'none', background: '#0f172a', color: '#fff', cursor: 'pointer' }}
                 >
                   {creatingBusy ? 'Creating…' : 'Create'}
                 </button>
                 <button
                   type="button"
                   onClick={() => { setCreatingName(null); setError(''); }}
-                  style={{ padding: '7px 10px', fontSize: 12.5, borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', color: 'var(--foreground)', cursor: 'pointer' }}
+                  style={{ padding: '5px 8px', fontSize: 12.5, borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', color: 'var(--foreground)', cursor: 'pointer' }}
                 >
                   Cancel
                 </button>

@@ -429,7 +429,7 @@ export function PayrollWorkspace({ embedded = false }: { embedded?: boolean }) {
   const totalRunPages = totalPagesFor(runPagination);
 
   return (
-    <section style={embedded ? { display: 'grid', gap: 16 } : { ...pageShellStyle, display: 'grid', gap: 16 }}>
+    <section style={embedded ? { display: 'grid', gap: 10 } : { ...pageShellStyle, display: 'grid', gap: 10 }}>
       {/* ── Payroll Summary Card ── */}
       {summary ? (
         <article style={{ ...surfaceCardStyle, padding: '14px 18px' }}>
@@ -440,19 +440,19 @@ export function PayrollWorkspace({ embedded = false }: { embedded?: boolean }) {
             </span>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
-            <div style={{ background: '#d1fae5', borderRadius: 8, padding: '10px 14px' }}>
+            <div style={{ background: '#d1fae5', borderRadius: 6, padding: '10px 14px' }}>
               <div style={{ fontSize: 18, fontWeight: 700, color: '#065f46' }}>BDT {summary.currentMonthPaid.toFixed(2)}</div>
               <div style={{ fontSize: 12, color: '#065f46', marginTop: 2 }}>Paid Out</div>
             </div>
-            <div style={{ background: '#fef3c7', borderRadius: 8, padding: '10px 14px' }}>
+            <div style={{ background: '#fef3c7', borderRadius: 6, padding: '10px 14px' }}>
               <div style={{ fontSize: 18, fontWeight: 700, color: '#92400e' }}>{summary.currentMonthDraftCount}</div>
               <div style={{ fontSize: 12, color: '#92400e', marginTop: 2 }}>Pending Approval</div>
             </div>
-            <div style={{ background: '#dbeafe', borderRadius: 8, padding: '10px 14px' }}>
+            <div style={{ background: '#dbeafe', borderRadius: 6, padding: '10px 14px' }}>
               <div style={{ fontSize: 18, fontWeight: 700, color: '#1e40af' }}>{summary.currentMonthApprovedCount}</div>
               <div style={{ fontSize: 12, color: '#1e40af', marginTop: 2 }}>Approved Unpaid</div>
             </div>
-            <div style={{ background: '#f3f4f6', borderRadius: 8, padding: '10px 14px' }}>
+            <div style={{ background: '#f3f4f6', borderRadius: 6, padding: '10px 14px' }}>
               <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--foreground)' }}>{summary.totalEmployees}</div>
               <div style={{ fontSize: 12, color: 'var(--muted-foreground)', marginTop: 2 }}>Employees on File</div>
             </div>
@@ -606,7 +606,7 @@ export function PayrollWorkspace({ embedded = false }: { embedded?: boolean }) {
         </div>
 
         {/* ── Export section ── */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginBottom: 12, padding: 8, background: 'var(--muted)', borderRadius: 8 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginBottom: 12, padding: 8, background: 'var(--muted)', borderRadius: 6 }}>
           <select value={exportMode} onChange={(e) => setExportMode(e.target.value as 'monthly' | 'daterange')} style={{ ...fieldStyle, width: 'auto', minWidth: 120, fontSize: 12 }}>
             <option value="monthly">Monthly</option>
             <option value="daterange">Date range</option>

@@ -188,14 +188,14 @@ export function ProductForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} style={{ display: 'grid', gap: 20 }}>
+    <form onSubmit={handleSubmit} style={{ display: 'grid', gap: 12 }}>
       {error && (
         <div style={{
           borderRadius: 4,
           border: '1px solid var(--destructive)',
           background: 'var(--destructive)',
           color: '#ffffff',
-          padding: '8px 12px',
+          padding: '6px 10px',
           fontSize: 12,
         }}>
           {error}
@@ -205,7 +205,7 @@ export function ProductForm({
       {/* Basic Info */}
       <article style={surfaceCardStyle}>
         <h3 style={{ margin: '0 0 16px', fontSize: 13, fontWeight: 600 }}>Basic Information</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10 }}>
           <div style={fieldContainerStyle}>
             <label style={labelStyle}>Product Name *</label>
             <input
@@ -254,7 +254,7 @@ export function ProductForm({
             </select>
           </div>
         </div>
-        <div style={{ ...fieldContainerStyle, marginTop: 16 }}>
+        <div style={{ ...fieldContainerStyle, marginTop: 10 }}>
           <label style={labelStyle}>Description</label>
           <textarea
             value={form.description}
@@ -269,7 +269,7 @@ export function ProductForm({
       {/* Status & Tracking */}
       <article style={surfaceCardStyle}>
         <h3 style={{ margin: '0 0 16px', fontSize: 13, fontWeight: 600 }}>Status & Tracking</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
           <div style={fieldContainerStyle}>
             <label style={labelStyle}>Status</label>
             <select
@@ -308,7 +308,7 @@ export function ProductForm({
             </select>
           </div>
         </div>
-        <div style={{ marginTop: 16 }}>
+        <div style={{ marginTop: 10 }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
             <input
               type="checkbox"
@@ -324,7 +324,7 @@ export function ProductForm({
       {/* Variant Mode */}
       <article style={surfaceCardStyle}>
         <h3 style={{ margin: '0 0 16px', fontSize: 13, fontWeight: 600 }}>Variants</h3>
-        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           {['none', 'single', 'multi'].map((mode) => (
             <label key={mode} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
               <input

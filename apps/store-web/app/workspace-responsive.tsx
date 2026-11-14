@@ -36,7 +36,7 @@ export function WorkspaceTabs({
         flexWrap: 'wrap',
         gap: 8,
         padding: 8,
-        borderRadius: 8,
+        borderRadius: 6,
         border: `1px solid ${merchflowColors.border}`,
         background: merchflowColors.backgroundAlt,
       }}

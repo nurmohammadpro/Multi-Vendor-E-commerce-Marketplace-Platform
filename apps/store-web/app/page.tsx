@@ -149,14 +149,14 @@ export default async function StoreDashboard() {
 
   return (
     <div style={pageShellStyle}>
-      <div style={{ marginBottom: 32 }}>
+      <div style={{ marginBottom: 10 }}>
         <h1 style={{ ...pageTitleStyle, marginBottom: 6 }}>
           {access.storeName || 'Store Dashboard'}
         </h1>
         <p style={{ ...tokenMutedStyle, margin: 0 }}>{access.planName} plan · {access.role} access</p>
       </div>
 
-      <section style={{ ...sectionPanelStyle, gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', marginBottom: 24 }}>
+      <section style={{ ...sectionPanelStyle, gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', marginBottom: 12 }}>
         <article style={surfaceCardStyle}>
           <div style={metricLabelStyle}>Today's Sales</div>
           <div style={metricValueStyle}>{todaySales}</div>
@@ -184,7 +184,7 @@ export default async function StoreDashboard() {
       </section>
 
       {canViewSuppliers && totalSuppliers !== '—' ? (
-      <section style={{ marginBottom: 32 }}>
+      <section style={{ marginBottom: 10 }}>
         <div style={{ ...sectionLabelStyle, marginBottom: 10 }}>Suppliers &amp; Payables</div>
         <section style={{ ...sectionPanelStyle, gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
           <article style={surfaceCardStyle}>
@@ -200,7 +200,7 @@ export default async function StoreDashboard() {
           {payableAging ? (
             <article style={{ ...surfaceCardStyle, gridColumn: 'span 2' }}>
               <div style={metricLabelStyle}>Payable Aging</div>
-              <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 8 }}>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 8 }}>
                 <div style={{ textAlign: 'center', minWidth: 56 }}>
                   <div style={{ fontSize: 15, fontWeight: 700 }}>BDT {formatMoney(payableAging.today_amount)}</div>
                   <div style={{ fontSize: 10, color: 'var(--muted-foreground)', marginTop: 2 }}>Today</div>
@@ -247,14 +247,14 @@ export default async function StoreDashboard() {
                     href={action.href}
                     style={{
                       ...surfaceCardStyle,
-                      display: 'flex', gap: 16, alignItems: 'flex-start',
+                      display: 'flex', gap: 10, alignItems: 'flex-start',
                       textDecoration: 'none', color: merchflowColors.ink,
                       transition: 'border-color 0.15s, box-shadow 0.15s',
                     }}
                   >
                     <div style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      width: 44, height: 44, borderRadius: 10, flexShrink: 0,
+                      width: 44, height: 44, borderRadius: 6, flexShrink: 0,
                       background: merchflowColors.backgroundAlt, border: `1px solid ${merchflowColors.border}`,
                     }}>
                       <Icon size={20} style={{ color: merchflowColors.ink }} />

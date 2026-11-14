@@ -279,7 +279,7 @@ export function BillingWorkspace({ canManageBilling }: { canManageBilling: boole
 
   if (!canManageBilling) {
     return (
-      <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
+      <section style={{ ...pageShellStyle, display: 'grid', gap: 10 }}>
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Billing access limited</h3>
           <p style={tokenMutedStyle}>Only the store owner can manage billing, plans, and invoice payments.</p>
@@ -289,7 +289,7 @@ export function BillingWorkspace({ canManageBilling }: { canManageBilling: boole
   }
 
   return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
+    <section style={{ ...pageShellStyle, display: 'grid', gap: 10 }}>
       {compact ? (
         <WorkspaceTabs
           active={activeTab}
@@ -377,7 +377,7 @@ export function BillingWorkspace({ canManageBilling }: { canManageBilling: boole
               <img
                 src="/banglaqr-payment.png"
                 alt="Bank Asia BanglaQR payment code"
-                style={{ width: '100%', border: '1px solid var(--border)', borderRadius: 8, background: '#fff' }}
+                style={{ width: '100%', border: '1px solid var(--border)', borderRadius: 6, background: '#fff' }}
               />
               <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginTop: 6, textAlign: 'center' }}>
                 Scan with any BanglaQR app

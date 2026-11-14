@@ -12,7 +12,7 @@ export default async function StoreStaffPage({
   const initialTab = resolvedSearchParams?.tab === 'payroll' ? 'payroll' : 'users';
 
   return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
+    <section style={{ ...pageShellStyle, display: 'grid', gap: 12 }}>
       <TeamWorkspace canManageStaff={access.canManageStaff} canUsePayroll={access.canUsePayroll} initialTab={initialTab} />
     </section>
   );

@@ -378,15 +378,15 @@ export function ReturnsWorkspace() {
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }} onClick={() => { setExportOpen(false); setExportData(null); }}>
         <div style={{
-          background: '#fff', borderRadius: 16, padding: 24, maxWidth: 500, width: '95%',
-          maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+          background: '#fff', borderRadius: 6, padding: 10, maxWidth: 500, width: '95%',
+          maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
         }} onClick={(e) => e.stopPropagation()}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
             <h3 style={{ margin: 0, fontSize: 16 }}>Export Returns Report</h3>
             <button onClick={() => { setExportOpen(false); setExportData(null); }} style={{ ...secondaryButtonStyle, minWidth: 40 }}>✕</button>
           </div>
 
-          <div style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: 10 }}>
             <label style={{ display: 'block', marginBottom: 8, fontWeight: 500, fontSize: 14 }}>Report Period</label>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
@@ -431,7 +431,7 @@ export function ReturnsWorkspace() {
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
             <button onClick={fetchReturnsReport} style={searchButtonStyle} disabled={exportLoading}>
               {exportLoading ? 'Loading...' : 'Generate Report'}
             </button>
@@ -439,10 +439,10 @@ export function ReturnsWorkspace() {
 
           {exportData ? (
             <>
-              <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
                 <button onClick={exportReturnsCsv} style={gray800ButtonStyle}>Export CSV</button>
               </div>
-              <div style={{ background: 'var(--muted)', padding: 12, borderRadius: 8, marginBottom: 16 }}>
+              <div style={{ background: 'var(--muted)', padding: 10, borderRadius: 6, marginBottom: 10 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Report Summary</div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, fontSize: 13 }}>
                   <div>Total Returns: <strong>{exportData.summary.totalReturns}</strong></div>
@@ -461,16 +461,16 @@ export function ReturnsWorkspace() {
     return (
       <div style={pageShellStyle}>
         {message && (
-          <div style={{ background: '#d1fae5', color: '#065f46', padding: '10px 16px', borderRadius: 8, marginBottom: 12, fontSize: 14 }}>
+          <div style={{ background: '#d1fae5', color: '#065f46', padding: '6px 10px', borderRadius: 6, marginBottom: 12, fontSize: 14 }}>
             {message}
           </div>
         )}
         {error && (
-          <div style={{ background: '#fee2e2', color: '#991b1b', padding: '10px 16px', borderRadius: 8, marginBottom: 12, fontSize: 14 }}>
+          <div style={{ background: '#fee2e2', color: '#991b1b', padding: '6px 10px', borderRadius: 6, marginBottom: 12, fontSize: 14 }}>
             {error}
           </div>
         )}
-        <div style={{ ...searchRowStyle, marginBottom: 16 }}>
+        <div style={{ ...searchRowStyle, marginBottom: 10 }}>
           <input
             value={searchQuery}
             onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
@@ -635,15 +635,15 @@ export function ReturnsWorkspace() {
     return (
       <div style={pageShellStyle}>
         {/* Success banner */}
-        <div style={{ background: '#d1fae5', color: '#065f46', padding: '16px 20px', borderRadius: 8, marginBottom: 16, fontSize: 14 }}>
+        <div style={{ background: '#d1fae5', color: '#065f46', padding: '16px 20px', borderRadius: 6, marginBottom: 10, fontSize: 14 }}>
           <strong>Return processed successfully.</strong> {message}
         </div>
 
         {/* Refund receipt card */}
         {rr ? (
-          <article style={{ ...surfaceCardStyle, marginBottom: 16 }}>
+          <article style={{ ...surfaceCardStyle, marginBottom: 10 }}>
             {/* Store header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, paddingBottom: 12, borderBottom: '2px solid var(--border)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10, paddingBottom: 12, borderBottom: '2px solid var(--border)' }}>
               <div>
                 <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em' }}>{rr.store?.name || 'Store'}</div>
                 {rr.store?.phone && <div style={{ ...tokenMutedStyle, fontSize: 12 }}>{rr.store.phone}</div>}
@@ -657,7 +657,7 @@ export function ReturnsWorkspace() {
             </div>
 
             {/* Customer & Reason */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 10 }}>
               <div>
                 <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#64748b', marginBottom: 2 }}>Customer</div>
                 <div style={{ fontWeight: 600 }}>{rr.customer?.name || 'Walk-in'}</div>
@@ -740,7 +740,7 @@ export function ReturnsWorkspace() {
             )}
 
             {/* Totals */}
-            <div style={{ marginTop: 12, padding: '12px 16px', background: 'var(--muted)', borderRadius: 8 }}>
+            <div style={{ marginTop: 12, padding: '12px 16px', background: 'var(--muted)', borderRadius: 6 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
                 <span style={{ color: '#64748b' }}>Original Total</span>
                 <span>{rr.totals.originalTotal.toFixed(2)}</span>
@@ -756,7 +756,7 @@ export function ReturnsWorkspace() {
             </div>
 
             {/* Actions */}
-            <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
               <button onClick={handlePrintRefundReceipt} style={gray800ButtonStyle}>
                 Print Refund Receipt
               </button>
@@ -776,17 +776,17 @@ export function ReturnsWorkspace() {
 
   return (
     <div style={pageShellStyle}>
-      <div style={{ marginBottom: 24 }}>
+      <div style={{ marginBottom: 12 }}>
         <h1 style={{ margin: '0 0 6px', fontSize: 'clamp(24px, 2.2vw, 32px)', lineHeight: 1.1, letterSpacing: '-0.03em', fontWeight: 500 }}>
           Returns & Refunds
         </h1>
       </div>
-      <button onClick={() => { setSelectedSale(null); setError(''); }} style={{ ...secondaryButtonStyle, marginBottom: 16 }}>
+      <button onClick={() => { setSelectedSale(null); setError(''); }} style={{ ...secondaryButtonStyle, marginBottom: 10 }}>
         &larr; Back to Sales List
       </button>
 
       {error && (
-        <div style={{ background: '#fee2e2', color: '#991b1b', padding: '10px 16px', borderRadius: 8, marginBottom: 12, fontSize: 14 }}>
+        <div style={{ background: '#fee2e2', color: '#991b1b', padding: '6px 10px', borderRadius: 6, marginBottom: 12, fontSize: 14 }}>
           {error}
         </div>
       )}
@@ -863,7 +863,7 @@ export function ReturnsWorkspace() {
             </table>
           </div>
 
-          <div style={{ marginTop: 16 }}>
+          <div style={{ marginTop: 10 }}>
             <textarea
               value={reason}
               onChange={(e) => setReason(e.target.value)}
@@ -894,7 +894,7 @@ export function ReturnsWorkspace() {
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
             <button onClick={processReturn} style={dangerButtonStyle} disabled={processing}>
               {processing ? 'Processing...' : 'Process Return & Refund'}
             </button>

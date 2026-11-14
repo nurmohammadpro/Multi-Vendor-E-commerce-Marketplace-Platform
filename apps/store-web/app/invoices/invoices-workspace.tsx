@@ -203,14 +203,14 @@ export function InvoicesWorkspace() {
     width: '100%',
     padding: '8px 10px',
     border: '1px solid var(--border)',
-    borderRadius: 8,
+    borderRadius: 6,
     fontSize: 13,
     background: 'var(--background)',
     color: 'var(--foreground)',
   };
 
   return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
+    <section style={{ ...pageShellStyle, display: 'grid', gap: 10 }}>
       <div>
         <h1 style={pageTitleStyle}>Invoices</h1>
         <p style={{ margin: '4px 0 0', fontSize: 14, color: 'var(--muted-foreground)' }}>
@@ -332,12 +332,12 @@ export function InvoicesWorkspace() {
 
       {viewPayload ? (
         <div
-          style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.5)', padding: 24 }}
+          style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.5)', padding: 10 }}
           onClick={() => setViewPayload(null)}
         >
           <div
             onClick={(event) => event.stopPropagation()}
-            style={{ background: 'var(--background)', borderRadius: 12, maxWidth: 860, width: '100%', maxHeight: '92vh', overflowY: 'auto', padding: 16 }}
+            style={{ background: 'var(--background)', borderRadius: 6, maxWidth: 860, width: '100%', maxHeight: '92vh', overflowY: 'auto', padding: 16 }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 12 }}>
               <strong style={{ fontSize: 15 }}>Invoice {viewPayload.invoiceNo || viewPayload.saleNo || ''}</strong>
@@ -357,12 +357,12 @@ export function InvoicesWorkspace() {
 
       {collectSale ? (
         <div
-          style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.5)', padding: 24 }}
+          style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.5)', padding: 10 }}
           onClick={() => setCollectSale(null)}
         >
           <div
             onClick={(event) => event.stopPropagation()}
-            style={{ background: 'var(--background)', borderRadius: 12, maxWidth: 420, width: '100%', padding: 20, display: 'grid', gap: 10 }}
+            style={{ background: 'var(--background)', borderRadius: 6, maxWidth: 420, width: '100%', padding: 10, display: 'grid', gap: 10 }}
           >
             <strong style={{ fontSize: 15 }}>Collect payment — {collectSale.invoice_no || collectSale.sale_no}</strong>
             <div style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>

@@ -181,7 +181,7 @@ export function StaffWorkspace({ canManageStaff, embedded = false }: { canManage
 
   if (!canManageStaff) {
     return (
-      <section style={embedded ? { display: 'grid', gap: 16 } : { ...pageShellStyle, display: 'grid', gap: 16 }}>
+      <section style={embedded ? { display: 'grid', gap: 10 } : { ...pageShellStyle, display: 'grid', gap: 10 }}>
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>User access limited</h3>
           <p style={tokenMutedStyle}>Only owners and managers can create or manage store users.</p>
@@ -193,7 +193,7 @@ export function StaffWorkspace({ canManageStaff, embedded = false }: { canManage
   const totalPages = totalPagesFor(pagination);
 
   return (
-    <section style={embedded ? { display: 'grid', gap: 16 } : { ...pageShellStyle, display: 'grid', gap: 16 }}>
+    <section style={embedded ? { display: 'grid', gap: 10 } : { ...pageShellStyle, display: 'grid', gap: 10 }}>
       {compact ? (
         <WorkspaceTabs
           active={activeTab}
@@ -342,7 +342,7 @@ export function StaffWorkspace({ canManageStaff, embedded = false }: { canManage
                             }} style={secondaryButtonStyle} disabled={loading}>Edit</button>
                           ) : null}
                           {editingId === member.id ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: 8, background: 'var(--background)', borderRadius: 8, border: '1px solid var(--border)', width: '100%' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: 8, background: 'var(--background)', borderRadius: 6, border: '1px solid var(--border)', width: '100%' }}>
                               <input value={editForm.fullName} onChange={(e) => setEditForm((v) => ({ ...v, fullName: e.target.value }))} style={{ ...fieldStyle, fontSize: 12 }} placeholder="Full name" />
                               <input value={editForm.phone} onChange={(e) => setEditForm((v) => ({ ...v, phone: e.target.value }))} style={{ ...fieldStyle, fontSize: 12 }} placeholder="Phone" />
                               <input value={editForm.email} onChange={(e) => setEditForm((v) => ({ ...v, email: e.target.value }))} style={{ ...fieldStyle, fontSize: 12 }} placeholder="Email" />

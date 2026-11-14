@@ -204,7 +204,7 @@ export function ShippingWorkspace({
 
   if (!canViewShipping) {
     return (
-      <section style={{ display: 'grid', gap: 16 }}>
+      <section style={{ display: 'grid', gap: 10 }}>
         <article style={cardStyle}>
           <h3 style={{ marginTop: 0 }}>Shipping access limited</h3>
           <p style={tokenMutedStyle}>Your role can’t view shipment timelines or courier operations.</p>
@@ -214,7 +214,7 @@ export function ShippingWorkspace({
   }
 
   return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
+    <section style={{ ...pageShellStyle, display: 'grid', gap: 10 }}>
       {compact ? (
         <WorkspaceTabs
           active={activeTab}

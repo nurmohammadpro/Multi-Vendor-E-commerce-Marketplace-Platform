@@ -145,7 +145,7 @@ export function ReportsWorkspace({ canViewReports }: { canViewReports: boolean }
 
   if (!canViewReports) {
     return (
-      <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
+      <section style={{ ...pageShellStyle, display: 'grid', gap: 10 }}>
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Reports access limited</h3>
           <p style={tokenMutedStyle}>Your role can’t view sales reports or export jobs.</p>
@@ -155,7 +155,7 @@ export function ReportsWorkspace({ canViewReports }: { canViewReports: boolean }
   }
 
   return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
+    <section style={{ ...pageShellStyle, display: 'grid', gap: 10 }}>
       {compact ? (
         <WorkspaceTabs
           active={activeTab}
@@ -363,8 +363,8 @@ function openA4ReportWindow(title: string, bodyHtml: string) {
     <style>
       @page { size: A4; margin: 12mm; }
       body { margin: 0; font-family: Arial, sans-serif; background: #eef2f7; color: #0f172a; }
-      .page { width: 210mm; min-height: 297mm; margin: 0 auto; background: #fff; padding: 12mm; box-sizing: border-box; }
-      .header { display: flex; justify-content: space-between; gap: 16px; border-bottom: 2px solid #e2e8f0; padding-bottom: 12px; }
+      .page { width: 210mm; min-height: 297mm; margin: 0 auto; background: #fff; padding: 10mm; box-sizing: border-box; }
+      .header { display: flex; justify-content: space-between; gap: 10px; border-bottom: 2px solid #e2e8f0; padding-bottom: 12px; }
       .eyebrow { font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: #64748b; }
       .title { margin: 6px 0 0; font-size: 28px; font-weight: 700; }
       .meta { font-size: 12px; color: #475569; text-align: right; }

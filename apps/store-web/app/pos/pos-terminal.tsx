@@ -1006,7 +1006,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
 
   if (!canUsePos) {
     return (
-      <section style={{ display: 'grid', gap: 20 }}>
+      <section style={{ display: 'grid', gap: 12 }}>
         <article style={cardStyle}>
           <h3 style={{ marginTop: 0 }}>POS access limited</h3>
           <p style={tokenMutedStyle}>Your role does not have permission to create sales or use the POS terminal.</p>
@@ -1016,7 +1016,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
   }
 
   return (
-    <section style={{ display: 'grid', gap: 20 }}>
+    <section style={{ display: 'grid', gap: 12 }}>
       {compact ? (
         <WorkspaceTabs
           active={activeTab}
@@ -1087,9 +1087,9 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
                     zIndex: 50,
                     marginTop: 4,
                     background: 'var(--card)',
-                    borderRadius: 10,
+                    borderRadius: 6,
                     border: '1px solid var(--border)',
-                    boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
                     maxHeight: 340,
                     overflowY: 'auto',
                   }}
@@ -1319,7 +1319,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
           </div>
 
           {exchangeEnabled && exchangeItem ? (
-            <div style={{ marginBottom: 12, padding: '8px 10px', background: 'rgba(22,163,74,0.08)', borderRadius: 8, border: '1px solid rgba(22,163,74,0.2)' }}>
+            <div style={{ marginBottom: 12, padding: '8px 10px', background: 'rgba(22,163,74,0.08)', borderRadius: 6, border: '1px solid rgba(22,163,74,0.2)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
                 <div style={{ fontSize: 13 }}>
                   <span style={{ fontWeight: 600 }}>{exchangeItem.productName}</span>
@@ -1334,13 +1334,13 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
             </div>
           ) : exchangeEnabled && !exchangeItem ? (
             <div style={{ marginBottom: 12 }}>
-              <button onClick={openExchangeModal} style={{ ...subtleButtonStyle, width: '100%', fontSize: 12, padding: '6px 10px', border: '1px dashed var(--border)', borderRadius: 8 }}>
+              <button onClick={openExchangeModal} style={{ ...subtleButtonStyle, width: '100%', fontSize: 12, padding: '6px 10px', border: '1px dashed var(--border)', borderRadius: 6 }}>
                 + Add Exchange / Trade-in Product
               </button>
             </div>
           ) : null}
 
-          <div style={{ display: 'grid', gap: 8, marginBottom: 16 }}>
+          <div style={{ display: 'grid', gap: 8, marginBottom: 10 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span>Subtotal</span>
               <strong>{currency(total)}</strong>
@@ -1456,7 +1456,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
               </div>
             </div>
           ) : (
-            <div style={{ display: 'grid', gap: 8, marginBottom: 16 }}>
+            <div style={{ display: 'grid', gap: 8, marginBottom: 10 }}>
               <input
                 value={paymentReference}
                 onChange={(event) => setPaymentReference(event.target.value)}
@@ -1516,10 +1516,10 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
-              backgroundColor: 'var(--card)', borderRadius: 12,
+              backgroundColor: 'var(--card)', borderRadius: 6,
               width: '90%', maxWidth: 896, height: '75vh', maxHeight: 672,
               display: 'flex', flexDirection: 'column',
-              boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '20px 24px 0', flexShrink: 0 }}>
@@ -1636,10 +1636,10 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
-              backgroundColor: 'var(--card)', borderRadius: 12,
+              backgroundColor: 'var(--card)', borderRadius: 6,
               width: '90%', maxWidth: 420,
-              padding: 24,
-              boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
+              padding: 10,
+              boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
             }}
           >
             <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>Exchange / Trade-in Product</h2>
@@ -1694,7 +1694,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
               />
             </div>
 
-            <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
+            <div style={{ display: 'flex', gap: 8, marginTop: 10, justifyContent: 'flex-end' }}>
               <button onClick={() => setExchangeModalOpen(false)} style={neutralButtonStyle}>
                 Cancel
               </button>
@@ -1714,7 +1714,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
               Printer unavailable. Review the invoice and print using your browser.
             </SheetDescription>
           </SheetHeader>
-          <div style={{ marginTop: 16, display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+          <div style={{ marginTop: 10, display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
             <button
               onClick={() => {
                 if (lastInvoice) {
@@ -1743,7 +1743,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
             </button>
           </div>
           {lastInvoice?.saleId && Number(lastInvoice.totals?.due || 0) > 0 ? (
-            <div style={{ marginTop: 12, padding: 12, border: '1px solid rgba(217,119,6,0.35)', borderRadius: 8, display: 'grid', gap: 8, background: 'rgba(217,119,6,0.06)' }}>
+            <div style={{ marginTop: 12, padding: 10, border: '1px solid rgba(217,119,6,0.35)', borderRadius: 6, display: 'grid', gap: 8, background: 'rgba(217,119,6,0.06)' }}>
               <div style={{ fontSize: 13, fontWeight: 600 }}>
                 Collect payment — due {currency(Number(lastInvoice.totals?.due || 0))}
               </div>
@@ -1773,7 +1773,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
           {lastInvoice ? (
             <div
               id="pos-invoice-sheet-preview"
-              style={{ marginTop: 16, background: '#fff', overflow: 'auto' }}
+              style={{ marginTop: 10, background: '#fff', overflow: 'auto' }}
               dangerouslySetInnerHTML={{ __html: invoiceSheetPreview }}
             />
           ) : null}
@@ -1843,7 +1843,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
         <h3 style={{ marginTop: 0 }}>Operator Notes</h3>
         <p style={{ marginTop: 0, color: 'var(--muted-foreground)' }}>{message}</p>
         {lastInvoice ? (
-          <div style={{ marginBottom: 16, display: 'grid', gap: 10 }}>
+          <div style={{ marginBottom: 10, display: 'grid', gap: 10 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
               <strong>Latest invoice preview</strong>
               <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -1875,7 +1875,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
             <div
               style={{
                 border: '1px solid var(--border)',
-                borderRadius: 8,
+                borderRadius: 6,
                 background: '#fff',
                 maxHeight: 520,
                 overflow: 'auto',

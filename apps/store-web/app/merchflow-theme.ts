@@ -48,17 +48,16 @@ export const sectionIntroStyle: CSSProperties = {
 export const pageIntroCardStyle: CSSProperties = {
   display: 'grid',
   gap: 6,
-  padding: 10,
+  padding: 8,
   borderRadius: 4,
   border: `1px solid ${merchflowColors.border}`,
   background: merchflowColors.surfaceSoft,
-  boxShadow: `0 1px 2px ${merchflowColors.shadow}`,
 };
 
 export const sectionPanelStyle: CSSProperties = {
   display: 'grid',
-  gap: 10,
-  padding: 10,
+  gap: 8,
+  padding: 8,
   borderRadius: 4,
   border: `1px solid ${merchflowColors.border}`,
   background: merchflowColors.backgroundAlt,
@@ -82,9 +81,9 @@ export const sectionLabelStyle: CSSProperties = {
 
 export const pageTitleStyle: CSSProperties = {
   margin: 0,
-  fontSize: 'clamp(20px, 2vw, 28px)',
-  lineHeight: 1.15,
-  letterSpacing: '-0.025em',
+  fontSize: 'clamp(16px, 1.6vw, 20px)',
+  lineHeight: 1.2,
+  letterSpacing: '-0.01em',
   fontWeight: 600,
 };
 
@@ -97,11 +96,10 @@ export const pageLeadStyle: CSSProperties = {
 };
 
 export const surfaceCardStyle: CSSProperties = {
-  padding: 10,
+  padding: 8,
   borderRadius: 4,
   background: merchflowColors.surface,
-  border: `1px solid ${merchflowColors.borderStrong}`,
-  boxShadow: `0 1px 2px ${merchflowColors.shadow}`,
+  border: `1px solid ${merchflowColors.border}`,
 };
 
 export const surfaceCardStrongStyle: CSSProperties = {
@@ -111,10 +109,10 @@ export const surfaceCardStrongStyle: CSSProperties = {
 };
 
 export const compactSurfaceCardStyle: CSSProperties = {
-  padding: 8,
+  padding: 6,
   borderRadius: 4,
   background: merchflowColors.surfaceAlt,
-  border: `1px solid ${merchflowColors.borderStrong}`,
+  border: `1px solid ${merchflowColors.border}`,
   boxShadow: 'none',
 };
 
@@ -129,7 +127,7 @@ export const metricLabelStyle: CSSProperties = {
 };
 
 export const metricValueStyle: CSSProperties = {
-  fontSize: 20,
+  fontSize: 17,
   lineHeight: 1.1,
   fontWeight: 700,
   letterSpacing: '-0.02em',
@@ -153,7 +151,7 @@ export const tokenMutedStyle: CSSProperties = {
 
 export const fieldStyle: CSSProperties = {
   width: '100%',
-  padding: '4px 8px',
+  padding: '3px 8px',
   borderRadius: 4,
   border: `1px solid ${merchflowColors.borderStrong}`,
   background: 'var(--card)',
@@ -161,15 +159,15 @@ export const fieldStyle: CSSProperties = {
   font: 'inherit',
   fontSize: 12,
   outline: 'none',
-  minHeight: 28,
+  minHeight: 26,
 };
 
 const buttonBaseStyle: CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
-  minHeight: 28,
-  padding: '0 10px',
+  minHeight: 26,
+  padding: '0 8px',
   borderRadius: 4,
   font: 'inherit',
   fontSize: 12,
@@ -240,9 +238,9 @@ export const gray800ButtonStyle: CSSProperties = {
 
 export const searchButtonStyle: CSSProperties = {
   ...gray800ButtonStyle,
-  minWidth: 80,
-  minHeight: 28,
-  padding: '0 14px',
+  minWidth: 64,
+  minHeight: 26,
+  padding: '0 10px',
 };
 
 export const primaryButtonStyle = solidButtonStyle;
@@ -289,7 +287,7 @@ export const tableStyle: CSSProperties = {
 };
 
 export const tableHeaderCellStyle: CSSProperties = {
-  padding: '7px 10px',
+  padding: '5px 8px',
   textAlign: 'left',
   fontSize: 10,
   letterSpacing: '0.1em',
@@ -302,7 +300,7 @@ export const tableHeaderCellStyle: CSSProperties = {
 };
 
 export const tableCellStyle: CSSProperties = {
-  padding: '7px 10px',
+  padding: '5px 8px',
   borderBottom: `1px solid ${merchflowColors.border}`,
   color: merchflowColors.ink,
   verticalAlign: 'top',

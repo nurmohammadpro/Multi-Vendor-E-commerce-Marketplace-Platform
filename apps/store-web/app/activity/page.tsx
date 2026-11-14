@@ -6,7 +6,7 @@ export default async function StoreActivityPage() {
   const access = await getStoreConsoleAccess();
 
   return (
-    <section style={{ display: 'grid', gap: 16 }}>
+    <section style={{ display: 'grid', gap: 10 }}>
       {access.canViewReports ? (
         <ActivityWorkspace />
       ) : (

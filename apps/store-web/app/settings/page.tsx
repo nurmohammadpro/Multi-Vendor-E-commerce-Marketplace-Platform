@@ -14,7 +14,7 @@ export default async function StoreSettingsPage() {
   const access = await getStoreConsoleAccess();
 
   return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
+    <section style={{ ...pageShellStyle, display: 'grid', gap: 12 }}>
       {access.canManageSettings ? (
         <>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

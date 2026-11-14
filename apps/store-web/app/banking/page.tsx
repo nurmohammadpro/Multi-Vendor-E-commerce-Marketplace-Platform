@@ -5,7 +5,7 @@ import { BankingWorkspace } from './banking-workspace';
 export default async function StoreBankingPage() {
   const access = await getStoreConsoleAccess();
   return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
+    <section style={{ ...pageShellStyle, display: 'grid', gap: 12 }}>
       {access.canUseBankingReconciliation ? (
         <BankingWorkspace />
       ) : (

@@ -319,7 +319,7 @@ export function SettingsWorkspace({ canManageSettings }: { canManageSettings: bo
 
   if (!profile || !settings) {
     return (
-      <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
+      <section style={{ ...pageShellStyle, display: 'grid', gap: 12 }}>
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Loading store settings</h3>
           <p style={tokenMutedStyle}>{message}</p>
@@ -329,7 +329,7 @@ export function SettingsWorkspace({ canManageSettings }: { canManageSettings: bo
   }
 
   return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
+    <section style={{ ...pageShellStyle, display: 'grid', gap: 10 }}>
       {compact ? (
         <WorkspaceTabs
           active={activeTab}
@@ -341,7 +341,7 @@ export function SettingsWorkspace({ canManageSettings }: { canManageSettings: bo
           ]}
         />
       ) : null}
-      <section style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
+      <section style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(auto-fit, minmax(320px, 1fr))', gap: 10 }}>
         {!compact || activeTab === 'identity' ? (
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Store identity</h3>
@@ -420,7 +420,7 @@ export function SettingsWorkspace({ canManageSettings }: { canManageSettings: bo
                 <img
                   src={profileForm.logoUrl}
                   alt={`${profileForm.name || 'Store'} logo preview`}
-                  style={{ width: 64, height: 64, objectFit: 'contain', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--card)', padding: 6 }}
+                  style={{ width: 64, height: 64, objectFit: 'contain', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--card)', padding: 6 }}
                 />
                 <div style={{ color: 'var(--muted-foreground)', fontSize: 13 }}>Logo preview</div>
               </div>
@@ -592,7 +592,7 @@ export function SettingsWorkspace({ canManageSettings }: { canManageSettings: bo
               <label
                 key={option.key}
                 style={{
-                  display: 'grid', gap: 8, padding: 12, borderRadius: 10, cursor: 'pointer', alignContent: 'start',
+                  display: 'grid', gap: 8, padding: 10, borderRadius: 6, cursor: 'pointer', alignContent: 'start',
                   border: selected ? '2px solid #0f172a' : '1px solid var(--border)',
                   background: selected ? 'rgba(15,23,42,0.03)' : 'transparent',
                 }}
@@ -609,7 +609,7 @@ export function SettingsWorkspace({ canManageSettings }: { canManageSettings: bo
                   {option.label}
                 </span>
                 <span style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>{option.detail}</span>
-                <span style={{ display: 'block', height: 200, overflow: 'hidden', borderRadius: 8, border: '1px solid var(--border)', background: '#fff' }}>
+                <span style={{ display: 'block', height: 200, overflow: 'hidden', borderRadius: 6, border: '1px solid var(--border)', background: '#fff' }}>
                   <span
                     id={`receipt-preview-${option.key}`}
                     style={{ display: 'block', transform: `scale(${option.scale})`, transformOrigin: 'top left', width: option.docWidth }}
@@ -627,7 +627,7 @@ export function SettingsWorkspace({ canManageSettings }: { canManageSettings: bo
       ) : null}
 
       {!compact || activeTab === 'appearance' ? (
-      <section style={{ display: 'grid', gap: 16 }}>
+      <section style={{ display: 'grid', gap: 10 }}>
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Theme</h3>
           <div style={{ display: 'grid', gap: 6 }}>

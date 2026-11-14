@@ -279,7 +279,7 @@ export function ExpensesWorkspace() {
   const totalPages = totalPagesFor(pagination);
 
   return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
+    <section style={{ ...pageShellStyle, display: 'grid', gap: 10 }}>
           <section style={{ ...sectionPanelStyle, gridTemplateColumns: compact ? '1fr' : 'minmax(320px, 0.9fr) minmax(320px, 0.9fr)' }}>
             <article style={surfaceCardStyle}>
               <h3 style={{ marginTop: 0, fontSize: 14 }}>Record Expense</h3>
@@ -380,7 +380,7 @@ export function ExpensesWorkspace() {
           </div>
 
           {/* ── Export section ── */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginBottom: 12, padding: 8, background: 'var(--muted)', borderRadius: 8 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginBottom: 12, padding: 8, background: 'var(--muted)', borderRadius: 6 }}>
             <select value={exportMode} onChange={(e) => setExportMode(e.target.value as 'monthly' | 'daterange')} style={{ ...fieldStyle, width: 'auto', minWidth: 120, fontSize: 12 }}>
               <option value="monthly">Monthly</option>
               <option value="daterange">Date range</option>

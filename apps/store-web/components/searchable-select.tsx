@@ -133,7 +133,7 @@ export function SearchableSelect({
             zIndex: 100,
             background: 'var(--card)',
             border: '1px solid var(--border)',
-            borderRadius: 10,
+            borderRadius: 6,
             boxShadow: '0 10px 30px rgba(0,0,0,0.12)',
             maxHeight: 280,
             display: 'flex',
@@ -152,7 +152,7 @@ export function SearchableSelect({
                 ...fieldStyle,
                 width: '100%',
                 fontSize: 13,
-                padding: '7px 10px',
+                padding: '5px 8px',
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && filtered.length === 1) {
@@ -175,7 +175,7 @@ export function SearchableSelect({
                     key={opt.value}
                     onClick={() => handleSelect(opt)}
                     style={{
-                      padding: '8px 10px',
+                      padding: '5px 8px',
                       paddingLeft: opt.indent ? 24 : 10,
                       borderRadius: 6,
                       cursor: 'pointer',
@@ -193,7 +193,7 @@ export function SearchableSelect({
                 );
               })
             ) : (
-              <div style={{ padding: '12px 10px', color: '#94a3b8', fontSize: 12, textAlign: 'center' }}>
+              <div style={{ padding: '8px 10px', color: '#94a3b8', fontSize: 12, textAlign: 'center' }}>
                 {emptyMessage}
               </div>
             )}

@@ -113,8 +113,8 @@ export function StockLedgerWorkspace() {
   const totalLedgerPages = totalPagesFor(ledgerPagination);
 
   return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
-      <div style={{ marginBottom: 24 }}>
+    <section style={{ ...pageShellStyle, display: 'grid', gap: 10 }}>
+      <div style={{ marginBottom: 12 }}>
         <h1
           style={{
             margin: '0 0 6px',

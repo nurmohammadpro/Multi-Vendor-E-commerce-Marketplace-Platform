@@ -7,7 +7,7 @@ export default async function StoreInventoryPage() {
   const access = await getStoreConsoleAccess();
 
   return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
+    <section style={{ ...pageShellStyle, display: 'grid', gap: 12 }}>
       <InventoryWorkspace
         canApproveInventory={access.canApproveInventory}
         canAdjustInventory={access.canAdjustInventory}

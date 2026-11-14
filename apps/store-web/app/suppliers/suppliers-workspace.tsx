@@ -322,7 +322,7 @@ export function SuppliersWorkspace() {
   }, [ledgerData, ledgerSupplierId, suppliers]);
 
   return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
+    <section style={{ ...pageShellStyle, display: 'grid', gap: 10 }}>
       {/* Tabs & actions */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
         <p style={{ margin: 0, color: 'var(--muted-foreground)', fontSize: 13 }}>{message}</p>
@@ -337,7 +337,7 @@ export function SuppliersWorkspace() {
 
       {/* ═══════════ Supplier Directory Tab ═══════════ */}
       {activeTab === 'directory' ? (
-        <section style={{ display: 'grid', gap: 16 }}>
+        <section style={{ display: 'grid', gap: 10 }}>
           {/* Search */}
           <div style={{ ...searchRowStyle }}>
             <input
@@ -534,7 +534,7 @@ export function SuppliersWorkspace() {
 
           {ledgerData ? (
             <div>
-              <div style={{ display: 'flex', gap: 16, marginBottom: 12 }}>
+              <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
                 <div style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>
                   Opening: <strong style={{ color: '#1e293b' }}>BDT {formatMoney(ledgerData.openingBalance)}</strong>
                 </div>

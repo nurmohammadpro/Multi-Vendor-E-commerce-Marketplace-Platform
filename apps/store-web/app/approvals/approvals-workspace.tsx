@@ -241,7 +241,7 @@ export function ApprovalsWorkspace({ canApproveInventory }: { canApproveInventor
 
   if (!canApproveInventory) {
     return (
-      <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
+      <section style={{ ...pageShellStyle, display: 'grid', gap: 12 }}>
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Approvals access limited</h3>
           <p style={tokenMutedStyle}>Only store owners can approve stock and price changes.</p>
@@ -251,8 +251,8 @@ export function ApprovalsWorkspace({ canApproveInventory }: { canApproveInventor
   }
 
   return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
-      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
+    <section style={{ ...pageShellStyle, display: 'grid', gap: 12 }}>
+      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
         <article style={surfaceCardStyle}>
           <div style={metricLabelStyle}>Cash variance</div>
           <div style={metricValueStyle}>{overview?.cashVarianceAmount ?? '—'}</div>
@@ -381,7 +381,7 @@ export function ApprovalsWorkspace({ canApproveInventory }: { canApproveInventor
         )}
       </article>
 
-      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 16 }}>
+      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 10 }}>
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Pending stock updates</h3>
           {stockRequests.length ? (

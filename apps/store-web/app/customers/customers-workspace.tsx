@@ -155,7 +155,7 @@ export function CustomersWorkspace() {
   [customers, levelConfig]);
 
   return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
+    <section style={{ ...pageShellStyle, display: 'grid', gap: 10 }}>
       {/* Search row */}
       <div style={{ ...searchRowStyle }}>
         <input
@@ -257,10 +257,10 @@ export function CustomersWorkspace() {
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }} onClick={() => setDetailCustomer(null)}>
           <div style={{
-            background: '#fff', borderRadius: 16, padding: 24, maxWidth: 520, width: '95%',
-            maxHeight: '80vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+            background: '#fff', borderRadius: 6, padding: 10, maxWidth: 520, width: '95%',
+            maxHeight: '80vh', overflowY: 'auto', boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
           }} onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <h3 style={{ margin: 0, fontSize: 16 }}>Customer Details</h3>
               <button onClick={() => setDetailCustomer(null)} style={{ ...secondaryButtonStyle, minWidth: 40, fontSize: 16, lineHeight: 1 }}>✕</button>
             </div>

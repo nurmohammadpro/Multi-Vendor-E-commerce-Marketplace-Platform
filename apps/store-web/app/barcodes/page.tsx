@@ -264,7 +264,7 @@ export default function BarcodesPage() {
   ];
 
   return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
+    <section style={{ ...pageShellStyle, display: 'grid', gap: 10 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
         <p style={{ margin: 0, color: 'var(--muted-foreground)', fontSize: 13 }}>{message}</p>
         <WorkspaceTabs active={activeTab} onChange={(key) => setActiveTab(key as Tab)} tabs={tabs} />
@@ -412,7 +412,7 @@ export default function BarcodesPage() {
 
       {/* ═══════════════ Label Settings Tab ═══════════════ */}
       {activeTab === 'settings' ? (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           {/* Settings */}
           <article style={surfaceCardStyle}>
             <h3 style={{ marginTop: 0, marginBottom: 12, fontSize: 15 }}>Label Settings</h3>
@@ -505,7 +505,7 @@ export default function BarcodesPage() {
           {/* Preview */}
           <article style={surfaceCardStyle}>
             <h3 style={{ marginTop: 0, marginBottom: 12, fontSize: 15 }}>Label Preview</h3>
-            <div style={{ display: 'flex', justifyContent: 'center', padding: 20, background: 'var(--muted)', borderRadius: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'center', padding: 10, background: 'var(--muted)', borderRadius: 6 }}>
               <LabelPreview
                 sku="DEMO-001"
                 productName="Sample Product"

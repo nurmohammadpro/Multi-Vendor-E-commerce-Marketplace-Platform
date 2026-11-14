@@ -174,7 +174,7 @@ export function BankingWorkspace() {
   const totalEntryPages = totalPagesFor(entryPagination);
 
   return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
+    <section style={{ ...pageShellStyle, display: 'grid', gap: 10 }}>
       {compact ? (
         <WorkspaceTabs
           active={activeTab}

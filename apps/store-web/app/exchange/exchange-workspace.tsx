@@ -651,12 +651,12 @@ export function ExchangeWorkspace() {
     const ps = receipt.paymentSummary;
     return (
       <div style={pageShellStyle}>
-        <div style={{ background: '#d1fae5', color: '#065f46', padding: '16px 20px', borderRadius: 8, marginBottom: 16, fontSize: 14 }}>
+        <div style={{ background: '#d1fae5', color: '#065f46', padding: '16px 20px', borderRadius: 6, marginBottom: 10, fontSize: 14 }}>
           <strong>Exchange completed successfully.</strong> {message}
         </div>
 
-        <article style={{ ...surfaceCardStyle, marginBottom: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, paddingBottom: 12, borderBottom: '2px solid var(--border)' }}>
+        <article style={{ ...surfaceCardStyle, marginBottom: 10 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10, paddingBottom: 12, borderBottom: '2px solid var(--border)' }}>
             <div>
               <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em' }}>{receipt.store?.name || 'Store'}</div>
               {receipt.store?.phone && <div style={{ ...tokenMutedStyle, fontSize: 12 }}>{receipt.store.phone}</div>}
@@ -671,7 +671,7 @@ export function ExchangeWorkspace() {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 10 }}>
             <div>
               <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#64748b', marginBottom: 2 }}>Customer</div>
               <div style={{ fontWeight: 600 }}>{receipt.customer?.name || 'Walk-in'}</div>
@@ -746,7 +746,7 @@ export function ExchangeWorkspace() {
             </table>
           </div>
 
-          <div style={{ marginTop: 12, padding: '12px 16px', background: 'var(--muted)', borderRadius: 8 }}>
+          <div style={{ marginTop: 12, padding: '12px 16px', background: 'var(--muted)', borderRadius: 6 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
               <span style={{ color: '#64748b' }}>New Items Total</span>
               <span>{formatMoney(ps.newItemsTotal)}</span>
@@ -791,7 +791,7 @@ export function ExchangeWorkspace() {
             <div style={{ marginTop: 8, fontSize: 12, fontStyle: 'italic', color: '#64748b' }}>{receipt.amountInWords}</div>
           )}
 
-          <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
             <button onClick={() => handlePrint(receipt)} style={gray800ButtonStyle}>
               Print Exchange Receipt
             </button>
@@ -808,17 +808,17 @@ export function ExchangeWorkspace() {
   if (tab === 'new' && selectedSale) {
     return (
       <div style={pageShellStyle}>
-        <div style={{ marginBottom: 24 }}>
+        <div style={{ marginBottom: 12 }}>
           <h1 style={{ margin: '0 0 6px', fontSize: 'clamp(24px, 2.2vw, 32px)', lineHeight: 1.1, letterSpacing: '-0.03em', fontWeight: 500 }}>
             New Exchange
           </h1>
         </div>
-        <button onClick={() => { setSelectedSale(null); setError(''); }} style={{ ...secondaryButtonStyle, marginBottom: 16 }}>
+        <button onClick={() => { setSelectedSale(null); setError(''); }} style={{ ...secondaryButtonStyle, marginBottom: 10 }}>
           &larr; Back to Lookup
         </button>
 
         {error && (
-          <div style={{ background: '#fee2e2', color: '#991b1b', padding: '10px 16px', borderRadius: 8, marginBottom: 12, fontSize: 14 }}>
+          <div style={{ background: '#fee2e2', color: '#991b1b', padding: '6px 10px', borderRadius: 6, marginBottom: 12, fontSize: 14 }}>
             {error}
           </div>
         )}
@@ -1115,7 +1115,7 @@ export function ExchangeWorkspace() {
           </div>
 
           {needsPayment && (
-            <div style={{ marginTop: 16 }}>
+            <div style={{ marginTop: 10 }}>
               <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
                 Payment (must total {formatMoney(difference)} — currently {formatMoney(tendersSum)})
                 {!paymentsComplete && <span style={{ color: '#dc2626' }}> ✕</span>}
@@ -1155,7 +1155,7 @@ export function ExchangeWorkspace() {
           )}
 
           {needsRefund && (
-            <div style={{ marginTop: 16, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <div>
                 <label style={{ display: 'block', fontSize: 12, color: 'var(--muted-foreground)', marginBottom: 4 }}>Refund Method *</label>
                 <select value={refundMethod} onChange={(e) => setRefundMethod(e.target.value)} style={{ ...fieldStyle, width: 180 }}>
@@ -1179,7 +1179,7 @@ export function ExchangeWorkspace() {
             </div>
           )}
 
-          <div style={{ marginTop: 16 }}>
+          <div style={{ marginTop: 10 }}>
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
@@ -1188,7 +1188,7 @@ export function ExchangeWorkspace() {
             />
           </div>
 
-          <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
             <button onClick={submitExchange} style={dangerButtonStyle} disabled={processing}>
               {processing ? 'Processing...' : needsPayment ? 'Complete Exchange (Collect Payment)' : needsRefund ? 'Complete Exchange (Refund Difference)' : 'Complete Exchange'}
             </button>
@@ -1220,11 +1220,11 @@ export function ExchangeWorkspace() {
     const fresh = detail.items.filter((i) => i.side === 'new');
     return (
       <div style={pageShellStyle}>
-        <button onClick={() => setDetail(null)} style={{ ...secondaryButtonStyle, marginBottom: 16 }}>
+        <button onClick={() => setDetail(null)} style={{ ...secondaryButtonStyle, marginBottom: 10 }}>
           &larr; Back to Exchange History
         </button>
         {error && (
-          <div style={{ background: '#fee2e2', color: '#991b1b', padding: '10px 16px', borderRadius: 8, marginBottom: 12, fontSize: 14 }}>
+          <div style={{ background: '#fee2e2', color: '#991b1b', padding: '6px 10px', borderRadius: 6, marginBottom: 12, fontSize: 14 }}>
             {error}
           </div>
         )}
@@ -1294,7 +1294,7 @@ export function ExchangeWorkspace() {
             </table>
           </div>
 
-          <div style={{ marginTop: 12, padding: '12px 16px', background: 'var(--muted)', borderRadius: 8 }}>
+          <div style={{ marginTop: 12, padding: '12px 16px', background: 'var(--muted)', borderRadius: 6 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
               <span style={{ color: '#64748b' }}>New Items Total</span>
               <span>{formatMoney(ex.new_items_total)}</span>
@@ -1321,7 +1321,7 @@ export function ExchangeWorkspace() {
   // ── Lookup view (new tab) / history list (history tab) ──
   return (
     <div style={pageShellStyle}>
-      <div style={{ marginBottom: 24 }}>
+      <div style={{ marginBottom: 12 }}>
         <h1 style={{ margin: '0 0 6px', fontSize: 'clamp(24px, 2.2vw, 32px)', lineHeight: 1.1, letterSpacing: '-0.03em', fontWeight: 500 }}>
           Exchange
         </h1>
@@ -1330,7 +1330,7 @@ export function ExchangeWorkspace() {
         </p>
       </div>
 
-      <div style={{ marginBottom: 16 }}>
+      <div style={{ marginBottom: 10 }}>
         <WorkspaceTabs
           tabs={[
             { key: 'new', label: 'New Exchange' },
@@ -1342,12 +1342,12 @@ export function ExchangeWorkspace() {
       </div>
 
       {message && (
-        <div style={{ background: '#d1fae5', color: '#065f46', padding: '10px 16px', borderRadius: 8, marginBottom: 12, fontSize: 14 }}>
+        <div style={{ background: '#d1fae5', color: '#065f46', padding: '6px 10px', borderRadius: 6, marginBottom: 12, fontSize: 14 }}>
           {message}
         </div>
       )}
       {error && (
-        <div style={{ background: '#fee2e2', color: '#991b1b', padding: '10px 16px', borderRadius: 8, marginBottom: 12, fontSize: 14 }}>
+        <div style={{ background: '#fee2e2', color: '#991b1b', padding: '6px 10px', borderRadius: 6, marginBottom: 12, fontSize: 14 }}>
           {error}
         </div>
       )}
@@ -1373,7 +1373,7 @@ export function ExchangeWorkspace() {
           </article>
 
           {lookupSales.length > 0 && (
-            <div style={{ ...tableWrapStyle, marginTop: 16 }}>
+            <div style={{ ...tableWrapStyle, marginTop: 10 }}>
               <table style={tableStyle}>
                 <thead>
                   <tr>
@@ -1412,14 +1412,14 @@ export function ExchangeWorkspace() {
           )}
 
           {lookupSales.length === 0 && !lookupLoading && !error && (
-            <div style={{ ...emptyStateStyle, marginTop: 16 }}>
+            <div style={{ ...emptyStateStyle, marginTop: 10 }}>
               Look up the original sale by customer phone or sale/invoice number to begin an exchange.
             </div>
           )}
         </>
       ) : (
         <>
-          <div style={{ ...searchRowStyle, marginBottom: 16 }}>
+          <div style={{ ...searchRowStyle, marginBottom: 10 }}>
             <input
               value={historyQuery}
               onChange={(e) => setHistoryQuery(e.target.value)}

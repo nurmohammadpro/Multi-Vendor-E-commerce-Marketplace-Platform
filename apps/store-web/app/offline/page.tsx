@@ -12,7 +12,7 @@ import {
 
 export default function OfflinePage() {
   return (
-    <section style={{ ...pageShellStyle, minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24 }}>
+    <section style={{ ...pageShellStyle, minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 10 }}>
       <article style={{ ...surfaceCardStyle, width: 'min(520px, 100%)', display: 'grid', gap: 12 }}>
         <div style={{ fontSize: 12, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--muted-foreground)' }}>
           Offline Mode

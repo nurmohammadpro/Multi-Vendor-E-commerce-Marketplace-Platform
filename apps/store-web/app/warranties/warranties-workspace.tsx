@@ -235,7 +235,7 @@ export function WarrantiesWorkspace() {
       />
 
       {activeTab === 'register' ? (
-        <div style={{ display: 'grid', gap: 16 }}>
+        <div style={{ display: 'grid', gap: 10 }}>
           <section style={surfaceCardStyle}>
             <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Find a sold device</div>
             <div style={{ ...searchRowStyle, marginBottom: 12 }}>

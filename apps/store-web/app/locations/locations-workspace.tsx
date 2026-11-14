@@ -195,7 +195,7 @@ export function LocationsWorkspace({ canViewInventory, canManageLocations }: Wor
 
   if (!canViewInventory) {
     return (
-      <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
+      <section style={{ ...pageShellStyle, display: 'grid', gap: 10 }}>
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Access limited</h3>
           <p style={tokenMutedStyle}>Your role can&apos;t view location data.</p>
@@ -206,7 +206,7 @@ export function LocationsWorkspace({ canViewInventory, canManageLocations }: Wor
 
   if (authError) {
     return (
-      <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
+      <section style={{ ...pageShellStyle, display: 'grid', gap: 10 }}>
         <article style={{ ...surfaceCardStyle, border: '2px solid #dc2626' }}>
           <h3 style={{ marginTop: 0, color: '#dc2626' }}>Session expired</h3>
           <p style={tokenMutedStyle}>
@@ -224,7 +224,7 @@ bsp;to continue managing locations.
   }
 
   return (
-    <section style={{ display: 'grid', gap: 16 }}>
+    <section style={{ display: 'grid', gap: 10 }}>
       {canManageLocations ? (
         <article style={surfaceCardStyle}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
@@ -346,11 +346,11 @@ bsp;to continue managing locations.
         }} onClick={() => setDeleteConfirm(null)}>
           <div style={{
             background: 'var(--card)',
-            borderRadius: 12,
-            padding: 24,
+            borderRadius: 6,
+            padding: 10,
             maxWidth: 420,
             width: '90%',
-            boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
           }} onClick={(e) => e.stopPropagation()}>
             <h3 style={{ margin: '0 0 8px', fontSize: 16 }}>Delete location?</h3>
             <p style={{ margin: '0 0 20px', color: 'var(--muted-foreground)', fontSize: 13, lineHeight: 1.5 }}>

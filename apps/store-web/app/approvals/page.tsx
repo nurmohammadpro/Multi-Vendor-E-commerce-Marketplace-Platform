@@ -5,7 +5,7 @@ import { ApprovalsWorkspace } from './approvals-workspace';
 export default async function StoreApprovalsPage() {
   const access = await getStoreConsoleAccess();
   return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
+    <section style={{ ...pageShellStyle, display: 'grid', gap: 12 }}>
       <ApprovalsWorkspace canApproveInventory={access.canApproveInventory} />
     </section>
   );

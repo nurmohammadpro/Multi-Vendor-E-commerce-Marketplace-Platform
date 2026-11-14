@@ -459,7 +459,7 @@ export function PurchasesWorkspace({ initialTab = 'purchases' }: { initialTab?: 
   };
 
   return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
+    <section style={{ ...pageShellStyle, display: 'grid', gap: 10 }}>
       {/* ── Tab Navigation ── */}
       <WorkspaceTabs
         active={activeTab}
@@ -535,7 +535,7 @@ export function PurchasesWorkspace({ initialTab = 'purchases' }: { initialTab?: 
                 placeholder="Search product name or code..."
               />
               {showProductSuggestions && receiveProductResults.length > 0 && (
-                <div style={{ position: 'absolute', left: 0, right: 0, top: '100%', zIndex: 50, marginTop: 4, background: 'var(--card)', borderRadius: 10, border: '1px solid var(--border)', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', maxHeight: 240, overflowY: 'auto' }}>
+                <div style={{ position: 'absolute', left: 0, right: 0, top: '100%', zIndex: 50, marginTop: 4, background: 'var(--card)', borderRadius: 6, border: '1px solid var(--border)', boxShadow: '0 2px 8px rgba(0,0,0,0.12)', maxHeight: 240, overflowY: 'auto' }}>
                   {receiveProductResults.map((p, idx) => (
                     <div
                       key={p.id}
@@ -544,7 +544,7 @@ export function PurchasesWorkspace({ initialTab = 'purchases' }: { initialTab?: 
                       onMouseEnter={() => setHighlightedProductIndex(idx)}
                       ref={(el) => { if (idx === highlightedProductIndex && el) el.scrollIntoView({ block: 'nearest' }); }}
                       style={{
-                        padding: '8px 12px',
+                        padding: '6px 10px',
                         borderBottom: '1px solid var(--border)',
                         cursor: 'pointer',
                         background: idx === highlightedProductIndex ? 'var(--accent)' : 'transparent',
@@ -560,7 +560,7 @@ export function PurchasesWorkspace({ initialTab = 'purchases' }: { initialTab?: 
             </div>
 
             {receiveProduct && (
-              <div style={{ background: 'var(--muted)', borderRadius: 8, padding: 10, marginBottom: 12 }}>
+              <div style={{ background: 'var(--muted)', borderRadius: 6, padding: 10, marginBottom: 12 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
                   <div>
                     <span style={{ fontWeight: 600, fontSize: 13 }}>{receiveProduct.name}</span>
@@ -654,7 +654,7 @@ export function PurchasesWorkspace({ initialTab = 'purchases' }: { initialTab?: 
               {/* Entry mode tabs */}
               <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
                 {(['quick-scan', 'batch-paste', 'csv-upload'] as const).map((mode) => (
-                  <button key={mode} onClick={() => setReceiveEntryMode(mode)} style={{ padding: '5px 10px', fontSize: 11, fontWeight: 500, borderRadius: 6, border: 'none', cursor: 'pointer', background: receiveEntryMode === mode ? 'var(--primary)' : 'var(--muted)', color: receiveEntryMode === mode ? 'var(--primary-foreground)' : 'var(--muted-foreground)' }}>
+                  <button key={mode} onClick={() => setReceiveEntryMode(mode)} style={{ padding: '4px 8px', fontSize: 11, fontWeight: 500, borderRadius: 6, border: 'none', cursor: 'pointer', background: receiveEntryMode === mode ? 'var(--primary)' : 'var(--muted)', color: receiveEntryMode === mode ? 'var(--primary-foreground)' : 'var(--muted-foreground)' }}>
                     {mode === 'quick-scan' ? 'Quick Scan' : mode === 'batch-paste' ? 'Batch Paste' : 'CSV Upload'}
                   </button>
                 ))}
@@ -712,10 +712,10 @@ export function PurchasesWorkspace({ initialTab = 'purchases' }: { initialTab?: 
 
           {/* Print Labels Prompt */}
           {lastReceivedItems.length > 0 && (
-            <div style={{ display: 'flex', gap: 8, padding: '10px 12px', background: 'var(--success-soft, #f0fdf4)', border: '1px solid var(--success-border, #bbf7d0)', borderRadius: 8 }}>
+            <div style={{ display: 'flex', gap: 8, padding: '10px 12px', background: 'var(--success-soft, #f0fdf4)', border: '1px solid var(--success-border, #bbf7d0)', borderRadius: 6 }}>
               <span style={{ fontSize: 12, color: 'var(--success-text, #166534)', flex: 1 }}>{lastReceivedItems.length} label(s) ready to print</span>
-              <button onClick={() => void printReceivedLabels()} style={{ ...gray800ButtonStyle, fontSize: 11, padding: '5px 10px', minHeight: 'auto' }} disabled={printingLabels}>{printingLabels ? 'Printing...' : 'Print Labels'}</button>
-              <button onClick={() => setLastReceivedItems([])} style={{ ...subtleButtonStyle, fontSize: 11, padding: '5px 10px', minHeight: 'auto' }}>Skip</button>
+              <button onClick={() => void printReceivedLabels()} style={{ ...gray800ButtonStyle, fontSize: 11, padding: '4px 8px', minHeight: 'auto' }} disabled={printingLabels}>{printingLabels ? 'Printing...' : 'Print Labels'}</button>
+              <button onClick={() => setLastReceivedItems([])} style={{ ...subtleButtonStyle, fontSize: 11, padding: '4px 8px', minHeight: 'auto' }}>Skip</button>
             </div>
           )}
         </section>
@@ -805,7 +805,7 @@ export function PurchasesWorkspace({ initialTab = 'purchases' }: { initialTab?: 
               <option value="received">Received (Legacy)</option>
               <option value="cancelled">Cancelled</option>
             </select>
-            <button onClick={() => { setPurchasePage(1); void refresh(1); }} style={{ ...searchButtonStyle, fontSize: 11, padding: '5px 10px', minHeight: 'auto' }} disabled={loading}>Search</button>
+            <button onClick={() => { setPurchasePage(1); void refresh(1); }} style={{ ...searchButtonStyle, fontSize: 11, padding: '4px 8px', minHeight: 'auto' }} disabled={loading}>Search</button>
           </div>
         </div>
         {purchases.length ? (
@@ -866,23 +866,23 @@ export function PurchasesWorkspace({ initialTab = 'purchases' }: { initialTab?: 
           <article style={surfaceCardStyle}>
             <h3 style={{ margin: '0 0 16px', fontSize: 14 }}>Payables Summary</h3>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
-              <div style={{ padding: 12, background: 'var(--muted)', borderRadius: 8 }}>
+              <div style={{ padding: 10, background: 'var(--muted)', borderRadius: 6 }}>
                 <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginBottom: 4 }}>Today</div>
                 <div style={{ fontSize: 18, fontWeight: 600 }}>0 BDT</div>
               </div>
-              <div style={{ padding: 12, background: 'var(--muted)', borderRadius: 8 }}>
+              <div style={{ padding: 10, background: 'var(--muted)', borderRadius: 6 }}>
                 <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginBottom: 4 }}>0-7 Days</div>
                 <div style={{ fontSize: 18, fontWeight: 600 }}>0 BDT</div>
               </div>
-              <div style={{ padding: 12, background: 'var(--muted)', borderRadius: 8 }}>
+              <div style={{ padding: 10, background: 'var(--muted)', borderRadius: 6 }}>
                 <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginBottom: 4 }}>8-30 Days</div>
                 <div style={{ fontSize: 18, fontWeight: 600 }}>0 BDT</div>
               </div>
-              <div style={{ padding: 12, background: 'var(--muted)', borderRadius: 8 }}>
+              <div style={{ padding: 10, background: 'var(--muted)', borderRadius: 6 }}>
                 <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginBottom: 4 }}>31-90 Days</div>
                 <div style={{ fontSize: 18, fontWeight: 600 }}>0 BDT</div>
               </div>
-              <div style={{ padding: 12, background: 'var(--muted)', borderRadius: 8 }}>
+              <div style={{ padding: 10, background: 'var(--muted)', borderRadius: 6 }}>
                 <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginBottom: 4 }}>90+ Days</div>
                 <div style={{ fontSize: 18, fontWeight: 600 }}>0 BDT</div>
               </div>
@@ -898,7 +898,7 @@ export function PurchasesWorkspace({ initialTab = 'purchases' }: { initialTab?: 
                   placeholder="Search supplier..."
                   style={{ ...fieldStyle, fontSize: 12, width: 200 }}
                 />
-                <button style={{ ...searchButtonStyle, fontSize: 11, padding: '5px 10px', minHeight: 'auto' }}>
+                <button style={{ ...searchButtonStyle, fontSize: 11, padding: '4px 8px', minHeight: 'auto' }}>
                   Search
                 </button>
               </div>
@@ -918,7 +918,7 @@ export function PurchasesWorkspace({ initialTab = 'purchases' }: { initialTab?: 
               </select>
               <input type="date" style={{ ...fieldStyle, fontSize: 12 }} placeholder="From date" />
               <input type="date" style={{ ...fieldStyle, fontSize: 12 }} placeholder="To date" />
-              <button style={{ ...searchButtonStyle, fontSize: 11, padding: '5px 10px', minHeight: 'auto' }}>
+              <button style={{ ...searchButtonStyle, fontSize: 11, padding: '4px 8px', minHeight: 'auto' }}>
                 Generate
               </button>
             </div>

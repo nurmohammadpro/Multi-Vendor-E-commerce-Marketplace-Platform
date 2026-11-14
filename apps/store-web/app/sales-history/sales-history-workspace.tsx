@@ -303,7 +303,7 @@ export function SalesHistoryWorkspace() {
 
   return (
     <div style={pageShellStyle}>
-      <div style={{ marginBottom: 24 }}>
+      <div style={{ marginBottom: 12 }}>
         <h1 style={{ margin: '0 0 6px', fontSize: 'clamp(24px, 2.2vw, 32px)', lineHeight: 1.1, letterSpacing: '-0.03em', fontWeight: 500 }}>
           Sales History
         </h1>
@@ -312,7 +312,7 @@ export function SalesHistoryWorkspace() {
         </p>
       </div>
 
-      <form onSubmit={handleSearch} style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+      <form onSubmit={handleSearch} style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
         <input
           ref={searchRef}
           type="text"
@@ -489,15 +489,15 @@ export function SalesHistoryWorkspace() {
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }} onClick={() => { setReportOpen(false); setReportData(null); }}>
           <div style={{
-            background: '#fff', borderRadius: 16, padding: 24, maxWidth: 500, width: '95%',
-            maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+            background: '#fff', borderRadius: 6, padding: 10, maxWidth: 500, width: '95%',
+            maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
           }} onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <h3 style={{ margin: 0, fontSize: 16 }}>Export Sales Report</h3>
               <button onClick={() => { setReportOpen(false); setReportData(null); }} style={{ ...secondaryButtonStyle, minWidth: 40 }}>✕</button>
             </div>
 
-            <div style={{ marginBottom: 16 }}>
+            <div style={{ marginBottom: 10 }}>
               <label style={{ display: 'block', marginBottom: 8, fontWeight: 500, fontSize: 14 }}>Report Period</label>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <div>
@@ -548,7 +548,7 @@ export function SalesHistoryWorkspace() {
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
               <button onClick={fetchReport} style={searchButtonStyle} disabled={reportLoading}>
                 {reportLoading ? 'Loading...' : 'Generate Report'}
               </button>
@@ -556,12 +556,12 @@ export function SalesHistoryWorkspace() {
 
             {reportData ? (
               <>
-                <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
                   <button onClick={exportReportCsv} style={gray800ButtonStyle}>Export CSV</button>
                   <button onClick={exportReportPdf} style={accentButtonStyle}>Export PDF (A4)</button>
                 </div>
 
-                <div style={{ background: 'var(--muted)', padding: 12, borderRadius: 8, marginBottom: 16 }}>
+                <div style={{ background: 'var(--muted)', padding: 10, borderRadius: 6, marginBottom: 10 }}>
                   <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Report Summary</div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, fontSize: 13 }}>
                     <div>Total Sales: <strong>BDT {formatMoney(reportData.summary.totalSales)}</strong></div>

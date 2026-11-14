@@ -13,7 +13,7 @@ export default async function StorePurchasesPage({
   const initialTab = params.tab === 'suppliers' || params.tab === 'payables' ? params.tab : 'purchases';
 
   return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
+    <section style={{ ...pageShellStyle, display: 'grid', gap: 12 }}>
       {access.canUsePurchases ? (
         <PurchasesWorkspace initialTab={initialTab} />
       ) : (

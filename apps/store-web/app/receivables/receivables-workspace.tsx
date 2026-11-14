@@ -361,7 +361,7 @@ export function ReceivablesWorkspace() {
   };
 
   return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
+    <section style={{ ...pageShellStyle, display: 'grid', gap: 10 }}>
       {compact ? (
         <WorkspaceTabs
           active={activeTab}
@@ -387,7 +387,7 @@ export function ReceivablesWorkspace() {
         </section>
       ) : null}
 
-      <section style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'minmax(0, 1.25fr) minmax(340px, 0.75fr)', gap: 16 }}>
+      <section style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'minmax(0, 1.25fr) minmax(340px, 0.75fr)', gap: 10 }}>
         {(!compact || activeTab === 'dues') ? (
           <article style={surfaceCardStyle}>
             <form onSubmit={(e) => { e.preventDefault(); void refresh(query, 1); }} style={{ ...searchRowStyle, marginBottom: 12 }}>
@@ -496,9 +496,9 @@ export function ReceivablesWorkspace() {
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }} onClick={() => { setLedgerOpen(false); setLedgerData(null); }}>
           <div style={{
-            background: '#fff', borderRadius: 16, padding: '24px 24px 0', maxWidth: 900, width: '95%',
+            background: '#fff', borderRadius: 6, padding: '24px 24px 0', maxWidth: 900, width: '95%',
             maxHeight: '90vh', display: 'flex', flexDirection: 'column',
-            boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
           }} onClick={(e) => e.stopPropagation()}>
             {/* Header — fixed */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexShrink: 0 }}>
@@ -531,7 +531,7 @@ export function ReceivablesWorkspace() {
 
             {/* Total outstanding — shown as soon as customer is selected */}
             {ledgerCustomerId && customerTotalOutstanding !== null ? (
-              <div style={{ marginBottom: 10, fontSize: 13, padding: '8px 12px', background: '#f0fdf4', borderRadius: 8, border: '1px solid #bbf7d0', flexShrink: 0 }}>
+              <div style={{ marginBottom: 10, fontSize: 13, padding: '6px 10px', background: '#f0fdf4', borderRadius: 6, border: '1px solid #bbf7d0', flexShrink: 0 }}>
                 <strong>Total Outstanding (All Time):</strong> BDT {formatMoney(customerTotalOutstanding)}
               </div>
             ) : null}
@@ -547,7 +547,7 @@ export function ReceivablesWorkspace() {
                   </div>
 
                   {/* Ledger summary */}
-                  <div style={{ display: 'flex', gap: 16, marginBottom: 12, fontSize: 13 }}>
+                  <div style={{ display: 'flex', gap: 10, marginBottom: 12, fontSize: 13 }}>
                     <span><strong>Opening:</strong> BDT {formatMoney(ledgerData.openingBalance)}</span>
                     <span><strong>Closing:</strong> BDT {formatMoney(ledgerData.closingBalance)}</span>
                     <span><strong>Transactions:</strong> {ledgerData.transactions.length}</span>

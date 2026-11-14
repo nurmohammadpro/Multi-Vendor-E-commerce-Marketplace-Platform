@@ -385,7 +385,7 @@ export function InventoryWorkspace({
 
   if (!canViewInventory) {
     return (
-      <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
+      <section style={{ ...pageShellStyle, display: 'grid', gap: 12 }}>
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Inventory access limited</h3>
           <p style={tokenMutedStyle}>Your role can’t view inventory data.</p>
@@ -407,7 +407,7 @@ export function InventoryWorkspace({
   );
 
   return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
+    <section style={{ ...pageShellStyle, display: 'grid', gap: 12 }}>
       {!locations.length ? (
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Inventory setup</h3>
@@ -418,7 +418,7 @@ export function InventoryWorkspace({
       ) : null}
 
       <article style={surfaceCardStyle}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start', marginBottom: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', alignItems: 'flex-start', marginBottom: 12 }}>
           <div>
             <h3 style={{ marginTop: 0, marginBottom: 6 }}>Live Balances</h3>
             <p style={{ ...tokenMutedStyle, marginBottom: 0 }}>
@@ -426,13 +426,13 @@ export function InventoryWorkspace({
             </p>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <div style={{ padding: '8px 12px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--card)', fontSize: 13 }}>
+            <div style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--card)', fontSize: 13 }}>
               Rows: <strong>{balanceSummary.visibleRows}</strong>
             </div>
-            <div style={{ padding: '8px 12px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--card)', fontSize: 13 }}>
+            <div style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--card)', fontSize: 13 }}>
               On hand: <strong>{formatQty(balanceSummary.onHand)}</strong>
             </div>
-            <div style={{ padding: '8px 12px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--card)', fontSize: 13 }}>
+            <div style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--card)', fontSize: 13 }}>
               Available: <strong>{formatQty(balanceSummary.available)}</strong>
             </div>
           </div>
@@ -462,7 +462,7 @@ export function InventoryWorkspace({
           <button onClick={searchByImei} style={searchButtonStyle}>Find Serial</button>
         </div>
         {imeiResult && imeiResult.found && imeiResult.serial && (
-          <div style={{ ...surfaceCardStyle, marginBottom: 12, padding: 12, background: '#f0fdf4', border: '1px solid #bbf7d0' }}>
+          <div style={{ ...surfaceCardStyle, marginBottom: 12, padding: 10, background: '#f0fdf4', border: '1px solid #bbf7d0' }}>
             <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Serial Found</div>
             <div style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>
               <span>Serial: <strong>{imeiResult.serial.serial_number}</strong></span>
@@ -548,7 +548,7 @@ export function InventoryWorkspace({
                       {balance.is_trackable && expandedSkuId === balance.sku_id && (
                         <tr key={`serials-${balance.sku_id}`}>
                           <td colSpan={8} style={{ padding: '0 16px 12px' }}>
-                            <div style={{ background: 'var(--muted)', borderRadius: 8, padding: 12 }}>
+                            <div style={{ background: 'var(--muted)', borderRadius: 6, padding: 10 }}>
                               <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Serial Numbers</div>
                               {serialLoading ? (
                                 <div style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>Loading...</div>
@@ -599,10 +599,10 @@ export function InventoryWorkspace({
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }} onClick={() => setStockControlOpen(false)}>
           <div data-enter-container style={{
-            background: 'var(--card)', borderRadius: 16, padding: 24, maxWidth: 480, width: '95%',
-            maxHeight: '80vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+            background: 'var(--card)', borderRadius: 6, padding: 10, maxWidth: 480, width: '95%',
+            maxHeight: '80vh', overflowY: 'auto', boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
           }} onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <h3 style={{ margin: 0, fontSize: 16 }}>Stock Control</h3>
               <button onClick={() => setStockControlOpen(false)} style={{ ...secondaryButtonStyle, minWidth: 40, fontSize: 16, lineHeight: 1 }}>✕</button>
             </div>

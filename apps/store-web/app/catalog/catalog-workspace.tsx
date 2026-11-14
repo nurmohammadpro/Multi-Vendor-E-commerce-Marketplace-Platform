@@ -98,7 +98,7 @@ export function CatalogWorkspace({ canManageCatalog }: { canManageCatalog: boole
 
   if (view === 'create' || view === 'edit') {
     return (
-      <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
+      <section style={{ ...pageShellStyle, display: 'grid', gap: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <button onClick={() => { setView('list'); setSelectedProductId(undefined); }} style={{ ...tokenMutedStyle, cursor: 'pointer', background: 'none', border: 'none', padding: 0, font: 'inherit' }}>
             Catalog
@@ -117,7 +117,7 @@ export function CatalogWorkspace({ canManageCatalog }: { canManageCatalog: boole
 
   if (view === 'detail' && selectedProductId) {
     return (
-      <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
+      <section style={{ ...pageShellStyle, display: 'grid', gap: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <button onClick={() => { setView('list'); setSelectedProductId(undefined); }} style={{ ...tokenMutedStyle, cursor: 'pointer', background: 'none', border: 'none', padding: 0, font: 'inherit' }}>
             Catalog
@@ -135,7 +135,7 @@ export function CatalogWorkspace({ canManageCatalog }: { canManageCatalog: boole
   }
 
   return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
+    <section style={{ ...pageShellStyle, display: 'grid', gap: 10 }}>
       <WorkspaceTabs
         active={tab}
         onChange={(key) => setTab(key as CatalogTab)}
@@ -153,7 +153,7 @@ export function CatalogWorkspace({ canManageCatalog }: { canManageCatalog: boole
       <>
       {/* Header */}
       <article style={surfaceCardStyle}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' }}>
           <div>
             <h3 style={{ margin: 0, fontSize: 15 }}>Product Catalog</h3>
             <p style={{ ...tokenMutedStyle, marginBottom: 0 }}>{pagination.total} products</p>

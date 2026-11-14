@@ -175,7 +175,7 @@ export function SupportWorkspace({
 
   if (!canUseSupport) {
     return (
-      <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
+      <section style={{ ...pageShellStyle, display: 'grid', gap: 10 }}>
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Access limited</h3>
           <p style={tokenMutedStyle}>This module is not available for the current role or subscription.</p>
@@ -185,7 +185,7 @@ export function SupportWorkspace({
   }
 
   return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
+    <section style={{ ...pageShellStyle, display: 'grid', gap: 10 }}>
       {compact ? (
         <WorkspaceTabs
           active={activeTab}

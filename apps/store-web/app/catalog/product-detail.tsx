@@ -88,7 +88,7 @@ export function ProductDetail({
   const { product, groups, skus, trackingProfile } = data;
 
   return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
+    <section style={{ ...pageShellStyle, display: 'grid', gap: 10 }}>
       {/* Header */}
       <article style={surfaceCardStyle}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -114,7 +114,7 @@ export function ProductDetail({
       {/* Product Info */}
       <article style={surfaceCardStyle}>
         <h3 style={{ margin: '0 0 12px', fontSize: 13, fontWeight: 600 }}>Product Information</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 16, fontSize: 13 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, fontSize: 13 }}>
           <div>
             <div style={{ color: 'var(--muted-foreground)', fontSize: 11 }}>Category</div>
             <div>{product.category_name || '—'}</div>

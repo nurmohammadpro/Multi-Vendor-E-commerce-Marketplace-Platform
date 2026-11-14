@@ -158,7 +158,7 @@ export function CategoriesPanel({ canManageCatalog }: { canManageCatalog: boolea
       </div>
 
       {formOpen ? (
-        <div style={{ display: 'grid', gap: 8, marginBottom: 12, padding: 10, background: 'var(--muted)', borderRadius: 8 }}>
+        <div style={{ display: 'grid', gap: 8, marginBottom: 12, padding: 10, background: 'var(--muted)', borderRadius: 6 }}>
           <input
             value={form.code}
             onChange={(e) => setForm((c) => ({ ...c, code: e.target.value }))}
@@ -352,7 +352,7 @@ export function BrandsPanel({ canManageCatalog }: { canManageCatalog: boolean })
       </div>
 
       {formOpen ? (
-        <div style={{ display: 'grid', gap: 8, marginBottom: 12, padding: 10, background: 'var(--muted)', borderRadius: 8 }}>
+        <div style={{ display: 'grid', gap: 8, marginBottom: 12, padding: 10, background: 'var(--muted)', borderRadius: 6 }}>
           <input
             data-enter-nav="false"
             value={form.name}

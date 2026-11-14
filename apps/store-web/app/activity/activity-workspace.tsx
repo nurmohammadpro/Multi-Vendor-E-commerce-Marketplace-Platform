@@ -86,7 +86,7 @@ export function ActivityWorkspace() {
   const totalPages = Math.max(1, Math.ceil((pagination.total || 0) / (pagination.limit || 20)));
 
   return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
+    <section style={{ ...pageShellStyle, display: 'grid', gap: 10 }}>
       <article style={surfaceCardStyle}>
         <h3 style={{ marginTop: 0 }}>Activity filters</h3>
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1.4fr) repeat(2, minmax(180px, 1fr)) auto', gap: 10 }}>
