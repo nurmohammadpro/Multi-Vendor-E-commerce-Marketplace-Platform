@@ -27,6 +27,7 @@ import { printProductLabelBatch } from '../../lib/print-agent';
 import { loadWorkstationProfile } from '../../lib/workstation-profile';
 import { QuickScanTab } from './quick-scan-tab';
 import { SuppliersPanel } from './suppliers-panel';
+import { CompanyOrdersTab } from './company-orders-tab';
 import { ComboboxAddNew } from '../combobox-add-new';
 import { BatchPasteTab } from './batch-paste-tab';
 import { CsvUploadTab } from './csv-upload-tab';
@@ -465,6 +466,7 @@ export function PurchasesWorkspace({ initialTab = 'purchases' }: { initialTab?: 
         active={activeTab}
         onChange={setActiveTab}
         tabs={[
+          { key: 'orders', label: 'Company Orders' },
           { key: 'purchases', label: 'Purchases & Receive' },
           { key: 'suppliers', label: 'Supplier Management' },
           { key: 'payables', label: 'Payables & Ledger' },
@@ -472,6 +474,10 @@ export function PurchasesWorkspace({ initialTab = 'purchases' }: { initialTab?: 
       />
 
       {/* ── Tab Content ── */}
+      {activeTab === 'orders' && (
+        <CompanyOrdersTab />
+      )}
+
       {activeTab === 'purchases' && (
         <>
           {/* ── Purchases Header ── */}

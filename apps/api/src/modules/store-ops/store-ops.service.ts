@@ -743,6 +743,13 @@ export class StoreOpsService {
             p.payment_status,
             p.status,
             p.note,
+            p.order_ref,
+            p.expected_date,
+            p.deposit_amount,
+            p.deposit_reference,
+            p.shipped_at,
+            p.truck_no,
+            p.challan_no,
             p.created_at,
             s.company_name as supplier_name,
             l.name as location_name,
@@ -932,10 +939,10 @@ export class StoreOpsService {
     const purchase = purchaseResult.rows[0];
     if (!purchase) throw new NotFoundException('Purchase not found');
 
-    const [itemsResult, paymentsResult] = await Promise.all([
+    const [itemsResult, paymentsResult, deliveriesResult] = await Promise.all([
       this.pool.query(
         `
-          select id, sku_id, product_name_snapshot, sku_code_snapshot, variant_label_snapshot, qty, unit_cost, line_total, batch_no, expiry_date
+          select id, sku_id, product_name_snapshot, sku_code_snapshot, variant_label_snapshot, qty, estimated_qty, received_qty, unit_cost, line_total, batch_no, expiry_date
           from procurement.purchase_items
           where purchase_id = $1
           order by created_at asc
@@ -944,16 +951,26 @@ export class StoreOpsService {
       ),
       this.pool.query(
         `
-          select id, payment_method, amount, reference_no, status, note, paid_at, created_at
+          select id, payment_method, amount, reference_no, status, note, paid_at, created_at, payment_kind
           from procurement.purchase_payments
           where purchase_id = $1
           order by created_at desc
         `,
         [purchaseId],
       ),
+      this.pool.query(
+        `
+          select d.id, d.delivery_no, d.truck_no, d.driver_name, d.driver_phone, d.challan_no,
+                 d.delivery_cost, d.received_qty, d.delivered_at, d.note
+          from procurement.purchase_deliveries d
+          where d.purchase_id = $1
+          order by d.delivered_at desc
+        `,
+        [purchaseId],
+      ),
     ]);
 
-    return { purchase, items: itemsResult.rows, payments: paymentsResult.rows };
+    return { purchase, items: itemsResult.rows, payments: paymentsResult.rows, deliveries: deliveriesResult.rows };
   }
 
   async createPurchase(
@@ -973,8 +990,12 @@ export class StoreOpsService {
       paidAmount: number;
       paymentReferenceNo?: string;
       paymentNote?: string;
-      status?: 'draft' | 'confirmed' | 'partially_received' | 'fully_received' | 'received';
-      items: Array<{ skuId: string; qty: number; unitCost: number; batchNo?: string; expiryDate?: string }>;
+      status?: 'draft' | 'confirmed' | 'shipped' | 'partially_received' | 'fully_received' | 'received';
+      orderRef?: string;
+      expectedDate?: string;
+      depositAmount?: number;
+      depositReference?: string;
+      items: Array<{ skuId: string; qty: number; unitCost: number; estimatedQty?: number; batchNo?: string; expiryDate?: string }>;
     },
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
@@ -983,6 +1004,11 @@ export class StoreOpsService {
     const locationId = payload.locationId ?? await this.getDefaultInventoryLocationId(storeId);
     const purchaseNo = await this.generatePurchaseNumber(storeId, payload.purchaseDate);
     const purchaseStatus = payload.status ?? 'confirmed';
+    const depositAmount = Math.max(payload.depositAmount ?? 0, 0);
+    const paymentKind = depositAmount > 0 ? 'deposit' : 'settlement';
+    const paymentReference = depositAmount > 0
+      ? (payload.depositReference ?? payload.paymentReferenceNo ?? null)
+      : (payload.paymentReferenceNo ?? null);
 
     const supplierExists = await this.pool.query<{ id: string }>(
       `select id from procurement.suppliers where id = $1 and store_id = $2 limit 1`,
@@ -1051,7 +1077,7 @@ export class StoreOpsService {
       ? payload.items.reduce((sum, item) => sum + item.qty * item.unitCost, 0)
       : 0;
     const totalAmount = subtotalAmount - payload.discountAmount + payload.taxAmount + payload.shippingAmount;
-    const paidAmount = Math.min(payload.paidAmount, totalAmount);
+    const paidAmount = Math.min((payload.paidAmount ?? 0) + depositAmount, totalAmount);
     const paymentStatus = paidAmount <= 0 ? 'pending' : paidAmount >= totalAmount ? 'paid' : 'partial';
 
     const client = await this.pool.connect();
@@ -1104,6 +1130,22 @@ export class StoreOpsService {
 
       const purchaseId = purchaseResult.rows[0].id;
 
+      if (payload.orderRef || payload.expectedDate || depositAmount > 0) {
+        await client.query(
+          `
+            update procurement.purchases
+            set order_ref = coalesce($2, order_ref),
+                expected_date = coalesce($3::date, expected_date),
+                deposit_amount = $4,
+                deposit_reference = $5,
+                deposit_paid_at = case when $4 > 0 then now() else deposit_paid_at end,
+                updated_at = now()
+            where id = $1
+          `,
+          [purchaseId, payload.orderRef ?? null, payload.expectedDate ?? null, depositAmount, payload.depositReference ?? null],
+        );
+      }
+
       // Only process items if not a draft purchase
       if (purchaseStatus !== 'draft' && payload.items.length > 0) {
         for (const item of payload.items) {
@@ -1114,10 +1156,10 @@ export class StoreOpsService {
           await client.query(
             `
               insert into procurement.purchase_items (
-                id, purchase_id, sku_id, product_name_snapshot, sku_code_snapshot, variant_label_snapshot, qty, unit_cost, line_total, batch_no, expiry_date, created_at
+                id, purchase_id, sku_id, product_name_snapshot, sku_code_snapshot, variant_label_snapshot, qty, unit_cost, line_total, batch_no, expiry_date, estimated_qty, received_qty, created_at
               )
               values (
-                gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now()
+                gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 0, now()
               )
             `,
             [
@@ -1131,6 +1173,7 @@ export class StoreOpsService {
               lineTotal,
               item.batchNo?.trim() || null,
               item.expiryDate ?? null,
+              item.estimatedQty ?? item.qty,
             ],
           );
 
@@ -1175,13 +1218,13 @@ export class StoreOpsService {
           await client.query(
             `
               insert into procurement.purchase_payments (
-                id, purchase_id, payment_method, amount, reference_no, status, note, paid_at, created_by, created_at
+                id, purchase_id, payment_method, amount, reference_no, status, note, paid_at, created_by, created_at, payment_kind
               )
               values (
-                gen_random_uuid(), $1, $2, $3, $4, 'paid', $5, now(), $6, now()
+                gen_random_uuid(), $1, $2, $3, $4, 'paid', $5, now(), $6, now(), $7
               )
             `,
-            [purchaseId, payload.paymentMethod ?? 'cash', paidAmount, payload.paymentReferenceNo ?? null, payload.paymentNote ?? null, userId],
+            [purchaseId, payload.paymentMethod ?? 'cash', paidAmount, paymentReference, payload.paymentNote ?? null, userId, paymentKind],
           );
         }
       } else if (payload.items.length > 0) {
@@ -1194,10 +1237,10 @@ export class StoreOpsService {
           await client.query(
             `
               insert into procurement.purchase_items (
-                id, purchase_id, sku_id, product_name_snapshot, sku_code_snapshot, variant_label_snapshot, qty, unit_cost, line_total, batch_no, expiry_date, created_at
+                id, purchase_id, sku_id, product_name_snapshot, sku_code_snapshot, variant_label_snapshot, qty, unit_cost, line_total, batch_no, expiry_date, estimated_qty, received_qty, created_at
               )
               values (
-                gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now()
+                gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 0, now()
               )
             `,
             [
@@ -1211,6 +1254,7 @@ export class StoreOpsService {
               lineTotal,
               item.batchNo?.trim() || null,
               item.expiryDate ?? null,
+              item.estimatedQty ?? item.qty,
             ],
           );
         }
@@ -1219,13 +1263,13 @@ export class StoreOpsService {
           await client.query(
             `
               insert into procurement.purchase_payments (
-                id, purchase_id, payment_method, amount, reference_no, status, note, paid_at, created_by, created_at
+                id, purchase_id, payment_method, amount, reference_no, status, note, paid_at, created_by, created_at, payment_kind
               )
               values (
-                gen_random_uuid(), $1, $2, $3, $4, 'paid', $5, now(), $6, now()
+                gen_random_uuid(), $1, $2, $3, $4, 'paid', $5, now(), $6, now(), $7
               )
             `,
-            [purchaseId, payload.paymentMethod ?? 'cash', paidAmount, payload.paymentReferenceNo ?? null, payload.paymentNote ?? null, userId],
+            [purchaseId, payload.paymentMethod ?? 'cash', paidAmount, paymentReference, payload.paymentNote ?? null, userId, paymentKind],
           );
         }
       }
@@ -1245,12 +1289,19 @@ export class StoreOpsService {
     headerStoreId: string | undefined,
     authContext: StoreAuthContext | null,
     payload: {
-      status?: 'draft' | 'confirmed' | 'partially_received' | 'fully_received' | 'received' | 'cancelled';
+      status?: 'draft' | 'confirmed' | 'shipped' | 'partially_received' | 'fully_received' | 'received' | 'cancelled';
       invoiceNo?: string;
       discountAmount?: number;
       taxAmount?: number;
       shippingAmount?: number;
       note?: string;
+      orderRef?: string;
+      expectedDate?: string;
+      truckNo?: string;
+      challanNo?: string;
+      driverName?: string;
+      driverPhone?: string;
+      deliveryCost?: number;
     },
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
@@ -1278,8 +1329,9 @@ export class StoreOpsService {
 
     // Validate status transitions for enhanced workflow
     const validTransitions: Record<string, string[]> = {
-      draft: ['confirmed', 'cancelled'],
-      confirmed: ['partially_received', 'fully_received', 'cancelled'],
+      draft: ['confirmed', 'shipped', 'cancelled'],
+      confirmed: ['shipped', 'partially_received', 'fully_received', 'cancelled'],
+      shipped: ['partially_received', 'fully_received', 'cancelled'],
       partially_received: ['partially_received', 'fully_received', 'cancelled'],
       fully_received: ['cancelled'],
       received: ['cancelled'], // Legacy support
@@ -1305,6 +1357,14 @@ export class StoreOpsService {
       if (payload.status !== undefined) {
         updates.push(`status = $${paramIndex++}`);
         values.push(payload.status);
+        if (payload.status === 'confirmed') {
+          updates.push(`confirmed_at = coalesce(confirmed_at, $${paramIndex++})`);
+          values.push(new Date().toISOString());
+        }
+        if (payload.status === 'shipped') {
+          updates.push(`shipped_at = coalesce(shipped_at, $${paramIndex++})`);
+          values.push(new Date().toISOString());
+        }
         if (payload.status === 'received' || payload.status === 'partially_received' || payload.status === 'fully_received') {
           updates.push(`received_at = $${paramIndex++}`);
           values.push(new Date().toISOString());
@@ -1334,6 +1394,41 @@ export class StoreOpsService {
       if (payload.note !== undefined) {
         updates.push(`note = $${paramIndex++}`);
         values.push(payload.note);
+      }
+
+      if (payload.orderRef !== undefined) {
+        updates.push(`order_ref = $${paramIndex++}`);
+        values.push(payload.orderRef);
+      }
+
+      if (payload.expectedDate !== undefined) {
+        updates.push(`expected_date = $${paramIndex++}::date`);
+        values.push(payload.expectedDate);
+      }
+
+      if (payload.truckNo !== undefined) {
+        updates.push(`truck_no = $${paramIndex++}`);
+        values.push(payload.truckNo);
+      }
+
+      if (payload.challanNo !== undefined) {
+        updates.push(`challan_no = $${paramIndex++}`);
+        values.push(payload.challanNo);
+      }
+
+      if (payload.driverName !== undefined) {
+        updates.push(`driver_name = $${paramIndex++}`);
+        values.push(payload.driverName);
+      }
+
+      if (payload.driverPhone !== undefined) {
+        updates.push(`driver_phone = $${paramIndex++}`);
+        values.push(payload.driverPhone);
+      }
+
+      if (payload.deliveryCost !== undefined) {
+        updates.push(`delivery_cost = $${paramIndex++}`);
+        values.push(payload.deliveryCost);
       }
 
       updates.push(`updated_at = $${paramIndex++}`);
@@ -1380,6 +1475,7 @@ export class StoreOpsService {
       paymentMethod: 'cash' | 'card' | 'mfs' | 'bank_transfer';
       referenceNo?: string;
       note?: string;
+      paymentKind?: 'deposit' | 'settlement';
     },
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
@@ -1416,13 +1512,13 @@ export class StoreOpsService {
       await client.query(
         `
           insert into procurement.purchase_payments (
-            id, purchase_id, payment_method, amount, reference_no, status, note, paid_at, created_by, created_at
+            id, purchase_id, payment_method, amount, reference_no, status, note, paid_at, created_by, created_at, payment_kind
           )
           values (
-            gen_random_uuid(), $1, $2, $3, $4, 'paid', $5, now(), $6, now()
+            gen_random_uuid(), $1, $2, $3, $4, 'paid', $5, now(), $6, now(), $7
           )
         `,
-        [purchaseId, payload.paymentMethod, appliedAmount, payload.referenceNo ?? null, payload.note ?? null, userId],
+        [purchaseId, payload.paymentMethod, appliedAmount, payload.referenceNo ?? null, payload.note ?? null, userId, payload.paymentKind ?? 'settlement'],
       );
       await client.query(
         `
@@ -1430,10 +1526,13 @@ export class StoreOpsService {
           set
             paid_amount = $2,
             payment_status = $3,
+            deposit_amount = case when $4 = 'deposit' then deposit_amount + $5 else deposit_amount end,
+            deposit_reference = case when $4 = 'deposit' then $6 else deposit_reference end,
+            deposit_paid_at = case when $4 = 'deposit' then now() else deposit_paid_at end,
             updated_at = now()
           where id = $1
         `,
-        [purchaseId, nextPaidAmount, nextStatus],
+        [purchaseId, nextPaidAmount, nextStatus, payload.paymentKind ?? 'settlement', appliedAmount, payload.referenceNo ?? null],
       );
       await client.query('commit');
     } catch (error) {
@@ -1450,6 +1549,207 @@ export class StoreOpsService {
       outstandingAmount: Math.max(Number(purchase.total_amount) - nextPaidAmount, 0),
       paymentStatus: nextStatus,
     };
+  }
+
+  async receivePurchaseDelivery(
+    purchaseId: string,
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    session: AuthSession | null,
+    payload: {
+      locationId?: string;
+      truckNo?: string;
+      challanNo?: string;
+      driverName?: string;
+      driverPhone?: string;
+      deliveryCost?: number;
+      note?: string;
+      items: Array<{ purchaseItemId: string; qty: number }>;
+    },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    this.assertAllowedRoles(authContext, ['store_owner', 'store_manager']);
+    const userId = this.requireUserId(session);
+
+    const purchaseResult = await this.pool.query<{ id: string; purchase_no: string; status: string; location_id: string }>(
+      `select id, purchase_no, status, location_id from procurement.purchases where id = $1 and store_id = $2 limit 1`,
+      [purchaseId, storeId],
+    );
+    const purchase = purchaseResult.rows[0];
+    if (!purchase) throw new NotFoundException('Purchase order not found');
+    if (purchase.status === 'cancelled') throw new ForbiddenException('Cancelled orders cannot receive deliveries');
+
+    const deliverable = payload.items.filter((line) => Number(line.qty) > 0);
+    if (deliverable.length === 0) {
+      throw new ForbiddenException('A delivery needs at least one line with a quantity');
+    }
+    const locationId = payload.locationId ?? purchase.location_id;
+
+    const client = await this.pool.connect();
+    try {
+      await client.query('begin');
+
+      const tenantResult = await client.query<{ tenant_id: string }>(
+        'select tenant_id from store.stores where id = $1 limit 1',
+        [storeId],
+      );
+      const tenantId = tenantResult.rows[0]?.tenant_id;
+
+      const itemsResult = await client.query<{
+        id: string;
+        sku_id: string;
+        product_id: string | null;
+        unit_cost: string;
+        qty: string;
+        received_qty: string;
+        sku_code_snapshot: string;
+      }>(
+        `
+          select pi.id, pi.sku_id, pi.unit_cost, pi.qty, pi.received_qty, pi.sku_code_snapshot, sk.product_id
+          from procurement.purchase_items pi
+          left join catalog.skus sk on sk.id = pi.sku_id
+          where pi.purchase_id = $1 and pi.id = any($2::uuid[])
+        `,
+        [purchaseId, deliverable.map((line) => line.purchaseItemId)],
+      );
+      const itemMap = new Map(itemsResult.rows.map((row) => [row.id, row]));
+
+      const deliveryCount = await client.query<{ n: string }>(
+        `select count(*)::text as n from procurement.purchase_deliveries where purchase_id = $1`,
+        [purchaseId],
+      );
+      const deliveryNo = `DEL-${purchase.purchase_no}-${Number(deliveryCount.rows[0]?.n ?? 0) + 1}`;
+
+      let receivedTotal = 0;
+      const lines: Array<{ purchaseItemId: string; skuId: string; productId: string | null; qty: number; unitCost: number; skuCode: string }> = [];
+      for (const line of deliverable) {
+        const item = itemMap.get(line.purchaseItemId);
+        if (!item) throw new NotFoundException('A delivery line references an item that is not on this order');
+        lines.push({
+          purchaseItemId: item.id,
+          skuId: item.sku_id,
+          productId: item.product_id,
+          qty: Number(line.qty),
+          unitCost: Number(item.unit_cost ?? 0),
+          skuCode: item.sku_code_snapshot,
+        });
+        receivedTotal += Number(line.qty);
+      }
+
+      const deliveryResult = await client.query<{ id: string }>(
+        `
+          insert into procurement.purchase_deliveries (
+            id, tenant_id, store_id, purchase_id, delivery_no, truck_no, driver_name, driver_phone,
+            challan_no, delivery_cost, received_qty, delivered_at, note, created_by, created_at
+          )
+          values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now(), $11, $12, now())
+          returning id
+        `,
+        [
+          tenantId,
+          storeId,
+          purchaseId,
+          deliveryNo,
+          payload.truckNo ?? null,
+          payload.driverName ?? null,
+          payload.driverPhone ?? null,
+          payload.challanNo ?? null,
+          payload.deliveryCost ?? 0,
+          receivedTotal,
+          payload.note ?? null,
+          userId,
+        ],
+      );
+      const deliveryId = deliveryResult.rows[0].id;
+      const today = new Date().toISOString().slice(0, 10);
+
+      for (const line of lines) {
+        await client.query(
+          `insert into procurement.purchase_delivery_items (id, delivery_id, purchase_item_id, qty, created_at)
+           values (gen_random_uuid(), $1, $2, $3, now())`,
+          [deliveryId, line.purchaseItemId, line.qty],
+        );
+
+        await client.query(
+          `update procurement.purchase_items
+           set qty = received_qty + $2, received_qty = received_qty + $2, line_total = (received_qty + $2) * unit_cost
+           where id = $1`,
+          [line.purchaseItemId, line.qty],
+        );
+
+        await client.query(
+          `
+            insert into inventory.balances (id, tenant_id, store_id, location_id, sku_id, on_hand_qty, reserved_qty, damaged_qty, returned_qty, updated_at)
+            select gen_random_uuid(), s.tenant_id, s.id, $2, $3, $4, 0, 0, 0, now()
+            from store.stores s where s.id = $1
+            on conflict (location_id, sku_id) do update set
+              on_hand_qty = inventory.balances.on_hand_qty + excluded.on_hand_qty,
+              updated_at = now()
+          `,
+          [storeId, locationId, line.skuId, line.qty],
+        );
+
+        await client.query(
+          `
+            insert into inventory.ledger (id, tenant_id, store_id, location_id, sku_id, movement_type, qty_delta, reference_type, reference_id, note, actor_id, created_at)
+            select gen_random_uuid(), s.tenant_id, s.id, $2, $3, 'purchase_receive', $4, 'purchase', $5, $6, $7, now()
+            from store.stores s where s.id = $1
+          `,
+          [storeId, locationId, line.skuId, line.qty, purchaseId, `Delivery ${deliveryNo} — ${line.skuCode}`, userId],
+        );
+
+        await this.addReceiveBatch(client, tenantId, storeId, line.skuId, line.productId ?? line.skuId, purchaseId, null, line.qty, line.unitCost, today, 0);
+      }
+
+      const totalsResult = await client.query<{ subtotal: string }>(
+        `select coalesce(sum(line_total), 0) as subtotal from procurement.purchase_items where purchase_id = $1`,
+        [purchaseId],
+      );
+      const newSubtotal = Number(totalsResult.rows[0]?.subtotal ?? 0);
+      const currentResult = await client.query<{ discount_amount: string; tax_amount: string; shipping_amount: string; delivery_cost: string }>(
+        `select discount_amount, tax_amount, shipping_amount, delivery_cost from procurement.purchases where id = $1`,
+        [purchaseId],
+      );
+      const cur = currentResult.rows[0];
+      const newTotal = newSubtotal - Number(cur?.discount_amount ?? 0) + Number(cur?.tax_amount ?? 0) + Number(cur?.shipping_amount ?? 0) + Number(cur?.delivery_cost ?? 0);
+
+      const progressResult = await client.query<{ fully: boolean }>(
+        `select bool_and(received_qty > 0 and received_qty >= coalesce(estimated_qty, qty)) as fully
+         from procurement.purchase_items where purchase_id = $1`,
+        [purchaseId],
+      );
+      const fullyReceived = Boolean(progressResult.rows[0]?.fully);
+      const nextStatus = fullyReceived ? 'fully_received' : 'partially_received';
+
+      await client.query(
+        `
+          update procurement.purchases
+          set subtotal_amount = $2,
+              total_amount = $3,
+              status = $4,
+              received_at = now(),
+              total_items_qty = (select count(*) from procurement.purchase_items where purchase_id = $1),
+              received_items_qty = (select count(*) from procurement.purchase_items where purchase_id = $1 and received_qty > 0),
+              paid_amount = least(paid_amount, $3),
+              payment_status = case
+                when least(paid_amount, $3) >= $3 then 'paid'
+                when least(paid_amount, $3) > 0 then 'partial'
+                else 'pending'
+              end,
+              updated_at = now()
+          where id = $1
+        `,
+        [purchaseId, newSubtotal, newTotal, nextStatus],
+      );
+
+      await client.query('commit');
+      return { deliveryId, deliveryNo, receivedQty: receivedTotal, status: nextStatus, totalAmount: newTotal };
+    } catch (error) {
+      await client.query('rollback').catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async listPayables(
@@ -2946,6 +3246,7 @@ export class StoreOpsService {
       variantPrices?: number[];
       variantCosts?: number[];
       isTrackable?: boolean;
+      unit?: string;
       note?: string;
     },
   ) {
@@ -2986,9 +3287,9 @@ export class StoreOpsService {
       // 1. Create product — Quick Add makes simple non-variant products; trackable
       // only when explicitly requested (serial intake comes through Receive Stock).
       const productResult = await client.query<{ id: string }>(
-        `insert into catalog.products (id, tenant_id, store_id, product_code, name, category_id, brand_id, has_variants, variant_mode, is_trackable, status, created_at, updated_at)
-         values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, 'active', now(), now()) returning id`,
-        [tenantId, storeId, productCode, productName, categoryId, brandId, payload.hasVariants, payload.hasVariants ? 'single' : 'none', payload.isTrackable ?? false],
+        `insert into catalog.products (id, tenant_id, store_id, product_code, name, category_id, brand_id, has_variants, variant_mode, is_trackable, unit, status, created_at, updated_at)
+         values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'active', now(), now()) returning id`,
+        [tenantId, storeId, productCode, productName, categoryId, brandId, payload.hasVariants, payload.hasVariants ? 'single' : 'none', payload.isTrackable ?? false, (payload.unit ?? '').trim() || 'pcs'],
       );
       const productId = productResult.rows[0].id;
 
@@ -3249,6 +3550,19 @@ export class StoreOpsService {
         }
       }
 
+      // 8b. Mark the product/SKU as serial-tracked so POS prompts for serials.
+      if (isTracked) {
+        const hasImei = payload.trackingValuesList!.some((tv) => tv['imei'] || tv['imei_number']);
+        await client.query(
+          `update catalog.products set is_trackable = true, serial_tracking_enabled = true, updated_at = now() where id = $1`,
+          [product.id],
+        );
+        await client.query(
+          `update catalog.skus set requires_serial = true, requires_imei = requires_imei or $2, updated_at = now() where id = $1`,
+          [skuId, hasImei],
+        );
+      }
+
       // 9. Update inventory balance with enhanced error handling
       try {
         await client.query(
@@ -3454,6 +3768,19 @@ export class StoreOpsService {
               createdSerials.push({ id: serialResult.rows[0].id, serialNumber, imeiNumber });
             }
             }
+
+          // Mark the product/SKU as serial-tracked so POS prompts for serials.
+          if (isTracked) {
+            const hasImei = item.trackingValuesList!.some((tv) => tv['imei'] || tv['imei_number']);
+            await client.query(
+              `update catalog.products set is_trackable = true, serial_tracking_enabled = true, updated_at = now() where id = $1`,
+              [product.id],
+            );
+            await client.query(
+              `update catalog.skus set requires_serial = true, requires_imei = requires_imei or $2, updated_at = now() where id = $1`,
+              [skuId, hasImei],
+            );
+          }
 
           // Update inventory balance
           await client.query(

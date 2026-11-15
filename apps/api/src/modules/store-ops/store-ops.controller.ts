@@ -38,6 +38,7 @@ const purchaseItemSchema = z.object({
   skuId: z.string().uuid(),
   qty: z.number().positive(),
   unitCost: z.number().nonnegative(),
+  estimatedQty: z.number().nonnegative().optional(),
   batchNo: z.string().max(120).optional(),
   expiryDate: z.string().date().optional(),
 });
@@ -47,16 +48,20 @@ const createPurchaseSchema = z.object({
   locationId: z.string().uuid().optional(),
   purchaseDate: z.string().date(),
   invoiceNo: z.string().max(100).optional(),
+  orderRef: z.string().max(100).optional(),
+  expectedDate: z.string().date().optional(),
   discountAmount: z.number().nonnegative().default(0),
   taxAmount: z.number().nonnegative().default(0),
   shippingAmount: z.number().nonnegative().default(0),
   note: z.string().max(1000).optional(),
   paymentMethod: z.enum(['cash', 'card', 'mfs', 'bank_transfer']).optional(),
   paidAmount: z.number().nonnegative().default(0),
+  depositAmount: z.number().nonnegative().optional(),
+  depositReference: z.string().max(100).optional(),
   paymentReferenceNo: z.string().max(100).optional(),
   paymentNote: z.string().max(500).optional(),
-  status: z.enum(['draft', 'confirmed', 'partially_received', 'fully_received', 'received']).default('confirmed'),
-  items: z.array(purchaseItemSchema).min(0), // Allow empty for drafts
+  status: z.enum(['draft', 'confirmed', 'shipped', 'partially_received', 'fully_received', 'received']).default('confirmed'),
+  items: z.array(purchaseItemSchema).min(0),
 });
 
 const purchasePaymentSchema = z.object({
@@ -64,11 +69,33 @@ const purchasePaymentSchema = z.object({
   paymentMethod: z.enum(['cash', 'card', 'mfs', 'bank_transfer']),
   referenceNo: z.string().max(100).optional(),
   note: z.string().max(500).optional(),
+  paymentKind: z.enum(['deposit', 'settlement']).optional(),
+});
+
+const purchaseDeliverySchema = z.object({
+  locationId: z.string().uuid().optional(),
+  truckNo: z.string().max(60).optional(),
+  challanNo: z.string().max(100).optional(),
+  driverName: z.string().max(120).optional(),
+  driverPhone: z.string().max(30).optional(),
+  deliveryCost: z.number().nonnegative().optional(),
+  note: z.string().max(1000).optional(),
+  items: z.array(z.object({
+    purchaseItemId: z.string().uuid(),
+    qty: z.number().nonnegative(),
+  })).min(1),
 });
 
 const purchaseUpdateSchema = z.object({
-  status: z.enum(['draft', 'confirmed', 'partially_received', 'fully_received', 'received', 'cancelled']).optional(),
+  status: z.enum(['draft', 'confirmed', 'shipped', 'partially_received', 'fully_received', 'received', 'cancelled']).optional(),
   invoiceNo: z.string().max(100).optional(),
+  orderRef: z.string().max(100).optional(),
+  expectedDate: z.string().date().optional(),
+  truckNo: z.string().max(60).optional(),
+  challanNo: z.string().max(100).optional(),
+  driverName: z.string().max(120).optional(),
+  driverPhone: z.string().max(30).optional(),
+  deliveryCost: z.number().nonnegative().optional(),
   discountAmount: z.number().nonnegative().optional(),
   taxAmount: z.number().nonnegative().optional(),
   shippingAmount: z.number().nonnegative().optional(),
@@ -220,7 +247,8 @@ const quickReceiveSchema = z.object({
   variantLabels: z.array(z.string().max(100)).optional(),
   variantPrices: z.array(z.number().nonnegative()).optional(),
   variantCosts: z.array(z.number().nonnegative()).optional(),
-  isTrackable: z.boolean().default(true),
+  isTrackable: z.boolean().default(false),
+  unit: z.string().max(20).optional(),
   note: z.string().max(500).optional(),
 });
 
@@ -572,6 +600,25 @@ export class StoreOpsController {
       authContext,
       session,
       purchasePaymentSchema.parse(payload),
+    );
+  }
+
+  @Post('purchases/:purchaseId/deliveries')
+  @RequireContext('store')
+  @RequirePermissions('procurement.manage')
+  receivePurchaseDelivery(
+    @Param('purchaseId') purchaseId: string,
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @CurrentAuthSession() session: AuthSession | null,
+    @Body() payload: unknown,
+  ) {
+    return this.storeOpsService.receivePurchaseDelivery(
+      purchaseId,
+      headerStoreId,
+      authContext,
+      session,
+      purchaseDeliverySchema.parse(payload),
     );
   }
 

@@ -10,7 +10,7 @@ export default async function StorePurchasesPage({
 }) {
   const access = await getStoreConsoleAccess();
   const params = (await searchParams) ?? {};
-  const initialTab = params.tab === 'suppliers' || params.tab === 'payables' ? params.tab : 'purchases';
+  const initialTab = params.tab === 'suppliers' || params.tab === 'payables' || params.tab === 'orders' ? params.tab : 'orders';
 
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 12 }}>
