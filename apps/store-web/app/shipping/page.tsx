@@ -1,14 +1,6 @@
-import { getStoreConsoleAccess } from '../../lib/access';
-import { pageShellStyle } from '../merchflow-theme';
+import { redirect } from 'next/navigation';
 
-import { ShippingWorkspace } from './shipping-workspace';
-
-export default async function StoreShippingPage() {
-  const access = await getStoreConsoleAccess();
-
-  return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 12 }}>
-      <ShippingWorkspace canManageShipping={access.canManageShipping} canViewShipping={access.canViewReports} />
-    </section>
-  );
+// Shipping lives in the After-Sales workspace now.
+export default function StoreShippingPage() {
+  redirect('/after-sales?tab=shipments');
 }

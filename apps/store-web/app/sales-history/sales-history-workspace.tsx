@@ -454,7 +454,7 @@ export function SalesHistoryWorkspace() {
                         <span style={{ ...tokenMutedStyle, fontSize: 11 }}>Returned</span>
                       ) : (
                         <Link
-                          href={`/returns?saleId=${sale.id}`}
+                          href={`/after-sales?tab=returns&saleId=${sale.id}`}
                           style={subtleButtonStyle}
                         >
                           Return

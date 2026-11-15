@@ -1,10 +1,6 @@
-import { pageShellStyle } from '../merchflow-theme';
-import { StockLedgerWorkspace } from './stock-ledger-workspace';
+import { redirect } from 'next/navigation';
 
-export default async function StockLedgerPage() {
-  return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 12 }}>
-      <StockLedgerWorkspace />
-    </section>
-  );
+// Stock ledger is a tab inside Inventory now.
+export default function StockLedgerPage() {
+  redirect('/inventory?tab=ledger');
 }

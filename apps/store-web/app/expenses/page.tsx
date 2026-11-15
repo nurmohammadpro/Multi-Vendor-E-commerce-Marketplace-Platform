@@ -1,20 +1,6 @@
-import { getStoreConsoleAccess } from '../../lib/access';
-import { emptyStateStyle, pageShellStyle, surfaceCardStyle } from '../merchflow-theme';
-import { ExpensesWorkspace } from './expenses-workspace';
+import { redirect } from 'next/navigation';
 
-export default async function StoreExpensesPage() {
-  const access = await getStoreConsoleAccess();
-
-  return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 12 }}>
-      {access.canUseDailyExpense ? (
-        <ExpensesWorkspace />
-      ) : (
-        <article style={surfaceCardStyle}>
-          <h3 style={{ marginTop: 0 }}>Daily Expense locked</h3>
-          <div style={emptyStateStyle}>Upgrade to Standard to use this workflow.</div>
-        </article>
-      )}
-    </section>
-  );
+// Daily expenses are a tab inside Finance now.
+export default function StoreExpensesPage() {
+  redirect('/finance?tab=expenses');
 }

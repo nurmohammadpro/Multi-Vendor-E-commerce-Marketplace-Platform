@@ -1,5 +1,6 @@
-import { InvoicesWorkspace } from './invoices-workspace';
+import { redirect } from 'next/navigation';
 
-export default function InvoicesPage() {
-  return <InvoicesWorkspace />;
+// Invoices live in the Sales (Records) workspace now.
+export default function StoreInvoicesPage() {
+  redirect('/sales?tab=invoices');
 }

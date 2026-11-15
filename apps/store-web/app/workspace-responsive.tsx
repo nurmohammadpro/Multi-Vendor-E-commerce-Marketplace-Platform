@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 
 import { merchflowColors, subtleButtonStyle } from './merchflow-theme';
 
@@ -63,6 +63,33 @@ export function WorkspaceTabs({
         );
       })}
     </div>
+  );
+}
+
+/**
+ * Renders a tab bar plus the panel for the active tab. Host pages pass a
+ * pre-built map of panels (server-rendered elements) so only the selected
+ * panel is mounted. Used to fold related pages into one sidebar entry.
+ */
+export function WorkspaceTabHost({
+  tabs,
+  panels,
+  initialTab,
+}: {
+  tabs: Array<{ key: string; label: string }>;
+  panels: Record<string, ReactNode>;
+  initialTab?: string;
+}) {
+  const keys = tabs.map((tab) => tab.key);
+  const [active, setActive] = useState(
+    initialTab && keys.includes(initialTab) ? initialTab : keys[0] ?? '',
+  );
+
+  return (
+    <section style={{ display: 'grid', gap: 12 }}>
+      {tabs.length > 1 ? <WorkspaceTabs tabs={tabs} active={active} onChange={setActive} /> : null}
+      {panels[active] ?? null}
+    </section>
   );
 }
 

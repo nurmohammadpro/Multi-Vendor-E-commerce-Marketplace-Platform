@@ -1,12 +1,6 @@
-import { getStoreConsoleAccess } from '../../lib/access';
-import { pageShellStyle } from '../merchflow-theme';
-import { ApprovalsWorkspace } from './approvals-workspace';
+import { redirect } from 'next/navigation';
 
-export default async function StoreApprovalsPage() {
-  const access = await getStoreConsoleAccess();
-  return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 12 }}>
-      <ApprovalsWorkspace canApproveInventory={access.canApproveInventory} />
-    </section>
-  );
+// Approvals are a tab inside Inventory now.
+export default function StoreApprovalsPage() {
+  redirect('/inventory?tab=approvals');
 }

@@ -1,5 +1,6 @@
-import { SalesHistoryWorkspace } from './sales-history-workspace';
+import { redirect } from 'next/navigation';
 
-export default function SalesHistoryPage() {
-  return <SalesHistoryWorkspace />;
+// Sales history lives in the Sales (Records) workspace now.
+export default function StoreSalesHistoryPage() {
+  redirect('/sales?tab=history');
 }

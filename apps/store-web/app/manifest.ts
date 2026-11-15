@@ -35,7 +35,7 @@ export default function manifest(): MetadataRoute.Manifest {
         name: 'Approvals',
         short_name: 'Approvals',
         description: 'Review pending stock and price approvals.',
-        url: '/approvals',
+        url: '/inventory?tab=approvals',
         icons: [{ src: '/pwa/icon-192.png', sizes: '192x192', type: 'image/png' }],
       },
     ],

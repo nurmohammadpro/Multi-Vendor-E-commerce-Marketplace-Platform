@@ -1,35 +1,35 @@
-import Link from 'next/link';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import type { ReactNode } from 'react';
+
 import { getStoreConsoleAccess } from '../../lib/access';
-import { pageShellStyle } from '../merchflow-theme';
+import { emptyStateStyle, pageShellStyle } from '../merchflow-theme';
+import { WorkspaceTabHost } from '../workspace-responsive';
+import { HardwareWorkspace } from '../hardware/hardware-workspace';
 import { SettingsWorkspace } from './settings-workspace';
 
-export default async function StoreSettingsPage() {
+export default async function StoreSettingsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ tab?: string }>;
+}) {
   const access = await getStoreConsoleAccess();
+  const params = (await searchParams) ?? {};
+
+  const tabs: Array<{ key: string; label: string }> = [];
+  const panels: Record<string, ReactNode> = {};
+
+  if (access.canManageSettings) {
+    tabs.push({ key: 'settings', label: 'Store Settings' });
+    panels.settings = <SettingsWorkspace canManageSettings={access.canManageSettings} />;
+    tabs.push({ key: 'hardware', label: 'Hardware' });
+    panels.hardware = <HardwareWorkspace canManageSettings={access.canManageSettings} />;
+  }
 
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 12 }}>
-      {access.canManageSettings ? (
-        <>
-          <SettingsWorkspace canManageSettings={access.canManageSettings} />
-        </>
+      {tabs.length ? (
+        <WorkspaceTabHost tabs={tabs} panels={panels} initialTab={params.tab} />
       ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle>Settings locked</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              Only the store owner can change operational defaults and policy settings.
-            </p>
-          </CardContent>
-        </Card>
+        <div style={emptyStateStyle}>Only the store owner can change settings.</div>
       )}
     </section>
   );

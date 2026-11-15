@@ -1,10 +1,6 @@
-import { pageShellStyle } from '../merchflow-theme';
-import { CustomersWorkspace } from './customers-workspace';
+import { redirect } from 'next/navigation';
 
+// Customers live in the Customers & Dues (receivables) workspace now.
 export default function StoreCustomersPage() {
-  return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 12 }}>
-      <CustomersWorkspace />
-    </section>
-  );
+  redirect('/receivables?tab=customers');
 }

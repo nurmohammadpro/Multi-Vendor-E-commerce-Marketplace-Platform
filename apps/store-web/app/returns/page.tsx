@@ -1,13 +1,17 @@
-import { Suspense } from 'react';
+import { redirect } from 'next/navigation';
 
-import { ReturnsWorkspace } from './returns-workspace';
-
-export default function ReturnsPage() {
-  return (
-    <main>
-      <Suspense fallback={<div className="p-8 text-center text-muted-foreground">Loading returns workspace...</div>}>
-        <ReturnsWorkspace />
-      </Suspense>
-    </main>
-  );
+// Returns live in the After-Sales workspace now. Forward any saleId so the
+// "Return" action from sales history still deep-links correctly.
+export default async function StoreReturnsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[]>>;
+}) {
+  const params = (await searchParams) ?? {};
+  const query = new URLSearchParams();
+  query.set('tab', 'returns');
+  for (const [key, value] of Object.entries(params)) {
+    if (typeof value === 'string') query.set(key, value);
+  }
+  redirect(`/after-sales?${query.toString()}`);
 }

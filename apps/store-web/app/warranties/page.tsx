@@ -1,13 +1,6 @@
-import { Suspense } from 'react';
+import { redirect } from 'next/navigation';
 
-import { WarrantiesWorkspace } from './warranties-workspace';
-
-export default function WarrantiesPage() {
-  return (
-    <main>
-      <Suspense fallback={<div className="p-8 text-center text-muted-foreground">Loading warranties workspace...</div>}>
-        <WarrantiesWorkspace />
-      </Suspense>
-    </main>
-  );
+// Warranties live in the After-Sales workspace now.
+export default function StoreWarrantiesPage() {
+  redirect('/after-sales?tab=warranties');
 }

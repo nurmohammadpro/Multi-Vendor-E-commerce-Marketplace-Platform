@@ -2,7 +2,6 @@ import Link from 'next/link';
 import { Store, CreditCard, BarChart3, Shield, Bell, Headphones, Settings } from 'lucide-react';
 
 import { fetchAdminApi, isAdminApiConfigured } from '../lib/api';
-import { Badge } from '@/components/ui/badge';
 import {
   Card,
   CardContent,
@@ -10,7 +9,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
 
 const quickActions = [
   { href: '/stores', title: 'Store Ops', detail: 'Activate, suspend, and review merchant records.', icon: Store },
@@ -30,32 +28,22 @@ type PlatformOverview = {
 
 export default async function AdminDashboardPage() {
   const overview = await fetchAdminApi<PlatformOverview>('/reports/platform/overview');
+  const live = await isAdminApiConfigured();
 
   return (
-    <div className="flex flex-col gap-6">
-      <section className="max-w-[900px]">
-        <Badge variant="secondary" className="mb-3">Admin workspace</Badge>
-        <h2 className="text-xl sm:text-2xl font-medium tracking-tight mb-2">
-          Keep platform operations visible, calm, and accountable.
-        </h2>
-        <p className="text-sm text-muted-foreground leading-relaxed max-w-prose">
-          The admin shell now behaves like a real mobile-ready workspace with a persistent navigation model, active
-          state, and direct access to operational surfaces.
-        </p>
-        <p className="text-sm text-muted-foreground mt-2">
-          {await isAdminApiConfigured()
-            ? 'Live API demo mode is active and the dashboard is reading from the backend.'
-            : 'Set API_BASE_URL and ADMIN_DEMO_BEARER_TOKEN to enable live admin dashboard data.'}
-        </p>
-      </section>
-
-      <Separator />
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-xl font-medium tracking-tight">Platform overview</h2>
+        <span className="text-xs text-muted-foreground">
+          {live ? 'Live data' : 'Set API_BASE_URL and ADMIN_DEMO_BEARER_TOKEN for live data'}
+        </span>
+      </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard title="Stores" value={overview?.stores?.total_stores ?? '—'} note="Merchant accounts under management." />
-        <MetricCard title="Active Stores" value={overview?.stores?.active_stores ?? '—'} note="Stores currently operating normally." />
-        <MetricCard title="Gross Sales" value={overview?.sales?.gross_sales_amount ?? '—'} note="Completed sales rolled up at the platform layer." />
-        <MetricCard title="Open Tickets" value={overview?.support?.open_tickets ?? '—'} note="Tickets needing direct attention." />
+        <MetricCard title="Stores" value={overview?.stores?.total_stores ?? '—'} note="Merchant accounts." />
+        <MetricCard title="Active Stores" value={overview?.stores?.active_stores ?? '—'} note="Operating normally." />
+        <MetricCard title="Gross Sales" value={overview?.sales?.gross_sales_amount ?? '—'} note="Completed sales." />
+        <MetricCard title="Open Tickets" value={overview?.support?.open_tickets ?? '—'} note="Needing attention." />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -75,33 +63,6 @@ export default async function AdminDashboardPage() {
             </Link>
           );
         })}
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card>
-          <CardHeader>
-            <CardTitle>Readiness gaps left</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              What remains is stronger operational tooling: searchable queues, deep drilldowns, permission checks in the
-              UI, and more audit-facing surfaces. The present shell is much closer to a production admin console.
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>What improved this pass</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="text-sm text-muted-foreground leading-relaxed space-y-2 list-disc pl-4">
-              <li>Responsive sidebar with collapsible icon mode.</li>
-              <li>Dense spacing and restrained type scale for faster scanning.</li>
-              <li>Clean, minimal design with proper design system.</li>
-              <li>Light/dark mode support via CSS variables.</li>
-            </ul>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );
