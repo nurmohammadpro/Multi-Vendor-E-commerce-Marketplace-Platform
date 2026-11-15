@@ -65,6 +65,10 @@ type SkuSearchResult = {
   has_variants?: boolean;
   variant_mode?: string | null;
   is_trackable?: boolean;
+  serial_tracking_enabled?: boolean;
+  requires_serial?: boolean;
+  requires_imei?: boolean;
+  in_stock_serial_count?: number | string | null;
   sale_price?: string | number | null;
   available_qty?: string | number | null;
   discount_type?: string | null;
@@ -87,6 +91,10 @@ type ProductVariantDetail = {
     sku_code: string;
     barcode?: string | null;
     variant_label?: string | null;
+    serial_tracking_enabled?: boolean;
+    requires_serial?: boolean;
+    requires_imei?: boolean;
+    in_stock_serial_count?: number | string | null;
     sale_price?: string | number | null;
     available_qty?: string | number | null;
     status: string;
@@ -105,6 +113,7 @@ type CartItem = {
   discountAmount: number;
   discountType: string;
   isTrackable?: boolean;
+  requiresSerial?: boolean;
   selectedSerials?: Array<{ serialId: string; serialNumber: string; imei?: string | null }>;
 };
 
@@ -156,6 +165,21 @@ function isLoopbackAgent(url: string) {
 
 function getSkuAvailableQty(sku: Pick<SkuSearchResult, 'available_qty'> | Pick<ProductVariantDetail['skus'][number], 'available_qty'>) {
   return Number(sku.available_qty ?? 0);
+}
+
+// A SKU needs an individual serial/IMEI when it is explicitly serial-tracked
+// (product or SKU flag), or when serials are actually in stock for it. The
+// legacy `is_trackable` flag alone is NOT enough — bulk goods carry it by
+// default but have no serials, while serial-tracked items can have been
+// received without ever setting it.
+function needsSerialTracking(sku: {
+  serial_tracking_enabled?: boolean;
+  requires_serial?: boolean;
+  requires_imei?: boolean;
+  in_stock_serial_count?: number | string | null;
+}) {
+  if (sku.serial_tracking_enabled || sku.requires_serial || sku.requires_imei) return true;
+  return Number(sku.in_stock_serial_count ?? 0) > 0;
 }
 
 async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
@@ -499,6 +523,10 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
         sku_code: sku.sku_code,
         barcode: sku.barcode,
         variant_label: sku.variant_label,
+        serial_tracking_enabled: sku.serial_tracking_enabled,
+        requires_serial: sku.requires_serial,
+        requires_imei: sku.requires_imei,
+        in_stock_serial_count: sku.in_stock_serial_count,
         sale_price: sku.sale_price,
         available_qty: sku.available_qty,
         status: 'active',
@@ -508,10 +536,11 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
     setVariantPickerOpen(true);
   };
 
-  const addSkuToCart = (sku: Pick<SkuSearchResult, 'id' | 'sku_code' | 'product_name' | 'variant_label' | 'sale_price' | 'available_qty' | 'barcode' | 'is_trackable' | 'discount_type' | 'discount_value' | 'matched_serial_id'>, discountOverride?: { discountAmount: number; discountType: string }) => {
+  const addSkuToCart = (sku: Pick<SkuSearchResult, 'id' | 'sku_code' | 'product_name' | 'variant_label' | 'sale_price' | 'available_qty' | 'barcode' | 'is_trackable' | 'serial_tracking_enabled' | 'requires_serial' | 'requires_imei' | 'in_stock_serial_count' | 'discount_type' | 'discount_value' | 'matched_serial_id'>, discountOverride?: { discountAmount: number; discountType: string }) => {
     const isTrackable = sku.is_trackable !== false;
-    const availableQty = isTrackable ? getSkuAvailableQty(sku) : 999999;
-    if (isTrackable && availableQty <= 0) {
+    const needsSerial = needsSerialTracking(sku);
+    const availableQty = isTrackable || needsSerial ? getSkuAvailableQty(sku) : 999999;
+    if ((isTrackable || needsSerial) && availableQty <= 0) {
       setMessage(`${sku.product_name} is out of stock in the selected location.`);
       return;
     }
@@ -553,12 +582,13 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
           discountAmount,
           discountType,
           isTrackable,
+          requiresSerial: needsSerial,
         },
       ];
     });
 
-    // Open serial picker for trackable products
-    if (isTrackable) {
+    // Open serial picker when the SKU is serial/IMEI tracked
+    if (needsSerial) {
       setSerialPickerSkuId(sku.id);
       setSerialPickerSkuCode(sku.sku_code);
       setSerialPickerProductName(sku.product_name);
@@ -786,6 +816,11 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
     const invalidItem = cart.find((item) => item.availableQty < 999999 && (item.availableQty <= 0 || item.qty > item.availableQty));
     if (invalidItem) {
       setMessage(`${invalidItem.productName} does not have enough stock in the selected location.`);
+      return;
+    }
+    const missingSerial = cart.find((item) => item.requiresSerial && (item.selectedSerials?.length ?? 0) !== item.qty);
+    if (missingSerial) {
+      setMessage(`${missingSerial.productName}: select ${missingSerial.qty} serial/IMEI before checkout.`);
       return;
     }
 
@@ -1188,6 +1223,29 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
                             {item.skuCode}
                             {item.variantLabel ? ` · ${item.variantLabel}` : ''}
                           </div>
+                          {item.requiresSerial ? (
+                            <div style={{ marginTop: 4 }}>
+                              {item.selectedSerials && item.selectedSerials.length > 0 ? (
+                                <span style={{ fontSize: 10, color: '#166534' }}>
+                                  {item.selectedSerials.length} serial{item.selectedSerials.length > 1 ? 's' : ''}: {item.selectedSerials.map((s) => s.serialNumber).join(', ')}
+                                </span>
+                              ) : (
+                                <button
+                                  onClick={() => {
+                                    setSerialPickerSkuId(item.skuId);
+                                    setSerialPickerSkuCode(item.skuCode);
+                                    setSerialPickerProductName(item.productName);
+                                    setSerialPickerPreferredId('');
+                                    setSerialPickerCartIndex(cart.findIndex((c) => c.skuId === item.skuId));
+                                    setSerialPickerOpen(true);
+                                  }}
+                                  style={{ ...subtleButtonStyle, fontSize: 10, padding: '2px 6px' }}
+                                >
+                                  Select serial / IMEI
+                                </button>
+                              )}
+                            </div>
+                          ) : null}
                         </td>
                         <td style={tableCellStyle}>{currency(item.unitPrice)}</td>
                         <td style={tableCellStyle}>
@@ -1553,13 +1611,14 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
                     <tbody>
                       {variantProduct.skus.map((sku) => {
                         const skuIsTrackable = variantProduct.product.is_trackable;
-                        const skuAvailable = !skuIsTrackable || getSkuAvailableQty(sku) > 0;
+                        const skuNeedsSerial = needsSerialTracking(sku);
+                        const skuAvailable = (!skuIsTrackable && !skuNeedsSerial) || getSkuAvailableQty(sku) > 0;
                         return (
                         <tr key={sku.id}>
                           <td style={tableCellStyle}>{sku.sku_code}</td>
                           <td style={tableCellStyle}>{sku.variant_label || 'Default'}</td>
                           <td style={tableCellStyle}>{sku.barcode || '—'}</td>
-                          <td style={tableCellStyle}>{skuIsTrackable ? formatQty(sku.available_qty) : '—'}</td>
+                          <td style={tableCellStyle}>{(skuIsTrackable || skuNeedsSerial) ? formatQty(sku.available_qty) : '—'}</td>
                           <td style={tableCellStyle}>{currency(Number(sku.sale_price ?? 0))}</td>
                           <td style={tableCellStyle}>
                             <button
@@ -1573,6 +1632,10 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
                                   sku_code: sku.sku_code,
                                   barcode: sku.barcode,
                                   variant_label: sku.variant_label,
+                                  serial_tracking_enabled: sku.serial_tracking_enabled,
+                                  requires_serial: sku.requires_serial,
+                                  requires_imei: sku.requires_imei,
+                                  in_stock_serial_count: sku.in_stock_serial_count,
                                   product_name: variantProduct.product.name,
                                   sale_price: sku.sale_price,
                                   available_qty: sku.available_qty,

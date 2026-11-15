@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { X, Search, Loader2, Check } from 'lucide-react';
 
+import { fieldStyle, neutralButtonStyle, subtleButtonStyle } from '../merchflow-theme';
+
 type DeviceSerial = {
   id: string;
   serial_number: string;
@@ -12,6 +14,31 @@ type DeviceSerial = {
   sku_id: string;
   sku_code?: string;
   product_name?: string;
+};
+
+const overlayStyle: React.CSSProperties = {
+  position: 'fixed',
+  inset: 0,
+  zIndex: 60,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: 16,
+  background: 'rgba(15, 23, 42, 0.5)',
+};
+
+const panelStyle: React.CSSProperties = {
+  width: '100%',
+  maxWidth: 520,
+  maxHeight: '82vh',
+  display: 'flex',
+  flexDirection: 'column',
+  background: 'var(--card)',
+  color: 'var(--card-foreground)',
+  border: '1px solid var(--border)',
+  borderRadius: 10,
+  boxShadow: '0 20px 45px rgba(15, 23, 42, 0.28)',
+  overflow: 'hidden',
 };
 
 export function SerialPickerModal({
@@ -37,19 +64,28 @@ export function SerialPickerModal({
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || !skuId) return;
+    let active = true;
     setLoading(true);
-    fetch(`/api/inventory/device-serials?skuId=${skuId}&status=in_stock&limit=200`)
+    fetch(`/api/inventory/device-serials?skuId=${encodeURIComponent(skuId)}&status=in_stock&limit=200`)
       .then((res) => res.json())
       .then((data) => {
+        if (!active) return;
         const list: DeviceSerial[] = data.serials || data || [];
         setSerials(list);
         if (preferredSerialId && list.some((s) => s.id === preferredSerialId)) {
           setSelected(new Set([preferredSerialId]));
         }
-        setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch(() => {
+        if (active) setSerials([]);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, [open, skuId, preferredSerialId]);
 
   useEffect(() => {
@@ -59,6 +95,15 @@ export function SerialPickerModal({
       setSerials([]);
     }
   }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
 
   const filtered = serials.filter((s) => {
     if (!search) return true;
@@ -94,96 +139,118 @@ export function SerialPickerModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-card rounded-lg border shadow-lg w-full max-w-lg max-h-[80vh] flex flex-col">
+    <div style={overlayStyle} onClick={onClose}>
+      <div style={panelStyle} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
         {/* Header */}
-        <div className="flex items-center justify-between border-b px-4 py-3">
-          <div>
-            <h3 className="font-semibold text-sm">Select Serial Number</h3>
-            <p className="text-xs text-muted-foreground">{productName} · {skuCode}</p>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
+          <div style={{ minWidth: 0 }}>
+            <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600 }}>Select serial / IMEI</h3>
+            <p style={{ margin: '2px 0 0', fontSize: 11, color: 'var(--muted-foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {productName} · {skuCode}
+            </p>
           </div>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
-            <X className="size-4" />
+          <button onClick={onClose} aria-label="Close" style={{ ...subtleButtonStyle, padding: 4, background: 'none', border: 'none' }}>
+            <X style={{ width: 16, height: 16 }} />
           </button>
         </div>
 
         {/* Search */}
-        <div className="border-b px-4 py-2">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+        <div style={{ padding: '8px 14px', borderBottom: '1px solid var(--border)' }}>
+          <div style={{ position: 'relative' }}>
+            <Search style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', width: 14, height: 14, color: 'var(--muted-foreground)' }} />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by serial, IMEI..."
-              className="h-8 w-full rounded-md border bg-transparent pl-8 pr-3 text-sm focus-visible:border-ring outline-none"
               autoFocus
+              style={{ ...fieldStyle, width: '100%', paddingLeft: 28, fontSize: 13 }}
             />
           </div>
         </div>
 
         {/* List */}
-        <div className="flex-1 overflow-y-auto px-4 py-2">
+        <div style={{ flex: 1, overflowY: 'auto', padding: '8px 10px' }}>
           {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="size-5 animate-spin text-muted-foreground" />
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+              <Loader2 style={{ width: 20, height: 20, animation: 'spin 1s linear infinite', color: 'var(--muted-foreground)' }} />
             </div>
           ) : filtered.length === 0 ? (
-            <div className="text-center py-8 text-sm text-muted-foreground">
-              {serials.length === 0 ? 'No in-stock serials found' : 'No matches'}
+            <div style={{ textAlign: 'center', padding: '32px 12px', fontSize: 13, color: 'var(--muted-foreground)' }}>
+              {serials.length === 0 ? 'No in-stock serials found for this item' : 'No matches'}
             </div>
           ) : (
-            <div className="space-y-1">
-              {filtered.map((serial) => (
-                <button
-                  key={serial.id}
-                  onClick={() => toggle(serial.id)}
-                  className={`w-full flex items-center gap-3 rounded-md border px-3 py-2 text-left text-sm hover:bg-muted/50 ${
-                    selected.has(serial.id) ? 'border-primary bg-primary/5' : ''
-                  }`}
-                >
-                  <div className={`size-4 rounded-full border flex items-center justify-center ${
-                    selected.has(serial.id) ? 'border-primary bg-primary text-primary-foreground' : 'border-muted-foreground'
-                  }`}>
-                    {selected.has(serial.id) && <Check className="size-3" />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-mono text-xs">{serial.serial_number}</div>
-                    {serial.imei_number && (
-                      <div className="text-xs text-muted-foreground">IMEI: {serial.imei_number}</div>
-                    )}
-                    {serial.tracking_values && Object.keys(serial.tracking_values).length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {Object.entries(serial.tracking_values).map(([key, val]) => (
-                          <span key={key} className="inline-flex items-center rounded bg-muted px-1.5 py-0.5 text-[10px]">
-                            {key}: {val}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </button>
-              ))}
+            <div style={{ display: 'grid', gap: 4 }}>
+              {filtered.map((serial) => {
+                const isSelected = selected.has(serial.id);
+                return (
+                  <button
+                    key={serial.id}
+                    onClick={() => toggle(serial.id)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      width: '100%',
+                      textAlign: 'left',
+                      padding: '8px 10px',
+                      borderRadius: 6,
+                      border: `1px solid ${isSelected ? 'var(--primary)' : 'var(--border)'}`,
+                      background: isSelected ? 'var(--muted)' : 'var(--card)',
+                      cursor: 'pointer',
+                      font: 'inherit',
+                    }}
+                  >
+                    <span style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      width: 16, height: 16, borderRadius: 999, flexShrink: 0,
+                      border: `1px solid ${isSelected ? 'var(--primary)' : 'var(--muted-foreground)'}`,
+                      background: isSelected ? 'var(--primary)' : 'transparent',
+                      color: 'var(--primary-foreground)',
+                    }}>
+                      {isSelected && <Check style={{ width: 11, height: 11 }} />}
+                    </span>
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      <span style={{ display: 'block', fontFamily: 'var(--font-mono, monospace)', fontSize: 12 }}>{serial.serial_number}</span>
+                      {serial.imei_number ? (
+                        <span style={{ display: 'block', fontSize: 11, color: 'var(--muted-foreground)' }}>IMEI: {serial.imei_number}</span>
+                      ) : null}
+                      {serial.tracking_values && Object.keys(serial.tracking_values).length > 0 ? (
+                        <span style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+                          {Object.entries(serial.tracking_values).map(([key, val]) => (
+                            <span key={key} style={{ background: 'var(--muted)', borderRadius: 4, padding: '1px 6px', fontSize: 10 }}>
+                              {key}: {val}
+                            </span>
+                          ))}
+                        </span>
+                      ) : null}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="border-t px-4 py-3 flex items-center justify-between">
-          <span className="text-xs text-muted-foreground">
-            {selected.size} selected
-          </span>
-          <div className="flex gap-2">
-            <button
-              onClick={onClose}
-              className="h-8 rounded-md border bg-transparent px-3 text-sm font-medium hover:bg-muted"
-            >
-              Cancel
-            </button>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '10px 14px', borderTop: '1px solid var(--border)' }}>
+          <span style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>{selected.size} selected</span>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={onClose} style={neutralButtonStyle}>Cancel</button>
             <button
               onClick={handleConfirm}
               disabled={selected.size === 0}
-              className="h-8 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              style={{
+                padding: '6px 12px',
+                borderRadius: 6,
+                border: '1px solid var(--primary)',
+                background: 'var(--primary)',
+                color: 'var(--primary-foreground)',
+                fontSize: 13,
+                fontWeight: 500,
+                cursor: selected.size === 0 ? 'not-allowed' : 'pointer',
+                opacity: selected.size === 0 ? 0.5 : 1,
+              }}
             >
               Confirm ({selected.size})
             </button>

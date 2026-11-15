@@ -1,4 +1,4 @@
-import { ForbiddenException, Inject, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { normalizePageQuery, stripPaginationTotal } from '../common/pagination.js';
 import type { Pool, PoolClient } from 'pg';
 
@@ -123,15 +123,26 @@ export class PosService {
           sku.status,
           p.product_code,
           p.name as product_name,
+          p.unit,
           p.has_variants,
           p.variant_mode,
           p.is_trackable,
+          p.serial_tracking_enabled,
+          sku.requires_serial,
+          sku.requires_imei,
           lp.sale_price,
           lp.compare_at_price,
           lp.discount_type,
           lp.discount_value,
           st.on_hand_qty,
           st.available_qty,
+          (
+            select count(*)::int
+            from inventory.device_serials ds
+            where ds.store_id = $1
+              and ds.sku_id = sku.id
+              and ds.status = 'in_stock'
+          ) as in_stock_serial_count,
           (
             select ds.id
             from inventory.device_serials ds
@@ -422,9 +433,15 @@ export class PosService {
                 : 'pending';
 
       const skuIds = payload.items.map((item) => item.skuId);
-      const skuProductResult = await client.query<{ sku_id: string; is_trackable: boolean }>(
+      const skuProductResult = await client.query<{
+        sku_id: string;
+        sku_code: string;
+        is_trackable: boolean;
+        requires_serial: boolean;
+        requires_imei: boolean;
+      }>(
         `
-          select s.id as sku_id, p.is_trackable
+          select s.id as sku_id, s.sku_code, p.is_trackable, s.requires_serial, s.requires_imei
           from catalog.skus s
           join catalog.products p on p.id = s.product_id
           where s.id = any($1::uuid[])
@@ -432,14 +449,63 @@ export class PosService {
         `,
         [skuIds, storeId],
       );
-      const trackableMap = new Map(
-        skuProductResult.rows.map((row) => [row.sku_id, row.is_trackable]),
+      const skuMetaMap = new Map(
+        skuProductResult.rows.map((row) => [
+          row.sku_id,
+          {
+            skuCode: row.sku_code,
+            isTrackable: row.is_trackable,
+            requiresSerial: row.requires_serial,
+            requiresImei: row.requires_imei,
+          },
+        ]),
       );
+
+      // Serial/IMEI-tracked items must carry a valid in-stock serial for every unit.
+      const serialTrackedItems = payload.items.filter((item) => {
+        const meta = skuMetaMap.get(item.skuId);
+        return Boolean(meta?.requiresSerial || meta?.requiresImei);
+      });
+      if (serialTrackedItems.length > 0) {
+        for (const item of serialTrackedItems) {
+          const meta = skuMetaMap.get(item.skuId);
+          const serialIds = item.serialIds ?? [];
+          const label = meta?.skuCode ? `${meta.skuCode}` : 'this item';
+          if (serialIds.length === 0) {
+            throw new BadRequestException(`Select a serial/IMEI for every unit of ${label} before completing the sale.`);
+          }
+          if (serialIds.length !== item.qty) {
+            throw new BadRequestException(`${label} needs exactly ${item.qty} serial(s)/IMEI(s); ${serialIds.length} provided.`);
+          }
+          if (new Set(serialIds).size !== serialIds.length) {
+            throw new BadRequestException(`Duplicate serials selected for ${label}.`);
+          }
+        }
+
+        const serialResult = await client.query<{ id: string; sku_id: string }>(
+          `
+            select id, sku_id
+            from inventory.device_serials
+            where store_id = $1
+              and status = 'in_stock'
+              and id = any($2::uuid[])
+          `,
+          [storeId, serialTrackedItems.flatMap((item) => item.serialIds ?? [])],
+        );
+        const serialSku = new Map(serialResult.rows.map((row) => [row.id, row.sku_id]));
+        for (const item of serialTrackedItems) {
+          for (const serialId of item.serialIds ?? []) {
+            if (serialSku.get(serialId) !== item.skuId) {
+              throw new BadRequestException('A selected serial/IMEI is not available in stock for this product line.');
+            }
+          }
+        }
+      }
 
       const itemUnitCosts: number[] = [];
       let saleCostAmount = 0;
       for (const item of payload.items) {
-        if (trackableMap.get(item.skuId) !== false) {
+        if (skuMetaMap.get(item.skuId)?.isTrackable !== false) {
           await this.reserveAndDeductInventory(client, storeId, payload.locationId, item.skuId, item.qty, userId, saleNo);
         }
         const fifoUnitCost = await this.consumeFifoBatches(client, storeId, item.skuId, item.qty);
@@ -1931,9 +1997,11 @@ export class PosService {
       this.pool.query(
         `
           select si.id, si.sku_id, si.product_name_snapshot, si.sku_code_snapshot,
-            sk.variant_label, si.qty, si.unit_price, si.discount_amount, si.tax_amount, si.line_total
+            sk.variant_label, si.qty, si.unit_price, si.discount_amount, si.tax_amount, si.line_total,
+            p.unit
           from sales.sale_items si
           left join catalog.skus sk on sk.id = si.sku_id
+          left join catalog.products p on p.id = sk.product_id
           where si.sale_id = $1
           order by si.created_at asc
         `,
@@ -2065,6 +2133,7 @@ export class PosService {
           name: item.product_name_snapshot ?? null,
           skuCode: item.sku_code_snapshot ?? null,
           variantLabel: item.variant_label ?? null,
+          unit: item.unit ?? null,
           qty: Number(item.qty ?? 0),
           unitPrice: Number(item.unit_price ?? 0),
           discountAmount: Number(item.discount_amount ?? 0),
