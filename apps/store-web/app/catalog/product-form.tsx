@@ -10,6 +10,7 @@ import {
   surfaceCardStyle,
   tokenMutedStyle,
 } from '../merchflow-theme';
+import { DEALERSHIP_UNITS, defaultUnitForCategoryCode } from '../../lib/units';
 
 type Category = { id: string; name: string; code: string };
 type Brand = { id: string; name: string };
@@ -23,6 +24,7 @@ type ProductFormData = {
   categoryId: string;
   brandId: string;
   status: string;
+  unit: string;
   isTrackable: boolean;
   hasVariants: boolean;
   variantMode: string;
@@ -67,7 +69,8 @@ export function ProductForm({
     categoryId: '',
     brandId: '',
     status: 'active',
-    isTrackable: true,
+    unit: 'pcs',
+    isTrackable: false,
     hasVariants: false,
     variantMode: 'none',
     trackingProfileId: '',
@@ -123,7 +126,8 @@ export function ProductForm({
               categoryId: p.category_id || '',
               brandId: p.brand_id || '',
               status: p.status || 'active',
-              isTrackable: p.is_trackable ?? true,
+              unit: p.unit || 'pcs',
+              isTrackable: p.is_trackable ?? false,
               hasVariants: p.has_variants ?? false,
               variantMode: p.variant_mode || 'none',
               trackingProfileId: data.trackingProfile?.id || '',
@@ -152,6 +156,7 @@ export function ProductForm({
         categoryId: form.categoryId || undefined,
         brandId: form.brandId || undefined,
         status: form.status,
+        unit: form.unit.trim() || 'pcs',
         isTrackable: form.isTrackable,
         hasVariants: form.hasVariants,
         variantMode: form.variantMode,
@@ -231,7 +236,16 @@ export function ProductForm({
             <label style={labelStyle}>Category</label>
             <select
               value={form.categoryId}
-              onChange={(e) => setForm({ ...form, categoryId: e.target.value })}
+              onChange={(e) => {
+                const categoryId = e.target.value;
+                const code = categories.find((c) => c.id === categoryId)?.code;
+                const suggested = defaultUnitForCategoryCode(code);
+                setForm((prev) => ({
+                  ...prev,
+                  categoryId,
+                  unit: suggested && (!prev.unit || prev.unit === 'pcs') ? suggested : prev.unit,
+                }));
+              }}
               style={fieldStyle}
             >
               <option value="">Select category</option>
@@ -252,6 +266,22 @@ export function ProductForm({
                 <option key={b.id} value={b.id}>{b.name}</option>
               ))}
             </select>
+          </div>
+          <div style={fieldContainerStyle}>
+            <label style={labelStyle}>Unit of Measure</label>
+            <input
+              type="text"
+              list="unit-options"
+              value={form.unit}
+              onChange={(e) => setForm({ ...form, unit: e.target.value })}
+              style={fieldStyle}
+              placeholder="e.g. bag, ton, cft, suta"
+            />
+            <datalist id="unit-options">
+              {DEALERSHIP_UNITS.map((u) => (
+                <option key={u} value={u} />
+              ))}
+            </datalist>
           </div>
         </div>
         <div style={{ ...fieldContainerStyle, marginTop: 10 }}>

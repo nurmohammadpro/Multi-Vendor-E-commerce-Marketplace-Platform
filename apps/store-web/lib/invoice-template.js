@@ -69,7 +69,7 @@ export function renderInvoice(receipt, mode) {
       '<td class="nc">' + (idx + 1) + '</td>' +
       '<td class="ic"><span class="in">' + esc(item.name || 'Item') + '</span>' + detHtml + '</td>' +
       '<td class="uc">' + money(item.unitPrice) + '</td>' +
-      '<td class="qc">' + qty(item.qty) + '</td>' +
+      '<td class="qc">' + qty(item.qty) + (item.unit ? ' ' + esc(item.unit) : '') + '</td>' +
       '<td class="tc">' + money(item.lineTotal) + '</td>' +
       '</tr>';
   }).join('');

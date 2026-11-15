@@ -1,11 +1,13 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Search, Plus, Package, ChevronRight, Loader2 } from 'lucide-react';
+import { Search, Plus, Package, ChevronRight, Loader2, Download, TrendingUp } from 'lucide-react';
+import { toast } from 'sonner';
 import {
   emptyStateStyle,
   fieldStyle,
   gray800ButtonStyle,
+  neutralButtonStyle,
   pageShellStyle,
   searchButtonStyle,
   subtleButtonStyle,
@@ -31,6 +33,7 @@ type Product = {
   is_trackable: boolean;
   has_variants: boolean;
   variant_mode: string;
+  unit?: string;
   created_at: string;
   updated_at: string;
   category_name?: string;
@@ -96,6 +99,82 @@ export function CatalogWorkspace({ canManageCatalog }: { canManageCatalog: boole
     fetchProducts(page, search, statusFilter);
   };
 
+  const [importingTemplate, setImportingTemplate] = useState(false);
+  const handleImportTemplate = async () => {
+    setImportingTemplate(true);
+    try {
+      const res = await fetch('/api/catalog/starter-template', { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.message || data?.error || 'Import failed');
+      toast.success(`Imported ${data.categoriesCreated ?? 0} categories and ${data.brandsCreated ?? 0} brands`);
+      fetchProducts(page, search, statusFilter);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Import failed');
+    } finally {
+      setImportingTemplate(false);
+    }
+  };
+
+  const [showRevise, setShowRevise] = useState(false);
+  const [reviseScope, setReviseScope] = useState<'category' | 'brand' | 'all'>('category');
+  const [reviseCategoryId, setReviseCategoryId] = useState('');
+  const [reviseBrandId, setReviseBrandId] = useState('');
+  const [reviseBasis, setReviseBasis] = useState<'sale' | 'cost'>('sale');
+  const [reviseMode, setReviseMode] = useState<'increase' | 'decrease' | 'set'>('increase');
+  const [reviseUnit, setReviseUnit] = useState<'amount' | 'percent'>('amount');
+  const [reviseValue, setReviseValue] = useState('');
+  const [revising, setRevising] = useState(false);
+  const [reviseCategories, setReviseCategories] = useState<Array<{ id: string; name: string }>>([]);
+  const [reviseBrands, setReviseBrands] = useState<Array<{ id: string; name: string }>>([]);
+
+  const openRevise = async () => {
+    setShowRevise((value) => !value);
+    if (!reviseCategories.length || !reviseBrands.length) {
+      try {
+        const [catRes, brandRes] = await Promise.all([
+          fetch('/api/catalog/categories?limit=200'),
+          fetch('/api/catalog/brands?limit=200'),
+        ]);
+        if (catRes.ok) setReviseCategories((await catRes.json()).categories ?? []);
+        if (brandRes.ok) setReviseBrands((await brandRes.json()).brands ?? []);
+      } catch {
+        // suggestions are optional
+      }
+    }
+  };
+
+  const applyRevision = async () => {
+    if (!Number(reviseValue)) { toast.error('Enter a revision value.'); return; }
+    if (reviseScope === 'category' && !reviseCategoryId) { toast.error('Select a category.'); return; }
+    if (reviseScope === 'brand' && !reviseBrandId) { toast.error('Select a brand.'); return; }
+    setRevising(true);
+    try {
+      const res = await fetch('/api/catalog/prices/bulk-revise', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scope: reviseScope,
+          categoryId: reviseScope === 'category' ? reviseCategoryId : undefined,
+          brandId: reviseScope === 'brand' ? reviseBrandId : undefined,
+          basis: reviseBasis,
+          mode: reviseMode,
+          unit: reviseUnit,
+          value: Number(reviseValue),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || data?.message || 'Revision failed');
+      toast.success(`Updated ${data.updated ?? 0} SKU price(s).`);
+      setShowRevise(false);
+      setReviseValue('');
+      fetchProducts(page, search, statusFilter);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Revision failed');
+    } finally {
+      setRevising(false);
+    }
+  };
+
   if (view === 'create' || view === 'edit') {
     return (
       <section style={{ ...pageShellStyle, display: 'grid', gap: 12 }}>
@@ -159,16 +238,102 @@ export function CatalogWorkspace({ canManageCatalog }: { canManageCatalog: boole
             <p style={{ ...tokenMutedStyle, marginBottom: 0 }}>{pagination.total} products</p>
           </div>
           {canManageCatalog && (
-            <button
-              onClick={() => setView('create')}
-              style={gray800ButtonStyle}
-            >
-              <Plus style={{ width: 14, height: 14, marginRight: 4 }} />
-              Add Product
-            </button>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <button
+                onClick={handleImportTemplate}
+                disabled={importingTemplate}
+                style={{ ...subtleButtonStyle, opacity: importingTemplate ? 0.6 : 1 }}
+              >
+                {importingTemplate
+                  ? <Loader2 style={{ width: 14, height: 14, marginRight: 4, animation: 'spin 1s linear infinite' }} />
+                  : <Download style={{ width: 14, height: 14, marginRight: 4 }} />}
+                Import dealership catalog
+              </button>
+              <button
+                onClick={openRevise}
+                style={subtleButtonStyle}
+              >
+                <TrendingUp style={{ width: 14, height: 14, marginRight: 4 }} />
+                Revise Rates
+              </button>
+              <button
+                onClick={() => setView('create')}
+                style={gray800ButtonStyle}
+              >
+                <Plus style={{ width: 14, height: 14, marginRight: 4 }} />
+                Add Product
+              </button>
+            </div>
           )}
         </div>
       </article>
+
+      {showRevise ? (
+        <article style={surfaceCardStyle}>
+          <h3 style={{ margin: '0 0 4px', fontSize: 14 }}>Revise Rates</h3>
+          <p style={{ margin: '0 0 10px', color: 'var(--muted-foreground)', fontSize: 12 }}>
+            Apply a price change to every SKU in a category, a brand, or the whole store. The new price takes effect immediately.
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8 }}>
+            <label style={{ display: 'grid', gap: 4 }}>
+              <span style={{ fontSize: 11, fontWeight: 600 }}>Apply to</span>
+              <select value={reviseScope} onChange={(e) => setReviseScope(e.target.value as typeof reviseScope)} style={fieldStyle}>
+                <option value="category">Category</option>
+                <option value="brand">Brand</option>
+                <option value="all">All products</option>
+              </select>
+            </label>
+            {reviseScope === 'category' ? (
+              <label style={{ display: 'grid', gap: 4 }}>
+                <span style={{ fontSize: 11, fontWeight: 600 }}>Category</span>
+                <select value={reviseCategoryId} onChange={(e) => setReviseCategoryId(e.target.value)} style={fieldStyle}>
+                  <option value="">Select category</option>
+                  {reviseCategories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </label>
+            ) : null}
+            {reviseScope === 'brand' ? (
+              <label style={{ display: 'grid', gap: 4 }}>
+                <span style={{ fontSize: 11, fontWeight: 600 }}>Brand</span>
+                <select value={reviseBrandId} onChange={(e) => setReviseBrandId(e.target.value)} style={fieldStyle}>
+                  <option value="">Select brand</option>
+                  {reviseBrands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+              </label>
+            ) : null}
+            <label style={{ display: 'grid', gap: 4 }}>
+              <span style={{ fontSize: 11, fontWeight: 600 }}>Price</span>
+              <select value={reviseBasis} onChange={(e) => setReviseBasis(e.target.value as typeof reviseBasis)} style={fieldStyle}>
+                <option value="sale">Sale price</option>
+                <option value="cost">Cost price</option>
+              </select>
+            </label>
+            <label style={{ display: 'grid', gap: 4 }}>
+              <span style={{ fontSize: 11, fontWeight: 600 }}>Change</span>
+              <select value={reviseMode} onChange={(e) => setReviseMode(e.target.value as typeof reviseMode)} style={fieldStyle}>
+                <option value="increase">Increase</option>
+                <option value="decrease">Decrease</option>
+                <option value="set">Set to</option>
+              </select>
+            </label>
+            <label style={{ display: 'grid', gap: 4 }}>
+              <span style={{ fontSize: 11, fontWeight: 600 }}>Unit</span>
+              <select value={reviseUnit} onChange={(e) => setReviseUnit(e.target.value as typeof reviseUnit)} style={fieldStyle} disabled={reviseMode === 'set'}>
+                <option value="amount">Amount (৳)</option>
+                <option value="percent">Percent (%)</option>
+              </select>
+            </label>
+            <label style={{ display: 'grid', gap: 4 }}>
+              <span style={{ fontSize: 11, fontWeight: 600 }}>Value</span>
+              <input type="number" min="0" value={reviseValue} onChange={(e) => setReviseValue(e.target.value)} style={fieldStyle} placeholder="0.00" />
+            </label>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10 }}>
+            <button onClick={() => setShowRevise(false)} style={neutralButtonStyle}>Cancel</button>
+            <button onClick={() => void applyRevision()} style={gray800ButtonStyle} disabled={revising}>{revising ? 'Applying…' : 'Apply revision'}</button>
+          </div>
+        </article>
+      ) : null}
 
       {/* Filters */}
       <article style={surfaceCardStyle}>
@@ -206,6 +371,7 @@ export function CatalogWorkspace({ canManageCatalog }: { canManageCatalog: boole
                 <th style={tableHeaderCellStyle}>Product</th>
                 <th style={tableHeaderCellStyle}>Category</th>
                 <th style={tableHeaderCellStyle}>Brand</th>
+                <th style={tableHeaderCellStyle}>Unit</th>
                 <th style={{ ...tableHeaderCellStyle, textAlign: 'center' }}>SKUs</th>
                 <th style={{ ...tableHeaderCellStyle, textAlign: 'center' }}>Status</th>
                 <th style={{ ...tableHeaderCellStyle, textAlign: 'right' }}>Actions</th>
@@ -214,13 +380,13 @@ export function CatalogWorkspace({ canManageCatalog }: { canManageCatalog: boole
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={6} style={{ ...tableCellStyle, textAlign: 'center', padding: '32px 10px' }}>
+                  <td colSpan={7} style={{ ...tableCellStyle, textAlign: 'center', padding: '32px 10px' }}>
                     <Loader2 style={{ width: 16, height: 16, margin: '0 auto', animation: 'spin 1s linear infinite', color: 'var(--muted-foreground)' }} />
                   </td>
                 </tr>
               ) : products.length === 0 ? (
                 <tr>
-                  <td colSpan={6} style={emptyStateStyle}>
+                  <td colSpan={7} style={emptyStateStyle}>
                     No products found
                   </td>
                 </tr>
@@ -242,6 +408,7 @@ export function CatalogWorkspace({ canManageCatalog }: { canManageCatalog: boole
                     </td>
                     <td style={tableCellStyle}>{product.category_name || '—'}</td>
                     <td style={tableCellStyle}>{product.brand_name || '—'}</td>
+                    <td style={tableCellStyle}>{product.unit || 'pcs'}</td>
                     <td style={{ ...tableCellStyle, textAlign: 'center' }}>{product.sku_count}</td>
                     <td style={{ ...tableCellStyle, textAlign: 'center' }}>
                       <span style={{
