@@ -79,6 +79,25 @@ export function CategoriesPanel({ canManageCatalog }: { canManageCatalog: boolea
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const [importingStarter, setImportingStarter] = useState(false);
+
+  const importStarter = async () => {
+    setImportingStarter(true);
+    try {
+      const payload = await readJson<{ categoriesCreated: number; brandsCreated: number }>('/api/catalog/starter-template', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      });
+      await refresh(1);
+      setMessage(`Starter catalog imported — ${payload.categoriesCreated} categor(ies), ${payload.brandsCreated} brand(s) added.`);
+    } catch (error) {
+      setMessage((error as Error).message);
+    } finally {
+      setImportingStarter(false);
+    }
+  };
+
   const resetForm = () => {
     setForm({ code: '', name: '', parentId: '' });
     setEditingCategoryId('');
@@ -141,9 +160,21 @@ export function CategoriesPanel({ canManageCatalog }: { canManageCatalog: boolea
     <article style={surfaceCardStyle}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <h3 style={{ margin: 0 }}>Categories</h3>
-        {canManageCatalog && !formOpen ? (
-          <button onClick={() => setFormOpen(true)} style={gray800ButtonStyle} disabled={loading}>+ New</button>
-        ) : null}
+        <div style={{ display: 'flex', gap: 6 }}>
+          {canManageCatalog && !formOpen ? (
+            <button
+              onClick={() => { void importStarter(); }}
+              style={secondaryButtonStyle}
+              disabled={loading || importingStarter}
+              title="Import the common Bangladeshi dealership categories and brands"
+            >
+              {importingStarter ? 'Importing…' : 'Import dealership starter'}
+            </button>
+          ) : null}
+          {canManageCatalog && !formOpen ? (
+            <button onClick={() => setFormOpen(true)} style={gray800ButtonStyle} disabled={loading}>+ New</button>
+          ) : null}
+        </div>
       </div>
 
       <div style={{ ...searchRowStyle, marginBottom: 10 }}>

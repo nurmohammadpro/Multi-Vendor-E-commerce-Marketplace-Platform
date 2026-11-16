@@ -30,10 +30,10 @@ type Product = {
   name: string;
   name_bn?: string;
   status: string;
+  unit?: string;
   is_trackable: boolean;
   has_variants: boolean;
   variant_mode: string;
-  unit?: string;
   created_at: string;
   updated_at: string;
   category_name?: string;
@@ -402,7 +402,7 @@ export function CatalogWorkspace({ canManageCatalog }: { canManageCatalog: boole
                         <Package style={{ width: 14, height: 14, color: 'var(--muted-foreground)', flexShrink: 0 }} />
                         <div>
                           <div style={{ fontWeight: 500 }}>{product.name}</div>
-                          <div style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>{product.product_code}</div>
+                          <div style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>{product.product_code}{product.unit ? ` · ${product.unit}` : ''}</div>
                         </div>
                       </div>
                     </td>

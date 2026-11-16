@@ -62,6 +62,7 @@ type SkuSearchResult = {
   variant_label?: string | null;
   variant_json?: Record<string, unknown> | null;
   product_name: string;
+  unit?: string | null;
   has_variants?: boolean;
   variant_mode?: string | null;
   is_trackable?: boolean;
@@ -105,6 +106,7 @@ type CartItem = {
   skuId: string;
   skuCode: string;
   productName: string;
+  unit?: string | null;
   variantLabel?: string | null;
   unitPrice: number;
   qty: number;
@@ -536,7 +538,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
     setVariantPickerOpen(true);
   };
 
-  const addSkuToCart = (sku: Pick<SkuSearchResult, 'id' | 'sku_code' | 'product_name' | 'variant_label' | 'sale_price' | 'available_qty' | 'barcode' | 'is_trackable' | 'serial_tracking_enabled' | 'requires_serial' | 'requires_imei' | 'in_stock_serial_count' | 'discount_type' | 'discount_value' | 'matched_serial_id'>, discountOverride?: { discountAmount: number; discountType: string }) => {
+  const addSkuToCart = (sku: Pick<SkuSearchResult, 'id' | 'sku_code' | 'product_name' | 'unit' | 'variant_label' | 'sale_price' | 'available_qty' | 'barcode' | 'is_trackable' | 'serial_tracking_enabled' | 'requires_serial' | 'requires_imei' | 'in_stock_serial_count' | 'discount_type' | 'discount_value' | 'matched_serial_id'>, discountOverride?: { discountAmount: number; discountType: string }) => {
     const isTrackable = sku.is_trackable !== false;
     const needsSerial = needsSerialTracking(sku);
     const availableQty = isTrackable || needsSerial ? getSkuAvailableQty(sku) : 999999;
@@ -574,6 +576,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
           skuId: sku.id,
           skuCode: sku.sku_code,
           productName: sku.product_name,
+          unit: sku.unit ?? null,
           variantLabel: sku.variant_label,
           unitPrice,
           qty: 1,
@@ -1251,7 +1254,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
                         <td style={tableCellStyle}>
                           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                             <button onClick={() => updateCartQty(item.skuId, item.qty - 1)} style={buttonStyle}>-</button>
-                            <span>{item.qty}</span>
+                            <span>{item.qty}{item.unit ? ` ${item.unit}` : ''}</span>
                             <button onClick={() => updateCartQty(item.skuId, item.qty + 1)} style={buttonStyle}>+</button>
                           </div>
                         </td>

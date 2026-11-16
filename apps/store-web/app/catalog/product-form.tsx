@@ -312,6 +312,21 @@ export function ProductForm({
             </select>
           </div>
           <div style={fieldContainerStyle}>
+            <label style={labelStyle}>Unit of Measure</label>
+            <input
+              value={form.unit}
+              onChange={(e) => setForm({ ...form, unit: e.target.value })}
+              style={fieldStyle}
+              placeholder="pcs, bag, ton, kg, cft, suta, box, litre"
+              list="common-units"
+            />
+            <datalist id="common-units">
+              {['pcs', 'bag', 'ton', 'kg', 'cft', 'suta', 'hanna', 'box', 'sqft', 'foot', 'litre', 'drum', 'coil', 'cylinder', 'carton', 'yard', 'set', 'pair'].map((u) => (
+                <option key={u} value={u} />
+              ))}
+            </datalist>
+          </div>
+          <div style={fieldContainerStyle}>
             <label style={labelStyle}>Tracking Profile</label>
             <select
               value={form.trackingProfileId}

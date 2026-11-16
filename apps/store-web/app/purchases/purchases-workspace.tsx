@@ -112,6 +112,7 @@ export function PurchasesWorkspace({ initialTab = 'purchases' }: { initialTab?: 
   const [quickLocationId, setQuickLocationId] = useState('');
   const [quickPrice, setQuickPrice] = useState('');
   const [quickCost, setQuickCost] = useState('');
+  const [quickUnit, setQuickUnit] = useState('pcs');
   const [quickQty, setQuickQty] = useState('1');
   const [quickSaving, setQuickSaving] = useState(false);
   const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([]);
@@ -426,12 +427,13 @@ export function PurchasesWorkspace({ initialTab = 'purchases' }: { initialTab?: 
           productName: quickName.trim(), supplierId: quickSupplierId, locationId: quickLocationId,
           categoryId: quickCategoryId || undefined, brandId: quickBrandId || undefined,
           salePrice: Number(quickPrice || 0) || 0, purchaseQty: Number(quickQty || 1), unitCost: Number(quickCost || 0),
-          paidAmount: 0, hasVariants: false, isTrackable: true, note: '',
+          unit: quickUnit.trim() || 'pcs',
+          paidAmount: 0, hasVariants: false, isTrackable: false, note: '',
         }),
       });
       setMessage(`✓ Created "${quickName.trim()}" — stock received.`);
       toast.success('Product created and stock received');
-      setQuickName(''); setQuickCategoryId(''); setQuickBrandId(''); setQuickPrice(''); setQuickCost(''); setQuickQty('1');
+      setQuickName(''); setQuickCategoryId(''); setQuickBrandId(''); setQuickPrice(''); setQuickCost(''); setQuickQty('1'); setQuickUnit('pcs');
       setShowQuickAdd(false);
       await refresh();
     } catch (error) {
@@ -738,7 +740,7 @@ export function PurchasesWorkspace({ initialTab = 'purchases' }: { initialTab?: 
             <button onClick={() => setShowQuickAdd(false)} style={{ ...subtleButtonStyle, fontSize: 11 }}>Close</button>
           </div>
           <input value={quickName} onChange={(e) => setQuickName(e.target.value)} style={{ ...fieldStyle, marginBottom: 8, width: '100%' }} placeholder="Product name (required)" />
-          <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(3, minmax(0, 1fr))', gap: 8, marginBottom: 8 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr 1fr' : 'repeat(4, minmax(0, 1fr))', gap: 8, marginBottom: 8 }}>
             <ComboboxAddNew
               value={quickCategoryId}
               onChange={setQuickCategoryId}
@@ -758,6 +760,10 @@ export function PurchasesWorkspace({ initialTab = 'purchases' }: { initialTab?: 
               ariaLabel="Brand"
             />
             <input type="number" min="1" value={quickQty} onChange={(e) => setQuickQty(e.target.value)} style={{ ...fieldStyle, fontSize: 12 }} placeholder="Quantity" />
+            <input value={quickUnit} onChange={(e) => setQuickUnit(e.target.value)} style={{ ...fieldStyle, fontSize: 12 }} placeholder="Unit (bag, ton, cft…)" list="quick-units" aria-label="Unit of measure" />
+            <datalist id="quick-units">
+              {['pcs', 'bag', 'ton', 'kg', 'cft', 'suta', 'hanna', 'box', 'sqft', 'litre', 'drum', 'carton'].map((u) => <option key={u} value={u} />)}
+            </datalist>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr 1fr' : 'repeat(4, minmax(0, 1fr))', gap: 8, marginBottom: 10 }}>
             <input type="number" min="0" step="0.01" value={quickPrice} onChange={(e) => setQuickPrice(e.target.value)} style={{ ...fieldStyle, fontSize: 12 }} placeholder="Sale price (BDT)" />
