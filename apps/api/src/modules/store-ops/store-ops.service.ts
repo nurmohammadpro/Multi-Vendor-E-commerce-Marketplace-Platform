@@ -1136,9 +1136,9 @@ export class StoreOpsService {
             update procurement.purchases
             set order_ref = coalesce($2, order_ref),
                 expected_date = coalesce($3::date, expected_date),
-                deposit_amount = $4,
+                deposit_amount = $4::numeric,
                 deposit_reference = $5,
-                deposit_paid_at = case when $4 > 0 then now() else deposit_paid_at end,
+                deposit_paid_at = case when $4::numeric > 0 then now() else deposit_paid_at end,
                 updated_at = now()
             where id = $1
           `,

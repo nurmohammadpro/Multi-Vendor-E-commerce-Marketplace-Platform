@@ -493,6 +493,8 @@ function OrderDetailView({
   const canConfirm = status === 'draft';
   const canShip = status === 'draft' || status === 'confirmed';
   const canReceive = ['confirmed', 'shipped', 'partially_received'].includes(status);
+  // Shipment/receive card stays available for shipped and partially received orders
+  const showShipmentCard = canShip || canReceive;
   const outstanding = Math.max(Number(order.total_amount ?? 0) - Number(order.paid_amount ?? 0), 0);
 
   const submitReceive = async () => {
@@ -608,9 +610,9 @@ function OrderDetailView({
         </div>
       </article>
 
-      {canShip ? (
+      {showShipmentCard ? (
         <article style={surfaceCardStyle}>
-          <h4 style={{ margin: '0 0 8px', fontSize: 13 }}>{canReceive ? 'Shipment details' : 'Mark shipped'}</h4>
+          <h4 style={{ margin: '0 0 8px', fontSize: 13 }}>{canShip ? 'Shipment details' : 'Delivery'}</h4>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8 }}>
             <input value={truckNo} onChange={(e) => setTruckNo(e.target.value)} style={fieldStyle} placeholder="Truck no" />
             <input value={challanNo} onChange={(e) => setChallanNo(e.target.value)} style={fieldStyle} placeholder="Challan no" />
@@ -619,9 +621,11 @@ function OrderDetailView({
             <input type="number" min="0" value={deliveryCost} onChange={(e) => setDeliveryCost(e.target.value)} style={fieldStyle} placeholder="Delivery cost" />
           </div>
           <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+            {canShip ? (
             <button style={secondaryButtonStyle} disabled={busy} onClick={() => void onPatch({ status: 'shipped', truckNo, challanNo, driverName, driverPhone, deliveryCost: Number(deliveryCost) || undefined })}>
               Mark shipped
             </button>
+            ) : null}
             <button style={gray800ButtonStyle} disabled={receiving} onClick={() => void submitReceive()}>
               {receiving ? 'Receiving…' : 'Receive delivery'}
             </button>
