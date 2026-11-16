@@ -435,13 +435,13 @@ export function CompanyOrdersTab() {
                 {orders.map((order) => (
                   <tr key={order.id}>
                     <td style={tableCellStyle}>
-                      <div style={{ fontWeight: 600, fontFamily: 'monospace' }}>{order.purchase_no}</div>
+                      <div style={{ fontWeight: 600, fontSize: 13 }}>{order.purchase_no}</div>
                       {order.order_ref ? <div style={{ fontSize: 10, color: 'var(--muted-foreground)' }}>Ref {order.order_ref}</div> : null}
                     </td>
                     <td style={tableCellStyle}>{order.supplier_name}</td>
                     <td style={tableCellStyle}><span style={statusBadge(order.status)}>{STATUS_LABEL[order.status] ?? order.status}</span></td>
-                    <td style={{ ...tableCellStyle, textAlign: 'right', fontFamily: 'monospace' }}>{money(order.deposit_amount)}</td>
-                    <td style={{ ...tableCellStyle, textAlign: 'right', fontFamily: 'monospace' }}>{money(order.total_amount)}</td>
+                    <td style={{ ...tableCellStyle, textAlign: 'right' }}>{money(order.deposit_amount)}</td>
+                    <td style={{ ...tableCellStyle, textAlign: 'right' }}>{money(order.total_amount)}</td>
                     <td style={tableCellStyle}>{order.expected_date ? new Date(order.expected_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—'}</td>
                     <td style={tableCellStyle}>
                       <button onClick={() => void loadDetail(order.id)} style={{ ...subtleButtonStyle, fontSize: 11 }}>Open</button>
@@ -590,7 +590,7 @@ function OrderDetailView({
                   <td style={tableCellStyle}>{item.product_name_snapshot}<div style={{ fontSize: 10, color: 'var(--muted-foreground)' }}>{item.sku_code_snapshot}</div></td>
                   <td style={{ ...tableCellStyle, textAlign: 'right' }}>{qtyText(item.estimated_qty ?? item.qty)}</td>
                   <td style={{ ...tableCellStyle, textAlign: 'right' }}>{qtyText(item.received_qty)}</td>
-                  <td style={{ ...tableCellStyle, textAlign: 'right', fontFamily: 'monospace' }}>{money(item.unit_cost)}</td>
+                  <td style={{ ...tableCellStyle, textAlign: 'right' }}>{money(item.unit_cost)}</td>
                   {canReceive ? (
                     <td style={{ ...tableCellStyle, textAlign: 'right' }}>
                       <input
@@ -687,7 +687,7 @@ function OrderDetailView({
                   <strong style={{ textTransform: 'capitalize' }}>{payment.payment_kind ?? 'settlement'}</strong>
                   <span style={{ color: 'var(--muted-foreground)' }}> · {payment.payment_method}{payment.reference_no ? ` · ${payment.reference_no}` : ''}</span>
                 </span>
-                <span style={{ fontFamily: 'monospace' }}>BDT {money(payment.amount)}</span>
+                <span style={{ fontWeight: 600 }}>BDT {money(payment.amount)}</span>
               </div>
             ))}
           </div>
