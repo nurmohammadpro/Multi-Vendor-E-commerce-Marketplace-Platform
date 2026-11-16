@@ -167,27 +167,40 @@ export default function BarcodesPage() {
       .catch((e) => { setPrintHealth(null); setPrintError(e.message); });
   }, [profile.agentUrl]);
 
-  // Search SKUs
-  const searchSkus = async () => {
-    if (!skuSearch.trim()) { setSkuResults([]); return; }
-    setSkuSearching(true);
-    try {
-      const payload = await readJson<{ skus: SkuRow[] }>(
-        `/api/catalog/skus/search?q=${encodeURIComponent(skuSearch.trim())}&limit=50`,
-      );
-      setSkuResults(payload.skus ?? []);
-      setMessage(`Found ${payload.skus?.length ?? 0} SKU(s).`);
-    } catch (error) {
-      setMessage((error as Error).message);
-    } finally {
-      setSkuSearching(false);
-    }
-  };
+  // All stocked SKUs (each variant is its own unit row), filtered by the search box
+  const [allStockedSkus, setAllStockedSkus] = useState<SkuRow[]>([]);
 
   useEffect(() => {
-    const timer = setTimeout(() => { void searchSkus(); }, 200);
-    return () => clearTimeout(timer);
-  }, [skuSearch]);
+    const loadStockedSkus = async () => {
+      setSkuSearching(true);
+      try {
+        const payload = await readJson<{ skus: SkuRow[] }>(
+          '/api/catalog/skus/search?q=&limit=200',
+        );
+        const stocked = (payload.skus ?? []).filter((sku) => Number(sku.available_qty ?? 0) > 0);
+        setAllStockedSkus(stocked);
+        setSkuResults(stocked);
+        setMessage(stocked.length
+          ? `Showing ${stocked.length} stocked unit(s). Select labels to print.`
+          : 'No stocked products yet — receive stock first, then print labels.');
+      } catch (error) {
+        setMessage((error as Error).message);
+      } finally {
+        setSkuSearching(false);
+      }
+    };
+    void loadStockedSkus();
+  }, []);
+
+  // Local filter over the stocked list (product name, SKU code, barcode, variant)
+  useEffect(() => {
+    const q = skuSearch.trim().toLowerCase();
+    if (!q) { setSkuResults(allStockedSkus); return; }
+    setSkuResults(allStockedSkus.filter((sku) =>
+      [sku.product_name, sku.sku_code, sku.barcode || '', sku.variant_label || '']
+        .some((field) => field.toLowerCase().includes(q))
+    ));
+  }, [skuSearch, allStockedSkus]);
 
   const toggleSku = (skuId: string) => {
     setSelectedSkus((prev) => {
@@ -285,9 +298,9 @@ export default function BarcodesPage() {
                 value={skuSearch}
                 onChange={(e) => setSkuSearch(e.target.value)}
                 style={{ ...fieldStyle, flex: 1 }}
-                placeholder="Search by product name, SKU, or barcode..."
+                placeholder="Filter stocked products by name, SKU, or barcode..."
               />
-              <button onClick={() => void searchSkus()} style={searchButtonStyle} disabled={skuSearching}>
+              <button onClick={() => setSkuSearch(skuSearch.trim())} style={searchButtonStyle} disabled={skuSearching}>
                 {skuSearching ? 'Searching...' : 'Search'}
               </button>
             </div>
@@ -318,16 +331,13 @@ export default function BarcodesPage() {
               </div>
             )}
 
-            {!printHealth && !printError && (
-              <div style={{ fontSize: 12, color: 'var(--muted-foreground)', marginBottom: 8 }}>
-                Checking print agent...
-              </div>
-            )}
-            {printError && (
-              <div style={{ fontSize: 12, color: '#dc2626', marginBottom: 8 }}>
-                Print agent offline: {printError}
-              </div>
-            )}
+            <div style={{ fontSize: 11, marginBottom: 8, color: printHealth ? '#16a34a' : '#b45309' }}>
+              {printHealth
+                ? `Label printer ready${printHealth.printerName ? ` — ${printHealth.printerName}` : ''}`
+                : printError
+                  ? 'Label printer offline — connect the print agent on this workstation to print; the list below still works.'
+                  : 'Checking label printer...'}
+            </div>
           </article>
 
           {/* SKU List + Preview */}
@@ -404,7 +414,7 @@ export default function BarcodesPage() {
 
           {skuResults.length === 0 && !skuSearching && (
             <div style={emptyStateStyle}>
-              Search for products to print barcode labels.
+              No stocked products match this filter.
             </div>
           )}
         </section>

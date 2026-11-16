@@ -160,6 +160,8 @@ export function renderInvoice(receipt, mode) {
     '.tr.gt{font-weight:700;' + s.gt + '}',
     '.tr.due-row .vl{color:#b45309;font-weight:700}',
     '.sigs{display:flex;justify-content:space-between;gap:40px;page-break-inside:avoid;' + s.sigs + '}',
+    '.sigblock{page-break-inside:avoid}',
+    '.credit{margin-top:8px;text-align:center;color:#cbd5e1;font-size:8px}' + (isA5 ? '' : ''),
     '.sig{flex:1;text-align:center}',
     '.sig-l{border-top:1px solid #94a3b8;color:#64748b;letter-spacing:.05em;' + s.sigL + '}',
     '.ft{text-align:center;border-top:1px solid #f1f5f9;color:#94a3b8;page-break-inside:avoid;' + s.ft + '}',
@@ -196,8 +198,11 @@ export function renderInvoice(receipt, mode) {
     + (due > 0 ? '<div class="tr due-row"><span class="lb">Due</span><span class="vl">' + money(due) + '</span></div>' : '')
     + '</div>'
     + '</div>'
+    + '<div class="sigblock">'
     + '<div class="sigs"><div class="sig"><div class="sig-l">Received By</div></div><div class="sig"><div class="sig-l">Authorized Signature</div></div></div>'
     + (store.footer ? '<div class="ft">' + esc(store.footer) + '</div>' : '')
+    + '<div class="credit">Powered By Merchant Flow &middot; Developed By <a href="https://appbrainer.tech" style="color:#94a3b8;text-decoration:none">App Brainer</a></div>'
+    + '</div>'
     + '</div></body></html>';
 }
 

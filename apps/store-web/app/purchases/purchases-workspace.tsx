@@ -7,6 +7,8 @@ import {
   dangerButtonStyle,
   emptyStateStyle,
   fieldStyle,
+  metricLabelStyle,
+  metricValueStyle,
   gray800ButtonStyle,
   pageShellStyle,
   searchButtonStyle,
@@ -158,6 +160,14 @@ export function PurchasesWorkspace({ initialTab = 'purchases' }: { initialTab?: 
   };
 
   useEffect(() => { void refresh(); }, []);
+
+  // Payables aging for the summary cards
+  const [payablesAging, setPayablesAging] = useState<Record<string, string> | null>(null);
+  useEffect(() => {
+    readJson<{ aging?: Record<string, string> | null }>('/api/store-ops/payables/aging')
+      .then((payload) => setPayablesAging(payload.aging ?? null))
+      .catch(() => setPayablesAging(null));
+  }, []);
 
   // ── Product Search for Receive ──
 
@@ -876,28 +886,24 @@ export function PurchasesWorkspace({ initialTab = 'purchases' }: { initialTab?: 
 
           {/* Payables Summary */}
           <article style={surfaceCardStyle}>
-            <h3 style={{ margin: '0 0 16px', fontSize: 14 }}>Payables Summary</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
-              <div style={{ padding: 10, background: 'var(--muted)', borderRadius: 6 }}>
-                <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginBottom: 4 }}>Today</div>
-                <div style={{ fontSize: 18, fontWeight: 600 }}>0 BDT</div>
-              </div>
-              <div style={{ padding: 10, background: 'var(--muted)', borderRadius: 6 }}>
-                <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginBottom: 4 }}>0-7 Days</div>
-                <div style={{ fontSize: 18, fontWeight: 600 }}>0 BDT</div>
-              </div>
-              <div style={{ padding: 10, background: 'var(--muted)', borderRadius: 6 }}>
-                <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginBottom: 4 }}>8-30 Days</div>
-                <div style={{ fontSize: 18, fontWeight: 600 }}>0 BDT</div>
-              </div>
-              <div style={{ padding: 10, background: 'var(--muted)', borderRadius: 6 }}>
-                <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginBottom: 4 }}>31-90 Days</div>
-                <div style={{ fontSize: 18, fontWeight: 600 }}>0 BDT</div>
-              </div>
-              <div style={{ padding: 10, background: 'var(--muted)', borderRadius: 6 }}>
-                <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginBottom: 4 }}>90+ Days</div>
-                <div style={{ fontSize: 18, fontWeight: 600 }}>0 BDT</div>
-              </div>
+            <h3 style={{ margin: '0 0 10px', fontSize: 14 }}>Payables Summary</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8 }}>
+              {([
+                { label: 'Today', key: 'today_amount' },
+                { label: '0-7 Days', key: 'days_7_amount' },
+                { label: '8-30 Days', key: 'days_30_amount' },
+                { label: '31-90 Days', key: 'days_90_amount' },
+                { label: '90+ Days', key: 'days_90_plus_amount' },
+              ] as const).map((bucket) => {
+                const amount = Number(payablesAging?.[bucket.key] ?? 0);
+                return (
+                  <article key={bucket.key} style={surfaceCardStyle}>
+                    <div style={metricLabelStyle}>{bucket.label}</div>
+                    <div style={{ ...metricValueStyle, color: amount > 0 ? '#92400e' : undefined }}>{formatMoney(amount)}</div>
+                    <div style={{ fontSize: 10, color: 'var(--muted-foreground)' }}>BDT</div>
+                  </article>
+                );
+              })}
             </div>
           </article>
 

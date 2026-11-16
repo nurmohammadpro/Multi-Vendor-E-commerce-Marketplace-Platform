@@ -32,6 +32,8 @@ async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
   return payload as T;
 }
 
+const fixedCellStyle = { wordBreak: 'break-word' } as const;
+
 function statusBadge(status: string) {
   return {
     display: 'inline-block' as const,
@@ -221,26 +223,26 @@ export function CategoriesPanel({ canManageCatalog }: { canManageCatalog: boolea
 
       {categories.length ? (
         <div style={tableWrapStyle}>
-          <table style={tableStyle}>
+          <table style={{ ...tableStyle, tableLayout: 'fixed', width: '100%' }}>
             <thead>
               <tr>
-                <th style={tableHeaderCellStyle}>Code</th>
+                <th style={{ ...tableHeaderCellStyle, width: '16%' }}>Code</th>
                 <th style={tableHeaderCellStyle}>Name</th>
-                <th style={tableHeaderCellStyle}>Parent</th>
-                <th style={tableHeaderCellStyle}>Status</th>
-                <th style={tableHeaderCellStyle}>Actions</th>
+                <th style={{ ...tableHeaderCellStyle, width: '22%' }}>Parent</th>
+                <th style={{ ...tableHeaderCellStyle, width: '16%' }}>Status</th>
+                <th style={{ ...tableHeaderCellStyle, width: '30%', textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {categories.map((cat) => (
                 <tr key={cat.id}>
                   <td style={{ ...tableCellStyle, fontFamily: 'monospace', fontSize: 11 }}>{cat.code}</td>
-                  <td style={{ ...tableCellStyle, fontWeight: 500 }}>{cat.name}</td>
+                  <td style={{ ...tableCellStyle, ...fixedCellStyle, fontWeight: 500 }}>{cat.name}</td>
                   <td style={tableCellStyle}>{cat.parent_name || '—'}</td>
                   <td style={tableCellStyle}><span style={statusBadge(cat.status)}>{cat.status}</span></td>
-                  <td style={tableCellStyle}>
+                  <td style={{ ...tableCellStyle, textAlign: 'right' }}>
                     {canManageCatalog ? (
-                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                         <button onClick={() => { setForm({ code: cat.code, name: cat.name, parentId: cat.parent_id || '' }); setEditingCategoryId(cat.id); setFormOpen(true); }} style={subtleButtonStyle}>Edit</button>
                         <button onClick={() => void toggleStatus(cat)} style={subtleButtonStyle}>
                           {cat.status === 'active' ? 'Deactivate' : 'Activate'}
@@ -403,22 +405,22 @@ export function BrandsPanel({ canManageCatalog }: { canManageCatalog: boolean })
 
       {brands.length ? (
         <div style={tableWrapStyle}>
-          <table style={tableStyle}>
+          <table style={{ ...tableStyle, tableLayout: 'fixed', width: '100%' }}>
             <thead>
               <tr>
                 <th style={tableHeaderCellStyle}>Name</th>
-                <th style={tableHeaderCellStyle}>Status</th>
-                <th style={tableHeaderCellStyle}>Actions</th>
+                <th style={{ ...tableHeaderCellStyle, width: '22%' }}>Status</th>
+                <th style={{ ...tableHeaderCellStyle, width: '32%', textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {brands.map((brand) => (
                 <tr key={brand.id}>
-                  <td style={{ ...tableCellStyle, fontWeight: 500 }}>{brand.name}</td>
+                  <td style={{ ...tableCellStyle, ...fixedCellStyle, fontWeight: 500 }}>{brand.name}</td>
                   <td style={tableCellStyle}><span style={statusBadge(brand.status)}>{brand.status}</span></td>
-                  <td style={tableCellStyle}>
+                  <td style={{ ...tableCellStyle, textAlign: 'right' }}>
                     {canManageCatalog ? (
-                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                         <button onClick={() => { setForm({ name: brand.name }); setEditingBrandId(brand.id); setFormOpen(true); }} style={subtleButtonStyle}>Edit</button>
                         <button onClick={() => void toggleStatus(brand)} style={subtleButtonStyle}>
                           {brand.status === 'active' ? 'Deactivate' : 'Activate'}
