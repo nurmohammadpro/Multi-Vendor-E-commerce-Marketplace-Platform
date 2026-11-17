@@ -22,6 +22,7 @@ export class BillingService {
           p.code,
           p.name,
           p.price_amount,
+          p.regular_price,
           p.signup_fee,
           p.billing_cycle,
           p.features_json,
@@ -58,6 +59,7 @@ export class BillingService {
           p.code,
           p.name,
           p.price_amount,
+          p.regular_price,
           p.signup_fee,
           p.billing_cycle,
           p.features_json,
@@ -100,6 +102,7 @@ export class BillingService {
           p.code as plan_code,
           p.name as plan_name,
           p.price_amount,
+          p.regular_price,
           p.signup_fee,
           p.billing_cycle,
           p.features_json,
@@ -149,6 +152,7 @@ export class BillingService {
 
     if (payload.name !== undefined) { sets.push(`name = $${idx++}`); values.push(payload.name); }
     if (payload.priceAmount !== undefined) { sets.push(`price_amount = $${idx++}`); values.push(payload.priceAmount); }
+    if (payload.regularPrice !== undefined) { sets.push(`regular_price = $${idx++}`); values.push(payload.regularPrice); }
     if (payload.signupFee !== undefined) { sets.push(`signup_fee = $${idx++}`); values.push(payload.signupFee); }
     if (payload.billingCycle !== undefined) { sets.push(`billing_cycle = $${idx++}`); values.push(payload.billingCycle); }
     if (payload.maxUsers !== undefined) { sets.push(`max_users = $${idx++}`); values.push(payload.maxUsers); }

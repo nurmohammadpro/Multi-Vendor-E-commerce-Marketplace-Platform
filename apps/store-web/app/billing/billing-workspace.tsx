@@ -28,6 +28,7 @@ type Plan = {
   code: string;
   name: string;
   price_amount: string | number;
+  regular_price?: string | number | null;
   signup_fee: string | number;
   billing_cycle: string;
   max_users: number;
@@ -348,7 +349,8 @@ export function BillingWorkspace({ canManageBilling }: { canManageBilling: boole
             <select value={changeForm.planCode} onChange={(e) => setChangeForm((v) => ({ ...v, planCode: e.target.value }))} style={{ ...fieldStyle, marginBottom: 10 }}>
               {plans.map((plan) => (
                 <option key={plan.id} value={plan.code}>
-                  {plan.name} · {plan.price_amount} / {plan.billing_cycle}
+                  {plan.name} · BDT {Number(plan.price_amount).toLocaleString()} / {plan.billing_cycle}
+                  {Number(plan.regular_price ?? 0) > Number(plan.price_amount) ? ` (launch promo — regular BDT ${Number(plan.regular_price).toLocaleString()})` : ''}
                 </option>
               ))}
             </select>

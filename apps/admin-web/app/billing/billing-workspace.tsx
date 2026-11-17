@@ -51,6 +51,7 @@ type Plan = {
   code: string;
   name: string;
   price_amount: string;
+  regular_price?: string | null;
   signup_fee: string;
   billing_cycle: string;
   max_users: number;
@@ -65,6 +66,7 @@ type PlanForm = {
   code: string;
   name: string;
   priceAmount: string;
+  regularPrice: string;
   signupFee: string;
   billingCycle: 'monthly' | 'yearly';
   maxUsers: string;
@@ -77,6 +79,7 @@ const emptyForm: PlanForm = {
   code: '',
   name: '',
   priceAmount: '',
+  regularPrice: '',
   signupFee: '0',
   billingCycle: 'monthly',
   maxUsers: '1',
@@ -236,6 +239,7 @@ export function BillingWorkspace() {
       code: plan.code,
       name: plan.name,
       priceAmount: String(Number(plan.price_amount)),
+      regularPrice: plan.regular_price ? String(Number(plan.regular_price)) : '',
       signupFee: String(Number(plan.signup_fee)),
       billingCycle: plan.billing_cycle as 'monthly' | 'yearly',
       maxUsers: String(plan.max_users),
@@ -263,6 +267,7 @@ export function BillingWorkspace() {
         code: form.code,
         name: form.name,
         priceAmount: Number(form.priceAmount),
+        regularPrice: form.regularPrice.trim() === '' ? null : Number(form.regularPrice),
         signupFee: Number(form.signupFee),
         billingCycle: form.billingCycle,
         maxUsers: Number(form.maxUsers),
@@ -395,7 +400,12 @@ export function BillingWorkspace() {
                       )}
                     </TableCell>
                     <TableCell className="text-muted-foreground">{plan.code}</TableCell>
-                    <TableCell>BDT {Number(plan.price_amount).toLocaleString()}</TableCell>
+                    <TableCell>
+                      BDT {Number(plan.price_amount).toLocaleString()}
+                      {Number(plan.regular_price ?? 0) > Number(plan.price_amount) ? (
+                        <span className="ml-1 text-xs text-muted-foreground">(regular BDT {Number(plan.regular_price).toLocaleString()})</span>
+                      ) : null}
+                    </TableCell>
                     <TableCell>BDT {Number(plan.signup_fee).toLocaleString()}</TableCell>
                     <TableCell>{plan.max_users}</TableCell>
                     <TableCell>{plan.max_locations}</TableCell>
@@ -585,6 +595,10 @@ export function BillingWorkspace() {
               <div className="grid gap-1.5">
                 <Label>Price (BDT/{form.billingCycle === 'yearly' ? 'year' : 'month'})</Label>
                 <Input type="number" min="0" value={form.priceAmount} onChange={(e) => setForm((p) => ({ ...p, priceAmount: e.target.value }))} />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Regular Price (BDT — set higher than price for a launch promo)</Label>
+                <Input type="number" min="0" value={form.regularPrice} onChange={(e) => setForm((p) => ({ ...p, regularPrice: e.target.value }))} placeholder="Optional" />
               </div>
               <div className="grid gap-1.5">
                 <Label>Signup Fee (BDT)</Label>

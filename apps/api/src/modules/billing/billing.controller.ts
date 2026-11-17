@@ -29,6 +29,7 @@ const updatePlanSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   priceAmount: z.number().min(0).optional(),
   signupFee: z.number().min(0).optional(),
+  regularPrice: z.number().min(0).nullable().optional(),
   billingCycle: z.enum(['monthly', 'yearly']).optional(),
   maxUsers: z.number().int().min(1).optional(),
   maxLocations: z.number().int().min(1).optional(),
