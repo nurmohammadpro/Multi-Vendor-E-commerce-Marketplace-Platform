@@ -120,6 +120,13 @@ type CartItem = {
   selectedSerials?: Array<{ serialId: string; serialNumber: string; imei?: string | null }>;
 };
 
+type ParkedSale = {
+  id: string; ts: number; label: string; cart: CartItem[];
+  customerName: string; customerPhone: string; customerEmail: string;
+  customerShopName: string; customerAddress: string;
+  saleMode: 'paid' | 'due' | 'cod'; documentMode: 'pos' | 'a5' | 'a4'; dueDate: string;
+};
+
 type ShiftResponse = {
   shift?: {
     id: string;
@@ -246,6 +253,10 @@ export function PosTerminal({ canUsePos, canUseInvoices = false, locale = 'en' }
   const [lastSoldCart, setLastSoldCart] = useState<CartItem[]>([]);
   const [deliveryCharge, setDeliveryCharge] = useState('');
   const clientRequestIdRef = useRef<string>('');
+  const [customerExpanded, setCustomerExpanded] = useState(false);
+  const [showTaxFields, setShowTaxFields] = useState(false);
+  const [splitMethods, setSplitMethods] = useState<Array<'cash' | 'card' | 'mfs' | 'bank_transfer'>>(['cash']);
+  const [customerOutstanding, setCustomerOutstanding] = useState<number | null>(null);
   const [advanceMethod, setAdvanceMethod] = useState<'cash' | 'mfs' | 'bank_transfer'>('mfs');
   const [collectAmount, setCollectAmount] = useState('');
   const [collectMethod, setCollectMethod] = useState('cash');
@@ -311,6 +322,8 @@ export function PosTerminal({ canUsePos, canUseInvoices = false, locale = 'en' }
   const [pickerSkuId, setPickerSkuId] = useState('');
   const [pickerQty, setPickerQty] = useState('1');
   const [pickerDiscount, setPickerDiscount] = useState('');
+  const [lastRemoved, setLastRemoved] = useState<{ item: CartItem; index: number } | null>(null);
+  const [parkedSales, setParkedSales] = useState<ParkedSale[]>([]);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useState<'search' | 'cart' | 'checkout'>('search');
 
@@ -379,6 +392,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false, locale = 'en' }
   }, []);
 
   useEffect(() => {
+    setParkedSales(readParked());
     setOfflineQueueCount(readOfflineSales().length);
     void syncOfflineSales();
     const onOnline = () => { void syncOfflineSales(); };
@@ -386,12 +400,19 @@ export function PosTerminal({ canUsePos, canUseInvoices = false, locale = 'en' }
     return () => window.removeEventListener('online', onOnline);
   }, [syncOfflineSales]);
 
+  // Customer details matter for due / COD sales — expand automatically.
+  useEffect(() => {
+    if (saleMode !== 'paid') setCustomerExpanded(true);
+  }, [saleMode]);
+
   // Customer picker: typing a known phone number autofills name/shop/address.
   useEffect(() => {
     const digits = customerPhone.replace(/\D/g, '');
     if (digits.length < 6) {
       setCustomerLookup({ checking: false, matched: null });
       setCustomerPriceMap({});
+      setCustomerOutstanding(null);
+      setCustomerOutstanding(null);
       return;
     }
     setCustomerLookup((cur) => ({ ...cur, checking: true }));
@@ -426,10 +447,12 @@ export function PosTerminal({ canUsePos, canUseInvoices = false, locale = 'en' }
         } else {
           setCustomerLookup({ checking: false, matched: null });
       setCustomerPriceMap({});
+      setCustomerOutstanding(null);
         }
       } catch {
         setCustomerLookup({ checking: false, matched: null });
       setCustomerPriceMap({});
+      setCustomerOutstanding(null);
       }
     }, 450);
     return () => clearTimeout(timer);
@@ -854,7 +877,81 @@ export function PosTerminal({ canUsePos, canUseInvoices = false, locale = 'en' }
   };
 
   const removeFromCart = (skuId: string) => {
-    setCart((current) => current.filter((item) => item.skuId !== skuId));
+    const idx = cart.findIndex((i) => i.skuId === skuId);
+    if (idx < 0) return;
+    const removedItem = cart[idx];
+    setLastRemoved({ item: { ...removedItem }, index: idx });
+    setCart((prev) => prev.filter((i) => i.skuId !== skuId));
+  };
+
+  const updateCartPrice = (skuId: string, price: number) => {
+    setCart((prev) => prev.map((item) => item.skuId === skuId
+      ? { ...item, unitPrice: Math.max(price, 0) }
+      : item));
+  };
+
+  const undoRemove = () => {
+    if (!lastRemoved) return;
+    setCart((prev) => {
+      const next = [...prev];
+      next.splice(Math.min(lastRemoved.index, next.length), 0, { ...lastRemoved.item });
+      return next;
+    });
+    setLastRemoved(null);
+  };
+
+  const clearCart = () => {
+    if (!cart.length) return;
+    if (!window.confirm(t('Clear the cart?'))) return;
+    setLastSoldCart([]);
+    setCart([]);
+    setLastRemoved(null);
+    setMessage(t('Cart cleared.'));
+  };
+
+  const PARKED_KEY = 'parked_sales_v1';
+  const readParked = (): typeof parkedSales => {
+    try { return JSON.parse(localStorage.getItem(PARKED_KEY) || '[]'); } catch { return []; }
+  };
+  const writeParked = (list: NonNullable<typeof parkedSales>) => {
+    localStorage.setItem(PARKED_KEY, JSON.stringify(list));
+    setParkedSales(list);
+  };
+
+  const holdSale = () => {
+    if (!cart.length) return;
+    const list = readParked();
+    const label = `${cart.length} item(s)${customerName || customerPhone ? ` — ${customerName || customerPhone}` : ''}`;
+    list.push({
+      id: `${Date.now()}`, ts: Date.now(), label, cart: cart.map((i) => ({ ...i })),
+      customerName, customerPhone, customerEmail, customerShopName, customerAddress,
+      saleMode, documentMode, dueDate,
+    });
+    writeParked(list);
+    setCart([]);
+    setCustomerName(''); setCustomerPhone(''); setCustomerEmail(''); setCustomerShopName(''); setCustomerAddress('');
+    setSaleMode('paid'); setLastRemoved(null);
+    setMessage(t('Sale parked. Serve the next customer.'));
+  };
+
+  const resumeParked = (id: string) => {
+    const list = readParked();
+    const target = list.find((p) => p.id === id);
+    if (!target) return;
+    if (cart.length) holdSale();
+    const rest = list.filter((p) => p.id !== id);
+    writeParked(rest);
+    setCart(target.cart.map((i) => ({ ...i })));
+    setCustomerName(target.customerName); setCustomerPhone(target.customerPhone);
+    setCustomerEmail(target.customerEmail); setCustomerShopName(target.customerShopName);
+    setCustomerAddress(target.customerAddress);
+    setSaleMode(target.saleMode); setDocumentMode(target.documentMode); setDueDate(target.dueDate);
+    setLastRemoved(null);
+    setMessage(t('Parked sale resumed.'));
+  };
+
+  const removeParked = (id: string) => {
+    writeParked(readParked().filter((p) => p.id !== id));
   };
 
   const openShift = async () => {
@@ -1101,6 +1198,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false, locale = 'en' }
       setCustomerAddress('');
       setCustomerLookup({ checking: false, matched: null });
       setCustomerPriceMap({});
+      setCustomerOutstanding(null);
       setDueDate(new Date().toISOString().slice(0, 10));
       setSaleMode('paid');
       setExchangeEnabled(false);
@@ -1113,6 +1211,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false, locale = 'en' }
       setDeliveryCharge('');
       setAdvanceMethod('mfs');
       setUsePartialPayments(false);
+      setSplitMethods(['cash']);
       setPartialPayments({ cash: { amount: '', reference: '' }, card: { amount: '', reference: '' }, mfs: { amount: '', reference: '' }, bank_transfer: { amount: '', reference: '' } });
       clearSearchState();
     } catch (error) {
@@ -1384,15 +1483,41 @@ export function PosTerminal({ canUsePos, canUseInvoices = false, locale = 'en' }
                   {t('Add products to build the sale.')}
                 </p>
               </div>
-              <div style={{ fontSize: 12, color: 'var(--muted-foreground)', textAlign: 'right' }}>
-                {totalDiscount > 0 ? (
-                  <div style={{ color: '#b45309' }}>Item Disc. -{currency(totalDiscount)}</div>
-                ) : null}
-                {orderDiscountAmount > 0 ? (
-                  <div style={{ color: '#b45309' }}>Order Disc. -{currency(orderDiscountAmount)}</div>
-                ) : null}
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                <button onClick={holdSale} style={secondaryButtonStyle} disabled={!cart.length} title={t('Park this sale and serve the next customer')}>
+                  {t('Hold')}
+                </button>
+                <button onClick={clearCart} style={secondaryButtonStyle} disabled={!cart.length}>
+                  {t('Clear')}
+                </button>
+                <div style={{ fontSize: 12, color: 'var(--muted-foreground)', textAlign: 'right' }}>
+                  {totalDiscount > 0 ? (
+                    <div style={{ color: '#b45309' }}>Item Disc. -{currency(totalDiscount)}</div>
+                  ) : null}
+                  {orderDiscountAmount > 0 ? (
+                    <div style={{ color: '#b45309' }}>Order Disc. -{currency(orderDiscountAmount)}</div>
+                  ) : null}
+                </div>
               </div>
             </div>
+            {lastRemoved ? (
+              <div style={{ marginBottom: 8, fontSize: 12, color: '#92400e', background: 'rgba(217,119,6,0.1)', border: '1px solid rgba(217,119,6,0.3)', borderRadius: 6, padding: '5px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                <span>{t('Removed')} {lastRemoved.item.productName}</span>
+                <button onClick={undoRemove} style={{ ...subtleButtonStyle, fontSize: 11, color: '#2563eb' }}>{t('Undo')}</button>
+              </div>
+            ) : null}
+            {parkedSales && parkedSales.length > 0 ? (
+              <div style={{ marginBottom: 8, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                <span style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>{t('Parked')}:</span>
+                {parkedSales.map((parked) => (
+                  <span key={parked.id} style={{ display: 'inline-flex', gap: 4, alignItems: 'center', fontSize: 11.5, border: '1px solid var(--border)', borderRadius: 999, padding: '2px 4px 2px 8px', background: 'var(--muted)' }}>
+                    {parked.label}
+                    <button onClick={() => resumeParked(parked.id)} style={{ ...subtleButtonStyle, fontSize: 10.5, padding: '1px 6px', color: '#2563eb' }}>{t('Resume')}</button>
+                    <button onClick={() => removeParked(parked.id)} style={{ ...subtleButtonStyle, fontSize: 10.5, padding: '1px 6px', color: '#dc2626' }}>✕</button>
+                  </span>
+                ))}
+              </div>
+            ) : null}
             {cart.length ? (
               <div style={{ ...tableWrapStyle, height: '100%' }}>
                 <table style={tableStyle}>
@@ -1439,55 +1564,68 @@ export function PosTerminal({ canUsePos, canUseInvoices = false, locale = 'en' }
                             </div>
                           ) : null}
                         </td>
-                        <td style={tableCellStyle}>{currency(item.unitPrice)}</td>
+                        <td style={tableCellStyle}>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={item.unitPrice}
+                            onChange={(e) => updateCartPrice(item.skuId, Number(e.target.value))}
+                            style={{ ...inputStyle, width: 90, fontSize: 12, textAlign: 'right', padding: '2px 6px', fontFamily: 'monospace' }}
+                            aria-label={`Price for ${item.productName}`}
+                          />
+                        </td>
                         <td style={tableCellStyle}>
                           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                             <button onClick={() => updateCartQty(item.skuId, item.qty - 1)} style={buttonStyle}>-</button>
                             <span>{item.qty}{item.unit ? ` ${item.unit}` : ''}</span>
                             <button onClick={() => updateCartQty(item.skuId, item.qty + 1)} style={buttonStyle}>+</button>
                           </div>
+                          {item.availableQty < 999999 && item.qty > item.availableQty ? (
+                            <div style={{ fontSize: 10, color: '#dc2626', marginTop: 2 }}>
+                              {t('Only')} {formatQty(item.availableQty)} {t('in stock')}
+                            </div>
+                          ) : null}
                         </td>
                         <td style={tableCellStyle}>
-                          <select
-                            value={item.discountType}
-                            onChange={(e) => {
-                              const newType = e.target.value;
-                              if (newType === 'none') {
-                                updateCartDiscount(item.skuId, 0, 'none');
-                              } else if (newType === 'fixed') {
-                                updateCartDiscount(item.skuId, 0, 'fixed');
-                              } else if (newType === 'percentage') {
-                                updateCartDiscount(item.skuId, 0, 'percentage');
-                              }
-                            }}
-                            style={{ ...inputStyle, width: 70, fontSize: 11, padding: '2px 4px' }}
-                          >
-                            <option value="none">—</option>
-                            <option value="fixed">TK</option>
-                            <option value="percentage">%</option>
-                          </select>
-                          {item.discountType !== 'none' && item.discountType ? (
+                          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                             <input
                               type="number"
                               min={0}
                               value={item.discountType === 'percentage' && item.discountAmount > 0 && item.unitPrice > 0
                                 ? String(Math.round(item.discountAmount / item.unitPrice * 100))
-                                : item.discountAmount > 0 && item.discountType === 'fixed'
+                                : item.discountAmount > 0
                                   ? String(item.discountAmount)
                                   : ''}
                               onChange={(e) => {
                                 const val = Number(e.target.value) || 0;
-                                if (item.discountType === 'fixed') {
+                                if (val <= 0) { updateCartDiscount(item.skuId, 0, 'none'); return; }
+                                if (item.discountType === 'percentage') {
+                                  updateCartDiscount(item.skuId, item.unitPrice * val / 100, 'percentage');
+                                } else {
                                   updateCartDiscount(item.skuId, val, 'fixed');
-                                } else if (item.discountType === 'percentage') {
-                                  const pctAmt = item.unitPrice * val / 100;
-                                  updateCartDiscount(item.skuId, pctAmt, 'percentage');
                                 }
                               }}
-                              style={{ ...inputStyle, width: 60, fontSize: 11, padding: '2px 4px', marginTop: 2 }}
+                              style={{ ...inputStyle, width: 64, fontSize: 11, textAlign: 'right', padding: '2px 4px' }}
                               placeholder="0"
+                              aria-label={`Discount for ${item.productName}`}
                             />
-                          ) : null}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (item.discountType === 'none' || item.discountType === 'fixed') {
+                                  const pct = item.unitPrice > 0 ? Math.round(item.discountAmount / item.unitPrice * 100) : 0;
+                                  updateCartDiscount(item.skuId, item.unitPrice * pct / 100, 'percentage');
+                                } else {
+                                  updateCartDiscount(item.skuId, item.discountAmount, 'fixed');
+                                }
+                              }}
+                              style={{ ...subtleButtonStyle, fontSize: 10, padding: '2px 6px', fontWeight: 600 }}
+                              title={t('Toggle between % and fixed amount')}
+                            >
+                              {item.discountType === 'percentage' ? '%' : '৳'}
+                            </button>
+                          </div>
                         </td>
                         <td style={tableCellStyle}>
                           <div>{currency(item.qty * item.unitPrice - item.discountAmount)}</div>
@@ -1523,8 +1661,15 @@ export function PosTerminal({ canUsePos, canUseInvoices = false, locale = 'en' }
           ) : null}
 
           <div style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
-            <input value={customerName} onChange={(event) => setCustomerName(event.target.value)} style={inputStyle} placeholder={t('Customer name (optional)')} />
-            <input value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} style={inputStyle} placeholder={saleMode !== 'paid' ? t('Customer mobile number (recommended)') : t('Customer mobile number (optional)')} />
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <input value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} style={{ ...inputStyle, flex: 1 }} placeholder={saleMode !== 'paid' ? t('Customer mobile number (recommended)') : t('Customer mobile number (optional)')} />
+              <button
+                onClick={() => setCustomerExpanded((v) => !v)}
+                style={{ ...subtleButtonStyle, fontSize: 11, whiteSpace: 'nowrap', minHeight: 32 }}
+              >
+                {customerExpanded || saleMode !== 'paid' ? t('Hide details') : t('+ Details')}
+              </button>
+            </div>
             {customerLookup.checking && customerPhone.replace(/\D/g, '').length >= 6 ? (
               <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginTop: -4 }}>Looking up customer…</div>
             ) : null}
@@ -1538,9 +1683,12 @@ export function PosTerminal({ canUsePos, canUseInvoices = false, locale = 'en' }
                 ✓ Customer price list active — {Object.keys(customerPriceMap).length} special rate(s) applied
               </div>
             ) : null}
+            {(customerExpanded || saleMode !== 'paid') ? (<>
+            <input value={customerName} onChange={(event) => setCustomerName(event.target.value)} style={inputStyle} placeholder={t('Customer name (optional)')} />
             <input value={customerEmail} onChange={(event) => setCustomerEmail(event.target.value)} style={inputStyle} placeholder={t('Customer email (optional)')} />
             <input value={customerShopName} onChange={(event) => setCustomerShopName(event.target.value)} style={inputStyle} placeholder={saleMode !== 'paid' ? t('Shop name (optional but helpful)') : t('Shop name (optional)')} />
             <textarea value={customerAddress} onChange={(event) => setCustomerAddress(event.target.value)} style={{ ...inputStyle, minHeight: 76 }} placeholder={saleMode !== 'paid' ? t('Shop / customer address for due tracking') : t('Customer address (optional)')} />
+            </>) : null}
             {saleMode !== 'paid' ? (
               <input type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} style={inputStyle} aria-label={saleMode === 'cod' ? 'Expected delivery date' : 'Due date'} />
             ) : null}
@@ -1629,6 +1777,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false, locale = 'en' }
                 placeholder="0.00"
               />
             </div>
+            {(showTaxFields || Number(vatAmount || 0) > 0 || Number(taxAmount || 0) > 0) ? (<>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 13 }}>{t('VAT')}</span>
               <input
@@ -1653,6 +1802,11 @@ export function PosTerminal({ canUsePos, canUseInvoices = false, locale = 'en' }
                 placeholder="0.00"
               />
             </div>
+            </>) : (
+              <button type="button" onClick={() => setShowTaxFields(true)} style={{ ...subtleButtonStyle, fontSize: 11, width: '100%', justifyContent: 'flex-start' }}>
+                + {t('VAT / Tax')}
+              </button>
+            )}
             <div style={{ display: 'grid', gap: 4 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
                 <span style={{ fontSize: 13 }}>{t('Delivery charge')}</span>
@@ -1678,6 +1832,12 @@ export function PosTerminal({ canUsePos, canUseInvoices = false, locale = 'en' }
                 </div>
               ) : null}
             </div>
+            {saleMode !== 'paid' && customerOutstanding !== null && customerOutstanding > 0 ? (
+              <div style={{ fontSize: 12, color: '#92400e', background: 'rgba(217,119,6,0.1)', border: '1px solid rgba(217,119,6,0.3)', borderRadius: 6, padding: '5px 8px', display: 'flex', justifyContent: 'space-between' }}>
+                <span>{t('Existing dues')}</span>
+                <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>BDT {customerOutstanding.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+              </div>
+            ) : null}
             <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 15, borderTop: '1px solid var(--border)', paddingTop: 8 }}>
               <span>{t('Net Payable')}</span>
               <strong>{currency(paymentRequired)}</strong>
@@ -1702,19 +1862,19 @@ export function PosTerminal({ canUsePos, canUseInvoices = false, locale = 'en' }
 
           {saleMode !== 'cod' ? (
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, cursor: 'pointer', fontSize: 13 }}>
-            <input type="checkbox" checked={usePartialPayments} onChange={(e) => setUsePartialPayments(e.target.checked)} style={{ accentColor: '#0f172a' }} />
+            <input type="checkbox" checked={usePartialPayments} onChange={(e) => { setUsePartialPayments(e.target.checked); if (e.target.checked && !splitMethods.length) setSplitMethods(['cash']); }} style={{ accentColor: '#0f172a' }} />
             <span style={{ color: 'var(--muted-foreground)' }}>{t('Split payment across multiple methods')}</span>
           </label>
           ) : null}
 
           {saleMode !== 'cod' && usePartialPayments ? (
             <div style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
-              {(['cash', 'card', 'mfs', 'bank_transfer'] as const).map((method) => {
+              {splitMethods.map((method) => {
                 const entry = partialPayments[method];
                 return (
                   <div key={method} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                     <span style={{ minWidth: 90, fontSize: 13, fontWeight: 500, color: 'var(--muted-foreground)' }}>
-                      {method === 'bank_transfer' ? 'Bank' : method.charAt(0).toUpperCase() + method.slice(1)}
+                      {method === 'bank_transfer' ? t('Bank') : method === 'mfs' ? t('MFS') : method === 'cash' ? t('Cash') : t('Card')}
                     </span>
                     <input
                       type="number"
@@ -1734,8 +1894,20 @@ export function PosTerminal({ canUsePos, canUseInvoices = false, locale = 'en' }
                   </div>
                 );
               })}
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                {(['cash', 'card', 'mfs', 'bank_transfer'] as const).filter((m) => !splitMethods.includes(m)).map((method) => (
+                  <button
+                    key={method}
+                    type="button"
+                    onClick={() => setSplitMethods((cur) => [...cur, method])}
+                    style={{ ...subtleButtonStyle, fontSize: 11 }}
+                  >
+                    + {method === 'bank_transfer' ? t('Bank') : method === 'mfs' ? t('MFS') : method === 'cash' ? t('Cash') : t('Card')}
+                  </button>
+                ))}
+              </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', fontSize: 13, color: 'var(--muted-foreground)' }}>
-                Total: <strong style={{ marginLeft: 4, color: totalPaidFromPartial >= paymentRequired ? '#16a34a' : '#b45309' }}>{currency(totalPaidFromPartial)}</strong>
+                {t('Total')}: <strong style={{ marginLeft: 4, color: totalPaidFromPartial >= paymentRequired ? '#16a34a' : '#b45309' }}>{currency(totalPaidFromPartial)}</strong>
                 <span style={{ margin: '0 4px' }}>/</span>
                 Required: <strong style={{ marginLeft: 4 }}>{currency(paymentRequired)}</strong>
               </div>
@@ -1761,7 +1933,25 @@ export function PosTerminal({ canUsePos, canUseInvoices = false, locale = 'en' }
               ) : null
             ) : paymentMethod === 'cash' ? (
               <div style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
-                <input type="number" min="0" step="0.01" value={cashReceived} onChange={(event) => setCashReceived(event.target.value)} style={inputStyle} placeholder={`Amount paid by customer (${currency(paymentRequired)} required)`} />
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {[500, 1000, 2000].map((note) => (
+                    <button key={note} type="button" onClick={() => setCashReceived(String(Number(cashReceived || 0) + note))} style={{ ...subtleButtonStyle, fontSize: 11.5 }}>
+                      +{note.toLocaleString()}
+                    </button>
+                  ))}
+                  <button type="button" onClick={() => setCashReceived(String(Math.ceil(paymentRequired / 500) * 500))} style={{ ...subtleButtonStyle, fontSize: 11.5 }}>
+                    {t('Round up')}
+                  </button>
+                  <button type="button" onClick={() => setCashReceived(String(paymentRequired))} style={{ ...subtleButtonStyle, fontSize: 11.5 }}>
+                    {t('Exact')}
+                  </button>
+                </div>
+                <input
+                  value={cashReceived}
+                  onChange={(event) => setCashReceived(event.target.value)}
+                  style={inputStyle}
+                  placeholder={`Amount paid by customer (${currency(paymentRequired)} required)`}
+                />
                 {changeAmount > 0 ? (
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span>{t('Change due')}</span>
@@ -1777,7 +1967,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false, locale = 'en' }
               <strong>{currency(usePartialPayments ? Math.max(paymentRequired - totalPaidFromPartial, 0) : paymentRequired)}</strong>
             </div>
           ) : null}
-            <button onClick={checkout} style={gray800ButtonStyle} disabled={loading || cart.length === 0 || !selectedLocationId || (exchangeEnabled && !exchangeItem)}>
+            <button onClick={checkout} style={{ ...gray800ButtonStyle, width: '100%', minHeight: 44, fontSize: 14, fontWeight: 600, position: 'sticky', bottom: 8, zIndex: 5 }} disabled={loading || cart.length === 0 || !selectedLocationId || (exchangeEnabled && !exchangeItem)}>
               {saleMode === 'due' ? t('Save Due Sale') : saleMode === 'cod' ? t('Save COD Sale') : t('Complete Sale')}
             </button>
             {!selectedLocationId ? (

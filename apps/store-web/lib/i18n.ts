@@ -263,6 +263,27 @@ const BN: Record<string, string> = {
   'Add to Cart': 'কার্টে যোগ করুন',
   'Variant': 'ভ্যারিয়েন্ট',
   'Attributes': 'বৈশিষ্ট্য',
+
+  '+ Details': '+ বিবরণ',
+  'Hide details': 'বিবরণ লুকান',
+
+  'Existing dues': 'পূর্বের বকেয়া',
+  'VAT / Tax': 'ভ্যাট / কর',
+
+  'Clear the cart?': 'কার্ট খালি করবেন?',
+  'Cart cleared.': 'কার্ট খালি করা হয়েছে।',
+  'Removed': 'বাদ দেওয়া হয়েছে',
+  'Undo': 'আন্ডু',
+  'Parked': 'পার্ক করা',
+  'Resume': 'পুনরায় শুরু',
+  'Hold': 'হোল্ড',
+  'Clear': 'খালি',
+  'Park this sale and serve the next customer': 'এই বিক্রয় পার্ক করুন, পরের কাস্টমার দেখুন',
+  'Sale parked. Serve the next customer.': 'বিক্রয় পার্ক করা হয়েছে। পরের কাস্টমার দেখুন।',
+  'Parked sale resumed.': 'পার্ক করা বিক্রয় পুনরায় শুরু হয়েছে।',
+  'Only': 'মাত্র',
+  'in stock': 'স্টকে আছে',
+  'Toggle between % and fixed amount': '% এবং টাকা-এর মধ্যে পরিবর্তন',
 };
 
 export function trFor(locale: Locale) {
