@@ -221,6 +221,8 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
   const [documentMode, setDocumentMode] = useState<'pos' | 'a5' | 'a4'>('pos');
   const [customerLookup, setCustomerLookup] = useState<{ checking: boolean; matched: { name: string; shopName: string; address: string; email: string } | null }>({ checking: false, matched: null });
   const [lastSoldCart, setLastSoldCart] = useState<CartItem[]>([]);
+  const [deliveryCharge, setDeliveryCharge] = useState('');
+  const [advanceMethod, setAdvanceMethod] = useState<'cash' | 'mfs' | 'bank_transfer'>('mfs');
   const [collectAmount, setCollectAmount] = useState('');
   const [collectMethod, setCollectMethod] = useState('cash');
   const [collecting, setCollecting] = useState(false);
@@ -427,10 +429,11 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
   const orderDiscountAmount = useMemo(() => Math.max(Number(orderDiscount || 0), 0), [orderDiscount]);
   const vatAmountValue = useMemo(() => Math.max(Number(vatAmount || 0), 0), [vatAmount]);
   const taxAmountValue = useMemo(() => Math.max(Number(taxAmount || 0), 0), [taxAmount]);
+  const deliveryChargeValue = useMemo(() => Math.max(Number(deliveryCharge || 0), 0), [deliveryCharge]);
 
   const grandTotal = useMemo(
-    () => Math.max(total - totalDiscount - orderDiscountAmount + vatAmountValue + taxAmountValue, 0),
-    [total, totalDiscount, orderDiscountAmount, vatAmountValue, taxAmountValue],
+    () => Math.max(total - totalDiscount - orderDiscountAmount + vatAmountValue + taxAmountValue + deliveryChargeValue, 0),
+    [total, totalDiscount, orderDiscountAmount, vatAmountValue, taxAmountValue, deliveryChargeValue],
   );
 
   const exchangeCost = exchangeItem?.costPrice ?? 0;
@@ -859,7 +862,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
           discountAmount: orderDiscountAmount,
           taxAmount: taxAmountValue,
           vatAmount: vatAmountValue,
-          shippingAmount: 0,
+          shippingAmount: deliveryChargeValue,
           items: cart.map((item) => ({
             skuId: item.skuId,
             qty: item.qty,
@@ -870,13 +873,21 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
           })),
           payments: saleIsCod
             ? [
+                ...(deliveryChargeValue > 0
+                  ? [{
+                      paymentMethod: advanceMethod,
+                      amount: Math.min(deliveryChargeValue, paymentRequired),
+                      referenceNo: paymentReference || undefined,
+                      status: 'paid',
+                    }]
+                  : []),
                 {
                   paymentMethod: 'cod',
-                  amount: paymentRequired,
-                  referenceNo: paymentReference || undefined,
+                  amount: Math.max(paymentRequired - deliveryChargeValue, 0),
+                  referenceNo: undefined,
                   status: 'pending',
                 },
-              ]
+              ].filter((payment) => payment.amount > 0)
             : usePartialPayments
             ? (() => {
                 const paid = (Object.entries(partialPayments) as Array<[string, { amount: string; reference: string }]>)
@@ -963,6 +974,8 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
       setOrderDiscount('');
       setVatAmount('');
       setCashReceived('');
+      setDeliveryCharge('');
+      setAdvanceMethod('mfs');
       setUsePartialPayments(false);
       setPartialPayments({ cash: { amount: '', reference: '' }, card: { amount: '', reference: '' }, mfs: { amount: '', reference: '' }, bank_transfer: { amount: '', reference: '' } });
       clearSearchState();
@@ -1453,6 +1466,31 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
                 style={{ ...inputStyle, width: 100, fontSize: 12, textAlign: 'right', padding: '4px 8px' }}
                 placeholder="0.00"
               />
+            </div>
+            <div style={{ display: 'grid', gap: 4 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 13 }}>Delivery charge</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={deliveryCharge}
+                  onChange={(e) => setDeliveryCharge(e.target.value)}
+                  style={{ ...inputStyle, width: 100, fontSize: 12, textAlign: 'right', padding: '4px 8px' }}
+                  placeholder="0.00"
+                  aria-label="Delivery charge"
+                />
+              </div>
+              {saleMode === 'cod' && deliveryChargeValue > 0 ? (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, fontSize: 11, color: 'var(--muted-foreground)' }}>
+                  <span>Taken in advance from customer</span>
+                  <select value={advanceMethod} onChange={(e) => setAdvanceMethod(e.target.value as 'cash' | 'mfs' | 'bank_transfer')} style={{ ...inputStyle, width: 110, fontSize: 11, padding: '2px 6px', minHeight: 24 }} aria-label="Advance payment method">
+                    <option value="mfs">MFS (bKash)</option>
+                    <option value="cash">Cash</option>
+                    <option value="bank_transfer">Bank</option>
+                  </select>
+                </div>
+              ) : null}
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 15, borderTop: '1px solid var(--border)', paddingTop: 8 }}>
               <span>Net Payable</span>
