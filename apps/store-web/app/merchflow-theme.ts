@@ -100,6 +100,9 @@ export const surfaceCardStyle: CSSProperties = {
   borderRadius: 4,
   background: merchflowColors.surface,
   border: `1px solid ${merchflowColors.border}`,
+  // Grid items default to min-width:auto — without this, a wide table inside
+  // a card forces it past its grid track and out of the parent panel.
+  minWidth: 0,
 };
 
 export const surfaceCardStrongStyle: CSSProperties = {
@@ -114,6 +117,7 @@ export const compactSurfaceCardStyle: CSSProperties = {
   background: merchflowColors.surfaceAlt,
   border: `1px solid ${merchflowColors.border}`,
   boxShadow: 'none',
+  minWidth: 0,
 };
 
 export const metricLabelStyle: CSSProperties = {
