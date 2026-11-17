@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { ThemeToggle } from '@mvp/theme';
 import { trFor } from '../lib/i18n';
+import { BanglaSweep } from './bangla-sweep';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -134,6 +135,7 @@ export function WorkspaceShell({ navItems, title, badge, children, access }: Wor
 
   return (
     <SidebarProvider>
+      {access.locale === 'bn' ? <BanglaSweep locale="bn" /> : null}
       <div className="flex min-h-screen w-full">
         <AppSidebar access={access} navItems={navItems} pathname={pathname} badge={badge} title={title} />
         <div className="flex flex-1 min-w-0 flex-col">
