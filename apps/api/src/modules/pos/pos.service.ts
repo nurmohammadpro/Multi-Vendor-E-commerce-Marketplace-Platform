@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { assertLocationInStore } from '../common/location-scope.js';
 import { normalizePageQuery, stripPaginationTotal } from '../common/pagination.js';
 import type { Pool, PoolClient } from 'pg';
 
@@ -356,7 +357,9 @@ export class PosService {
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
     const userId = this.requireUserId(session);
-    const client = await this.pool.connect();
+        await assertLocationInStore(this.pool, payload.locationId, storeId);
+
+const client = await this.pool.connect();
 
     try {
       await client.query('begin');
@@ -2823,6 +2826,9 @@ export class PosService {
         throw new ForbiddenException('Nothing has been paid on the original sale — exchanges require a paid sale');
       }
 
+      if (payload.locationId) {
+        await assertLocationInStore(this.pool, payload.locationId, storeId);
+      }
       const exchangeLocationId = payload.locationId ?? sale.location_id;
 
       // 2. Validate returned items and compute credit

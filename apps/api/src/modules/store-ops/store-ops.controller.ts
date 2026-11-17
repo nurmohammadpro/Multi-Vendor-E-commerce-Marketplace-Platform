@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Patch, Post, Query, UseGuards, Put } from '@nestjs/common';
 import { z } from 'zod';
 
 import { CurrentAuthContext, CurrentAuthSession } from '../auth/current-auth.decorator.js';
@@ -41,6 +41,13 @@ const purchaseItemSchema = z.object({
   estimatedQty: z.number().nonnegative().optional(),
   batchNo: z.string().max(120).optional(),
   expiryDate: z.string().date().optional(),
+});
+
+const setCustomerPricesSchema = z.object({
+  items: z.array(z.object({
+    skuId: z.string().uuid(),
+    price: z.number().min(0).nullable(),
+  })).min(1),
 });
 
 const createPurchaseSchema = z.object({
@@ -314,6 +321,30 @@ export class StoreOpsController {
       page: page ? Number(page) : undefined,
       limit: limit ? Number(limit) : undefined,
     });
+  }
+
+  @Get('customers/:customerId/prices')
+  @RequireContext('store')
+  @RequirePermissions('sales.pos.create')
+  getCustomerPrices(
+    @Param('customerId') customerId: string,
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+  ) {
+    return this.storeOpsService.getCustomerPrices(customerId, headerStoreId, authContext);
+  }
+
+  @Put('customers/:customerId/prices')
+  @RequireContext('store')
+  @RequirePermissions('catalog.manage')
+  setCustomerPrices(
+    @Param('customerId') customerId: string,
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @CurrentAuthSession() session: AuthSession | null,
+    @Body() payload: unknown,
+  ) {
+    return this.storeOpsService.setCustomerPrices(customerId, headerStoreId, authContext, session, setCustomerPricesSchema.parse(payload));
   }
 
   @Get('customers/:customerId')

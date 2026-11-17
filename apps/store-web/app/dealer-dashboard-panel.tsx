@@ -132,7 +132,7 @@ export function DealerDashboardPanel({ locale = 'en' }: { locale?: 'en' | 'bn' }
         <section style={{ ...sectionPanelStyle, gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))' }}>
           <Metric label={t('Receivables')} value={`BDT ${money(position?.receivables)}`} note={t('owed by customers')} />
           <Metric label={t('Payables')} value={`BDT ${money(position?.payables)}`} note={t('owed to suppliers')} />
-          <Metric label={t('Cash in Hand')} value={`BDT ${money(position?.cashInHand)}`} note={t('till')} />
+          <Metric label={t('Cash in Hand')} value={`BDT ${money(position?.cashInHand)}`} note={t('cash sales − expenses')} />
           <Metric label={t('Bank Balance')} value={`BDT ${money(position?.bankBalance)}`} note={t('active accounts')} />
         </section>
       </section>

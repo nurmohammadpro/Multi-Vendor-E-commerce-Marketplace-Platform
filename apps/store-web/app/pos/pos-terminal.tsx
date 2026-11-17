@@ -339,7 +339,9 @@ export function PosTerminal({ canUsePos, canUseInvoices = false, locale = 'en' }
         setRegisters(registerPayload.registers ?? []);
         setLocations(locationPayload.locations ?? []);
         setSelectedRegisterId(registerPayload.registers?.[0]?.id ?? '');
-        setSelectedLocationId(locationPayload.locations?.[0]?.id ?? '');
+        const savedLocationId = localStorage.getItem('pos_location_id');
+        const validSaved = locationPayload.locations?.find((l) => l.id === savedLocationId);
+        setSelectedLocationId(validSaved?.id ?? locationPayload.locations?.[0]?.id ?? '');
         setCategories(catPayload.categories ?? []);
         setBrands(brandPayload.brands ?? []);
         const receiptType = settingsPayload.settings?.receipt_type;
@@ -2326,7 +2328,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false, locale = 'en' }
 
         <article style={{ ...cardStyle, padding: 14 }}>
           <h4 style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Stock Source</h4>
-          <select aria-label="Stock source" value={selectedLocationId} onChange={(event) => setSelectedLocationId(event.target.value)} style={{ ...inputStyle, marginTop: 8, fontSize: 12 }}>
+          <select aria-label="Stock source" value={selectedLocationId} onChange={(event) => { setSelectedLocationId(event.target.value); localStorage.setItem('pos_location_id', event.target.value); }} style={{ ...inputStyle, marginTop: 8, fontSize: 12 }}>
             <option value="">Select location</option>
             {locations.map((location) => (
               <option key={location.id} value={location.id}>{location.code} — {location.name}</option>

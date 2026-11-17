@@ -1606,6 +1606,16 @@ export class StoreService {
 
       const nextLocationId = payload.locationId !== undefined ? payload.locationId : currentMembership.location_id ?? null;
 
+      if (nextLocationId) {
+        const locCheck = await client.query(
+          'select id from inventory.locations where id = $1 and store_id = $2 limit 1',
+          [nextLocationId, storeId],
+        );
+        if (!locCheck.rows[0]) {
+          throw new ForbiddenException('Location does not belong to this store');
+        }
+      }
+
       if (nextRoleCode === 'store_manager' && !nextLocationId) {
         throw new ForbiddenException('A location must be assigned when the role is manager.');
       }

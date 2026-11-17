@@ -2,6 +2,7 @@ import { ConflictException, ForbiddenException, Inject, Injectable, NotFoundExce
 import type { Pool, PoolClient } from 'pg';
 
 import type { AuthSession, StoreAuthContext } from '../auth/auth.types.js';
+import { assertLocationInStore } from '../common/location-scope.js';
 import { normalizePageQuery, stripPaginationTotal } from '../common/pagination.js';
 import { DATABASE_POOL } from '../database/database.constants.js';
 
@@ -1002,6 +1003,7 @@ export class StoreOpsService {
     this.assertAllowedRoles(authContext, ['store_owner', 'store_manager']);
     const userId = this.requireUserId(session);
     const locationId = payload.locationId ?? await this.getDefaultInventoryLocationId(storeId);
+    await assertLocationInStore(this.pool, locationId, storeId);
     const purchaseNo = await this.generatePurchaseNumber(storeId, payload.purchaseDate);
     const purchaseStatus = payload.status ?? 'confirmed';
     const depositAmount = Math.max(payload.depositAmount ?? 0, 0);
@@ -1584,6 +1586,7 @@ export class StoreOpsService {
       throw new ForbiddenException('A delivery needs at least one line with a quantity');
     }
     const locationId = payload.locationId ?? purchase.location_id;
+    await assertLocationInStore(this.pool, locationId, storeId);
 
     const client = await this.pool.connect();
     try {
@@ -3251,6 +3254,7 @@ export class StoreOpsService {
     },
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
+    await assertLocationInStore(this.pool, payload.locationId, storeId);
     const userId = this.requireUserId(session);
     const client = await this.pool.connect();
 
@@ -3416,6 +3420,7 @@ export class StoreOpsService {
     },
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
+    await assertLocationInStore(this.pool, payload.locationId, storeId);
     const userId = this.requireUserId(session);
     const client = await this.pool.connect();
 
@@ -3659,6 +3664,9 @@ export class StoreOpsService {
     },
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
+    for (const item of payload.items) {
+      await assertLocationInStore(this.pool, item.locationId, storeId);
+    }
     const userId = this.requireUserId(session);
     const client = await this.pool.connect();
 
@@ -4100,5 +4108,91 @@ export class StoreOpsService {
       if (!r.rows.length) return candidate;
     }
     return `${brandCode}-${categoryCode}-${spec.slice(0, 1)}${Date.now().toString(36).slice(-2).toUpperCase()}`.slice(0, 80);
+  }
+
+
+  // Customer-wise pricing: price overrides per SKU for a specific customer.
+  async getCustomerPrices(
+    customerId: string,
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const result = await this.pool.query(
+      `
+        select cp.sku_id, cp.price, sk.sku_code, sk.variant_label,
+               p.name as product_name, p.unit,
+               coalesce((select pr.sale_price from catalog.prices pr
+                 where pr.sku_id = cp.sku_id
+                 order by pr.effective_from desc, pr.created_at desc limit 1), 0) as default_price
+        from catalog.customer_prices cp
+        join catalog.skus sk on sk.id = cp.sku_id
+        join catalog.products p on p.id = sk.product_id
+        where cp.store_id = $1 and cp.customer_id = $2
+        order by p.name asc
+      `,
+      [storeId, customerId],
+    );
+    return { prices: result.rows };
+  }
+
+  async setCustomerPrices(
+    customerId: string,
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    session: AuthSession | null,
+    payload: { items: Array<{ skuId: string; price: number | null }> },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    this.assertAllowedRoles(authContext, ['store_owner', 'store_manager']);
+    this.requireUserId(session);
+
+    const tenantResult = await this.pool.query<{ tenant_id: string }>(
+      'select tenant_id from store.stores where id = $1 limit 1',
+      [storeId],
+    );
+    const tenantId = tenantResult.rows[0]?.tenant_id;
+    if (!tenantId) throw new NotFoundException('Store not found');
+
+    const customerCheck = await this.pool.query(
+      'select id from store.customers where id = $1 and store_id = $2 limit 1',
+      [customerId, storeId],
+    );
+    if (!customerCheck.rows[0]) throw new NotFoundException('Customer not found');
+
+    const client = await this.pool.connect();
+    try {
+      await client.query('begin');
+      let upserted = 0;
+      let removed = 0;
+      for (const item of payload.items ?? []) {
+        if (item.price === null || item.price === undefined) {
+          const del = await client.query(
+            'delete from catalog.customer_prices where customer_id = $1 and sku_id = $2',
+            [customerId, item.skuId],
+          );
+          removed += del.rowCount ?? 0;
+          continue;
+        }
+        await client.query(
+          `
+            insert into catalog.customer_prices (id, tenant_id, store_id, customer_id, sku_id, price, updated_at)
+            values (gen_random_uuid(), $1, $2, $3, $4, $5, now())
+            on conflict (customer_id, sku_id) do update set
+              price = excluded.price,
+              updated_at = now()
+          `,
+          [tenantId, storeId, customerId, item.skuId, item.price],
+        );
+        upserted += 1;
+      }
+      await client.query('commit');
+      return { upserted, removed };
+    } catch (error) {
+      await client.query('rollback').catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 }

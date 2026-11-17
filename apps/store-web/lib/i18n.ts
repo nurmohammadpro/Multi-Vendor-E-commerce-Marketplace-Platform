@@ -102,6 +102,7 @@ const BN: Record<string, string> = {
   'owed to suppliers': 'কোম্পানিকে দেব',
   'Cash in Hand': 'হাতে নগদ',
   'till': 'টিলে',
+  'cash sales − expenses': 'নগদ বিক্রয় − খরচ',
   'Bank Balance': 'ব্যাংক ব্যালান্স',
   'active accounts': 'চালু অ্যাকাউন্ট',
   'PROFIT & LOSS': 'লাভ-ক্ষতি',
