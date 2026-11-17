@@ -1,5 +1,7 @@
 'use client';
 
+import { waReminderLink } from '../../lib/wa-reminder';
+
 import { useCallback, useEffect, useState } from 'react';
 
 import { ListPager, type PaginationState } from '../list-pager';
@@ -94,7 +96,7 @@ function formatMoney(value: string | number | null | undefined) {
   return Number.isFinite(amount) ? amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00';
 }
 
-export function ReceivablesWorkspace() {
+export function ReceivablesWorkspace({ storeName }: { storeName?: string | null } = {}) {
   const compact = useCompactLayout();
   const [activeTab, setActiveTab] = useState<'aging' | 'dues' | 'collect'>('dues');
   const [loading, setLoading] = useState(false);
@@ -430,6 +432,17 @@ export function ReceivablesWorkspace() {
                             >
                               Collect
                             </button>
+                            {sale.customer_phone && waReminderLink(sale.customer_phone, storeName || '', Number(sale.outstanding_due_amount ?? 0), `${sale.aging_days} দিন পুরনো`) ? (
+                              <a
+                                href={waReminderLink(sale.customer_phone, storeName || '', Number(sale.outstanding_due_amount ?? 0), `${sale.aging_days} দিন পুরনো`) ?? undefined}
+                                target="_blank"
+                                rel="noreferrer"
+                                style={{ ...secondaryButtonStyle, fontSize: 11, color: '#16a34a', textDecoration: 'none' }}
+                                title="WhatsApp reminder"
+                              >
+                                Remind
+                              </a>
+                            ) : null}
                           </td>
                         </tr>
                       ))}

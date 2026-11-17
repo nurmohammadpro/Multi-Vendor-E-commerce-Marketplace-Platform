@@ -1,5 +1,7 @@
 'use client';
 
+import { waReminderLink } from '../../lib/wa-reminder';
+
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
@@ -71,7 +73,7 @@ function termsBadgeStyle(terms: Terms) {
   return { background: 'rgba(217,119,6,0.14)', color: '#92400e' };
 }
 
-export function InvoicesWorkspace() {
+export function InvoicesWorkspace({ storeName }: { storeName?: string | null } = {}) {
   const [invoices, setInvoices] = useState<InvoiceSale[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -303,6 +305,17 @@ export function InvoicesWorkspace() {
                           <button onClick={() => openCollect(sale)} style={{ ...subtleButtonStyle, fontSize: 11, color: '#16a34a' }}>
                             Collect
                           </button>
+                        ) : null}
+                        {outstanding > 0 && sale.customer_phone && waReminderLink(sale.customer_phone, storeName || '', outstanding, sale.invoice_no ? `ইনভয়েস ${sale.invoice_no}` : `বিল ${sale.sale_no}`) ? (
+                          <a
+                            href={waReminderLink(sale.customer_phone, storeName || '', outstanding, sale.invoice_no ? `ইনভয়েস ${sale.invoice_no}` : `বিল ${sale.sale_no}`) ?? undefined}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{ ...subtleButtonStyle, fontSize: 11, textDecoration: 'none' }}
+                            title="WhatsApp reminder"
+                          >
+                            Remind
+                          </a>
                         ) : null}
                       </div>
                     </td>

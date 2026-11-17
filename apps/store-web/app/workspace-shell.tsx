@@ -33,6 +33,7 @@ import {
   MapPin,
 } from 'lucide-react';
 import { ThemeToggle } from '@mvp/theme';
+import { trFor } from '../lib/i18n';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -175,6 +176,7 @@ function AppSidebar({
     )
   );
 
+  const t = trFor(access.locale === 'bn' ? 'bn' : 'en');
   const filterVisible = (item: NavItem) =>
     (!item.permission || access.permissions.includes(item.permission))
     && canAccessStoreFeature(access, item.feature)
@@ -223,7 +225,7 @@ function AppSidebar({
                   <CollapsibleTrigger asChild>
                     <SidebarGroupLabel className="cursor-pointer hover:bg-sidebar-accent/50 transition-colors">
                       <ChevronRight className={`mr-1 size-3 shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`} />
-                      {group.label}
+                      {t(group.label)}
                     </SidebarGroupLabel>
                   </CollapsibleTrigger>
                   <CollapsibleContent>
@@ -240,7 +242,7 @@ function AppSidebar({
                             <SidebarMenuItem key={item.href}>
                               <SidebarMenuButton
                                 isActive={isActive}
-                                tooltip={item.label}
+                                tooltip={t(item.label)}
                                 onClick={() => {
                                   if (isMobile) setOpen(false);
                                 }}
@@ -248,7 +250,7 @@ function AppSidebar({
                               >
                                 <Link href={item.href}>
                                   <Icon className="size-3" />
-                                  <span className="text-[11px] font-normal">{item.label}</span>
+                                  <span className="text-[11px] font-normal">{t(item.label)}</span>
                                 </Link>
                               </SidebarMenuButton>
                             </SidebarMenuItem>

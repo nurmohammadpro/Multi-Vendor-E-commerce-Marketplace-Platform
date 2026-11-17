@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   DEFAULT_PRINT_AGENT_URL,
@@ -14,6 +14,7 @@ import {
   type PrintAgentHealth,
   type ReceiptPayload,
 } from '../../lib/print-agent';
+import { trFor } from '../../lib/i18n';
 import { loadWorkstationProfile } from '../../lib/workstation-profile';
 import { SerialPickerModal } from './serial-picker-modal';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
@@ -184,6 +185,26 @@ function needsSerialTracking(sku: {
   return Number(sku.in_stock_serial_count ?? 0) > 0;
 }
 
+const OFFLINE_SALES_KEY = 'offline_sales_v1';
+
+type QueuedSale = { clientRequestId: string; body: Record<string, unknown>; ts: number };
+
+function readOfflineSales(): QueuedSale[] {
+  try {
+    return JSON.parse(localStorage.getItem(OFFLINE_SALES_KEY) || '[]') as QueuedSale[];
+  } catch {
+    return [];
+  }
+}
+
+function writeOfflineSales(list: QueuedSale[]) {
+  localStorage.setItem(OFFLINE_SALES_KEY, JSON.stringify(list));
+}
+
+function isNetworkError(message: string) {
+  return /failed to fetch|networkerror|fetch failed|load failed|network request failed/i.test(message);
+}
+
 async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
   const response = await fetch(input, init);
   const payload = (await response.json().catch(() => null)) as T | { error?: string } | null;
@@ -199,7 +220,8 @@ async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
   return payload as T;
 }
 
-export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: boolean; canUseInvoices?: boolean }) {
+export function PosTerminal({ canUsePos, canUseInvoices = false, locale = 'en' }: { canUsePos: boolean; canUseInvoices?: boolean; locale?: 'en' | 'bn' }) {
+  const t = trFor(locale);
   const compact = useCompactLayout();
   const [registers, setRegisters] = useState<Register[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
@@ -219,9 +241,11 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
   const [dueDate, setDueDate] = useState(new Date().toISOString().slice(0, 10));
   const [saleMode, setSaleMode] = useState<'paid' | 'due' | 'cod'>('paid');
   const [documentMode, setDocumentMode] = useState<'pos' | 'a5' | 'a4'>('pos');
-  const [customerLookup, setCustomerLookup] = useState<{ checking: boolean; matched: { name: string; shopName: string; address: string; email: string } | null }>({ checking: false, matched: null });
+  const [customerLookup, setCustomerLookup] = useState<{ checking: boolean; matched: { id?: string; name: string; shopName: string; address: string; email: string } | null }>({ checking: false, matched: null });
+  const [customerPriceMap, setCustomerPriceMap] = useState<Record<string, number>>({});
   const [lastSoldCart, setLastSoldCart] = useState<CartItem[]>([]);
   const [deliveryCharge, setDeliveryCharge] = useState('');
+  const clientRequestIdRef = useRef<string>('');
   const [advanceMethod, setAdvanceMethod] = useState<'cash' | 'mfs' | 'bank_transfer'>('mfs');
   const [collectAmount, setCollectAmount] = useState('');
   const [collectMethod, setCollectMethod] = useState('cash');
@@ -315,11 +339,54 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
     setAgentUrl(profile.agentUrl);
   }, []);
 
+  // ── Offline sales queue: sales made without internet sync automatically ──
+  const [offlineQueueCount, setOfflineQueueCount] = useState(0);
+  const syncingOffline = useRef(false);
+
+  const syncOfflineSales = useCallback(async () => {
+    if (syncingOffline.current) return;
+    const list = readOfflineSales();
+    if (!list.length) return;
+    syncingOffline.current = true;
+    let synced = 0;
+    for (const queued of list) {
+      try {
+        await readJson(`/api/pos/sales`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-idempotency-key': queued.clientRequestId },
+          body: JSON.stringify(queued.body),
+        });
+        const remaining = readOfflineSales().filter((s) => s.clientRequestId !== queued.clientRequestId);
+        writeOfflineSales(remaining);
+        synced += 1;
+      } catch (error) {
+        if (isNetworkError((error as Error).message)) break; // still offline — keep the rest queued
+        // permanent rejection (validation etc.) — drop it, it will never succeed
+        writeOfflineSales(readOfflineSales().filter((s) => s.clientRequestId !== queued.clientRequestId));
+      }
+    }
+    syncingOffline.current = false;
+    setOfflineQueueCount(readOfflineSales().length);
+    if (synced > 0) {
+      setMessage(`${synced} offline sale(s) synced.`);
+      toast.success(`${synced} offline sale(s) synced.`);
+    }
+  }, []);
+
+  useEffect(() => {
+    setOfflineQueueCount(readOfflineSales().length);
+    void syncOfflineSales();
+    const onOnline = () => { void syncOfflineSales(); };
+    window.addEventListener('online', onOnline);
+    return () => window.removeEventListener('online', onOnline);
+  }, [syncOfflineSales]);
+
   // Customer picker: typing a known phone number autofills name/shop/address.
   useEffect(() => {
     const digits = customerPhone.replace(/\D/g, '');
     if (digits.length < 6) {
       setCustomerLookup({ checking: false, matched: null });
+      setCustomerPriceMap({});
       return;
     }
     setCustomerLookup((cur) => ({ ...cur, checking: true }));
@@ -334,16 +401,30 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
           list.find((c) => (c.mobile_no || '').replace(/\D/g, '').endsWith(tail)) ??
           (list.length === 1 ? list[0] : null);
         if (match) {
-          setCustomerLookup({ checking: false, matched: { name: match.full_name || '', shopName: match.shop_name || '', address: match.address || '', email: match.email || '' } });
+          setCustomerLookup({ checking: false, matched: { id: match.id, name: match.full_name || '', shopName: match.shop_name || '', address: match.address || '', email: match.email || '' } });
+          if (match.id) {
+            try {
+              const pricePayload = await readJson<{ prices: Array<{ sku_id: string; price: string }> }>(
+                `/api/store-ops/customers/${match.id}/prices`,
+              );
+              const map: Record<string, number> = {};
+              for (const row of pricePayload.prices ?? []) map[row.sku_id] = Number(row.price);
+              setCustomerPriceMap(map);
+            } catch { setCustomerPriceMap({}); }
+          } else {
+            setCustomerPriceMap({});
+          }
           if (match.full_name) setCustomerName((cur) => cur || match.full_name!);
           if (match.shop_name) setCustomerShopName((cur) => cur || match.shop_name!);
           if (match.address) setCustomerAddress((cur) => cur || match.address!);
           if (match.email) setCustomerEmail((cur) => cur || match.email!);
         } else {
           setCustomerLookup({ checking: false, matched: null });
+      setCustomerPriceMap({});
         }
       } catch {
         setCustomerLookup({ checking: false, matched: null });
+      setCustomerPriceMap({});
       }
     }, 450);
     return () => clearTimeout(timer);
@@ -561,7 +642,8 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
         return next;
       }
 
-      const unitPrice = Number(sku.sale_price ?? 0);
+      const catalogPrice = Number(sku.sale_price ?? 0);
+      const unitPrice = customerPriceMap[sku.id] ?? catalogPrice;
       let discountAmount = 0;
       let discountType = '';
       if (discountOverride) {
@@ -831,6 +913,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
     }
 
     setLoading(true);
+    let saleBody: Record<string, unknown> | null = null;
     try {
       setLastSoldCart(cart.map((item) => ({ ...item })));
       const saleIsDue = saleMode === 'due';
@@ -840,13 +923,14 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
       const clientRequestId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
         ? crypto.randomUUID()
         : `sale-${Date.now()}`;
+      clientRequestIdRef.current = clientRequestId;
       const salePayload = await readJson<SaleCreateResponse>('/api/pos/sales', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-idempotency-key': clientRequestId,
         },
-        body: JSON.stringify({
+        body: JSON.stringify((saleBody = {
           clientRequestId,
           locationId: selectedLocationId,
           registerId: selectedRegisterId || undefined,
@@ -908,7 +992,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
                   status: saleIsDue ? 'pending' : 'paid',
                 },
               ],
-        }),
+        })),
       });
 
       const saleId = salePayload.sale?.id;
@@ -958,6 +1042,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
         }
       }
 
+      void syncOfflineSales();
       setCart([]);
       setCustomerName('');
       setCustomerPhone('');
@@ -965,6 +1050,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
       setCustomerShopName('');
       setCustomerAddress('');
       setCustomerLookup({ checking: false, matched: null });
+      setCustomerPriceMap({});
       setDueDate(new Date().toISOString().slice(0, 10));
       setSaleMode('paid');
       setExchangeEnabled(false);
@@ -980,7 +1066,17 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
       setPartialPayments({ cash: { amount: '', reference: '' }, card: { amount: '', reference: '' }, mfs: { amount: '', reference: '' }, bank_transfer: { amount: '', reference: '' } });
       clearSearchState();
     } catch (error) {
-      setMessage((error as Error).message);
+      const errorMessage = (error as Error).message;
+      if (isNetworkError(errorMessage) && saleBody && clientRequestIdRef.current) {
+        const list = readOfflineSales();
+        list.push({ clientRequestId: clientRequestIdRef.current, body: saleBody, ts: Date.now() });
+        writeOfflineSales(list);
+        setOfflineQueueCount(list.length);
+        setMessage(`No internet — sale saved offline. It will sync and print automatically when back online.`);
+        toast.info('Sale saved offline — will sync automatically.');
+      } else {
+        setMessage(errorMessage);
+      }
     } finally {
       setLoading(false);
     }
@@ -1088,7 +1184,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
               <div>
                 <h3 style={{ marginTop: 0, marginBottom: 4, fontSize: 14 }}>Product Search</h3>
                 <p style={{ margin: 0, color: 'var(--muted-foreground)', fontSize: 12, lineHeight: 1.35 }}>
-                  Search by barcode, product or SKU.
+                  {t('Search by barcode, product or SKU.')}
                 </p>
               </div>
               <div style={{ display: 'grid', gap: 2, fontSize: 11, color: 'var(--muted-foreground)', textAlign: 'right' }}>
@@ -1115,7 +1211,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
                       }
                     }}
                     style={{ ...inputStyle, width: '100%' }}
-                    placeholder="Scan barcode or search product / SKU"
+                    placeholder={t('Scan barcode or search product / SKU')}
                   />
                   {searching ? (
                     <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted-foreground)', fontSize: 12 }}>
@@ -1205,7 +1301,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
               <div>
                 <h3 style={{ marginTop: 0, marginBottom: 6 }}>Cart</h3>
                 <p style={{ margin: 0, color: 'var(--muted-foreground)' }}>
-                  Add products to build the sale.
+                  {t('Add products to build the sale.')}
                 </p>
               </div>
               <div style={{ fontSize: 12, color: 'var(--muted-foreground)', textAlign: 'right' }}>
@@ -1329,7 +1425,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
               </div>
             ) : (
               <div style={{ display: 'grid', placeItems: 'center', height: '100%', color: 'var(--muted-foreground)', fontSize: 13 }}>
-                Cart is empty. Scan or search a product to start the sale.
+                {t('Cart is empty. Scan or search a product to start the sale.')}
               </div>
             )}
           </article>
@@ -1339,11 +1435,16 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
 
         {(!compact || activeTab === 'checkout') ? (
         <article style={cardStyle}>
-          <h3 style={{ marginTop: 0, marginBottom: 6 }}>Checkout</h3>
+          <h3 style={{ marginTop: 0, marginBottom: 6 }}>{t('Checkout')}</h3>
+          {offlineQueueCount > 0 ? (
+            <div style={{ marginBottom: 8, fontSize: 11.5, color: '#92400e', background: 'rgba(217,119,6,0.1)', border: '1px solid rgba(217,119,6,0.3)', borderRadius: 6, padding: '5px 8px' }}>
+              {offlineQueueCount} offline sale(s) waiting — they will sync and print automatically when internet returns.
+            </div>
+          ) : null}
 
           <div style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
-            <input value={customerName} onChange={(event) => setCustomerName(event.target.value)} style={inputStyle} placeholder="Customer name (optional)" />
-            <input value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} style={inputStyle} placeholder={saleMode !== 'paid' ? 'Customer mobile number (recommended)' : 'Customer mobile number (optional)'} />
+            <input value={customerName} onChange={(event) => setCustomerName(event.target.value)} style={inputStyle} placeholder={t('Customer name (optional)')} />
+            <input value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} style={inputStyle} placeholder={saleMode !== 'paid' ? t('Customer mobile number (recommended)') : t('Customer mobile number (optional)')} />
             {customerLookup.checking && customerPhone.replace(/\D/g, '').length >= 6 ? (
               <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginTop: -4 }}>Looking up customer…</div>
             ) : null}
@@ -1352,9 +1453,14 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
                 ✓ Known customer{customerLookup.matched.name ? ` — ${customerLookup.matched.name}` : ''} — details autofilled
               </div>
             ) : null}
-            <input value={customerEmail} onChange={(event) => setCustomerEmail(event.target.value)} style={inputStyle} placeholder="Customer email (optional)" />
-            <input value={customerShopName} onChange={(event) => setCustomerShopName(event.target.value)} style={inputStyle} placeholder={saleMode !== 'paid' ? 'Shop name (optional but helpful)' : 'Shop name (optional)'} />
-            <textarea value={customerAddress} onChange={(event) => setCustomerAddress(event.target.value)} style={{ ...inputStyle, minHeight: 76 }} placeholder={saleMode !== 'paid' ? 'Shop / customer address for due tracking' : 'Customer address (optional)'} />
+            {Object.keys(customerPriceMap).length > 0 ? (
+              <div style={{ fontSize: 11, color: '#1e40af', marginTop: -4, background: 'rgba(37,99,235,0.08)', padding: '4px 8px', borderRadius: 6 }}>
+                ✓ Customer price list active — {Object.keys(customerPriceMap).length} special rate(s) applied
+              </div>
+            ) : null}
+            <input value={customerEmail} onChange={(event) => setCustomerEmail(event.target.value)} style={inputStyle} placeholder={t('Customer email (optional)')} />
+            <input value={customerShopName} onChange={(event) => setCustomerShopName(event.target.value)} style={inputStyle} placeholder={saleMode !== 'paid' ? t('Shop name (optional but helpful)') : t('Shop name (optional)')} />
+            <textarea value={customerAddress} onChange={(event) => setCustomerAddress(event.target.value)} style={{ ...inputStyle, minHeight: 76 }} placeholder={saleMode !== 'paid' ? t('Shop / customer address for due tracking') : t('Customer address (optional)')} />
             {saleMode !== 'paid' ? (
               <input type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} style={inputStyle} aria-label={saleMode === 'cod' ? 'Expected delivery date' : 'Due date'} />
             ) : null}
@@ -1367,9 +1473,9 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
               onChange={(event) => setSaleMode(event.target.value as 'paid' | 'due' | 'cod')}
               style={inputStyle}
             >
-              <option value="paid">Cash sale</option>
-              <option value="due">Due sale</option>
-              {canUseInvoices ? <option value="cod">Cash on delivery</option> : null}
+              <option value="paid">{t('Cash sale')}</option>
+              <option value="due">{t('Due sale')}</option>
+              {canUseInvoices ? <option value="cod">{t('Cash on delivery')}</option> : null}
             </select>
             {canUseInvoices ? (
               <select
@@ -1379,8 +1485,8 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
                 style={inputStyle}
               >
                 <option value="pos">POS receipt (thermal)</option>
-                <option value="a5">A5 receipt (laser)</option>
-                <option value="a4">A4 invoice (laser)</option>
+                <option value="a5">{t('A5 receipt (laser)')}</option>
+                <option value="a4">{t('A4 invoice (laser)')}</option>
               </select>
             ) : null}
           </div>
@@ -1388,7 +1494,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
           <div style={{ marginBottom: 12 }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13 }}>
               <input type="checkbox" checked={exchangeEnabled} onChange={(e) => { setExchangeEnabled(e.target.checked); if (!e.target.checked) { setExchangeItem(null); } if (e.target.checked) { openExchangeModal(); } }} style={{ accentColor: '#0f172a' }} />
-              <span style={{ color: 'var(--muted-foreground)' }}>Exchange / Trade-in</span>
+              <span style={{ color: 'var(--muted-foreground)' }}>{t('Exchange / Trade-in')}</span>
             </label>
           </div>
 
@@ -1416,7 +1522,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
 
           <div style={{ display: 'grid', gap: 8, marginBottom: 10 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>Subtotal</span>
+              <span>{t('Subtotal')}</span>
               <strong>{currency(total)}</strong>
             </div>
             {exchangeEnabled && exchangeItem ? (
@@ -1432,7 +1538,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
               </div>
             ) : null}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 13 }}>Discount</span>
+              <span style={{ fontSize: 13 }}>{t('Discount')}</span>
               <input
                 type="number"
                 min="0"
@@ -1444,7 +1550,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
               />
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 13 }}>VAT</span>
+              <span style={{ fontSize: 13 }}>{t('VAT')}</span>
               <input
                 type="number"
                 min="0"
@@ -1456,7 +1562,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
               />
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 13 }}>Tax</span>
+              <span style={{ fontSize: 13 }}>{t('Tax')}</span>
               <input
                 type="number"
                 min="0"
@@ -1469,7 +1575,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
             </div>
             <div style={{ display: 'grid', gap: 4 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 13 }}>Delivery charge</span>
+                <span style={{ fontSize: 13 }}>{t('Delivery charge')}</span>
                 <input
                   type="number"
                   min="0"
@@ -1483,17 +1589,17 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
               </div>
               {saleMode === 'cod' && deliveryChargeValue > 0 ? (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, fontSize: 11, color: 'var(--muted-foreground)' }}>
-                  <span>Taken in advance from customer</span>
+                  <span>{t('Taken in advance from customer')}</span>
                   <select value={advanceMethod} onChange={(e) => setAdvanceMethod(e.target.value as 'cash' | 'mfs' | 'bank_transfer')} style={{ ...inputStyle, width: 110, fontSize: 11, padding: '2px 6px', minHeight: 24 }} aria-label="Advance payment method">
-                    <option value="mfs">MFS (bKash)</option>
-                    <option value="cash">Cash</option>
-                    <option value="bank_transfer">Bank</option>
+                    <option value="mfs">{t('MFS (bKash)')}</option>
+                    <option value="cash">{t('Cash')}</option>
+                    <option value="bank_transfer">{t('Bank')}</option>
                   </select>
                 </div>
               ) : null}
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: 15, borderTop: '1px solid var(--border)', paddingTop: 8 }}>
-              <span>Net Payable</span>
+              <span>{t('Net Payable')}</span>
               <strong>{currency(paymentRequired)}</strong>
             </div>
           </div>
@@ -1506,10 +1612,10 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
                 onChange={(event) => setPaymentMethod(event.target.value as 'cash' | 'card' | 'mfs' | 'bank_transfer')}
                 style={inputStyle}
               >
-                <option value="cash">Cash</option>
+                <option value="cash">{t('Cash')}</option>
                 <option value="card">Card</option>
-                <option value="mfs">MFS</option>
-                <option value="bank_transfer">Bank</option>
+                <option value="mfs">{t('MFS')}</option>
+                <option value="bank_transfer">{t('Bank')}</option>
               </select>
             </div>
           ) : null}
@@ -1517,7 +1623,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
           {saleMode !== 'cod' ? (
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, cursor: 'pointer', fontSize: 13 }}>
             <input type="checkbox" checked={usePartialPayments} onChange={(e) => setUsePartialPayments(e.target.checked)} style={{ accentColor: '#0f172a' }} />
-            <span style={{ color: 'var(--muted-foreground)' }}>Split payment across multiple methods</span>
+            <span style={{ color: 'var(--muted-foreground)' }}>{t('Split payment across multiple methods')}</span>
           </label>
           ) : null}
 
@@ -1560,7 +1666,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
                 value={paymentReference}
                 onChange={(event) => setPaymentReference(event.target.value)}
                 style={inputStyle}
-                placeholder={paymentMethod === 'cash' ? 'Payment note (optional)' : 'Reference no / transaction id'}
+                placeholder={paymentMethod === 'cash' ? t('Payment note (optional)') : t('Reference no / transaction id')}
               />
             </div>
           )}
@@ -1569,7 +1675,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
             usePartialPayments ? (
               changeAmount > 0 ? (
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-                  <span>Change due</span>
+                  <span>{t('Change due')}</span>
                   <strong>{currency(changeAmount)}</strong>
                 </div>
               ) : null
@@ -1578,7 +1684,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
                 <input type="number" min="0" step="0.01" value={cashReceived} onChange={(event) => setCashReceived(event.target.value)} style={inputStyle} placeholder={`Amount paid by customer (${currency(paymentRequired)} required)`} />
                 {changeAmount > 0 ? (
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Change due</span>
+                    <span>{t('Change due')}</span>
                     <strong>{currency(changeAmount)}</strong>
                   </div>
                 ) : null}
@@ -1587,12 +1693,12 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
           ) : null}
           {saleMode !== 'paid' ? (
             <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--muted-foreground)', marginBottom: 12 }}>
-              <span>{saleMode === 'cod' ? 'Payable on delivery' : 'Due amount'}</span>
+              <span>{saleMode === 'cod' ? t('Payable on delivery') : t('Due amount')}</span>
               <strong>{currency(usePartialPayments ? Math.max(paymentRequired - totalPaidFromPartial, 0) : paymentRequired)}</strong>
             </div>
           ) : null}
             <button onClick={checkout} style={gray800ButtonStyle} disabled={loading || cart.length === 0 || !selectedLocationId || (exchangeEnabled && !exchangeItem)}>
-              {saleMode === 'due' ? 'Save Due Sale' : saleMode === 'cod' ? 'Save COD Sale' : 'Complete Sale'}
+              {saleMode === 'due' ? t('Save Due Sale') : saleMode === 'cod' ? t('Save COD Sale') : t('Complete Sale')}
             </button>
             {!selectedLocationId ? (
               <div style={{ fontSize: 12, color: '#b45309' }}>
@@ -1863,10 +1969,10 @@ export function PosTerminal({ canUsePos, canUseInvoices = false }: { canUsePos: 
                   style={{ ...inputStyle, width: 140 }}
                 />
                 <select value={collectMethod} onChange={(event) => setCollectMethod(event.target.value)} aria-label="Collection method" style={{ ...inputStyle, width: 140 }}>
-                  <option value="cash">Cash</option>
+                  <option value="cash">{t('Cash')}</option>
                   <option value="card">Card</option>
-                  <option value="mfs">MFS</option>
-                  <option value="bank_transfer">Bank</option>
+                  <option value="mfs">{t('MFS')}</option>
+                  <option value="bank_transfer">{t('Bank')}</option>
                 </select>
                 <button onClick={() => void collectFromModal()} style={primaryButtonStyle} disabled={collecting || !Number(collectAmount)}>
                   {collecting ? 'Posting…' : 'Post Collection'}

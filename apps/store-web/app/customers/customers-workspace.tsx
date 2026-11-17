@@ -98,6 +98,11 @@ export function CustomersWorkspace() {
   const [pagination, setPagination] = useState<PaginationState>({ page: 1, limit: 20, total: 0 });
   const [levelConfig, setLevelConfig] = useState<LevelConfig>(DEFAULT_LEVELS);
   const [detailCustomer, setDetailCustomer] = useState<Customer | null>(null);
+  const [pricesTarget, setPricesTarget] = useState<Customer | null>(null);
+  const [priceRows, setPriceRows] = useState<Array<{ skuId: string; skuCode: string; productName: string; defaultPrice: number; price: string }>>([]);
+  const [priceSkuQuery, setPriceSkuQuery] = useState('');
+  const [priceSkuOptions, setPriceSkuOptions] = useState<Array<{ id: string; sku_code: string; product_name: string; sale_price?: string | number | null }>>([]);
+  const [savingPrices, setSavingPrices] = useState(false);
 
   // Load level config from store settings
   useEffect(() => {
@@ -154,6 +159,62 @@ export function CustomersWorkspace() {
     }),
   [customers, levelConfig]);
 
+  // ── Customer-wise prices ──
+  const [skuSearchingPrice, setSkuSearchingPrice] = useState(false);
+
+  const searchPriceSkus = async () => {
+    const q = priceSkuQuery.trim();
+    if (!q) return;
+    setSkuSearchingPrice(true);
+    try {
+      const payload = await readJson<{ skus: Array<{ id: string; sku_code: string; product_name: string; sale_price?: string | number | null }> }>(
+        `/api/catalog/skus/search?q=${encodeURIComponent(q)}&limit=20`,
+      );
+      setPriceSkuOptions(payload.skus ?? []);
+    } catch (error) {
+      setMessage((error as Error).message);
+    } finally {
+      setSkuSearchingPrice(false);
+    }
+  };
+
+  const loadExistingPrices = async (customerId: string) => {
+    try {
+      const payload = await readJson<{ prices: Array<{ sku_id: string; price: string; sku_code: string; product_name: string; default_price: string }> }>(
+        `/api/store-ops/customers/${customerId}/prices`,
+      );
+      setPriceRows((payload.prices ?? []).map((row) => ({
+        skuId: row.sku_id,
+        skuCode: row.sku_code,
+        productName: row.product_name,
+        defaultPrice: Number(row.default_price ?? 0),
+        price: String(Number(row.price)),
+      })));
+    } catch { /* start empty */ }
+  };
+
+  const savePrices = async () => {
+    if (!pricesTarget) return;
+    const items = priceRows
+      .filter((row) => row.price.trim() !== '')
+      .map((row) => ({ skuId: row.skuId, price: Number(row.price) }));
+    if (!items.length) { setMessage('Add at least one SKU price.'); return; }
+    setSavingPrices(true);
+    try {
+      await readJson(`/api/store-ops/customers/${pricesTarget.id}/prices`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items }),
+      });
+      setMessage(`Special prices saved for ${pricesTarget.full_name || pricesTarget.mobile_no}.`);
+      setPricesTarget(null);
+    } catch (error) {
+      setMessage((error as Error).message);
+    } finally {
+      setSavingPrices(false);
+    }
+  };
+
   return (
     <section style={{ ...pageShellStyle, display: 'grid', gap: 10 }}>
       {/* Search row */}
@@ -206,6 +267,13 @@ export function CustomersWorkspace() {
                         >
                           <Eye size={14} />
                         </button>
+                        <button
+                          onClick={() => { setPricesTarget(customer); setPriceRows([]); setPriceSkuQuery(''); void loadExistingPrices(customer.id); }}
+                          style={{ ...subtleButtonStyle, padding: '4px 6px', lineHeight: 1, fontSize: 11, fontWeight: 600 }}
+                          title="Customer-wise prices"
+                        >
+                          ৳
+                        </button>
                         {customer.mobile_no ? (
                           <>
                             <a
@@ -250,6 +318,89 @@ export function CustomersWorkspace() {
         </article>
       )}
 
+      {/* Customer-wise Price Modal */}
+      {pricesTarget ? (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.4)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }} onClick={() => setPricesTarget(null)}>
+          <div style={{
+            background: '#fff', borderRadius: 6, padding: 12, maxWidth: 560, width: '95%',
+            maxHeight: '82vh', overflowY: 'auto', boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
+          }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <div style={{ fontWeight: 600, fontSize: 14 }}>Customer prices — {pricesTarget.full_name || pricesTarget.mobile_no}</div>
+              <button onClick={() => setPricesTarget(null)} style={{ ...subtleButtonStyle, minWidth: 30, fontSize: 14 }}>✕</button>
+            </div>
+            <p style={{ margin: '0 0 8px', fontSize: 11.5, color: 'var(--muted-foreground)' }}>
+              Set a special price per SKU for this customer. POS uses it instead of the catalog price. Leave blank for default.
+            </p>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+              <input
+                value={priceSkuQuery}
+                onChange={(e) => setPriceSkuQuery(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void searchPriceSkus(); } }}
+                style={{ ...fieldStyle, flex: 1, fontSize: 12 }}
+                placeholder="Search SKU to add…"
+              />
+              <button onClick={() => void searchPriceSkus()} style={searchButtonStyle} disabled={skuSearchingPrice}>Search</button>
+            </div>
+            {priceSkuOptions.length > 0 ? (
+              <div style={{ border: '1px solid var(--border)', borderRadius: 6, marginBottom: 8, maxHeight: 150, overflowY: 'auto' }}>
+                {priceSkuOptions.map((opt) => (
+                  <button
+                    key={opt.id}
+                    onClick={() => {
+                      if (priceRows.some((r) => r.skuId === opt.id)) return;
+                      setPriceRows((cur) => [...cur, { skuId: opt.id, skuCode: opt.sku_code, productName: opt.product_name, defaultPrice: Number(opt.sale_price ?? 0), price: String(Number(opt.sale_price ?? 0)) }]);
+                      setPriceSkuOptions([]);
+                      setPriceSkuQuery('');
+                    }}
+                    style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 8px', fontSize: 12, background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
+                  >
+                    {opt.product_name} <span style={{ color: 'var(--muted-foreground)' }}>({opt.sku_code})</span> — default {Number(opt.sale_price ?? 0).toFixed(2)}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            {priceRows.length > 0 ? (
+              <div style={{ display: 'grid', gap: 6, marginBottom: 10 }}>
+                {priceRows.map((row, index) => (
+                  <div key={row.skuId} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 500 }}>{row.productName}</div>
+                      <div style={{ fontSize: 10, color: 'var(--muted-foreground)' }}>{row.skuCode} · default {row.defaultPrice.toFixed(2)}</div>
+                    </div>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={row.price}
+                      onChange={(e) => setPriceRows((cur) => cur.map((r, i) => i === index ? { ...r, price: e.target.value } : r))}
+                      style={{ ...fieldStyle, width: 110, fontSize: 12, textAlign: 'right' }}
+                      aria-label={`Price for ${row.productName}`}
+                    />
+                    <button
+                      onClick={() => setPriceRows((cur) => cur.filter((_, i) => i !== index))}
+                      style={{ ...subtleButtonStyle, fontSize: 11, color: '#dc2626' }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ fontSize: 12, color: 'var(--muted-foreground)', marginBottom: 10 }}>No special prices set yet.</div>
+            )}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={() => setPricesTarget(null)} style={secondaryButtonStyle} disabled={savingPrices}>Cancel</button>
+              <button onClick={() => void savePrices()} style={gray800ButtonStyle} disabled={savingPrices}>
+                {savingPrices ? 'Saving…' : 'Save Prices'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {/* Customer Detail Modal */}
       {detailCustomer ? (
         <div style={{

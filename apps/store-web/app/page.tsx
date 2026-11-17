@@ -1,4 +1,5 @@
 import { getStoreConsoleAccess } from '../lib/access';
+import { trFor } from '../lib/i18n';
 import { fetchStoreApi, isStoreApiConfigured } from '../lib/api';
 import { pageShellStyle, pageTitleStyle, tokenMutedStyle } from './merchflow-theme';
 import { DealerDashboardPanel } from './dealer-dashboard-panel';
@@ -7,6 +8,7 @@ type PendingAdjustmentsPayload = { adjustmentRequests?: Array<unknown> };
 
 export default async function StoreDashboard() {
   const access = await getStoreConsoleAccess();
+  const t = trFor(access.locale === 'bn' ? 'bn' : 'en');
   const apiAvailable = await isStoreApiConfigured();
 
   let pendingApprovals: number | null = null;
@@ -36,7 +38,7 @@ export default async function StoreDashboard() {
       </div>
 
       {apiAvailable && access.canViewReports ? (
-        <DealerDashboardPanel />
+        <DealerDashboardPanel locale={access.locale} />
       ) : apiAvailable ? (
         <div style={{ ...tokenMutedStyle, padding: 8 }}>Your role does not have access to business reports.</div>
       ) : (

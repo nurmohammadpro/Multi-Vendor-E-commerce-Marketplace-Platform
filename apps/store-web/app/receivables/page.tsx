@@ -19,7 +19,7 @@ export default async function StoreReceivablesPage({
 
   if (access.canUseReceivables) {
     tabs.push({ key: 'dues', label: 'Receivables' });
-    panels.dues = <ReceivablesWorkspace />;
+    panels.dues = <ReceivablesWorkspace storeName={access.storeName} />;
   }
   if (access.canViewReports) {
     tabs.push({ key: 'customers', label: 'Customers' });

@@ -28,6 +28,7 @@ export type StoreConsoleAccess = {
   planCode: StoreSubscriptionPlan;
   planName: string;
   subscriptionStatus: string | null;
+  locale: 'en' | 'bn';
   storeName: string | null;
   storeLogoUrl: string | null;
   storeStatus: string | null;
@@ -91,6 +92,7 @@ export function deriveStoreConsoleAccess(
     planName?: string;
     planFeatures?: string[];
     subscriptionStatus?: string | null;
+    locale?: 'en' | 'bn';
     storeName?: string | null;
     storeLogoUrl?: string | null;
     storeStatus?: string | null;
@@ -131,6 +133,7 @@ export function deriveStoreConsoleAccess(
     planName: options?.planName ?? formatPlanName(planCode),
     planFeatures,
     subscriptionStatus: options?.subscriptionStatus ?? null,
+    locale: options?.locale ?? 'en',
     storeName: options?.storeName ?? null,
     storeLogoUrl: options?.storeLogoUrl ?? null,
     storeStatus: options?.storeStatus ?? null,
@@ -171,9 +174,10 @@ export async function getStoreConsoleAccess() {
     fetchStoreApi<StoreSessionProfile>('/auth/me'),
   ]);
 
-  const [subscriptionPayload, storePayload] = await Promise.all([
+  const [subscriptionPayload, storePayload, settingsPayload] = await Promise.all([
     fetchStoreApi<StoreSubscriptionSummary>('/billing/subscription/summary'),
     storeId ? fetchStoreApi<StoreSummaryPayload>(`/stores/${storeId}`) : Promise.resolve(null),
+    storeId ? fetchStoreApi<{ settings?: { locale?: 'en' | 'bn' } }>(`/stores/${storeId}/settings`).catch(() => null) : Promise.resolve(null),
   ]);
 
   const rawFeatures = subscriptionPayload?.subscription?.features_json;
@@ -190,6 +194,8 @@ export async function getStoreConsoleAccess() {
     planFeatures,
     subscriptionStatus:
       subscriptionPayload?.subscription?.status ?? storePayload?.store?.subscription_status ?? null,
+    locale:
+      ((settingsPayload?.settings?.locale as 'en' | 'bn' | undefined) ?? 'en'),
     storeName: storePayload?.store?.name ?? null,
     storeLogoUrl: storePayload?.store?.logo_url ?? null,
     storeStatus: storePayload?.store?.status ?? null,
