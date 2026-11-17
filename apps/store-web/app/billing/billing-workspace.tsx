@@ -374,8 +374,8 @@ export function BillingWorkspace({ canManageBilling }: { canManageBilling: boole
             Pay the plan price through our Bank Asia BanglaQR code, then send us the sender number so the
             payment can be matched against our statement. Renewals are reviewed manually.
           </p>
-          <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : '190px 1fr', gap: 14, alignItems: 'start', marginTop: 12 }}>
-            <div>
+          <div style={{ display: 'grid', gap: 12, alignItems: 'start', marginTop: 12 }}>
+            <div style={{ maxWidth: 170, margin: '0 auto', width: '100%' }}>
               <img
                 src="/banglaqr-payment.png"
                 alt="Bank Asia BanglaQR payment code"
