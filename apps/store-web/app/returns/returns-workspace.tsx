@@ -476,7 +476,7 @@ export function ReturnsWorkspace() {
             onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void loadSales(1); } }}
             style={{ ...fieldStyle, flex: 1, width: 'auto' }}
-            placeholder="Search by sale number or customer"
+            placeholder="Search by receipt barcode, sale no, or customer mobile"
           />
           <button onClick={() => void loadSales(1)} style={searchButtonStyle} disabled={loading}>
             {loading ? 'Loading...' : 'Search'}

@@ -181,6 +181,10 @@ export class PosService {
             or sku.sku_code ilike '%' || $3::text || '%'
             or coalesce(sku.barcode, '') ilike '%' || $3::text || '%'
             or coalesce(sku.variant_label, '') ilike '%' || $3::text || '%'
+            or coalesce(p.brand_id::text, '') ilike '%' || $3::text || '%'
+            or exists (select 1 from catalog.brands b where b.id = p.brand_id and b.name ilike '%' || $3::text || '%')
+            or exists (select 1 from catalog.categories c where c.id = p.category_id and (c.name ilike '%' || $3::text || '%' or c.code ilike '%' || $3::text || '%'))
+            or coalesce(sku.variant_json::text, '') ilike '%' || $3::text || '%'
             or exists (
               select 1
               from inventory.device_serials ds
