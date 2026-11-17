@@ -307,6 +307,11 @@ export function PosTerminal({ canUsePos, canUseInvoices = false, locale = 'en' }
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [searching, setSearching] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [searchHighlight, setSearchHighlight] = useState(0);
+  const [pickerSkuId, setPickerSkuId] = useState('');
+  const [pickerQty, setPickerQty] = useState('1');
+  const [pickerDiscount, setPickerDiscount] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useState<'search' | 'cart' | 'checkout'>('search');
 
   useEffect(() => {
@@ -583,6 +588,8 @@ export function PosTerminal({ canUsePos, canUseInvoices = false, locale = 'en' }
     setResults([]);
     setSearching(false);
     setShowSuggestions(false);
+    setSearchHighlight(0);
+    searchInputRef.current?.focus();
   };
 
   const openVariantPicker = (
@@ -609,6 +616,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false, locale = 'en' }
         sku_code: sku.sku_code,
         barcode: sku.barcode,
         variant_label: sku.variant_label,
+        variant_json: sku.variant_json,
         serial_tracking_enabled: sku.serial_tracking_enabled,
         requires_serial: sku.requires_serial,
         requires_imei: sku.requires_imei,
@@ -619,10 +627,52 @@ export function PosTerminal({ canUsePos, canUseInvoices = false, locale = 'en' }
       })),
     });
     setVariantPickerHint(hint);
+    const firstAvailable = group.skus.find((sku) => (sku.is_trackable === false && !sku.requires_serial && !sku.requires_imei) || Number(sku.available_qty ?? 0) > 0) ?? group.skus[0];
+    setPickerSkuId(firstAvailable?.id ?? '');
+    setPickerQty('1');
+    setPickerDiscount('');
     setVariantPickerOpen(true);
   };
 
-  const addSkuToCart = (sku: Pick<SkuSearchResult, 'id' | 'sku_code' | 'product_name' | 'unit' | 'variant_label' | 'sale_price' | 'available_qty' | 'barcode' | 'is_trackable' | 'serial_tracking_enabled' | 'requires_serial' | 'requires_imei' | 'in_stock_serial_count' | 'discount_type' | 'discount_value' | 'matched_serial_id'>, discountOverride?: { discountAmount: number; discountType: string }) => {
+  const confirmPickerAdd = () => {
+    const sku = (variantProduct?.skus ?? []).find((s) => s.id === pickerSkuId);
+    if (!sku) { setMessage('Select a variant first.'); return; }
+    const skuIsTrackable = variantProduct?.product.is_trackable ?? true;
+    const skuNeedsSerial = needsSerialTracking(sku);
+    const available = (!skuIsTrackable && !skuNeedsSerial) || getSkuAvailableQty(sku) > 0;
+    if (!available) {
+      setMessage(`${variantProduct?.product.name ?? 'Product'} is out of stock in the selected location.`);
+      return;
+    }
+    const qty = Math.max(Math.floor(Number(pickerQty || 1)), 1);
+    const discount = Math.max(Number(pickerDiscount || 0), 0);
+    addSkuToCart({
+      id: sku.id,
+      sku_code: sku.sku_code,
+      barcode: sku.barcode,
+      variant_label: sku.variant_label,
+      serial_tracking_enabled: sku.serial_tracking_enabled,
+      requires_serial: sku.requires_serial,
+      requires_imei: sku.requires_imei,
+      in_stock_serial_count: sku.in_stock_serial_count,
+      product_name: variantProduct?.product.name ?? '',
+      sale_price: sku.sale_price,
+      available_qty: sku.available_qty,
+      is_trackable: skuIsTrackable,
+      discount_type: (sku as any).discount_type,
+      discount_value: (sku as any).discount_value,
+    }, discount > 0 ? { discountAmount: discount, discountType: 'amount' } : undefined, qty);
+    setVariantPickerOpen(false);
+    clearSearchState();
+    setMessage(`${variantProduct?.product.name ?? 'Product'} × ${qty} added to cart.`);
+  };
+
+  const pickerSku = (variantProduct?.skus ?? []).find((s) => s.id === pickerSkuId) ?? null;
+  const pickerLineTotal = pickerSku
+    ? currency(Math.max(Number(pickerQty || 0) * (Number(pickerSku.sale_price ?? 0) - Number(pickerDiscount || 0)), 0))
+    : currency(0);
+
+  const addSkuToCart = (sku: Pick<SkuSearchResult, 'id' | 'sku_code' | 'product_name' | 'unit' | 'variant_label' | 'sale_price' | 'available_qty' | 'barcode' | 'is_trackable' | 'serial_tracking_enabled' | 'requires_serial' | 'requires_imei' | 'in_stock_serial_count' | 'discount_type' | 'discount_value' | 'matched_serial_id'>, discountOverride?: { discountAmount: number; discountType: string }, qtyOverride = 1) => {
     const isTrackable = sku.is_trackable !== false;
     const needsSerial = needsSerialTracking(sku);
     const availableQty = isTrackable || needsSerial ? getSkuAvailableQty(sku) : 999999;
@@ -664,7 +714,7 @@ export function PosTerminal({ canUsePos, canUseInvoices = false, locale = 'en' }
           unit: sku.unit ?? null,
           variantLabel: sku.variant_label,
           unitPrice,
-          qty: 1,
+          qty: Math.max(qtyOverride, 1),
           availableQty,
           barcode: sku.barcode,
           discountAmount,
@@ -1197,14 +1247,45 @@ export function PosTerminal({ canUsePos, canUseInvoices = false, locale = 'en' }
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <div style={{ position: 'relative', flex: 1 }}>
                   <input
+                    ref={searchInputRef}
+                    data-enter-nav="false"
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
                     onFocus={() => { if (groupedResults.length > 0) setShowSuggestions(true); }}
                     onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
                     onKeyDown={(event) => {
+                      const max = groupedResults.length - 1;
+                      const scrollHighlight = (idx: number) => {
+                        requestAnimationFrame(() => {
+                          document.getElementById(`pos-result-${idx}`)?.scrollIntoView({ block: 'nearest' });
+                        });
+                      };
+                      if (event.key === 'ArrowDown' && showSuggestions && max >= 0) {
+                        event.preventDefault();
+                        const next = Math.min(searchHighlight + 1, max);
+                        setSearchHighlight(next);
+                        scrollHighlight(next);
+                        return;
+                      }
+                      if (event.key === 'ArrowUp' && showSuggestions && max >= 0) {
+                        event.preventDefault();
+                        const prev = Math.max(searchHighlight - 1, 0);
+                        setSearchHighlight(prev);
+                        scrollHighlight(prev);
+                        return;
+                      }
                       if (event.key === 'Enter') {
                         event.preventDefault();
-                        void searchCatalog(search.trim());
+                        if (showSuggestions && groupedResults.length > 0) {
+                          const group = groupedResults[Math.min(searchHighlight, max)];
+                          if (group) {
+                            setShowSuggestions(false);
+                            openVariantPicker(group);
+                          }
+                        } else {
+                          void searchCatalog(search.trim());
+                        }
+                        return;
                       }
                       if (event.key === 'Escape') {
                         setShowSuggestions(false);
@@ -1241,14 +1322,18 @@ export function PosTerminal({ canUsePos, canUseInvoices = false, locale = 'en' }
                     overflowY: 'auto',
                   }}
                 >
-                  {groupedResults.map((group) => {
+                  <div style={{ padding: '5px 10px', fontSize: 10.5, color: 'var(--muted-foreground)', borderBottom: '1px solid var(--border)', background: 'var(--muted)' }}>
+                    ↑↓ {t('Select a product')} · Enter {t('Add')} — {t('first item is preselected')}
+                  </div>
+                  {groupedResults.map((group, gIdx) => {
                     if (group.hasVariants) {
                       return (
                         <div
                           key={group.productId}
+                          id={`pos-result-${gIdx}`}
                           onMouseDown={(e) => e.preventDefault()}
                           onClick={() => { setShowSuggestions(false); openVariantPicker(group); }}
-                          style={{ display: 'flex', alignItems: 'center', padding: '10px 12px', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}
+                          style={{ display: 'flex', alignItems: 'center', padding: '10px 12px', borderBottom: '1px solid var(--border)', cursor: 'pointer', background: searchHighlight === gIdx ? 'rgba(37,99,235,0.10)' : 'transparent', borderLeft: searchHighlight === gIdx ? '3px solid #2563eb' : '3px solid transparent' }}
                         >
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontWeight: 600, fontSize: 14 }}>{group.productName}</div>
@@ -1267,15 +1352,10 @@ export function PosTerminal({ canUsePos, canUseInvoices = false, locale = 'en' }
                     return (
                       <div
                         key={group.productId}
+                        id={`pos-result-${gIdx}`}
                         onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => {
-                          if (!singleAvailable) return;
-                          setShowSuggestions(false);
-                          addSkuToCart(singleSku);
-                          clearSearchState();
-                          setMessage(`${group.productName} added to cart.`);
-                        }}
-                        style={{ display: 'flex', alignItems: 'center', padding: '10px 12px', borderBottom: '1px solid var(--border)', cursor: singleAvailable ? 'pointer' : 'default', opacity: singleAvailable ? 1 : 0.5 }}
+                        onClick={() => { setShowSuggestions(false); openVariantPicker(group); }}
+                        style={{ display: 'flex', alignItems: 'center', padding: '10px 12px', borderBottom: '1px solid var(--border)', cursor: 'pointer', background: searchHighlight === gIdx ? 'rgba(37,99,235,0.10)' : 'transparent', borderLeft: searchHighlight === gIdx ? '3px solid #2563eb' : '3px solid transparent', opacity: singleAvailable ? 1 : 0.5 }}
                       >
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontWeight: 600, fontSize: 14 }}>{group.productName}</div>
@@ -1743,72 +1823,92 @@ export function PosTerminal({ canUsePos, canUseInvoices = false, locale = 'en' }
             </div>
             <div style={{ padding: '16px 24px 24px', overflow: 'auto', flex: 1 }}>
               {variantProduct?.skus?.length ? (
-                <div style={tableWrapStyle}>
-                  <table style={tableStyle}>
-                    <thead>
-                      <tr>
-                        <th style={tableHeaderCellStyle}>SKU</th>
-                        <th style={tableHeaderCellStyle}>Variant</th>
-                        <th style={tableHeaderCellStyle}>Barcode</th>
-                        <th style={tableHeaderCellStyle}>Available</th>
-                        <th style={tableHeaderCellStyle}>Price</th>
-                        <th style={tableHeaderCellStyle}>Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {variantProduct.skus.map((sku) => {
-                        const skuIsTrackable = variantProduct.product.is_trackable;
-                        const skuNeedsSerial = needsSerialTracking(sku);
-                        const skuAvailable = (!skuIsTrackable && !skuNeedsSerial) || getSkuAvailableQty(sku) > 0;
-                        return (
-                        <tr key={sku.id}>
-                          <td style={tableCellStyle}>{sku.sku_code}</td>
-                          <td style={tableCellStyle}>{sku.variant_label || 'Default'}</td>
-                          <td style={tableCellStyle}>{sku.barcode || '—'}</td>
-                          <td style={tableCellStyle}>{(skuIsTrackable || skuNeedsSerial) ? formatQty(sku.available_qty) : '—'}</td>
-                          <td style={tableCellStyle}>{currency(Number(sku.sale_price ?? 0))}</td>
-                          <td style={tableCellStyle}>
-                            <button
-                              onClick={() => {
-                                if (!skuAvailable) {
-                                  setMessage(`${variantProduct.product.name} is out of stock in the selected location.`);
-                                  return;
-                                }
-                                addSkuToCart({
-                                  id: sku.id,
-                                  sku_code: sku.sku_code,
-                                  barcode: sku.barcode,
-                                  variant_label: sku.variant_label,
-                                  serial_tracking_enabled: sku.serial_tracking_enabled,
-                                  requires_serial: sku.requires_serial,
-                                  requires_imei: sku.requires_imei,
-                                  in_stock_serial_count: sku.in_stock_serial_count,
-                                  product_name: variantProduct.product.name,
-                                  sale_price: sku.sale_price,
-                                  available_qty: sku.available_qty,
-                                  is_trackable: skuIsTrackable,
-                                  discount_type: (sku as any).discount_type,
-                                  discount_value: (sku as any).discount_value,
-                                });
-                                setVariantPickerOpen(false);
-                                clearSearchState();
-                                setMessage(`${variantProduct.product.name} variant added to cart.`);
-                              }}
-                              style={secondaryButtonStyle}
-                              disabled={!skuAvailable}
-                            >
-                              {!skuAvailable ? 'Out of Stock' : 'Add Variant'}
-                            </button>
-                          </td>
-                        </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                <div style={{ display: 'grid', gap: 6, marginBottom: 12, maxHeight: 260, overflowY: 'auto' }}>
+                  {variantProduct.skus.map((sku) => {
+                    const skuIsTrackable = variantProduct.product.is_trackable;
+                    const skuNeedsSerial = needsSerialTracking(sku);
+                    const skuAvailable = (!skuIsTrackable && !skuNeedsSerial) || getSkuAvailableQty(sku) > 0;
+                    const selected = pickerSkuId === sku.id;
+                    const attrs = Object.entries((sku as any).variant_json ?? {}).filter(([, v]) => v !== null && v !== undefined && v !== '');
+                    return (
+                      <button
+                        key={sku.id}
+                        type="button"
+                        disabled={!skuAvailable}
+                        onClick={() => setPickerSkuId(sku.id)}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', textAlign: 'left',
+                          borderRadius: 6, cursor: skuAvailable ? 'pointer' : 'default',
+                          border: selected ? '2px solid #2563eb' : '1px solid var(--border)',
+                          background: selected ? 'rgba(37,99,235,0.08)' : 'transparent',
+                          opacity: skuAvailable ? 1 : 0.5,
+                        }}
+                      >
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 600, fontSize: 13 }}>{sku.variant_label || 'Default'}</div>
+                          {attrs.length ? (
+                            <div style={{ fontSize: 10.5, color: 'var(--muted-foreground)', marginTop: 2 }}>
+                              {attrs.map(([k, v]) => `${k}: ${String(v)}`).join(' · ')}
+                            </div>
+                          ) : null}
+                          <div style={{ fontSize: 10.5, color: 'var(--muted-foreground)', marginTop: 2 }}>
+                            {sku.sku_code} · {(skuIsTrackable || skuNeedsSerial) ? `${t('Available')}: ${formatQty(sku.available_qty)}` : t('In stock')}
+                          </div>
+                        </div>
+                        <div style={{ fontFamily: 'monospace', fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap' }}>
+                          {currency(Number(sku.sale_price ?? 0))}
+                        </div>
+                        {selected ? <div style={{ fontSize: 10, color: '#2563eb', fontWeight: 700 }}>✓</div> : null}
+                      </button>
+                    );
+                  })}
                 </div>
               ) : (
                 <div style={tokenMutedStyle}>No variants loaded for this product yet.</div>
               )}
+
+              {pickerSkuId ? (
+                <div style={{ display: 'grid', gap: 10, padding: 10, background: 'var(--muted)', borderRadius: 6 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <div>
+                      <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>{t('Quantity')}</label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <button type="button" onClick={() => setPickerQty((v) => String(Math.max(Number(v || 1) - 1, 1)))} style={{ ...subtleButtonStyle, width: 30 }}>−</button>
+                        <input
+                          data-enter-nav="false"
+                          type="number" min="1" step="1"
+                          value={pickerQty}
+                          onChange={(e) => setPickerQty(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); confirmPickerAdd(); } }}
+                          style={{ ...fieldStyle, width: 80, textAlign: 'center' }}
+                          aria-label={t('Quantity')}
+                        />
+                        <button type="button" onClick={() => setPickerQty((v) => String(Number(v || 0) + 1))} style={{ ...subtleButtonStyle, width: 30 }}>+</button>
+                      </div>
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>{t('Discount (optional)')}</label>
+                      <input
+                        data-enter-nav="false"
+                        type="number" min="0" step="0.01"
+                        value={pickerDiscount}
+                        onChange={(e) => setPickerDiscount(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); confirmPickerAdd(); } }}
+                        style={{ ...fieldStyle }}
+                        placeholder="0.00"
+                        aria-label={t('Discount (optional)')}
+                      />
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 600 }}>
+                    <span>{t('Line Total')}</span>
+                    <span style={{ fontFamily: 'monospace' }}>{pickerLineTotal}</span>
+                  </div>
+                  <button type="button" onClick={confirmPickerAdd} style={gray800ButtonStyle}>
+                    {t('Add to Cart')}
+                  </button>
+                </div>
+              ) : null}
             </div>
           </div>
         </div>

@@ -90,6 +90,7 @@ const BN: Record<string, string> = {
   'Receipt': 'রসিদ',
   'Label': 'লেবেল',
   'Not set': 'সেট করা নেই',
+  'In stock': 'স্টক আছে',
 
   // ── Dashboard ──
   "Today's Sales": 'আজকের বিক্রয়',
@@ -253,6 +254,15 @@ const BN: Record<string, string> = {
   'paid': 'পরিশোধিত',
   'monthly': 'মাসিক',
   'yearly': 'বার্ষিক',
+
+  'Select a product': 'পণ্য বাছুন',
+  'Add': 'যোগ করুন',
+  'first item is preselected': 'প্রথম আইটেম আগে থেকেই নির্বাচিত',
+  'Quantity': 'পরিমাণ',
+  'Discount (optional)': 'ছাড় (ঐচ্ছিক)',
+  'Add to Cart': 'কার্টে যোগ করুন',
+  'Variant': 'ভ্যারিয়েন্ট',
+  'Attributes': 'বৈশিষ্ট্য',
 };
 
 export function trFor(locale: Locale) {
