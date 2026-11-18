@@ -1183,6 +1183,7 @@ const client = await this.pool.connect();
       refundAmount: number;
       refundMethod?: string;
       refundReference?: string;
+      restockLocationId?: string;
       items: Array<{
         saleItemId: string;
         qty: number;
@@ -1310,11 +1311,13 @@ const client = await this.pool.connect();
 
         // Only restock inventory immediately if NOT pending approval
         if (!needsApproval && item.restockToInventory) {
-          await this.upsertBalance(client, storeId, sale.location_id, saleItem.sku_id, item.qty);
-          const serialIds = await this.revertReturnSerials(client, storeId, item.saleItemId, sale.location_id, item.qty);
+          const restockLocationId = payload.restockLocationId ?? sale.location_id;
+          await assertLocationInStore(this.pool, restockLocationId, storeId);
+          await this.upsertBalance(client, storeId, restockLocationId, saleItem.sku_id, item.qty);
+          const serialIds = await this.revertReturnSerials(client, storeId, item.saleItemId, restockLocationId, item.qty);
           await this.insertLedger(client, {
             storeId,
-            locationId: sale.location_id,
+            locationId: restockLocationId,
             skuId: saleItem.sku_id,
             movementType: 'return',
             qtyDelta: item.qty,

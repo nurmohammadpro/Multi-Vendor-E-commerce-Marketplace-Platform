@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 import {
@@ -142,12 +142,23 @@ export function ReturnsWorkspace() {
   const [exportToDate, setExportToDate] = useState('');
   const [exportMonth, setExportMonth] = useState('');
   const [exportLoading, setExportLoading] = useState(false);
+  const [restockLocationId, setRestockLocationIdState] = useState('');
+  const restockLocationIdRef = useRef('');
+  const setRestockLocationId = (v: string) => { restockLocationIdRef.current = v; setRestockLocationIdState(v); };
+  const [outlets, setOutlets] = useState<Array<{ id: string; name: string }>>([]);
   const [exportData, setExportData] = useState<any>(null);
 
   // Sorting state
   type SortField = 'sale_no' | 'customer_name' | 'total_amount' | 'payment_status' | 'created_at';
   const [sortBy, setSortBy] = useState<SortField>('created_at');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
+  useEffect(() => {
+    fetch('/api/inventory/locations')
+      .then((r) => r.json())
+      .then((payload) => setOutlets(payload.locations ?? []))
+      .catch(() => setOutlets([]));
+  }, []);
 
   const loadSales = useCallback(async (p = 1) => {
     setLoading(true);
@@ -866,6 +877,20 @@ export function ReturnsWorkspace() {
               style={{ ...fieldStyle, minHeight: 80, width: '100%', boxSizing: 'border-box' }}
               placeholder="Reason for return (required)"
             />
+
+            {outlets.length > 0 ? (
+              <select
+                value={restockLocationId}
+                onChange={(e) => { setRestockLocationId(e.target.value); restockLocationIdRef.current = e.target.value; }}
+                style={{ ...fieldStyle }}
+                aria-label="Restock to outlet"
+              >
+                <option value="">Restock at original outlet</option>
+                {outlets.map((outlet) => (
+                  <option key={outlet.id} value={outlet.id}>Restock at {outlet.name}</option>
+                ))}
+              </select>
+            ) : null}
           </div>
 
           <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>

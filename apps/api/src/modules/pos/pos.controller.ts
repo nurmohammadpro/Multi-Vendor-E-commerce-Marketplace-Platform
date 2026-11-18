@@ -74,6 +74,7 @@ const returnSaleSchema = z.object({
     z.object({
       saleItemId: z.string().uuid(),
       qty: z.number().positive(),
+      restockLocationId: z.string().uuid().optional(),
       restockToInventory: z.boolean().default(true),
       lineRefundAmount: z.number().nonnegative(),
     }),
