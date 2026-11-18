@@ -49,7 +49,8 @@ async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
 
 export function ExpensesWorkspace() {
   const compact = useCompactLayout();
-  const [expenses, setExpenses] = useState<Expense[]>([]);
+    const [outlets, setOutlets] = useState<Array<{ id: string; name: string }>>([]);
+const [expenses, setExpenses] = useState<Expense[]>([]);
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [selectedExpenseId, setSelectedExpenseId] = useState('');
@@ -60,6 +61,7 @@ export function ExpensesWorkspace() {
   const [pagination, setPagination] = useState<PaginationState>({ page: 1, limit: 12, total: 0 });
   const [form, setForm] = useState({
     expenseDate: new Date().toISOString().slice(0, 10),
+    locationId: '',
     categoryName: '',
     title: '',
     amount: '',
@@ -94,7 +96,7 @@ export function ExpensesWorkspace() {
   };
 
   useEffect(() => {
-    void Promise.all([refresh(), loadCategories()]).catch((error: Error) => setMessage(error.message));
+    void Promise.all([refresh(), loadCategories(), fetch('/api/inventory/locations').then((r) => r.json()).then((payload) => setOutlets(payload.locations ?? []))]).catch((error: Error) => setMessage(error.message));
   }, []);
 
   const activeCategories = categories.filter((c) => c.status === 'active');
@@ -143,6 +145,7 @@ export function ExpensesWorkspace() {
         method: selectedExpenseId ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          locationId: form.locationId || undefined,
           expenseDate: form.expenseDate,
           categoryName: form.categoryName,
           title: form.title,
@@ -154,7 +157,7 @@ export function ExpensesWorkspace() {
       });
       await refresh(1);
       setSelectedExpenseId('');
-      setForm({ expenseDate: new Date().toISOString().slice(0, 10), categoryName: '', title: '', amount: '', paymentMethod: 'cash', status: 'draft', note: '' });
+      setForm({ expenseDate: new Date().toISOString().slice(0, 10), locationId: '', categoryName: '', title: '', amount: '', paymentMethod: 'cash', status: 'draft', note: '' });
       setMessage('Expense saved.');
     } catch (error) {
       setMessage((error as Error).message);
@@ -285,6 +288,12 @@ export function ExpensesWorkspace() {
               <h3 style={{ marginTop: 0, fontSize: 14 }}>Record Expense</h3>
               <div style={{ display: 'grid', gap: 10 }}>
                 <input type="date" value={form.expenseDate} onChange={(event) => setForm((current) => ({ ...current, expenseDate: event.target.value }))} style={fieldStyle} />
+            <select value={form.locationId} onChange={(event) => setForm((current) => ({ ...current, locationId: event.target.value }))} style={fieldStyle} aria-label="Outlet">
+              <option value="">Outlet (optional)</option>
+              {(outlets || []).map((outlet) => (
+                <option key={outlet.id} value={outlet.id}>{outlet.name}</option>
+              ))}
+            </select>
             {hasCategories ? (
               <select value={form.categoryName} onChange={(event) => setForm((current) => ({ ...current, categoryName: event.target.value }))} style={fieldStyle}>
                 <option value="">Select category...</option>
@@ -428,6 +437,7 @@ export function ExpensesWorkspace() {
                               setSelectedExpenseId(expense.id);
                               setForm({
                                 expenseDate: expense.expense_date?.slice(0, 10) || new Date().toISOString().slice(0, 10),
+                                locationId: (expense as any).location_id || '',
                                 categoryName: expense.category_name,
                                 title: expense.title,
                                 amount: String(expense.amount),

@@ -2129,12 +2129,13 @@ export class StoreOpsService {
   async listExpenses(
     headerStoreId: string | undefined,
     authContext: StoreAuthContext | null,
-    filters: { search?: string; page?: number; limit?: number } = {},
+    filters: { search?: string; page?: number; limit?: number; locationId?: string } = {},
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
     this.assertAllowedRoles(authContext, ['store_owner', 'store_manager']);
     const { page, limit, offset } = normalizePageQuery(filters);
     const search = filters.search?.trim() || null;
+    const locationFilter = filters.locationId?.trim() || null;
 
     const result = await this.pool.query(
       `
@@ -2160,12 +2161,13 @@ export class StoreOpsService {
               or category_name ilike '%' || $2::text || '%'
               or coalesce(note, '') ilike '%' || $2::text || '%'
             )
+            and ($5::uuid is null or location_id = $5::uuid)
           order by expense_date desc, created_at desc
           limit $3
           offset $4
         ) expenses
       `,
-      [storeId, search, limit, offset],
+      [storeId, search, limit, offset, locationFilter],
     );
 
     const { items, total } = stripPaginationTotal(result.rows);
@@ -2193,12 +2195,12 @@ export class StoreOpsService {
     const result = await this.pool.query(
       `
         insert into finance.daily_expenses (
-          id, tenant_id, store_id, expense_date, category_name, title, amount, payment_method, note, status, recorded_by, created_at, updated_at
+          id, tenant_id, store_id, location_id, expense_date, category_name, title, amount, payment_method, note, status, recorded_by, created_at, updated_at
         )
-        select gen_random_uuid(), $2, $1, $3, $4, $5, $6, $7, $8, $9, $10, now(), now()
+        select gen_random_uuid(), $2, $1, $11, $3, $4, $5, $6, $7, $8, $9, $10, now(), now()
         returning *
       `,
-      [storeId, session?.user.tenantId ?? '', payload.expenseDate, payload.categoryName, payload.title, payload.amount, payload.paymentMethod, payload.note ?? null, payload.status, userId],
+      [storeId, session?.user.tenantId ?? '', payload.expenseDate, payload.categoryName, payload.title, payload.amount, payload.paymentMethod, payload.note ?? null, payload.status, userId, (payload as any).locationId ?? null],
     );
 
     return { expense: result.rows[0] };
@@ -2308,12 +2310,13 @@ export class StoreOpsService {
   async listEmployees(
     headerStoreId: string | undefined,
     authContext: StoreAuthContext | null,
-    filters: { search?: string; page?: number; limit?: number } = {},
+    filters: { search?: string; page?: number; limit?: number; locationId?: string } = {},
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
     this.assertAllowedRoles(authContext, ['store_owner', 'store_manager']);
     const { page, limit, offset } = normalizePageQuery(filters);
     const search = filters.search?.trim() || null;
+    const locationFilter = filters.locationId?.trim() || null;
     const result = await this.pool.query(
       `
         select *

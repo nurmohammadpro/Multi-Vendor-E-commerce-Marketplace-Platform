@@ -110,6 +110,7 @@ const purchaseUpdateSchema = z.object({
 });
 
 const expenseSchema = z.object({
+  locationId: z.string().uuid().nullable().optional(),
   expenseDate: z.string().date(),
   categoryName: z.string().min(1).max(120),
   title: z.string().min(1).max(200),
