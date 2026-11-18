@@ -55,6 +55,7 @@ type StoreSettings = {
   receipt_footer?: string | null;
   invoice_prefix?: string | null;
   receipt_type?: ReceiptType | null;
+  default_location_id?: string | null;
   allow_negative_stock: boolean;
   low_stock_threshold_default?: number | null;
   points_per_amount?: number | null;
@@ -111,6 +112,7 @@ export function SettingsWorkspace({ canManageSettings }: { canManageSettings: bo
   });
   const [activeTab, setActiveTab] = useState<'identity' | 'operations' | 'appearance'>('identity');
   const [savingReceipt, setSavingReceipt] = useState(false);
+  const [outlets, setOutlets] = useState<Array<{ id: string; name: string }>>([]);
   const { theme: currentTheme, setTheme, mode: currentMode, setMode, resolvedMode } = useTheme();
 
   const THEME_ITEMS: Array<{ id: string; label: string }> = [
@@ -124,6 +126,13 @@ export function SettingsWorkspace({ canManageSettings }: { canManageSettings: bo
     { id: 'dark', label: 'Dark' },
     { id: 'system', label: 'System' },
   ];
+
+  useEffect(() => {
+    fetch('/api/inventory/locations')
+      .then((r) => r.json())
+      .then((payload) => setOutlets(payload.locations ?? []))
+      .catch(() => setOutlets([]));
+  }, []);
 
   const refresh = async () => {
     const [profilePayload, settingsPayload] = await Promise.all([
@@ -265,13 +274,30 @@ export function SettingsWorkspace({ canManageSettings }: { canManageSettings: bo
     }
   };
 
+  const saveDefaultOutlet = async (defaultLocationId: string | null) => {
+    setSavingReceipt(true);
+    try {
+      await readJson('/api/store/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ defaultLocationId }),
+      });
+      await refresh();
+      setMessage('Default POS outlet updated.');
+    } catch (error) {
+      setMessage((error as Error).message);
+    } finally {
+      setSavingReceipt(false);
+    }
+  };
+
   const saveReceiptType = async (receiptType: ReceiptType) => {
     setSavingReceipt(true);
     try {
       await readJson('/api/store/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ receiptType }),
+        body: JSON.stringify({ receiptType, defaultLocationId: settings?.default_location_id ?? null }),
       });
       await refresh();
       setMessage('Receipt type updated.');
@@ -491,6 +517,25 @@ export function SettingsWorkspace({ canManageSettings }: { canManageSettings: bo
               placeholder="Receipt footer"
               disabled={!canManageSettings || loading}
             />
+            <div style={{ display: 'grid', gap: 4 }}>
+              <label style={{ fontSize: 12, fontWeight: 600 }}>Default POS outlet</label>
+              <select
+                value={settings?.default_location_id ?? ''}
+                onChange={(event) => {
+                  setSettingsForm((current) => ({ ...current }));
+                  void saveDefaultOutlet(event.target.value || null);
+                }}
+                style={fieldStyle}
+                aria-label="Default POS outlet"
+                disabled={!canManageSettings || savingReceipt}
+              >
+                <option value="">First outlet</option>
+                {outlets.map((outlet) => (
+                  <option key={outlet.id} value={outlet.id}>{outlet.name}</option>
+                ))}
+              </select>
+              <div style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>The outlet the POS terminal opens with.</div>
+            </div>
             <label style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--foreground)', fontSize: 14 }}>
               <input
                 type="checkbox"

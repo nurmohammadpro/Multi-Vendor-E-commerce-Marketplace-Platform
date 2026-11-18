@@ -127,6 +127,8 @@ type ParkedSale = {
   saleMode: 'paid' | 'due' | 'cod'; documentMode: 'pos' | 'a5' | 'a4'; dueDate: string;
 };
 
+type SettingsForPos = { settings?: { receipt_type?: 'pos' | 'a5' | 'a4'; default_location_id?: string } };
+
 type ShiftResponse = {
   shift?: {
     id: string;
@@ -333,18 +335,21 @@ export function PosTerminal({ canUsePos, canUseInvoices = false, locale = 'en' }
       readJson<{ locations: Location[] }>('/api/pos/locations'),
       readJson<{ categories: Category[] }>('/api/catalog/categories?status=active&limit=200'),
       readJson<{ brands: Brand[] }>('/api/catalog/brands?status=active&limit=200'),
-      readJson<{ settings: { receipt_type?: 'pos' | 'a5' | 'a4' } }>('/api/store/settings').catch(() => ({ settings: {} as { receipt_type?: 'pos' | 'a5' | 'a4' } })),
+      readJson<{ settings: { receipt_type?: 'pos' | 'a5' | 'a4'; default_location_id?: string } }>('/api/store/settings').catch(() => ({ settings: {} as SettingsForPos['settings'] })),
     ])
       .then(([registerPayload, locationPayload, catPayload, brandPayload, settingsPayload]) => {
         setRegisters(registerPayload.registers ?? []);
         setLocations(locationPayload.locations ?? []);
         setSelectedRegisterId(registerPayload.registers?.[0]?.id ?? '');
+        const settingsData: SettingsForPos['settings'] = settingsPayload.settings;
         const savedLocationId = localStorage.getItem('pos_location_id');
         const validSaved = locationPayload.locations?.find((l) => l.id === savedLocationId);
-        setSelectedLocationId(validSaved?.id ?? locationPayload.locations?.[0]?.id ?? '');
+        const defaultOutlet = settingsData?.default_location_id;
+        const validDefault = locationPayload.locations?.find((l) => l.id === defaultOutlet);
+        setSelectedLocationId(validSaved?.id ?? validDefault?.id ?? locationPayload.locations?.[0]?.id ?? '');
         setCategories(catPayload.categories ?? []);
         setBrands(brandPayload.brands ?? []);
-        const receiptType = settingsPayload.settings?.receipt_type;
+        const receiptType = settingsData?.receipt_type;
         setDocumentMode(receiptType === 'a4' ? 'a4' : receiptType === 'a5' ? 'a5' : 'pos');
       })
       .catch((error: Error) => {

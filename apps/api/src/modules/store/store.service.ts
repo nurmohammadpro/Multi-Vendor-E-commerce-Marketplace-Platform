@@ -115,6 +115,7 @@ type UpdateStoreSettingsPayload = {
   receiptFooter?: string | null;
   invoicePrefix?: string | null;
   receiptType?: 'pos' | 'a5' | 'a4';
+  defaultLocationId?: string | null;
   allowNegativeStock?: boolean;
   lowStockThresholdDefault?: number | null;
 };
@@ -1093,6 +1094,8 @@ export class StoreService {
           receipt_footer,
           invoice_prefix,
           receipt_type,
+          default_location_id,
+          (select l.name from inventory.locations l where l.id = store_settings.default_location_id) as default_location_name,
           allow_negative_stock,
           low_stock_threshold_default
         from store.store_settings
@@ -1142,6 +1145,7 @@ export class StoreService {
           receipt_footer = case when $5::text is null then receipt_footer else $5 end,
           invoice_prefix = case when $6::text is null then invoice_prefix else $6 end,
           receipt_type = coalesce($9, receipt_type),
+          default_location_id = case when $10::uuid is null then default_location_id else $10::uuid end,
           allow_negative_stock = coalesce($7, allow_negative_stock),
           low_stock_threshold_default = case when $8::integer is null then low_stock_threshold_default else $8 end,
           updated_at = now()
@@ -1154,6 +1158,7 @@ export class StoreService {
           receipt_footer,
           invoice_prefix,
           receipt_type,
+          default_location_id,
           allow_negative_stock,
           low_stock_threshold_default,
           updated_at
@@ -1168,6 +1173,7 @@ export class StoreService {
         payload.allowNegativeStock ?? null,
         payload.lowStockThresholdDefault === undefined ? null : payload.lowStockThresholdDefault,
         payload.receiptType ?? null,
+        payload.defaultLocationId ?? null,
       ],
     );
 

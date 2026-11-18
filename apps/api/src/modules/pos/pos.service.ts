@@ -62,11 +62,14 @@ export class PosService {
           r.code,
           r.name,
           r.status,
+          r.location_id,
+          l.name as location_name,
           rs.id as open_shift_id,
           rs.opened_at as open_shift_opened_at,
           rs.opening_cash as open_shift_opening_cash,
           up.full_name as open_shift_opened_by_name
         from sales.registers r
+        left join inventory.locations l on l.id = r.location_id
         left join sales.register_shifts rs
           on rs.register_id = r.id
           and rs.status = 'open'

@@ -63,6 +63,7 @@ const updateStoreSettingsSchema = z.object({
   receiptFooter: z.string().nullable().optional(),
   invoicePrefix: z.string().max(20).nullable().optional(),
   receiptType: z.enum(['pos', 'a5', 'a4']).optional(),
+  defaultLocationId: z.string().uuid().nullable().optional(),
   allowNegativeStock: z.boolean().optional(),
   lowStockThresholdDefault: z.number().int().nonnegative().nullable().optional(),
 });
