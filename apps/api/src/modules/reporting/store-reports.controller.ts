@@ -44,9 +44,10 @@ export class StoreReportsController {
     @Headers('x-store-id') headerStoreId: string | undefined,
     @CurrentAuthContext() authContext: StoreAuthContext | null,
     @Query('range') range?: string,
+    @Query('locationId') locationId?: string,
   ) {
     const resolved = range === 'week' || range === 'month' ? range : 'today';
-    return this.reportingService.getStoreDashboard(headerStoreId, authContext, resolved);
+    return this.reportingService.getStoreDashboard(headerStoreId, authContext, resolved, locationId);
   }
 
   @Post('exports')

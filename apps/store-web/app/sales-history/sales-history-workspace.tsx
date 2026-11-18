@@ -56,6 +56,8 @@ export function SalesHistoryWorkspace() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [outlets, setOutlets] = useState<Array<{ id: string; name: string }>>([]);
+  const [outletFilter, setOutletFilter] = useState('');
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [sortBy, setSortBy] = useState<SortField>('created_at');
@@ -77,6 +79,7 @@ export function SalesHistoryWorkspace() {
       const params = new URLSearchParams({ page: String(p), limit: String(limit), sortBy, sortDir });
       const q = searchQuery.trim();
       if (q) params.set('query', q);
+      if (outletFilter) params.set('locationId', outletFilter);
       const payload = await readJson<{ sales: Sale[]; pagination?: { total: number } }>(
         `/api/pos/sales?${params.toString()}`,
       );
@@ -93,7 +96,7 @@ export function SalesHistoryWorkspace() {
     } finally {
       setLoading(false);
     }
-  }, [searchQuery, sortBy, sortDir]);
+  }, [searchQuery, sortBy, sortDir, outletFilter]);
 
   useEffect(() => { void loadSales(1); }, [loadSales]);
 
@@ -312,7 +315,18 @@ export function SalesHistoryWorkspace() {
           onChange={(e) => setSearchQuery(e.target.value)}
           style={{ ...fieldStyle, flex: 1, minWidth: 0 }}
         />
-        <button type="submit" style={searchQuery ? searchButtonStyle : secondaryButtonStyle} disabled={loading}>
+                <select
+          value={outletFilter}
+          onChange={(event) => { setOutletFilter(event.target.value); setPage(1); }}
+          style={{ ...fieldStyle, maxWidth: 150 }}
+          aria-label="Outlet filter"
+        >
+          <option value="">All locations</option>
+          {outlets.map((outlet) => (
+            <option key={outlet.id} value={outlet.id}>{outlet.name}</option>
+          ))}
+        </select>
+<button type="submit" style={searchQuery ? searchButtonStyle : secondaryButtonStyle} disabled={loading}>
           {loading ? 'Searching...' : 'Search'}
         </button>
         {searchQuery ? (

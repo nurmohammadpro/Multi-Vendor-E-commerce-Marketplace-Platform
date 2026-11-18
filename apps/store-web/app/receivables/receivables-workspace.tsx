@@ -104,6 +104,8 @@ export function ReceivablesWorkspace({ storeName }: { storeName?: string | null 
   const [query, setQuery] = useState('');
   const [dueSales, setDueSales] = useState<DueSale[]>([]);
   const [aging, setAging] = useState<Aging | null>(null);
+  const [outlets, setOutlets] = useState<Array<{ id: string; name: string }>>([]);
+  const [outletFilter, setOutletFilter] = useState('');
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState<PaginationState>({ page: 1, limit: 20, total: 0 });
   const [selectedSaleId, setSelectedSaleId] = useState('');
@@ -138,8 +140,8 @@ export function ReceivablesWorkspace({ storeName }: { storeName?: string | null 
     const params = new URLSearchParams({ page: String(nextPage), limit: String(pagination.limit) });
     if (search.trim()) params.set('query', search.trim());
     const [salesPayload, agingPayload] = await Promise.all([
-      readJson<{ dueSales: DueSale[]; pagination?: PaginationState }>(`/api/store-ops/due-sales?${params.toString()}`),
-      readJson<{ aging: Aging }>('/api/store-ops/due-sales/aging'),
+      readJson<{ dueSales: DueSale[]; pagination?: PaginationState }>(`/api/store-ops/due-sales?${params.toString()}${outletFilter ? `&locationId=${outletFilter}` : ''}`),
+      readJson<{ aging: Aging }>(`/api/store-ops/due-sales/aging${outletFilter ? `?locationId=${outletFilter}` : ''}`),
     ]);
     setDueSales(salesPayload.dueSales ?? []);
     setPagination(salesPayload.pagination ?? { page: nextPage, limit: pagination.limit, total: salesPayload.dueSales?.length ?? 0 });
@@ -153,6 +155,13 @@ export function ReceivablesWorkspace({ storeName }: { storeName?: string | null 
 
   useEffect(() => {
     void refresh().catch((error: Error) => setMessage(error.message));
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/inventory/locations')
+      .then((r) => r.json())
+      .then((payload) => setOutlets(payload.locations ?? []))
+      .catch(() => setOutlets([]));
   }, []);
 
   // Fetch customers for ledger dropdown

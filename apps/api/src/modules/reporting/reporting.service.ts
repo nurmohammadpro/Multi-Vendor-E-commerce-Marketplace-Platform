@@ -131,8 +131,12 @@ export class ReportingService {
     headerStoreId: string | undefined,
     authContext: StoreAuthContext | null,
     range: 'today' | 'week' | 'month' = 'today',
+    locationId?: string,
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const loc = locationId
+      ? { locationIdFilter: locationId }
+      : { locationIdFilter: null };
     const startExpr =
       range === 'week'
         ? "date_trunc('week', current_date)::date"
@@ -159,6 +163,7 @@ export class ReportingService {
                  count(*)::int as orders
           from sales.sales
           where store_id = $1 and status = 'completed' and created_at::date >= ${startExpr}
+            and (${loc.locationIdFilter}::uuid is null or location_id = ${loc.locationIdFilter}::uuid)
         `,
         [storeId],
       ),
@@ -169,6 +174,7 @@ export class ReportingService {
           from sales.sale_payments sp
           join sales.sales s on s.id = sp.sale_id
           where s.store_id = $1 and sp.status = 'paid' and sp.paid_at::date >= ${startExpr}
+            and (${loc.locationIdFilter}::uuid is null or s.location_id = ${loc.locationIdFilter}::uuid)
         `,
         [storeId],
       ),
@@ -208,6 +214,7 @@ export class ReportingService {
             where sp.sale_id = s.id
           ) paid on true
           where s.store_id = $1 and s.status = 'completed' and s.payment_status in ('due', 'partial')
+            and (${loc.locationIdFilter}::uuid is null or s.location_id = ${loc.locationIdFilter}::uuid)
         `,
         [storeId],
       ),
@@ -235,6 +242,7 @@ export class ReportingService {
               from sales.sale_payments sp
               join sales.sales s on s.id = sp.sale_id
               where s.store_id = $1 and sp.status = 'paid' and sp.payment_method = 'cash'
+                and (${loc.locationIdFilter}::uuid is null or s.location_id = ${loc.locationIdFilter}::uuid)
             ), 0) as cash_in,
             coalesce((
               select sum(amount)
@@ -257,6 +265,7 @@ export class ReportingService {
           join catalog.skus sk on sk.id = b.sku_id
           join catalog.products p on p.id = sk.product_id
           where l.store_id = $1
+            and (${loc.locationIdFilter} is null or l.id = ${loc.locationIdFilter}::uuid)
             and p.status = 'active'
             and b.available_qty <= coalesce((select thr from settings), 5)
           order by b.available_qty asc

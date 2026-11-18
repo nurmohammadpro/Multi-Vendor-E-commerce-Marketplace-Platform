@@ -364,11 +364,13 @@ export class StoreOpsController {
   listDueSales(
     @Headers('x-store-id') headerStoreId: string | undefined,
     @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @Query('locationId') locationId?: string,
     @Query('query') query?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
     return this.storeOpsService.listDueSales(headerStoreId, authContext, {
+      locationId,
       query,
       page: page ? Number(page) : undefined,
       limit: limit ? Number(limit) : undefined,
@@ -381,8 +383,9 @@ export class StoreOpsController {
   getDueSalesAging(
     @Headers('x-store-id') headerStoreId: string | undefined,
     @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @Query('locationId') locationId?: string,
   ) {
-    return this.storeOpsService.getDueSalesAging(headerStoreId, authContext);
+    return this.storeOpsService.getDueSalesAging(headerStoreId, authContext, locationId);
   }
 
   @Get('receivables/customer-ledger')

@@ -80,15 +80,24 @@ function Metric({
 export function DealerDashboardPanel({ locale = 'en' }: { locale?: 'en' | 'bn' }) {
   const t = trFor(locale);
   const [range, setRange] = useState<Range>('today');
+  const [locations, setLocations] = useState<Array<{ id: string; name: string }>>([]);
+  const [locationFilter, setLocationFilter] = useState('');
   const [data, setData] = useState<DashboardPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async (nextRange: Range) => {
+  useEffect(() => {
+    fetch('/api/inventory/locations')
+      .then((r) => r.json())
+      .then((payload) => setLocations(payload.locations ?? []))
+      .catch(() => setLocations([]));
+  }, []);
+
+  const load = useCallback(async (nextRange: Range, nextLocation = '') => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/api/reports/store-dashboard?range=${nextRange}`);
+      const response = await fetch(`/api/reports/store-dashboard?range=${nextRange}${nextLocation ? `&locationId=${nextLocation}` : ''}`);
       if (!response.ok) throw new Error(`Request failed with ${response.status}`);
       setData(await response.json());
     } catch (err) {
@@ -96,11 +105,11 @@ export function DealerDashboardPanel({ locale = 'en' }: { locale?: 'en' | 'bn' }
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [locationFilter]);
 
   useEffect(() => {
-    void load(range);
-  }, [range, load]);
+    void load(range, locationFilter);
+  }, [range, locationFilter, load]);
 
   const position = data?.position;
   const profit = data?.profit;
@@ -123,6 +132,19 @@ export function DealerDashboardPanel({ locale = 'en' }: { locale?: 'en' | 'bn' }
             {option.label}
           </button>
         ))}
+        {locations.length > 1 ? (
+          <select
+            value={locationFilter}
+            onChange={(event) => setLocationFilter(event.target.value)}
+            style={{ ...subtleButtonStyle, fontSize: 12, padding: '4px 8px' }}
+            aria-label="Outlet"
+          >
+            <option value="">All locations</option>
+            {locations.map((location) => (
+              <option key={location.id} value={location.id}>{location.name}</option>
+            ))}
+          </select>
+        ) : null}
         {loading ? <span style={tokenMutedStyle}>Loading…</span> : null}
         {error ? <span style={{ fontSize: 12, color: '#b91c1c' }}>{error}</span> : null}
       </div>

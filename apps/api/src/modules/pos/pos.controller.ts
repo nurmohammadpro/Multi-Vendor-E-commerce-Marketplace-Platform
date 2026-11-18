@@ -242,6 +242,7 @@ export class PosController {
     @Query('limit') limit?: string,
     @Query('sortBy') sortBy?: string,
     @Query('sortDir') sortDir?: string,
+    @Query('locationId') locationId?: string,
   ) {
     return this.posService.listSales(headerStoreId, authContext, {
       query,
@@ -249,6 +250,7 @@ export class PosController {
       limit: limit ? Number(limit) : undefined,
       sortBy,
       sortDir,
+      locationId,
     });
   }
 

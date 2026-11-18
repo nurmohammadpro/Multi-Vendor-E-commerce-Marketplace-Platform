@@ -38,11 +38,12 @@ export class StoreOpsService {
   async listCustomers(
     headerStoreId: string | undefined,
     authContext: StoreAuthContext | null,
-    filters: { query?: string; page?: number; limit?: number } = {},
+    filters: { query?: string; page?: number; limit?: number; locationId?: string } = {},
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
     const { page, limit, offset } = normalizePageQuery(filters);
     const query = filters.query?.trim() || null;
+    const locationFilter = filters.locationId?.trim() || null;
 
     const result = await this.pool.query(
       `
@@ -143,7 +144,8 @@ export class StoreOpsService {
   async listDueSales(
     headerStoreId: string | undefined,
     authContext: StoreAuthContext | null,
-    filters: { query?: string; page?: number; limit?: number } = {},
+    filters: {
+      locationId?: string; query?: string; page?: number; limit?: number } = {},
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
     const { page, limit, offset } = normalizePageQuery(filters);
@@ -175,6 +177,8 @@ export class StoreOpsService {
             where sp.sale_id = s.id
           ) paid on true
           where s.store_id = $1
+            and ($2::uuid is null or s.location_id = $2::uuid)
+            and ($2::uuid is null or s.location_id = $2::uuid)
             and s.status = 'completed'
             and s.payment_status in ('due', 'partial')
             and (
@@ -184,6 +188,7 @@ export class StoreOpsService {
               or coalesce(s.customer_phone, '') ilike '%' || $2::text || '%'
               or coalesce(s.customer_shop_name, '') ilike '%' || $2::text || '%'
             )
+            and ($5::uuid is null or s.location_id = $5::uuid)
           order by coalesce(s.due_date, s.created_at::date) asc, s.created_at desc
           limit $3
           offset $4
@@ -196,8 +201,9 @@ export class StoreOpsService {
     return { dueSales: items, pagination: { page, limit, total } };
   }
 
-  async getDueSalesAging(headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
+  async getDueSalesAging(headerStoreId: string | undefined, authContext: StoreAuthContext | null, locationId?: string) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const locationFilter = locationId?.trim() || null;
 
     const result = await this.pool.query(
       `
@@ -214,6 +220,7 @@ export class StoreOpsService {
           where s.store_id = $1
             and s.status = 'completed'
             and s.payment_status in ('due', 'partial')
+            and ($2::uuid is null or s.location_id = $2::uuid)
         )
         select
           coalesce(sum(outstanding_due_amount) filter (where aging_days = 0), 0) as today_amount,
@@ -228,7 +235,7 @@ export class StoreOpsService {
           count(*) filter (where aging_days > 90)::int as days_90_plus_count
         from due_sales
       `,
-      [storeId],
+      [storeId, locationFilter],
     );
 
     return { aging: result.rows[0] ?? null };

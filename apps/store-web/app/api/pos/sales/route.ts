@@ -5,7 +5,7 @@ import { requestStoreApi } from '../../../../lib/api';
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const params: Record<string, string> = {};
-  for (const key of ['query', 'page', 'limit', 'sortBy', 'sortDir']) {
+  for (const key of ['query', 'page', 'limit', 'sortBy', 'sortDir', 'locationId']) {
     const v = searchParams.get(key);
     if (v) params[key] = v;
   }

@@ -865,11 +865,13 @@ const client = await this.pool.connect();
       limit?: number;
       sortBy?: string;
       sortDir?: string;
+      locationId?: string;
     } = {},
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
     const { page, limit, offset } = normalizePageQuery(filters);
     const search = filters.query?.trim() || null;
+    const locationFilter = filters.locationId?.trim() || null;
 
     const safeSortColumns: Record<string, string> = {
       sale_no: 's.sale_no',
@@ -925,6 +927,7 @@ const client = await this.pool.connect();
           count(*) over()::int as total_count
         from sales.sales s
         where s.store_id = $1
+          and ($5::uuid is null or s.location_id = $5::uuid)
           and s.status in ('completed', 'refunded', 'returned_partially')
           and (
             $2::text is null
@@ -946,7 +949,7 @@ const client = await this.pool.connect();
         limit $3
         offset $4
       `,
-      [storeId, search, limit, offset],
+      [storeId, search, limit, offset, locationFilter],
     );
 
     const { items, total } = stripPaginationTotal(result.rows);
