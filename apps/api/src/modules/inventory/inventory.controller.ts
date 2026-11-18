@@ -6,6 +6,7 @@ import type { AuthSession, StoreAuthContext } from '../auth/auth.types.js';
 import { RequireContext, RequirePermissions } from '../rbac/rbac.decorators.js';
 import { PermissionsGuard } from '../rbac/permissions.guard.js';
 import { InventoryService } from './inventory.service.js';
+import { TransfersService } from './transfers.service.js';
 
 const createLocationSchema = z.object({
   code: z.string().min(1).max(50),
@@ -49,8 +50,33 @@ const decisionSchema = z.object({
 @Controller('inventory')
 @UseGuards(PermissionsGuard)
 export class InventoryController {
-  constructor(private readonly inventoryService: InventoryService) {}
+  constructor(
+    private readonly inventoryService: InventoryService,
+    private readonly transfersService: TransfersService,
+  ) {}
 
+
+  @Post('transfers')
+  @RequireContext('store')
+  @RequirePermissions('inventory.adjust.direct')
+  createTransfer(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @CurrentAuthSession() session: AuthSession | null,
+    @Body() payload: unknown,
+  ) {
+    return this.transfersService.createTransfer(headerStoreId, authContext, session, payload);
+  }
+
+  @Get('transfers')
+  @RequireContext('store')
+  @RequirePermissions('inventory.view')
+  listTransfers(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+  ) {
+    return this.transfersService.listTransfers(headerStoreId, authContext);
+  }
 
   @Patch('locations/:locationId')
   @RequireContext('store')
