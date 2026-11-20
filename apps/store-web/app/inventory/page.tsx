@@ -38,7 +38,10 @@ export default async function StoreInventoryPage({
     panels.barcodes = <BarcodesPage />;
     if (!isWholesale) {
       tabs.push({ key: 'locations', label: 'Locations' });
-      panels.locations = <LocationsWorkspace canViewInventory={access.canViewInventory} canManageLocations={access.canManageLocations} />;
+      tabs.push({ key: 'transfers', label: 'Transfers' });
+      panels.transfers = (
+        <TransfersPanel canTransfer={access.canManageLocations || access.canAdjustInventory} />
+      );
     }
   }
   if (access.canApproveInventory && !isWholesale) {
