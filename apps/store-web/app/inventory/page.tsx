@@ -7,6 +7,7 @@ import { ApprovalsWorkspace } from '../approvals/approvals-workspace';
 import BarcodesPage from '../barcodes/page';
 import { InventoryWorkspace } from './inventory-workspace';
 import { LocationsWorkspace } from '../locations/locations-workspace';
+import { TransfersPanel } from './transfers-panel';
 import { StockLedgerWorkspace } from '../stock-ledger/stock-ledger-workspace';
 
 export default async function StoreInventoryPage({
