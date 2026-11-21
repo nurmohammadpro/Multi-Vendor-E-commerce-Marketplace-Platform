@@ -266,6 +266,10 @@ export function SettingsWorkspace({ canManageSettings }: { canManageSettings: bo
         }),
       });
       await refresh();
+      if (settings?.locale !== settingsForm.locale) {
+        window.location.reload();
+        return;
+      }
       setMessage('Operational settings updated.');
     } catch (error) {
       setMessage((error as Error).message);
