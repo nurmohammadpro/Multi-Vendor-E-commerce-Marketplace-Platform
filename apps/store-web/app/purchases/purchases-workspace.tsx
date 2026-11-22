@@ -30,7 +30,8 @@ import { loadWorkstationProfile } from '../../lib/workstation-profile';
 import { QuickScanTab } from './quick-scan-tab';
 import { SuppliersPanel } from './suppliers-panel';
 import { CompanyOrdersTab } from './company-orders-tab';
-import { ComboboxAddNew } from '../combobox-add-new';
+import { ReceiveTab } from './receive-tab';
+import { DropdownSelect, DropdownOption } from '@/components/dropdown-select';
 import { BatchPasteTab } from './batch-paste-tab';
 import { CsvUploadTab } from './csv-upload-tab';
 import type { TrackingField } from './tracking-input';
@@ -388,7 +389,7 @@ export function PurchasesWorkspace({ initialTab = 'purchases' }: { initialTab?: 
     if (created?.id) {
       setCategories((current) => (current.some((c) => c.id === created.id) ? current : [...current, created]));
       toast.success(`Category "${created.name}" created`);
-      return { id: created.id, label: created.name };
+      return { value: created.id, label: created.name };
     }
     return null;
   };
@@ -403,7 +404,7 @@ export function PurchasesWorkspace({ initialTab = 'purchases' }: { initialTab?: 
     if (created?.id) {
       setBrands((current) => (current.some((b) => b.id === created.id) ? current : [...current, created]));
       toast.success(`Brand "${created.name}" created`);
-      return { id: created.id, label: created.name };
+      return { value: created.id, label: created.name };
     }
     return null;
   };
@@ -418,7 +419,7 @@ export function PurchasesWorkspace({ initialTab = 'purchases' }: { initialTab?: 
     if (created?.id) {
       setSuppliers((current) => (current.some((s) => s.id === created.id) ? current : [...current, created as Supplier]));
       toast.success(`Supplier "${created.company_name}" created`);
-      return { id: created.id, label: created.company_name };
+      return { value: created.id, label: created.company_name };
     }
     return null;
   };
@@ -479,15 +480,20 @@ export function PurchasesWorkspace({ initialTab = 'purchases' }: { initialTab?: 
         onChange={setActiveTab}
         tabs={[
           { key: 'orders', label: 'Company Orders' },
-          { key: 'purchases', label: 'Purchases & Receive' },
-          { key: 'suppliers', label: 'Supplier Management' },
-          { key: 'payables', label: 'Payables & Ledger' },
+          { key: 'receive', label: 'Receive' },
+          { key: 'purchases', label: 'Purchases & Stock' },
+          { key: 'suppliers', label: 'Suppliers' },
+          { key: 'payables', label: 'Payables' },
         ]}
       />
 
       {/* ── Tab Content ── */}
       {activeTab === 'orders' && (
         <CompanyOrdersTab />
+      )}
+
+      {activeTab === 'receive' && (
+        <ReceiveTab />
       )}
 
       {activeTab === 'purchases' && (
@@ -627,14 +633,13 @@ export function PurchasesWorkspace({ initialTab = 'purchases' }: { initialTab?: 
 
             {/* Supplier, Location, Quantity, Unit Cost, Sell Price in one line */}
             <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : '2fr 2fr 1fr 1fr 1fr', gap: 8, alignItems: compact ? 'stretch' : 'end' }}>
-              <ComboboxAddNew
+              <DropdownSelect
+                options={suppliers.map((s) => ({ value: s.id, label: s.company_name }))}
                 value={receiveSupplierId}
                 onChange={setReceiveSupplierId}
-                options={suppliers.map((s) => ({ id: s.id, label: s.company_name }))}
                 onCreate={quickCreateSupplier}
                 placeholder="Supplier (required)"
-                addNewLabel="New supplier"
-                ariaLabel="Supplier"
+                addLabel="New supplier"
               />
               <SearchableSelect options={locationOpts} value={receiveLocationId} onChange={setReceiveLocationId} placeholder="Location (required)" emptyMessage="No locations found" />
               {receiveProduct && (
@@ -751,23 +756,21 @@ export function PurchasesWorkspace({ initialTab = 'purchases' }: { initialTab?: 
           </div>
           <input value={quickName} onChange={(e) => setQuickName(e.target.value)} style={{ ...fieldStyle, marginBottom: 8, width: '100%' }} placeholder="Product name (required)" />
           <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr 1fr' : 'repeat(4, minmax(0, 1fr))', gap: 8, marginBottom: 8 }}>
-            <ComboboxAddNew
+            <DropdownSelect
+              options={categories.map((c) => ({ value: c.id, label: c.name }))}
               value={quickCategoryId}
               onChange={setQuickCategoryId}
-              options={categories.map((c) => ({ id: c.id, label: c.name }))}
               onCreate={quickCreateCategory}
               placeholder="Category (optional)"
-              addNewLabel="New category"
-              ariaLabel="Category"
+              addLabel="New category"
             />
-            <ComboboxAddNew
+            <DropdownSelect
+              options={brands.map((b) => ({ value: b.id, label: b.name }))}
               value={quickBrandId}
               onChange={setQuickBrandId}
-              options={brands.map((b) => ({ id: b.id, label: b.name }))}
               onCreate={quickCreateBrand}
               placeholder="Brand (optional)"
-              addNewLabel="New brand"
-              ariaLabel="Brand"
+              addLabel="New brand"
             />
             <input type="number" min="1" value={quickQty} onChange={(e) => setQuickQty(e.target.value)} style={{ ...fieldStyle, fontSize: 12 }} placeholder="Quantity" />
             <input value={quickUnit} onChange={(e) => setQuickUnit(e.target.value)} style={{ ...fieldStyle, fontSize: 12 }} placeholder="Unit (bag, ton, cft…)" list="quick-units" aria-label="Unit of measure" />
@@ -778,14 +781,13 @@ export function PurchasesWorkspace({ initialTab = 'purchases' }: { initialTab?: 
           <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr 1fr' : 'repeat(4, minmax(0, 1fr))', gap: 8, marginBottom: 10 }}>
             <input type="number" min="0" step="0.01" value={quickPrice} onChange={(e) => setQuickPrice(e.target.value)} style={{ ...fieldStyle, fontSize: 12 }} placeholder="Sale price (BDT)" />
             <input type="number" min="0" step="0.01" value={quickCost} onChange={(e) => setQuickCost(e.target.value)} style={{ ...fieldStyle, fontSize: 12 }} placeholder="Unit cost (BDT)" />
-            <ComboboxAddNew
+            <DropdownSelect
+              options={suppliers.map((s) => ({ value: s.id, label: s.company_name }))}
               value={quickSupplierId}
               onChange={setQuickSupplierId}
-              options={suppliers.map((s) => ({ id: s.id, label: s.company_name }))}
               onCreate={quickCreateSupplier}
               placeholder="Supplier (required)"
-              addNewLabel="New supplier"
-              ariaLabel="Supplier"
+              addLabel="New supplier"
             />
             <select value={quickLocationId} onChange={(e) => setQuickLocationId(e.target.value)} style={{ ...fieldStyle, fontSize: 12 }}>
               <option value="">Location (required)</option>

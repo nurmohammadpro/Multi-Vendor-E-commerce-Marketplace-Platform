@@ -6,7 +6,6 @@ import { useCallback, useEffect, useState } from 'react';
 
 import {
   metricLabelStyle,
-  metricNoteStyle,
   metricValueStyle,
   sectionLabelStyle,
   sectionPanelStyle,
@@ -51,13 +50,11 @@ const qty = (value: number | undefined) => {
 function Metric({
   label,
   value,
-  note,
   emphasis,
   negative,
 }: {
   label: string;
   value: string;
-  note?: string;
   emphasis?: boolean;
   negative?: boolean;
 }) {
@@ -72,7 +69,6 @@ function Metric({
       >
         {value}
       </div>
-      {note ? <div style={metricNoteStyle}>{note}</div> : null}
     </article>
   );
 }
@@ -152,25 +148,24 @@ export function DealerDashboardPanel({ locale = 'en' }: { locale?: 'en' | 'bn' }
       <section>
         <div style={{ ...sectionLabelStyle, marginBottom: 8 }}>{t('POSITION')}</div>
         <section style={{ ...sectionPanelStyle, gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))' }}>
-          <Metric label={t('Receivables')} value={`BDT ${money(position?.receivables)}`} note={t('owed by customers')} />
-          <Metric label={t('Payables')} value={`BDT ${money(position?.payables)}`} note={t('owed to suppliers')} />
-          <Metric label={t('Cash in Hand')} value={`BDT ${money(position?.cashInHand)}`} note={t('cash sales − expenses')} />
-          <Metric label={t('Bank Balance')} value={`BDT ${money(position?.bankBalance)}`} note={t('active accounts')} />
+          <Metric label={t('Receivables')} value={`BDT ${money(position?.receivables)}`} />
+          <Metric label={t('Payables')} value={`BDT ${money(position?.payables)}`} />
+          <Metric label={t('Cash in Hand')} value={`BDT ${money(position?.cashInHand)}`} />
+          <Metric label={t('Bank Balance')} value={`BDT ${money(position?.bankBalance)}`} />
         </section>
       </section>
 
       <section>
         <div style={{ ...sectionLabelStyle, marginBottom: 8 }}>Profit &amp; Loss</div>
         <section style={{ ...sectionPanelStyle, gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))' }}>
-          <Metric label={t('REVENUE')} value={`BDT ${money(profit?.revenue)}`} note={`${profit?.orders ?? 0} ${t('orders')}`} />
-          <Metric label={t('COST OF GOODS')} value={`BDT ${money(profit?.cogs)}`} note={t('FIFO costing')} />
+          <Metric label={t('REVENUE')} value={`BDT ${money(profit?.revenue)}`} />
+          <Metric label={t('COST OF GOODS')} value={`BDT ${money(profit?.cogs)}`} />
           <Metric label={t('GROSS PROFIT')} value={`BDT ${money(profit?.grossProfit)}`} />
-          <Metric label={t('EXPENSES')} value={`BDT ${money(profit?.expenses)}`} note={t('daily expenses')} />
-          <Metric label={t('PAYROLL')} value={`BDT ${money(profit?.payroll)}`} note={t('paid this period')} />
+          <Metric label={t('EXPENSES')} value={`BDT ${money(profit?.expenses)}`} />
+          <Metric label={t('PAYROLL')} value={`BDT ${money(profit?.payroll)}`} />
           <Metric
             label={t('NET PROFIT')}
             value={`BDT ${money(profit?.netProfit)}`}
-            note="gross profit − opex"
             emphasis
             negative={(profit?.netProfit ?? 0) < 0}
           />
@@ -180,8 +175,8 @@ export function DealerDashboardPanel({ locale = 'en' }: { locale?: 'en' | 'bn' }
       <section>
         <div style={{ ...sectionLabelStyle, marginBottom: 8 }}>CASH FLOW</div>
         <section style={{ ...sectionPanelStyle, gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))' }}>
-          <Metric label={t('CASH IN')} value={`BDT ${money(cash?.cashIn)}`} note={t('collections')} />
-          <Metric label={t('CASH OUT')} value={`BDT ${money(cash?.cashOut)}`} note={t('purchases + expenses + payroll')} />
+          <Metric label={t('CASH IN')} value={`BDT ${money(cash?.cashIn)}`} />
+          <Metric label={t('CASH OUT')} value={`BDT ${money(cash?.cashOut)}`} />
           <Metric
             label={t('NET CASH')}
             value={`BDT ${money(cash?.netCash)}`}

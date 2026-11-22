@@ -1,5 +1,5 @@
 import { fetchAdminApi, isAdminApiConfigured } from '../../lib/api';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 type PlatformPayments = {
   invoices?: Array<{
@@ -23,9 +23,6 @@ export default async function AdminPaymentsPage() {
     <main>
       <section className="mb-6 max-w-[860px]">
         <h2 className="m-0 text-3xl font-semibold tracking-tight">Payments and Billing</h2>
-        <p className="mt-2.5 leading-relaxed text-muted-foreground">
-          Monitor invoice health, payment mix, and billing risk without leaving the admin workspace.
-        </p>
         <p className="mt-2.5 text-sm text-muted-foreground">
           {configured
             ? 'Live reporting data is connected.'
@@ -69,32 +66,6 @@ export default async function AdminPaymentsPage() {
                 </div>
               ))
             )}
-          </CardContent>
-        </Card>
-      </section>
-
-      <section className="grid grid-cols-1 gap-4">
-        <Card>
-          <CardHeader>
-            <CardTitle>Billing posture</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              The payments surface is now represented as a real reporting view rather than a placeholder. The next step is
-              tying this to invoice detail review, gateway health, and exception handling for failed charges.
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Production note</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              We still need a richer payment operations workflow before this reaches full production maturity, including
-              searchable invoice queues, per-store drilldown, and audit-friendly export actions.
-            </p>
           </CardContent>
         </Card>
       </section>

@@ -19,6 +19,7 @@ import {
   tokenMutedStyle,
 } from '../merchflow-theme';
 import { openChallanPrintWindow } from '../../lib/challan-template';
+import { DropdownSelect, DropdownOption } from '@/components/dropdown-select';
 
 type Supplier = { id: string; company_name: string; contact_name?: string | null; phone?: string | null; address?: string | null };
 type Location = { id: string; code: string; name: string };
@@ -241,6 +242,22 @@ export function CompanyOrdersTab() {
     }
   };
 
+  const quickCreateSupplier = async (name: string) => {
+    try {
+      const result = await readJson<{ id: string }>('/api/store-ops/suppliers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyName: name }),
+      });
+      setSuppliers((prev) => [...prev, { id: result.id, company_name: name }]);
+      return { value: result.id, label: name };
+    } catch {
+      throw new Error('Could not create supplier.');
+    }
+  };
+
+  const supplierOptions: DropdownOption[] = suppliers.map((s) => ({ value: s.id, label: s.company_name }));
+
   const patchOrder = async (patch: Record<string, unknown>) => {
     if (!detailId) return;
     setBusy(true);
@@ -310,10 +327,14 @@ export function CompanyOrdersTab() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8 }}>
               <label style={{ display: 'grid', gap: 4 }}>
                 <span style={{ fontSize: 11, fontWeight: 600 }}>Company *</span>
-                <select value={supplierId} onChange={(e) => setSupplierId(e.target.value)} style={fieldStyle}>
-                  <option value="">Select company</option>
-                  {suppliers.map((s) => <option key={s.id} value={s.id}>{s.company_name}</option>)}
-                </select>
+              <DropdownSelect
+                options={supplierOptions}
+                value={supplierId}
+                onChange={setSupplierId}
+                placeholder="Company (required)"
+                onCreate={quickCreateSupplier}
+                addLabel="New company"
+              />
               </label>
               <label style={{ display: 'grid', gap: 4 }}>
                 <span style={{ fontSize: 11, fontWeight: 600 }}>Location</span>

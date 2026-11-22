@@ -5,19 +5,18 @@ import { fetchAdminApi, isAdminApiConfigured } from '../lib/api';
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
 
 const quickActions = [
-  { href: '/stores', title: 'Store Ops', detail: 'Activate, suspend, and review merchant records.', icon: Store },
-  { href: '/payments', title: 'Payments', detail: 'Monitor invoice and payment health.', icon: CreditCard },
-  { href: '/reports', title: 'Reports', detail: 'Review platform KPIs and audit exports.', icon: BarChart3 },
-  { href: '/audit', title: 'Audit', detail: 'Review recent platform actions and permission gates.', icon: Shield },
-  { href: '/notifications', title: 'Notifications', detail: 'Compose broadcasts and process queues.', icon: Bell },
-  { href: '/support', title: 'Support', detail: 'Handle tickets and cross-team escalations.', icon: Headphones },
-  { href: '/settings', title: 'Settings', detail: 'Adjust platform-level controls carefully.', icon: Settings },
+  { href: '/stores', title: 'Store Ops', icon: Store },
+  { href: '/payments', title: 'Payments', icon: CreditCard },
+  { href: '/reports', title: 'Reports', icon: BarChart3 },
+  { href: '/audit', title: 'Audit', icon: Shield },
+  { href: '/notifications', title: 'Notifications', icon: Bell },
+  { href: '/support', title: 'Support', icon: Headphones },
+  { href: '/settings', title: 'Settings', icon: Settings },
 ];
 
 type PlatformOverview = {
@@ -40,10 +39,10 @@ export default async function AdminDashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard title="Stores" value={overview?.stores?.total_stores ?? '—'} note="Merchant accounts." />
-        <MetricCard title="Active Stores" value={overview?.stores?.active_stores ?? '—'} note="Operating normally." />
-        <MetricCard title="Gross Sales" value={overview?.sales?.gross_sales_amount ?? '—'} note="Completed sales." />
-        <MetricCard title="Open Tickets" value={overview?.support?.open_tickets ?? '—'} note="Needing attention." />
+        <MetricCard title="Stores" value={overview?.stores?.total_stores ?? '—'} />
+        <MetricCard title="Active Stores" value={overview?.stores?.active_stores ?? '—'} />
+        <MetricCard title="Gross Sales" value={overview?.sales?.gross_sales_amount ?? '—'} />
+        <MetricCard title="Open Tickets" value={overview?.support?.open_tickets ?? '—'} />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -57,7 +56,6 @@ export default async function AdminDashboardPage() {
                     <CardTitle className="text-sm font-medium">{action.title}</CardTitle>
                     <Icon className="size-4 text-muted-foreground group-hover:text-foreground transition-colors" />
                   </div>
-                  <CardDescription>{action.detail}</CardDescription>
                 </CardHeader>
               </Card>
             </Link>
@@ -71,11 +69,9 @@ export default async function AdminDashboardPage() {
 function MetricCard({
   title,
   value,
-  note,
 }: {
   title: string;
   value: string | number;
-  note: string;
 }) {
   return (
     <Card>
@@ -86,7 +82,6 @@ function MetricCard({
       </CardHeader>
       <CardContent className="pt-0">
         <div className="text-2xl font-semibold tracking-tight">{value}</div>
-        <p className="text-xs text-muted-foreground mt-1">{note}</p>
       </CardContent>
     </Card>
   );

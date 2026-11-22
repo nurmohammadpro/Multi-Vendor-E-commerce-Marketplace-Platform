@@ -6,9 +6,6 @@ export default function StoreHelpPage() {
       <header className="space-y-2">
         <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Support</p>
         <h1 className="text-2xl font-semibold tracking-tight">Help & reference</h1>
-        <p className="max-w-2xl text-sm text-muted-foreground">
-          Use this page for quick reminders while the store console grows into the full operational dashboard.
-        </p>
       </header>
 
       <section className="grid gap-4 md:grid-cols-2">

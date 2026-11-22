@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
@@ -287,7 +286,6 @@ export function HardwareWorkspace({ canManageSettings }: { canManageSettings: bo
         <Card>
           <CardHeader>
             <CardTitle>Store hardware profile</CardTitle>
-            <CardDescription>Choose one standard hardware setup for this store, then save the workstation details below.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4">
             <div className="grid gap-3">
@@ -352,7 +350,6 @@ export function HardwareWorkspace({ canManageSettings }: { canManageSettings: bo
         <Card>
           <CardHeader>
             <CardTitle>Workstation printer profile</CardTitle>
-            <CardDescription>Save the local printer names used by POS and receipt tests on this device.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4">
             <div className="grid gap-2">
@@ -408,7 +405,6 @@ export function HardwareWorkspace({ canManageSettings }: { canManageSettings: bo
         <Card>
           <CardHeader>
             <CardTitle>Live hardware status</CardTitle>
-            <CardDescription>Shows whether the local workstation is ready for the selected standard setup.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3">
             <div className="flex flex-wrap gap-2">
@@ -450,7 +446,6 @@ export function HardwareWorkspace({ canManageSettings }: { canManageSettings: bo
         <Card>
           <CardHeader>
             <CardTitle>Standard hardware list</CardTitle>
-            <CardDescription>Recommended standard models for the two supported workstation types.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3">
             {standardBundles.map((bundle) => (
@@ -475,7 +470,6 @@ export function HardwareWorkspace({ canManageSettings }: { canManageSettings: bo
         <Card>
           <CardHeader>
             <CardTitle>Auto-start setup</CardTitle>
-            <CardDescription>Use the included scripts so silent printing starts with the workstation login.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3 text-sm text-muted-foreground leading-relaxed">
             <div>Windows script: <code>{autostart?.windowsScript || 'print-agent/scripts/install-windows-task.ps1'}</code></div>
@@ -492,7 +486,6 @@ export function HardwareWorkspace({ canManageSettings }: { canManageSettings: bo
         <Card>
           <CardHeader>
             <CardTitle>Operational notes</CardTitle>
-            <CardDescription>Helpful reminders for the store team.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-2 text-sm text-muted-foreground leading-relaxed">
             <ul className="space-y-2 list-disc pl-4">

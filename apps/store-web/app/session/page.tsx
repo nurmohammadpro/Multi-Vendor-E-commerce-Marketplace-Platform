@@ -42,9 +42,9 @@ export default async function StoreSessionPage() {
       <Separator />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard title="Status" value={profile?.user?.status ?? '—'} note="Identity status from the auth service." />
-        <MetricCard title="Contexts" value={profile?.contexts?.length ?? 0} note="Available operating contexts for this account." />
-        <MetricCard title="Permissions" value={profile?.permissions?.length ?? 0} note="Granted permissions expanded from roles." />
+        <MetricCard title="Status" value={profile?.user?.status ?? '—'} />
+        <MetricCard title="Contexts" value={profile?.contexts?.length ?? 0} />
+        <MetricCard title="Permissions" value={profile?.permissions?.length ?? 0} />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -122,10 +122,6 @@ export default async function StoreSessionPage() {
               </Button>
               <LogoutButton />
             </div>
-            <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
-              The session view makes auth state visible, which helps operators debug context issues, expired tokens, and
-              permission mismatches without leaving the workspace.
-            </p>
           </CardContent>
         </Card>
       </div>
@@ -136,11 +132,9 @@ export default async function StoreSessionPage() {
 function MetricCard({
   title,
   value,
-  note,
 }: {
   title: string;
   value: string | number;
-  note: string;
 }) {
   return (
     <Card>
@@ -151,7 +145,6 @@ function MetricCard({
       </CardHeader>
       <CardContent className="pt-0">
         <div className="text-2xl font-semibold tracking-tight">{value}</div>
-        <p className="text-xs text-muted-foreground mt-1">{note}</p>
       </CardContent>
     </Card>
   );

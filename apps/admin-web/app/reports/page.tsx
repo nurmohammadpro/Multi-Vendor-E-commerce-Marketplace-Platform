@@ -1,7 +1,6 @@
 import { fetchAdminApi, isAdminApiConfigured } from '../../lib/api';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
 
 type PlatformOverview = {
   stores?: { total_stores?: number; active_stores?: number };
@@ -46,20 +45,16 @@ export default async function AdminReportsPage() {
       <section className="max-w-[920px]">
         <Badge variant="secondary" className="mb-3">Platform reporting</Badge>
         <h2 className="m-0 text-3xl font-semibold tracking-tight">Platform Reports</h2>
-        <p className="mt-2.5 leading-relaxed text-muted-foreground">
-          Operational, financial, and audit reporting now come from the live backend so the admin console behaves like a
-          real working app.
-        </p>
         <p className="mt-2 text-sm text-muted-foreground">
           {configured ? 'Live reporting data is connected.' : 'Set `API_BASE_URL` and `ADMIN_DEMO_BEARER_TOKEN` to enable live reporting.'}
         </p>
       </section>
 
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Metric title="Stores" value={overview?.stores?.total_stores ?? '—'} note="Merchant accounts managed by the platform." />
-        <Metric title="Active Stores" value={overview?.stores?.active_stores ?? '—'} note="Stores currently operating normally." />
-        <Metric title="Completed Sales" value={overview?.sales?.completed_sales_count ?? '—'} note="Orders finalized across stores." />
-        <Metric title="Open Tickets" value={overview?.support?.open_tickets ?? '—'} note="Tickets needing direct attention." />
+        <Metric title="Stores" value={overview?.stores?.total_stores ?? '—'} />
+        <Metric title="Active Stores" value={overview?.stores?.active_stores ?? '—'} />
+        <Metric title="Completed Sales" value={overview?.sales?.completed_sales_count ?? '—'} />
+        <Metric title="Open Tickets" value={overview?.support?.open_tickets ?? '—'} />
       </section>
 
       <section className="grid grid-cols-1 xl:grid-cols-3 gap-4">
@@ -103,13 +98,6 @@ export default async function AdminReportsPage() {
                 </CardContent>
               </Card>
             </div>
-
-            <Separator />
-
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              The payments view is now a live operational surface. The next refinement is adding per-store drilldown and
-              exported reconciliation actions.
-            </p>
           </CardContent>
         </Card>
 
@@ -141,11 +129,9 @@ export default async function AdminReportsPage() {
 function Metric({
   title,
   value,
-  note,
 }: {
   title: string;
   value: string | number;
-  note: string;
 }) {
   return (
     <Card>
@@ -154,7 +140,6 @@ function Metric({
       </CardHeader>
       <CardContent className="pt-0">
         <div className="text-2xl font-semibold tracking-tight">{value}</div>
-        <p className="mt-1 text-xs text-muted-foreground">{note}</p>
       </CardContent>
     </Card>
   );

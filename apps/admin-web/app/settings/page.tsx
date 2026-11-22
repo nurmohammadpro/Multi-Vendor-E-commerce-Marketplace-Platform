@@ -139,7 +139,7 @@ export default function AdminSettingsPage() {
       });
       await refresh();
       setForm({ fullName: '', email: '', phone: '', password: '' });
-      setMessage('Platform admin created. That password is the login password for the dashboard.');
+      setMessage('Platform admin created.');
     } catch (error) {
       setMessage((error as Error).message);
     } finally {
@@ -253,10 +253,6 @@ export default function AdminSettingsPage() {
         <p className="mt-2.5 leading-relaxed text-muted-foreground">
           Restricted owner-level and scoped admin configuration changes belong in this settings area.
         </p>
-        <p className="mt-2 leading-relaxed text-muted-foreground">
-          Bootstrap the first admin with a custom email such as <code>nurprodev@gmail.com</code>, then add more platform
-          admins here later during handover.
-        </p>
       </section>
 
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -277,9 +273,6 @@ export default function AdminSettingsPage() {
               </div>
               <Button onClick={createAdmin} disabled={!canCreateAdmin}>Create Admin</Button>
             </div>
-            <p className="mt-2.5 text-xs text-muted-foreground leading-relaxed">
-              Use this password as the dashboard login password for the new platform admin.
-            </p>
           </CardContent>
         </Card>
 
@@ -342,9 +335,6 @@ export default function AdminSettingsPage() {
                 Update Password
               </Button>
             </div>
-            <p className="mt-2.5 text-xs text-muted-foreground leading-relaxed">
-              This is the password the admin uses to sign into the login screen.
-            </p>
           </CardContent>
         </Card>
 
