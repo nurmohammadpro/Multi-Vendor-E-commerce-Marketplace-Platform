@@ -45,6 +45,7 @@ type DbUserRow = {
   password_hash: string | null;
   status: string;
   preferred_locale: string;
+  full_name: string | null;
 };
 
 @Injectable()
@@ -114,6 +115,7 @@ export class AuthService {
         tenantId: user.tenant_id,
         email: user.email,
         phone: user.phone,
+        fullName: user.full_name,
         preferredLocale: user.preferred_locale,
       },
       contexts,
@@ -140,6 +142,7 @@ export class AuthService {
         tenantId: user.tenant_id,
         email: user.email,
         phone: user.phone,
+        fullName: user.full_name,
         preferredLocale: user.preferred_locale,
         status: user.status,
       },
@@ -387,17 +390,19 @@ export class AuthService {
     const result = await this.pool.query<DbUserRow>(
       `
         select
-          id,
-          tenant_id,
-          email,
-          phone,
-          password_hash,
-          status,
-          preferred_locale
-        from identity.users
+          u.id,
+          u.tenant_id,
+          u.email,
+          u.phone,
+          u.password_hash,
+          u.status,
+          u.preferred_locale,
+          up.full_name
+        from identity.users u
+        left join identity.user_profiles up on up.user_id = u.id
         where
-          ($1::citext is not null and email = $1::citext)
-          or ($2::varchar is not null and phone = $2::varchar)
+          ($1::citext is not null and u.email = $1::citext)
+          or ($2::varchar is not null and u.phone = $2::varchar)
         limit 1
       `,
       [email ?? null, phone ?? null],
@@ -410,15 +415,17 @@ export class AuthService {
     const result = await this.pool.query<DbUserRow>(
       `
         select
-          id,
-          tenant_id,
-          email,
-          phone,
-          password_hash,
-          status,
-          preferred_locale
-        from identity.users
-        where id = $1
+          u.id,
+          u.tenant_id,
+          u.email,
+          u.phone,
+          u.password_hash,
+          u.status,
+          u.preferred_locale,
+          up.full_name
+        from identity.users u
+        left join identity.user_profiles up on up.user_id = u.id
+        where u.id = $1
         limit 1
       `,
       [userId],

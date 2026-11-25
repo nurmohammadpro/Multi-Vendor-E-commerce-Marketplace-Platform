@@ -8,11 +8,11 @@ COPY packages ./packages
 RUN npm ci
 
 FROM deps AS builder
-ARG NEXT_PUBLIC_API_URL=https://api.marketone.appbrainer.tech
-ARG NEXT_PUBLIC_API_BASE_URL=https://api.marketone.appbrainer.tech/v1
-ARG API_BASE_URL=https://api.marketone.appbrainer.tech/v1
-ARG NEXT_PUBLIC_ADMIN_APP_URL=https://admin.marketone.appbrainer.tech
-ARG NEXT_PUBLIC_STORE_APP_URL=https://app.marketone.appbrainer.tech
+ARG NEXT_PUBLIC_API_URL=https://api.merchflow.appbrainer.tech
+ARG NEXT_PUBLIC_API_BASE_URL=https://api.merchflow.appbrainer.tech/v1
+ARG API_BASE_URL=https://api.merchflow.appbrainer.tech/v1
+ARG NEXT_PUBLIC_ADMIN_APP_URL=https://admin.merchflow.appbrainer.tech
+ARG NEXT_PUBLIC_STORE_APP_URL=https://app.merchflow.appbrainer.tech
 
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 ENV NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
@@ -20,7 +20,12 @@ ENV API_BASE_URL=${API_BASE_URL}
 ENV NEXT_PUBLIC_ADMIN_APP_URL=${NEXT_PUBLIC_ADMIN_APP_URL}
 ENV NEXT_PUBLIC_STORE_APP_URL=${NEXT_PUBLIC_STORE_APP_URL}
 
-RUN npm run build --workspace @mvp/login-web
+# Compile shared packages first so their ./dist/index.js exports are available
+RUN npm run build --workspace @mvp/types && \
+    npm run build --workspace @mvp/config && \
+    npm run build --workspace @mvp/auth && \
+    npm run build --workspace @mvp/rbac && \
+    npm run build --workspace @mvp/login-web
 
 FROM node:22-bookworm-slim AS runner
 WORKDIR /app

@@ -26,6 +26,12 @@ type BroadcastRow = {
   created_at: string;
 };
 
+type StoreOption = {
+  id: string;
+  name: string;
+  store_code: string;
+};
+
 async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
   const response = await fetch(input, init);
   const payload = (await response.json().catch(() => null)) as T | { error?: string } | null;
@@ -38,6 +44,7 @@ async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
 export function NotificationsWorkspace() {
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
   const [broadcasts, setBroadcasts] = useState<BroadcastRow[]>([]);
+  const [stores, setStores] = useState<StoreOption[]>([]);
   const [message, setMessage] = useState('Notifications and broadcasts are ready.');
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -46,18 +53,21 @@ export function NotificationsWorkspace() {
     channel: 'in_app',
     title: '',
     body: '',
+    selectedStoreIds: [] as string[],
   });
   const canCreateBroadcast = Boolean(form.body.trim() && !loading);
 
   const refresh = async () => {
     setInitialLoading(true);
     try {
-      const [notificationPayload, broadcastPayload] = await Promise.all([
+      const [notificationPayload, broadcastPayload, storesPayload] = await Promise.all([
         readJson<{ notifications: NotificationRow[] }>('/api/ops/notifications'),
         readJson<{ broadcasts: BroadcastRow[] }>('/api/broadcasts'),
+        readJson<{ stores: StoreOption[] }>('/api/stores'),
       ]);
       setNotifications(notificationPayload.notifications ?? []);
       setBroadcasts(broadcastPayload.broadcasts ?? []);
+      setStores(storesPayload.stores ?? []);
     } finally {
       setInitialLoading(false);
     }
@@ -79,10 +89,11 @@ export function NotificationsWorkspace() {
           channel: form.channel,
           title: form.title || undefined,
           body: form.body,
+          storeIds: form.audienceType === 'selected_stores' ? form.selectedStoreIds : undefined,
         }),
       });
       await refresh();
-      setForm({ audienceType: 'all_stores', channel: 'in_app', title: '', body: '' });
+      setForm({ audienceType: 'all_stores', channel: 'in_app', title: '', body: '', selectedStoreIds: [] });
       setMessage('Broadcast draft created.');
     } catch (error) {
       setMessage((error as Error).message);
@@ -128,13 +139,43 @@ export function NotificationsWorkspace() {
             <div className="flex flex-col gap-2.5">
               <select
                 value={form.audienceType}
-                onChange={(e) => setForm((v) => ({ ...v, audienceType: e.target.value }))}
+                onChange={(e) => setForm((v) => ({ ...v, audienceType: e.target.value, selectedStoreIds: [] }))}
                 className="border-input w-full min-w-0 rounded-md border bg-transparent px-3 py-1.5 text-sm shadow-xs h-10"
               >
                 <option value="all_stores">All Stores</option>
                 <option value="admins">Admins</option>
                 <option value="selected_stores">Selected Stores</option>
               </select>
+              {form.audienceType === 'selected_stores' && (
+                <div className="border rounded-md p-3 max-h-[200px] overflow-y-auto">
+                  <div className="text-xs font-medium text-muted-foreground mb-2">Select stores:</div>
+                  {stores.length ? (
+                    <div className="flex flex-col gap-1.5">
+                      {stores.map((store) => (
+                        <label key={store.id} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-accent/50 px-2 py-1 rounded">
+                          <input
+                            type="checkbox"
+                            checked={form.selectedStoreIds.includes(store.id)}
+                            onChange={(e) => {
+                              setForm((v) => ({
+                                ...v,
+                                selectedStoreIds: e.target.checked
+                                  ? [...v.selectedStoreIds, store.id]
+                                  : v.selectedStoreIds.filter((id) => id !== store.id),
+                              }));
+                            }}
+                            className="rounded"
+                          />
+                          <span>{store.name}</span>
+                          <span className="text-muted-foreground text-xs">({store.store_code})</span>
+                        </label>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-sm text-muted-foreground">No stores available.</div>
+                  )}
+                </div>
+              )}
               <select
                 value={form.channel}
                 onChange={(e) => setForm((v) => ({ ...v, channel: e.target.value }))}

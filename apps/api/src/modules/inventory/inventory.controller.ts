@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 
 import { CurrentAuthContext, CurrentAuthSession } from '../auth/current-auth.decorator.js';
@@ -6,24 +6,40 @@ import type { AuthSession, StoreAuthContext } from '../auth/auth.types.js';
 import { RequireContext, RequirePermissions } from '../rbac/rbac.decorators.js';
 import { PermissionsGuard } from '../rbac/permissions.guard.js';
 import { InventoryService } from './inventory.service.js';
+import { TransfersService } from './transfers.service.js';
 
 const createLocationSchema = z.object({
   code: z.string().min(1).max(50),
   name: z.string().min(1).max(150),
-  locationType: z.enum(['storefront', 'warehouse', 'backroom']),
+  locationType: z.enum(['storefront', 'warehouse', 'backroom']).default('storefront'),
+  address: z.string().max(500).optional(),
+  phone: z.string().max(30).optional(),
+  email: z.string().email().optional(),
 });
 
-const initializeStockSchema = z.object({
-  locationId: z.string().uuid(),
-  skuId: z.string().uuid(),
-  quantity: z.number().positive(),
-  note: z.string().optional(),
+const updateLocationSchema = z.object({
+  name: z.string().min(1).max(150).optional(),
+  code: z.string().min(1).max(50).optional(),
+  address: z.string().max(500).optional(),
+  phone: z.string().max(30).optional(),
+  email: z.string().email().optional(),
+  status: z.enum(['active', 'inactive']).optional(),
 });
 
 const requestAdjustmentSchema = z.object({
   locationId: z.string().uuid(),
   skuId: z.string().uuid(),
   requestedQty: z.number().nonnegative(),
+  reason: z.string().min(3),
+});
+
+const directAdjustSchema = z.object({
+  locationId: z.string().uuid(),
+  skuId: z.string().uuid(),
+  onHandQty: z.number().nonnegative(),
+  reservedQty: z.number().nonnegative().default(0),
+  damagedQty: z.number().nonnegative().default(0),
+  returnedQty: z.number().nonnegative().default(0),
   reason: z.string().min(3),
 });
 
@@ -34,7 +50,69 @@ const decisionSchema = z.object({
 @Controller('inventory')
 @UseGuards(PermissionsGuard)
 export class InventoryController {
-  constructor(private readonly inventoryService: InventoryService) {}
+  constructor(
+    private readonly inventoryService: InventoryService,
+    private readonly transfersService: TransfersService,
+  ) {}
+
+
+  @Post('transfers')
+  @RequireContext('store')
+  @RequirePermissions('inventory.adjust.direct')
+  createTransfer(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @CurrentAuthSession() session: AuthSession | null,
+    @Body() payload: unknown,
+  ) {
+    return this.transfersService.createTransfer(headerStoreId, authContext, session, payload);
+  }
+
+  @Get('transfers')
+  @RequireContext('store')
+  @RequirePermissions('inventory.view')
+  listTransfers(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+  ) {
+    return this.transfersService.listTransfers(headerStoreId, authContext);
+  }
+
+  @Patch('locations/:locationId')
+  @RequireContext('store')
+  @RequirePermissions('inventory.adjust.direct')
+  updateLocation(
+    @Param('locationId') locationId: string,
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @CurrentAuthSession() session: AuthSession | null,
+    @Body() payload: unknown,
+  ) {
+    return this.inventoryService.updateLocation(
+      locationId,
+      headerStoreId,
+      authContext,
+      session,
+      updateLocationSchema.parse(payload),
+    );
+  }
+
+  @Delete('locations/:locationId')
+  @RequireContext('store')
+  @RequirePermissions('inventory.adjust.direct')
+  deleteLocation(
+    @Param('locationId') locationId: string,
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @CurrentAuthSession() session: AuthSession | null,
+  ) {
+    return this.inventoryService.deleteLocation(
+      locationId,
+      headerStoreId,
+      authContext,
+      session,
+    );
+  }
 
   @Get('locations')
   @RequireContext('store')
@@ -52,9 +130,10 @@ export class InventoryController {
   createLocation(
     @Headers('x-store-id') headerStoreId: string | undefined,
     @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @CurrentAuthSession() session: AuthSession | null,
     @Body() payload: unknown,
   ) {
-    return this.inventoryService.createLocation(headerStoreId, authContext, createLocationSchema.parse(payload));
+    return this.inventoryService.createLocation(headerStoreId, authContext, session, createLocationSchema.parse(payload));
   }
 
   @Get('balances')
@@ -76,20 +155,20 @@ export class InventoryController {
     });
   }
 
-  @Post('initialize')
+  @Post('balances/direct-adjust')
   @RequireContext('store')
-  @RequirePermissions('inventory.adjust.request')
-  initializeStock(
+  @RequirePermissions('inventory.adjust.direct')
+  directAdjustBalance(
     @Headers('x-store-id') headerStoreId: string | undefined,
     @CurrentAuthContext() authContext: StoreAuthContext | null,
     @CurrentAuthSession() session: AuthSession | null,
     @Body() payload: unknown,
   ) {
-    return this.inventoryService.initializeStock(
+    return this.inventoryService.directAdjustBalance(
       headerStoreId,
       authContext,
       session,
-      initializeStockSchema.parse(payload),
+      directAdjustSchema.parse(payload),
     );
   }
 

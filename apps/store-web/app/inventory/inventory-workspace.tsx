@@ -5,16 +5,23 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   emptyStateStyle,
   fieldStyle,
+  gray800ButtonStyle,
   pageShellStyle,
+  searchButtonStyle,
   secondaryButtonStyle,
+  subtleButtonStyle,
   surfaceCardStyle,
   tableCellStyle,
   tableHeaderCellStyle,
   tableStyle,
   tableWrapStyle,
   tokenMutedStyle,
-} from '../motocore-theme';
+} from '../merchflow-theme';
 import { ListPager, type PaginationState, totalPagesFor } from '../list-pager';
+import { searchRowStyle, useCompactLayout } from '../workspace-responsive';
+import { printProductLabel } from '../../lib/print-agent';
+import { loadWorkstationProfile } from '../../lib/workstation-profile';
+import { toast } from 'sonner';
 
 type Location = {
   id: string;
@@ -30,6 +37,7 @@ type Balance = {
   sku_id: string;
   sku_code: string;
   product_name: string;
+  is_trackable?: boolean;
   on_hand_qty: string | number;
   available_qty: string | number;
   reserved_qty: string | number;
@@ -79,13 +87,19 @@ async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
 
   if (!response.ok) {
     const message =
-      payload && typeof payload === 'object' && 'error' in payload && payload.error
-        ? payload.error
+      payload && typeof payload === 'object' && ((payload as any).error || (payload as any).message)
+        ? ((payload as any).error || (payload as any).message)
         : `Request failed with ${response.status}`;
     throw new Error(message);
   }
 
   return payload as T;
+}
+
+function formatQty(value: number | string | null | undefined) {
+  const numeric = Number(value ?? 0);
+  if (Number.isNaN(numeric)) return '0';
+  return Number.isInteger(numeric) ? String(numeric) : String(numeric).replace(/\.?0+$/, '');
 }
 
 export function InventoryWorkspace({
@@ -101,6 +115,7 @@ export function InventoryWorkspace({
   canRequestAdjustInventory: boolean;
   canApproveInventory: boolean;
 }) {
+  const compact = useCompactLayout();
   const [locations, setLocations] = useState<Location[]>([]);
   const [balances, setBalances] = useState<Balance[]>([]);
   const [adjustments, setAdjustments] = useState<AdjustmentRequest[]>([]);
@@ -124,12 +139,83 @@ export function InventoryWorkspace({
   const [decisionNote, setDecisionNote] = useState('');
   const [message, setMessage] = useState('Inventory live workspace is ready.');
   const [loading, setLoading] = useState(false);
+  const [stockControlOpen, setStockControlOpen] = useState(false);
+  const [printingSkuId, setPrintingSkuId] = useState<string | null>(null);
+
+  // Serial visibility state
+  const [expandedSkuId, setExpandedSkuId] = useState<string | null>(null);
+  const [serials, setSerials] = useState<Record<string, Array<{ id: string; serial_number: string; imei_number?: string | null; tracking_values?: Record<string, string> | null; status: string }>>>({});
+  const [serialLoading, setSerialLoading] = useState(false);
+  const [imeiSearch, setImeiSearch] = useState('');
+  const [imeiResult, setImeiResult] = useState<{ found: boolean; serial?: any; balance?: any } | null>(null);
+
+  const printBalanceLabel = async (balance: Balance) => {
+    setPrintingSkuId(balance.sku_id);
+    try {
+      const profile = loadWorkstationProfile();
+      await printProductLabel({
+        sku: balance.sku_code,
+        productName: balance.product_name,
+        storeName: 'Store',
+        sellingPrice: null,
+        printerName: profile.labelPrinterName || undefined,
+        widthMm: 40,
+        heightMm: 25,
+        barcodeType: '128',
+        copies: 1,
+        border: true,
+      }, profile.agentUrl);
+      toast.success(`Label printed for ${balance.sku_code}`);
+    } catch (error) {
+      toast.error((error as Error).message);
+    } finally {
+      setPrintingSkuId(null);
+    }
+  };
+
+  const fetchSerials = async (skuId: string) => {
+    if (expandedSkuId === skuId) {
+      setExpandedSkuId(null);
+      return;
+    }
+    setExpandedSkuId(skuId);
+    if (serials[skuId]) return; // Already loaded
+    setSerialLoading(true);
+    try {
+      const data = await readJson<{ serials: any[] }>(`/api/inventory/device-serials?skuId=${skuId}&limit=200`);
+      setSerials((prev) => ({ ...prev, [skuId]: data.serials || [] }));
+    } catch { /* ignore */ }
+    finally { setSerialLoading(false); }
+  };
+
+  const searchByImei = async () => {
+    if (!imeiSearch.trim()) { setImeiResult(null); return; }
+    try {
+      // Try IMEI first, then serial number
+      let data = await readJson<{ serials: any[] }>(`/api/inventory/device-serials/search/all?imeiNumber=${encodeURIComponent(imeiSearch.trim())}&limit=1`);
+      if (data.serials?.length > 0) {
+        setImeiResult({ found: true, serial: data.serials[0] });
+        setMessage(`Found serial: ${data.serials[0].serial_number || imeiSearch}`);
+        return;
+      }
+      data = await readJson<{ serials: any[] }>(`/api/inventory/device-serials/search/all?serialNumber=${encodeURIComponent(imeiSearch.trim())}&limit=1`);
+      if (data.serials?.length > 0) {
+        setImeiResult({ found: true, serial: data.serials[0] });
+        setMessage(`Found serial: ${data.serials[0].serial_number || imeiSearch}`);
+      } else {
+        setImeiResult({ found: false });
+        setMessage(`No serial found for "${imeiSearch}"`);
+      }
+    } catch {
+      setImeiResult({ found: false });
+      setMessage(`No serial found for "${imeiSearch}"`);
+    }
+  };
 
   const selectedSku = useMemo(
     () => skuResults.find((sku) => sku.id === selectedSkuId) ?? null,
     [skuResults, selectedSkuId],
   );
-  const canInitializeStock = Boolean(selectedLocationId && selectedSkuId && quantity && !loading);
   const canRequestAdjustment = Boolean(selectedLocationId && selectedSkuId && quantity && reason.trim() && !loading);
 
   const refreshInventory = async (
@@ -202,37 +288,6 @@ export function InventoryWorkspace({
     }
   };
 
-  const initializeStock = async () => {
-    if (!selectedLocationId || !selectedSkuId || !quantity) {
-      setMessage('Select a location, select a SKU, and enter quantity.');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      await readJson('/api/inventory/initialize', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          locationId: selectedLocationId,
-          skuId: selectedSkuId,
-          quantity: Number(quantity),
-          note: reason || undefined,
-        }),
-      });
-      await refreshInventory(1, adjustmentPage, ledgerPage, selectedLocationId);
-      setMessage('Initial stock posted successfully.');
-      setQuantity('');
-      setReason('');
-    } catch (error) {
-      setMessage((error as Error).message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const requestAdjustment = async () => {
     if (!selectedLocationId || !selectedSkuId || quantity === '') {
       setMessage('Select a location, select a SKU, and enter the requested final quantity.');
@@ -268,6 +323,44 @@ export function InventoryWorkspace({
     }
   };
 
+  const directAdjustStock = async () => {
+    if (!selectedLocationId || !selectedSkuId || quantity === '') {
+      setMessage('Select a location, select a SKU, and enter the new stock quantity.');
+      return;
+    }
+    if (!reason.trim()) {
+      setMessage('Enter a reason for the stock adjustment.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await readJson('/api/inventory/balances/direct-adjust', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          locationId: selectedLocationId,
+          skuId: selectedSkuId,
+          onHandQty: Number(quantity),
+          reservedQty: 0,
+          damagedQty: 0,
+          returnedQty: 0,
+          reason,
+        }),
+      });
+      await refreshInventory(balancePage, 1, ledgerPage, selectedLocationId);
+      setMessage('Stock updated successfully.');
+      setQuantity('');
+      setReason('');
+    } catch (error) {
+      setMessage((error as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const decideAdjustment = async (requestId: string, decision: 'approve' | 'reject') => {
     setLoading(true);
     try {
@@ -292,7 +385,7 @@ export function InventoryWorkspace({
 
   if (!canViewInventory) {
     return (
-      <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
+      <section style={{ ...pageShellStyle, display: 'grid', gap: 12 }}>
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Inventory access limited</h3>
           <p style={tokenMutedStyle}>Your role can’t view inventory data.</p>
@@ -304,186 +397,46 @@ export function InventoryWorkspace({
   const totalBalancePages = totalPagesFor(balancePagination);
   const totalAdjustmentPages = totalPagesFor(adjustmentPagination);
   const totalLedgerPages = totalPagesFor(ledgerPagination);
+  const balanceSummary = useMemo(
+    () => ({
+      visibleRows: balances.length,
+      onHand: balances.reduce((sum, balance) => sum + Number(balance.on_hand_qty ?? 0), 0),
+      available: balances.reduce((sum, balance) => sum + Number(balance.available_qty ?? 0), 0),
+    }),
+    [balances],
+  );
 
   return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
-      <section style={{ display: 'grid', gridTemplateColumns: '1.1fr 0.9fr', gap: 16 }}>
+    <section style={{ ...pageShellStyle, display: 'grid', gap: 12 }}>
+      {!locations.length ? (
         <article style={surfaceCardStyle}>
-          <h3 style={{ marginTop: 0 }}>Stock Control</h3>
-          <p style={{ ...tokenMutedStyle, marginBottom: 12 }}>
-            Search an existing SKU, then initialize opening quantity or send an approval request for changes.
+          <h3 style={{ marginTop: 0 }}>Inventory setup</h3>
+          <p style={tokenMutedStyle}>
+            This store does not have an active stock location yet. A default location is now provisioned automatically, so refresh the page if balances were blank before.
           </p>
-          {!canAdjustInventory ? (
-            <p style={tokenMutedStyle}>Your role can review inventory, but stock changes are restricted.</p>
-          ) : !canDirectAdjustInventory ? (
-            <p style={tokenMutedStyle}>You can request quantity changes, but only owner-level roles can post stock directly.</p>
-          ) : null}
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, marginBottom: 12 }}>
-            <input
-              value={skuSearch}
-              onChange={(event) => setSkuSearch(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  event.preventDefault();
-                  void searchSkus();
-                }
-              }}
-              style={fieldStyle}
-              placeholder="Search SKU or product"
-            />
-            <button onClick={searchSkus} style={secondaryButtonStyle} disabled={loading}>
-              Search
-            </button>
-          </div>
-          <select value={selectedSkuId} onChange={(event) => setSelectedSkuId(event.target.value)} style={{ ...fieldStyle, marginBottom: 12 }}>
-            <option value="">Select SKU</option>
-            {skuResults.map((sku) => (
-              <option key={sku.id} value={sku.id}>
-                {sku.sku_code} — {sku.product_name}
-                {sku.variant_label ? ` · ${sku.variant_label}` : ''}
-              </option>
-            ))}
-          </select>
-          <input value={quantity} onChange={(event) => setQuantity(event.target.value)} style={{ ...fieldStyle, marginBottom: 12 }} placeholder="Quantity or requested final qty" />
-          <textarea value={reason} onChange={(event) => setReason(event.target.value)} style={{ ...fieldStyle, minHeight: 88, marginBottom: 12 }} placeholder="Reason / note" />
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button onClick={initializeStock} style={secondaryButtonStyle} disabled={!canInitializeStock || !canDirectAdjustInventory}>
-              Initialize Stock
-            </button>
-            <button onClick={requestAdjustment} style={secondaryButtonStyle} disabled={!canRequestAdjustment || !canRequestAdjustInventory}>
-              Request Change
-            </button>
-          </div>
-          {selectedSku ? (
-            <p style={{ marginTop: 12, marginBottom: 0, color: '#475569' }}>
-              Selected: {selectedSku.product_name} · {selectedSku.sku_code}
+        </article>
+      ) : null}
+
+      <article style={surfaceCardStyle}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', alignItems: 'flex-start', marginBottom: 12 }}>
+          <div>
+            <h3 style={{ marginTop: 0, marginBottom: 6 }}>Live Balances</h3>
+            <p style={{ ...tokenMutedStyle, marginBottom: 0 }}>
+              Stock should appear here as soon as the store has an active location and sellable SKUs.
             </p>
-          ) : null}
-        </article>
-
-        <article style={surfaceCardStyle}>
-          <h3 style={{ marginTop: 0 }}>Adjustment Queue</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(140px, 180px) auto', gap: 8, marginBottom: 12 }}>
-            <input value={adjustmentSearch} onChange={(event) => setAdjustmentSearch(event.target.value)} style={fieldStyle} placeholder="Search product, SKU, location, reason" />
-            <select value={adjustmentStatus} onChange={(event) => setAdjustmentStatus(event.target.value)} style={fieldStyle}>
-              <option value="">All statuses</option>
-              <option value="pending">Pending</option>
-              <option value="approved">Approved</option>
-              <option value="rejected">Rejected</option>
-            </select>
-            <button onClick={() => void refreshInventory(balancePage, 1, ledgerPage, selectedLocationId)} style={secondaryButtonStyle} disabled={loading}>Search</button>
           </div>
-          <textarea value={decisionNote} onChange={(event) => setDecisionNote(event.target.value)} style={{ ...fieldStyle, minHeight: 72, marginBottom: 12 }} placeholder="Decision note for approve/reject" />
-          {adjustments.length ? (
-            <>
-              <div style={tableWrapStyle}>
-                <table style={tableStyle}>
-                  <thead>
-                    <tr>
-                      <th style={tableHeaderCellStyle}>Product</th>
-                      <th style={tableHeaderCellStyle}>Location</th>
-                      <th style={tableHeaderCellStyle}>Current</th>
-                      <th style={tableHeaderCellStyle}>Requested</th>
-                      <th style={tableHeaderCellStyle}>Delta</th>
-                      <th style={tableHeaderCellStyle}>Reason</th>
-                      <th style={tableHeaderCellStyle}>Status</th>
-                      <th style={tableHeaderCellStyle}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {adjustments.map((request) => (
-                      <tr key={request.id}>
-                        <td style={tableCellStyle}>{request.product_name} · {request.sku_code}</td>
-                        <td style={tableCellStyle}>{request.location_name}</td>
-                        <td style={tableCellStyle}>{Number(request.current_qty)}</td>
-                        <td style={tableCellStyle}>{Number(request.requested_qty)}</td>
-                        <td style={tableCellStyle}>{Number(request.qty_delta) >= 0 ? '+' : ''}{Number(request.qty_delta)}</td>
-                        <td style={tableCellStyle}>{request.reason}</td>
-                        <td style={tableCellStyle}>{request.status}</td>
-                        <td style={tableCellStyle}>
-                          {request.status === 'pending' && canApproveInventory ? (
-                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                              <button onClick={() => decideAdjustment(request.id, 'approve')} style={secondaryButtonStyle} disabled={loading}>Approve</button>
-                              <button onClick={() => decideAdjustment(request.id, 'reject')} style={secondaryButtonStyle} disabled={loading}>Reject</button>
-                            </div>
-                          ) : '—'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <ListPager
-                loading={loading}
-                page={adjustmentPage}
-                pagination={adjustmentPagination}
-                label="request(s)"
-                onPrevious={() => void refreshInventory(balancePage, Math.max(1, adjustmentPage - 1), ledgerPage, selectedLocationId)}
-                onNext={() => void refreshInventory(balancePage, Math.min(totalAdjustmentPages, adjustmentPage + 1), ledgerPage, selectedLocationId)}
-              />
-            </>
-          ) : (
-            <div style={emptyStateStyle}>No adjustment requests yet.</div>
-          )}
-        </article>
-
-      </section>
-
-      <article style={surfaceCardStyle}>
-        <h3 style={{ marginTop: 0 }}>Ledger</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, marginBottom: 12 }}>
-          <input value={ledgerSearch} onChange={(event) => setLedgerSearch(event.target.value)} style={fieldStyle} placeholder="Search product, SKU, location, movement" />
-          <button onClick={() => void refreshInventory(balancePage, adjustmentPage, 1, selectedLocationId)} style={secondaryButtonStyle} disabled={loading}>Search</button>
-        </div>
-        {ledger.length ? (
-          <>
-            <div style={tableWrapStyle}>
-              <table style={tableStyle}>
-                <thead>
-                  <tr>
-                    <th style={tableHeaderCellStyle}>Product</th>
-                    <th style={tableHeaderCellStyle}>Location</th>
-                    <th style={tableHeaderCellStyle}>Movement</th>
-                    <th style={tableHeaderCellStyle}>Qty</th>
-                    <th style={tableHeaderCellStyle}>Actor</th>
-                    <th style={tableHeaderCellStyle}>Note</th>
-                    <th style={tableHeaderCellStyle}>Time</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {ledger.map((entry) => (
-                    <tr key={entry.id}>
-                      <td style={tableCellStyle}>{entry.product_name} · {entry.sku_code}</td>
-                      <td style={tableCellStyle}>{entry.location_name}</td>
-                      <td style={tableCellStyle}>{entry.movement_type}</td>
-                      <td style={tableCellStyle}>{Number(entry.qty_delta) >= 0 ? '+' : ''}{Number(entry.qty_delta)}</td>
-                      <td style={tableCellStyle}>{entry.actor_name || 'System'}</td>
-                      <td style={tableCellStyle}>{entry.note || '—'}</td>
-                      <td style={tableCellStyle}>{new Date(entry.created_at).toLocaleString()}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <div style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--card)', fontSize: 13 }}>
+              Rows: <strong>{balanceSummary.visibleRows}</strong>
             </div>
-            <ListPager
-              loading={loading}
-              page={ledgerPage}
-              pagination={ledgerPagination}
-              label="ledger row(s)"
-              onPrevious={() => void refreshInventory(balancePage, adjustmentPage, Math.max(1, ledgerPage - 1), selectedLocationId)}
-              onNext={() => void refreshInventory(balancePage, adjustmentPage, Math.min(totalLedgerPages, ledgerPage + 1), selectedLocationId)}
-            />
-          </>
-        ) : (
-          <div style={emptyStateStyle}>No ledger entries yet.</div>
-        )}
-      </article>
-
-      <article style={surfaceCardStyle}>
-        <h3 style={{ marginTop: 0 }}>Live Balances</h3>
-        <p style={{ ...tokenMutedStyle, marginBottom: 12 }}>
-          Every sellable SKU should appear here automatically after creation, even before quantity is added.
-        </p>
+            <div style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--card)', fontSize: 13 }}>
+              On hand: <strong>{formatQty(balanceSummary.onHand)}</strong>
+            </div>
+            <div style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--card)', fontSize: 13 }}>
+              Available: <strong>{formatQty(balanceSummary.available)}</strong>
+            </div>
+          </div>
+        </div>
         <select
           value={selectedLocationId}
           onChange={(event) => {
@@ -500,10 +453,31 @@ export function InventoryWorkspace({
             </option>
           ))}
         </select>
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, marginBottom: 12 }}>
-          <input value={balanceSearch} onChange={(event) => setBalanceSearch(event.target.value)} style={fieldStyle} placeholder="Search product, SKU, or location" />
-          <button onClick={() => void refreshInventory(1, adjustmentPage, ledgerPage, selectedLocationId)} style={secondaryButtonStyle} disabled={loading}>Search</button>
+        <div style={{ ...searchRowStyle, marginBottom: 12 }}>
+          <input value={balanceSearch} onChange={(event) => setBalanceSearch(event.target.value)} style={{ ...fieldStyle, flex: 1, width: 'auto' }} placeholder="Search product, SKU, or location" />
+          <button onClick={() => void refreshInventory(1, adjustmentPage, ledgerPage, selectedLocationId)} style={searchButtonStyle} disabled={loading}>Search</button>
         </div>
+        <div style={{ ...searchRowStyle, marginBottom: 12 }}>
+          <input value={imeiSearch} onChange={(e) => setImeiSearch(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && searchByImei()} style={{ ...fieldStyle, flex: 1, width: 'auto' }} placeholder="Search by IMEI or serial number" />
+          <button onClick={searchByImei} style={searchButtonStyle}>Find Serial</button>
+        </div>
+        {imeiResult && imeiResult.found && imeiResult.serial && (
+          <div style={{ ...surfaceCardStyle, marginBottom: 12, padding: 10, background: '#f0fdf4', border: '1px solid #bbf7d0' }}>
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Serial Found</div>
+            <div style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>
+              <span>Serial: <strong>{imeiResult.serial.serial_number}</strong></span>
+              {imeiResult.serial.imei_number && <span style={{ marginLeft: 12 }}>IMEI: <strong>{imeiResult.serial.imei_number}</strong></span>}
+              <span style={{ marginLeft: 12 }}>Status: <strong>{imeiResult.serial.status}</strong></span>
+            </div>
+            {imeiResult.serial.tracking_values && Object.keys(imeiResult.serial.tracking_values).length > 0 && (
+              <div style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                {Object.entries(imeiResult.serial.tracking_values).map(([key, val]) => (
+                  <span key={key} style={{ fontSize: 11, background: '#dcfce7', padding: '2px 6px', borderRadius: 4 }}>{key}: {String(val)}</span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         {balances.length ? (
           <>
             <div style={tableWrapStyle}>
@@ -517,19 +491,90 @@ export function InventoryWorkspace({
                     <th style={tableHeaderCellStyle}>Available</th>
                     <th style={tableHeaderCellStyle}>Reserved</th>
                     <th style={tableHeaderCellStyle}>Updated</th>
+                    <th style={tableHeaderCellStyle}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {balances.map((balance) => (
-                    <tr key={`${balance.location_id}-${balance.sku_id}`}>
-                      <td style={tableCellStyle}>{balance.product_name}</td>
-                      <td style={tableCellStyle}>{balance.sku_code}</td>
-                      <td style={tableCellStyle}>{balance.location_name}</td>
-                      <td style={tableCellStyle}>{Number(balance.on_hand_qty)}</td>
-                      <td style={tableCellStyle}>{Number(balance.available_qty)}</td>
-                      <td style={tableCellStyle}>{Number(balance.reserved_qty)}</td>
-                      <td style={tableCellStyle}>{new Date(balance.updated_at).toLocaleString()}</td>
-                    </tr>
+                    <>
+                      <tr key={`${balance.location_id}-${balance.sku_id}`} style={balance.is_trackable ? { cursor: 'pointer' } : undefined} onClick={balance.is_trackable ? () => fetchSerials(balance.sku_id) : undefined}>
+                        <td style={tableCellStyle}>
+                          {balance.is_trackable && (
+                            <span style={{ marginRight: 4, fontSize: 10, color: 'var(--muted-foreground)' }}>
+                              {expandedSkuId === balance.sku_id ? '▼' : '▶'}
+                            </span>
+                          )}
+                          {balance.product_name}
+                        </td>
+                        <td style={tableCellStyle}>{balance.sku_code}</td>
+                        <td style={tableCellStyle}>{balance.location_name}</td>
+                        <td style={tableCellStyle}>{formatQty(balance.on_hand_qty)}</td>
+                        <td style={tableCellStyle}>{formatQty(balance.available_qty)}</td>
+                        <td style={tableCellStyle}>{formatQty(balance.reserved_qty)}</td>
+                        <td style={tableCellStyle}>{new Date(balance.updated_at).toLocaleString()}</td>
+                        <td style={tableCellStyle}>
+                          <div style={{ display: 'flex', gap: 4 }}>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); void printBalanceLabel(balance); }}
+                              style={{ ...subtleButtonStyle, fontSize: 11, padding: '4px 8px' }}
+                              disabled={printingSkuId === balance.sku_id}
+                            >
+                              {printingSkuId === balance.sku_id ? 'Printing...' : 'Print Label'}
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedLocationId(balance.location_id);
+                                setSelectedSkuId(balance.sku_id);
+                                setSkuSearch(balance.sku_code);
+                                setSkuResults([
+                                  {
+                                    id: balance.sku_id,
+                                    sku_code: balance.sku_code,
+                                    product_name: balance.product_name,
+                                  },
+                                ]);
+                                setMessage(`Loaded ${balance.sku_code} into stock control.`);
+                                setStockControlOpen(true);
+                              }}
+                              style={secondaryButtonStyle}
+                              disabled={loading}
+                            >
+                              Stock Control
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                      {balance.is_trackable && expandedSkuId === balance.sku_id && (
+                        <tr key={`serials-${balance.sku_id}`}>
+                          <td colSpan={8} style={{ padding: '0 16px 12px' }}>
+                            <div style={{ background: 'var(--muted)', borderRadius: 6, padding: 10 }}>
+                              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Serial Numbers</div>
+                              {serialLoading ? (
+                                <div style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>Loading...</div>
+                              ) : (serials[balance.sku_id]?.length ?? 0) === 0 ? (
+                                <div style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>No serials found</div>
+                              ) : (
+                                <div style={{ display: 'grid', gap: 4 }}>
+                                  {serials[balance.sku_id]?.map((serial) => (
+                                    <div key={serial.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', background: 'var(--card)', borderRadius: 6, fontSize: 12 }}>
+                                      <span style={{ fontFamily: 'monospace', fontWeight: 500 }}>{serial.serial_number}</span>
+                                      {serial.imei_number && <span style={{ color: 'var(--muted-foreground)' }}>IMEI: {serial.imei_number}</span>}
+                                      <span style={{ marginLeft: 'auto', padding: '2px 6px', borderRadius: 4, background: serial.status === 'in_stock' ? '#dcfce7' : serial.status === 'sold' ? '#fee2e2' : '#e0e7ff', fontSize: 10, fontWeight: 500 }}>{serial.status}</span>
+                                      {serial.tracking_values && Object.keys(serial.tracking_values).length > 0 && (
+                                        <span style={{ color: 'var(--muted-foreground)', fontSize: 10 }}>
+                                          {Object.entries(serial.tracking_values).map(([k, v]) => `${k}: ${v}`).join(' · ')}
+                                        </span>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </>
                   ))}
                 </tbody>
               </table>
@@ -544,14 +589,84 @@ export function InventoryWorkspace({
             />
           </>
         ) : (
-          <div style={emptyStateStyle}>No balances found yet. Create a product with a SKU first, then the stock list will appear here automatically.</div>
+          <div style={emptyStateStyle}>No balances found yet. Products will appear here automatically after at least one active stock location exists for this store.</div>
         )}
       </article>
 
-      <article style={surfaceCardStyle}>
-        <h3 style={{ marginTop: 0 }}>Operator Notes</h3>
-        <p style={tokenMutedStyle}>{message}</p>
-      </article>
+      {stockControlOpen ? (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.4)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }} onClick={() => setStockControlOpen(false)}>
+          <div data-enter-container style={{
+            background: 'var(--card)', borderRadius: 6, padding: 10, maxWidth: 480, width: '95%',
+            maxHeight: '80vh', overflowY: 'auto', boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
+          }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <h3 style={{ margin: 0, fontSize: 16 }}>Stock Control</h3>
+              <button onClick={() => setStockControlOpen(false)} style={{ ...secondaryButtonStyle, minWidth: 40, fontSize: 16, lineHeight: 1 }}>✕</button>
+            </div>
+            <p style={{ ...tokenMutedStyle, marginBottom: 12 }}>
+              {canRequestAdjustInventory
+                ? 'Search for a SKU, enter the target quantity, and submit a change request for owner approval.'
+                : 'Browse live stock quantities below. Changes require owner approval.'}
+            </p>
+            {!canRequestAdjustInventory ? (
+              <div style={{ ...emptyStateStyle, marginBottom: 12 }}>Your role can review inventory, but stock changes are restricted.</div>
+            ) : null}
+            <div style={{ ...searchRowStyle, marginBottom: 12 }}>
+              <input
+                value={skuSearch}
+                onChange={(event) => setSkuSearch(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    void searchSkus();
+                  }
+                }}
+                style={{ ...fieldStyle, flex: 1, width: 'auto' }}
+                placeholder="Search SKU or product"
+              />
+              <button onClick={searchSkus} style={searchButtonStyle} disabled={loading}>
+                Search
+              </button>
+            </div>
+            <select value={selectedSkuId} onChange={(event) => setSelectedSkuId(event.target.value)} style={{ ...fieldStyle, marginBottom: 12 }}>
+              <option value="">Select SKU</option>
+              {skuResults.map((sku) => (
+                <option key={sku.id} value={sku.id}>
+                  {sku.sku_code} — {sku.product_name}
+                  {sku.variant_label ? ` · ${sku.variant_label}` : ''}
+                </option>
+              ))}
+            </select>
+            <input value={quantity} onChange={(event) => setQuantity(event.target.value)} style={{ ...fieldStyle, marginBottom: 12 }} placeholder="Quantity or requested final qty" />
+            <textarea value={reason} onChange={(event) => setReason(event.target.value)} style={{ ...fieldStyle, minHeight: 88, marginBottom: 12 }} placeholder="Reason / note" />
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {canDirectAdjustInventory ? (
+                <button onClick={directAdjustStock} style={searchButtonStyle} disabled={loading}>
+                  Update Stock
+                </button>
+              ) : (
+                <button
+                  onClick={requestAdjustment}
+                  style={{ ...gray800ButtonStyle, ...(!canRequestAdjustInventory ? { opacity: 0.4, cursor: 'not-allowed' } : {}) }}
+                  disabled={!canRequestAdjustInventory || loading}
+                >
+                  Request Change
+                </button>
+              )}
+            </div>
+            {selectedSku ? (
+              <p style={{ marginTop: 12, marginBottom: 0, color: 'var(--muted-foreground)' }}>
+                Selected: {selectedSku.product_name} · {selectedSku.sku_code}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      <p style={tokenMutedStyle}>{message}</p>
     </section>
   );
 }

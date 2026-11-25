@@ -1,20 +1,30 @@
+import type { ReactNode } from 'react';
+
 import { getStoreConsoleAccess } from '../../lib/access';
-import { pageShellStyle, sectionLabelStyle, tokenMutedStyle } from '../motocore-theme';
-
+import { emptyStateStyle, pageShellStyle } from '../merchflow-theme';
+import { WorkspaceTabHost } from '../workspace-responsive';
+import { ApprovalsWorkspace } from '../approvals/approvals-workspace';
+import BarcodesPage from '../barcodes/page';
 import { InventoryWorkspace } from './inventory-workspace';
+import { LocationsWorkspace } from '../locations/locations-workspace';
+import { TransfersPanel } from './transfers-panel';
+import { StockLedgerWorkspace } from '../stock-ledger/stock-ledger-workspace';
 
-export default async function StoreInventoryPage() {
+export default async function StoreInventoryPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ tab?: string }>;
+}) {
   const access = await getStoreConsoleAccess();
+  const params = (await searchParams) ?? {};
+  const isWholesale = access.planCode === 'wholesale';
 
-  return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
-      <div style={{ maxWidth: 900 }}>
-        <div style={sectionLabelStyle}>Inventory</div>
-        <h2 style={{ margin: '8px 0 8px', fontSize: 'clamp(20px, 2vw, 28px)', fontWeight: 500, letterSpacing: '-0.02em' }}>Inventory control</h2>
-        <p style={tokenMutedStyle}>
-          Use live inventory APIs for balances, adjustments, approvals, and ledger history.
-        </p>
-      </div>
+  const tabs: Array<{ key: string; label: string }> = [];
+  const panels: Record<string, ReactNode> = {};
+
+  if (access.canViewInventory) {
+    tabs.push({ key: 'balances', label: 'Stock' });
+    panels.balances = (
       <InventoryWorkspace
         canApproveInventory={access.canApproveInventory}
         canAdjustInventory={access.canAdjustInventory}
@@ -22,6 +32,31 @@ export default async function StoreInventoryPage() {
         canRequestAdjustInventory={access.canRequestAdjustInventory}
         canViewInventory={access.canViewInventory}
       />
+    );
+    tabs.push({ key: 'ledger', label: 'Stock Ledger' });
+    panels.ledger = <StockLedgerWorkspace />;
+    tabs.push({ key: 'barcodes', label: 'Barcode Labels' });
+    panels.barcodes = <BarcodesPage />;
+    if (!isWholesale) {
+      tabs.push({ key: 'locations', label: 'Locations' });
+      tabs.push({ key: 'transfers', label: 'Transfers' });
+      panels.transfers = (
+        <TransfersPanel canTransfer={access.canManageLocations || access.canAdjustInventory} />
+      );
+    }
+  }
+  if (access.canApproveInventory && !isWholesale) {
+    tabs.push({ key: 'approvals', label: 'Approvals' });
+    panels.approvals = <ApprovalsWorkspace canApproveInventory={access.canApproveInventory} />;
+  }
+
+  return (
+    <section style={{ ...pageShellStyle, display: 'grid', gap: 12 }}>
+      {tabs.length ? (
+        <WorkspaceTabHost tabs={tabs} panels={panels} initialTab={params.tab} />
+      ) : (
+        <div style={emptyStateStyle}>Your role does not have access to inventory.</div>
+      )}
     </section>
   );
 }

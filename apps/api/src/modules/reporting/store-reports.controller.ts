@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Post, Query, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 
 import { CurrentAuthContext, CurrentAuthSession } from '../auth/current-auth.decorator.js';
@@ -35,6 +35,19 @@ export class StoreReportsController {
     @CurrentAuthContext() authContext: StoreAuthContext | null,
   ) {
     return this.reportingService.getStoreInventoryReport(headerStoreId, authContext);
+  }
+
+  @Get('store/dashboard')
+  @RequireContext('store')
+  @RequirePermissions('sales.report.view')
+  getStoreDashboard(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @Query('range') range?: string,
+    @Query('locationId') locationId?: string,
+  ) {
+    const resolved = range === 'week' || range === 'month' ? range : 'today';
+    return this.reportingService.getStoreDashboard(headerStoreId, authContext, resolved, locationId);
   }
 
   @Post('exports')

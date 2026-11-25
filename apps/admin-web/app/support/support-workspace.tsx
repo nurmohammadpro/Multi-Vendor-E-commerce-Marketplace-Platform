@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 
 type TicketRow = {
@@ -56,6 +57,10 @@ export function SupportWorkspace() {
   const [message, setMessage] = useState('Support operations are ready.');
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<TicketRow['status'] | 'all'>('all');
+  const [replyBody, setReplyBody] = useState('');
+  const [sendingReply, setSendingReply] = useState(false);
 
   const refreshTickets = async () => {
     setInitialLoading(true);
@@ -93,6 +98,18 @@ export function SupportWorkspace() {
     [tickets, selectedTicketId],
   );
 
+  const filteredTickets = useMemo(() => {
+    return tickets.filter((ticket) => {
+      const matchesStatus = statusFilter === 'all' || ticket.status === statusFilter;
+      const matchesSearch = !searchQuery || 
+        ticket.ticket_no.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        ticket.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        ticket.store_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        ticket.opened_by_name?.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesStatus && matchesSearch;
+    });
+  }, [tickets, statusFilter, searchQuery]);
+
   const counts = useMemo(
     () =>
       tickets.reduce<Record<TicketRow['status'] | 'total', number>>(
@@ -124,6 +141,25 @@ export function SupportWorkspace() {
     }
   };
 
+  const sendReply = async () => {
+    if (!selectedTicketId || !replyBody.trim()) return;
+    setSendingReply(true);
+    try {
+      await readJson(`/api/support/tickets/${selectedTicketId}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: replyBody.trim() }),
+      });
+      setReplyBody('');
+      await refreshDetail(selectedTicketId);
+      setMessage('Reply sent successfully.');
+    } catch (error) {
+      setMessage((error as Error).message);
+    } finally {
+      setSendingReply(false);
+    }
+  };
+
   return (
     <section className="grid grid-cols-1 gap-4">
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
@@ -140,12 +176,30 @@ export function SupportWorkspace() {
             <CardTitle>Ticket queue</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
+            <div className="flex gap-2">
+              <Input
+                placeholder="Search tickets..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="flex-1"
+              />
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as TicketRow['status'] | 'all')}
+                className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="all">All statuses</option>
+                {statusOptions.map((s) => (
+                  <option key={s} value={s}>{s.replace('_', ' ')}</option>
+                ))}
+              </select>
+            </div>
             {initialLoading ? (
               <div className="rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground">
                 Loading the support queue.
               </div>
-            ) : tickets.length ? (
-              tickets.map((ticket) => (
+            ) : filteredTickets.length ? (
+              filteredTickets.map((ticket) => (
                 <button
                   key={ticket.id}
                   type="button"
@@ -232,6 +286,29 @@ export function SupportWorkspace() {
                       </div>
                     )}
                   </div>
+                </div>
+
+                <Separator />
+
+                <div>
+                  <div className="mb-2 text-sm font-medium">Admin reply</div>
+                  <div className="flex gap-2">
+                    <textarea
+                      value={replyBody}
+                      onChange={(e) => setReplyBody(e.target.value)}
+                      placeholder="Type your reply..."
+                      rows={3}
+                      className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground"
+                    />
+                  </div>
+                  <Button
+                    size="sm"
+                    className="mt-2"
+                    disabled={sendingReply || !replyBody.trim()}
+                    onClick={() => void sendReply()}
+                  >
+                    {sendingReply ? 'Sending...' : 'Send reply'}
+                  </Button>
                 </div>
               </>
             ) : (

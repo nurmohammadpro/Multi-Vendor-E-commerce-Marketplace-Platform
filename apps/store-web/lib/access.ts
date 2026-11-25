@@ -9,6 +9,14 @@ type StoreSessionContext = {
 };
 
 export type StoreSessionProfile = {
+  user?: {
+    id?: string;
+    email?: string | null;
+    phone?: string | null;
+    fullName?: string | null;
+    preferredLocale?: string;
+    status?: string;
+  };
   contexts?: StoreSessionContext[];
   permissions?: string[];
 };
@@ -20,9 +28,13 @@ export type StoreConsoleAccess = {
   planCode: StoreSubscriptionPlan;
   planName: string;
   subscriptionStatus: string | null;
+  locale: 'en' | 'bn';
   storeName: string | null;
   storeLogoUrl: string | null;
   storeStatus: string | null;
+  planFeatures: string[];
+  userName: string | null;
+  userEmail: string | null;
   canManageCatalog: boolean;
   canViewInventory: boolean;
   canAdjustInventory: boolean;
@@ -30,17 +42,21 @@ export type StoreConsoleAccess = {
   canRequestAdjustInventory: boolean;
   canApproveInventory: boolean;
   canUsePos: boolean;
+  canUsePurchases: boolean;
+  canUseReceivables: boolean;
   canViewReports: boolean;
   canManageShipping: boolean;
   canManageBilling: boolean;
   canManageSettings: boolean;
   canManageStaff: boolean;
+  canUseInvoices: boolean;
   canUseDailyExpense: boolean;
   canUsePayroll: boolean;
   canUseAdvancedReports: boolean;
   canUseBankingReconciliation: boolean;
   canUseSupport: boolean;
   canUseDisputes: boolean;
+  canManageLocations: boolean;
 };
 
 type StoreSubscriptionSummary = {
@@ -48,6 +64,7 @@ type StoreSubscriptionSummary = {
     plan_code?: StoreSubscriptionPlan;
     plan_name?: string;
     status?: string;
+    features_json?: string[] | Record<string, unknown> | null;
   } | null;
 };
 
@@ -73,10 +90,14 @@ export function deriveStoreConsoleAccess(
   options?: {
     planCode?: StoreSubscriptionPlan;
     planName?: string;
+    planFeatures?: string[];
     subscriptionStatus?: string | null;
+    locale?: 'en' | 'bn';
     storeName?: string | null;
     storeLogoUrl?: string | null;
     storeStatus?: string | null;
+    userName?: string | null;
+    userEmail?: string | null;
   },
 ): StoreConsoleAccess {
   const roles = Array.from(
@@ -95,12 +116,14 @@ export function deriveStoreConsoleAccess(
   const permissionSet = new Set(permissions);
   const role = rolePriority.find((candidate) => roles.includes(candidate)) ?? 'unknown';
   const planCode = options?.planCode ?? 'basic';
+  const planFeatures = options?.planFeatures ?? [];
   const isOwner = role === 'owner';
   const isOwnerOrManager = role === 'owner' || role === 'manager';
-  const canDirectAdjustInventory = permissionSet.has('inventory.adjust.direct') && canAccessStoreFeature({ planCode }, 'inventory');
+  // Owner can directly adjust stock; managers with permission can too
+  const canDirectAdjustInventory = isOwner || (isOwnerOrManager && permissionSet.has('inventory.adjust.direct'));
   const canRequestAdjustInventory =
-    (permissionSet.has('inventory.adjust.request') || canDirectAdjustInventory)
-    && canAccessStoreFeature({ planCode }, 'inventory');
+    permissionSet.has('inventory.adjust.request')
+    && canAccessStoreFeature({ planCode, planFeatures }, 'inventory');
 
   return {
     role,
@@ -108,28 +131,40 @@ export function deriveStoreConsoleAccess(
     permissions,
     planCode,
     planName: options?.planName ?? formatPlanName(planCode),
+    planFeatures,
     subscriptionStatus: options?.subscriptionStatus ?? null,
+    locale: options?.locale ?? 'en',
     storeName: options?.storeName ?? null,
     storeLogoUrl: options?.storeLogoUrl ?? null,
     storeStatus: options?.storeStatus ?? null,
-    canManageCatalog: permissionSet.has('catalog.manage') && canAccessStoreFeature({ planCode }, 'catalog'),
-    canViewInventory: permissionSet.has('inventory.view') && canAccessStoreFeature({ planCode }, 'inventory'),
-    canAdjustInventory: canRequestAdjustInventory,
+    userName: options?.userName ?? null,
+    userEmail: options?.userEmail ?? null,
+    canManageCatalog: permissionSet.has('catalog.manage') && canAccessStoreFeature({ planCode, planFeatures }, 'catalog'),
+    canViewInventory: permissionSet.has('inventory.view') && canAccessStoreFeature({ planCode, planFeatures }, 'inventory'),
+    canAdjustInventory: canRequestAdjustInventory || canDirectAdjustInventory,
     canDirectAdjustInventory,
     canRequestAdjustInventory,
-    canApproveInventory: permissionSet.has('inventory.adjust.approve') && canAccessStoreFeature({ planCode }, 'inventory'),
-    canUsePos: permissionSet.has('sales.pos.create') && canAccessStoreFeature({ planCode }, 'pos'),
-    canViewReports: permissionSet.has('sales.report.view') && canAccessStoreFeature({ planCode }, 'reports'),
-    canManageShipping: permissionSet.has('sales.pos.create'),
-    canManageBilling: permissionSet.has('billing.subscription.manage') && canAccessStoreFeature({ planCode }, 'billing'),
-    canManageSettings: permissionSet.has('store.settings.manage') && canAccessStoreFeature({ planCode }, 'settings'),
-    canManageStaff: permissionSet.has('store.staff.manage') && canAccessStoreFeature({ planCode }, 'staff'),
-    canUseDailyExpense: isOwnerOrManager && canAccessStoreFeature({ planCode }, 'expenses'),
-    canUsePayroll: isOwner && canAccessStoreFeature({ planCode }, 'payroll'),
-    canUseAdvancedReports: isOwnerOrManager && planCode === 'pro',
-    canUseBankingReconciliation: isOwner && canAccessStoreFeature({ planCode }, 'banking'),
-    canUseSupport: permissionSet.has('sales.report.view') && canAccessStoreFeature({ planCode }, 'support'),
-    canUseDisputes: permissionSet.has('sales.report.view') && canAccessStoreFeature({ planCode }, 'disputes'),
+    canApproveInventory: permissionSet.has('inventory.adjust.approve') && canAccessStoreFeature({ planCode, planFeatures }, 'inventory'),
+    canUsePos: permissionSet.has('sales.pos.create') && canAccessStoreFeature({ planCode, planFeatures }, 'pos'),
+    canUseInvoices:
+      permissionSet.has('sales.pos.create')
+      && canAccessStoreFeature({ planCode, planFeatures }, 'invoices'),
+    canUsePurchases:
+      (permissionSet.has('procurement.manage') || isOwnerOrManager)
+      && canAccessStoreFeature({ planCode, planFeatures }, 'purchases'),
+    canUseReceivables: permissionSet.has('sales.report.view') && canAccessStoreFeature({ planCode, planFeatures }, 'receivables'),
+    canViewReports: permissionSet.has('sales.report.view') && canAccessStoreFeature({ planCode, planFeatures }, 'reports'),
+    canManageShipping: permissionSet.has('sales.pos.create') && canAccessStoreFeature({ planCode, planFeatures }, 'shipping'),
+    canManageBilling: permissionSet.has('billing.subscription.manage') && canAccessStoreFeature({ planCode, planFeatures }, 'billing'),
+    canManageSettings: permissionSet.has('store.settings.manage') && canAccessStoreFeature({ planCode, planFeatures }, 'settings'),
+    canManageStaff: permissionSet.has('store.staff.manage') && canAccessStoreFeature({ planCode, planFeatures }, 'staff'),
+    canUseDailyExpense: isOwnerOrManager && canAccessStoreFeature({ planCode, planFeatures }, 'expenses'),
+    canUsePayroll: isOwner && canAccessStoreFeature({ planCode, planFeatures }, 'payroll'),
+    canUseAdvancedReports: isOwnerOrManager && (planCode === 'pro' || (planCode === 'custom' && planFeatures.includes('reports'))),
+    canUseBankingReconciliation: isOwner && canAccessStoreFeature({ planCode, planFeatures }, 'banking'),
+    canUseSupport: permissionSet.has('sales.report.view') && canAccessStoreFeature({ planCode, planFeatures }, 'support'),
+    canUseDisputes: permissionSet.has('sales.report.view') && canAccessStoreFeature({ planCode, planFeatures }, 'disputes'),
+    canManageLocations: isOwner && canAccessStoreFeature({ planCode, planFeatures }, 'inventory'),
   };
 }
 
@@ -139,20 +174,32 @@ export async function getStoreConsoleAccess() {
     fetchStoreApi<StoreSessionProfile>('/auth/me'),
   ]);
 
-  const [subscriptionPayload, storePayload] = await Promise.all([
+  const [subscriptionPayload, storePayload, settingsPayload] = await Promise.all([
     fetchStoreApi<StoreSubscriptionSummary>('/billing/subscription/summary'),
     storeId ? fetchStoreApi<StoreSummaryPayload>(`/stores/${storeId}`) : Promise.resolve(null),
+    storeId ? fetchStoreApi<{ settings?: { locale?: 'en' | 'bn' } }>(`/stores/${storeId}/settings`).catch(() => null) : Promise.resolve(null),
   ]);
+
+  const rawFeatures = subscriptionPayload?.subscription?.features_json;
+  const planFeatures = Array.isArray(rawFeatures) ? rawFeatures
+    : rawFeatures && typeof rawFeatures === 'object'
+      ? Object.keys(rawFeatures).filter((k) => Boolean((rawFeatures as Record<string, unknown>)[k]))
+      : [];
 
   return deriveStoreConsoleAccess(profile, {
     planCode: subscriptionPayload?.subscription?.plan_code ?? 'basic',
     planName:
       subscriptionPayload?.subscription?.plan_name
       ?? formatPlanName(subscriptionPayload?.subscription?.plan_code ?? 'basic'),
+    planFeatures,
     subscriptionStatus:
       subscriptionPayload?.subscription?.status ?? storePayload?.store?.subscription_status ?? null,
+    locale:
+      ((settingsPayload?.settings?.locale as 'en' | 'bn' | undefined) ?? 'en'),
     storeName: storePayload?.store?.name ?? null,
     storeLogoUrl: storePayload?.store?.logo_url ?? null,
     storeStatus: storePayload?.store?.status ?? null,
+    userName: profile?.user?.fullName ?? null,
+    userEmail: profile?.user?.email ?? null,
   });
 }

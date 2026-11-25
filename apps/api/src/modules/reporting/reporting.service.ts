@@ -24,6 +24,7 @@ export class ReportingService {
           from sales.sales
           where store_id = $1
             and status = 'completed'
+            and created_at::date = current_date
         `,
         [storeId],
       ),
@@ -119,6 +120,201 @@ export class ReportingService {
     return {
       summary: summary.rows[0],
       balances: balances.rows,
+    };
+  }
+
+  /**
+   * Real-time dealer dashboard: profit & loss (FIFO COGS), cash flow, live
+   * receivables/payables/bank positions, and low stock — for a period range.
+   */
+  async getStoreDashboard(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    range: 'today' | 'week' | 'month' = 'today',
+    locationId?: string,
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const loc = locationId
+      ? { locationIdFilter: locationId }
+      : { locationIdFilter: null };
+    const startExpr =
+      range === 'week'
+        ? "date_trunc('week', current_date)::date"
+        : range === 'month'
+          ? "date_trunc('month', current_date)::date"
+          : 'current_date';
+
+    const [
+      salesResult,
+      collectionsResult,
+      purchasesPaidResult,
+      expensesResult,
+      payrollResult,
+      receivablesResult,
+      payablesResult,
+      bankResult,
+      tillResult,
+      lowStockResult,
+    ] = await Promise.all([
+      this.pool.query<{ revenue: string; cogs: string; orders: number }>(
+        `
+          select coalesce(sum(total_amount), 0) as revenue,
+                 coalesce(sum(cost_amount), 0) as cogs,
+                 count(*)::int as orders
+          from sales.sales
+          where store_id = $1 and status = 'completed' and created_at::date >= ${startExpr}
+            and (${loc.locationIdFilter}::uuid is null or location_id = ${loc.locationIdFilter}::uuid)
+        `,
+        [storeId],
+      ),
+      this.pool.query<{ total: string; cash: string }>(
+        `
+          select coalesce(sum(sp.amount), 0) as total,
+                 coalesce(sum(sp.amount) filter (where sp.payment_method = 'cash'), 0) as cash
+          from sales.sale_payments sp
+          join sales.sales s on s.id = sp.sale_id
+          where s.store_id = $1 and sp.status = 'paid' and sp.paid_at::date >= ${startExpr}
+            and (${loc.locationIdFilter}::uuid is null or s.location_id = ${loc.locationIdFilter}::uuid)
+        `,
+        [storeId],
+      ),
+      this.pool.query<{ total: string }>(
+        `
+          select coalesce(sum(pp.amount), 0) as total
+          from procurement.purchase_payments pp
+          join procurement.purchases p on p.id = pp.purchase_id
+          where p.store_id = $1 and pp.status = 'paid' and pp.paid_at::date >= ${startExpr}
+        `,
+        [storeId],
+      ),
+      this.pool.query<{ total: string }>(
+        `
+          select coalesce(sum(amount), 0) as total
+          from finance.daily_expenses
+          where store_id = $1 and status <> 'void' and expense_date >= ${startExpr}
+        `,
+        [storeId],
+      ),
+      this.pool.query<{ total: string }>(
+        `
+          select coalesce(sum(total_amount), 0) as total
+          from hr.payroll_runs
+          where store_id = $1 and status = 'paid'
+            and coalesce(paid_at::date, period_end) >= ${startExpr}
+        `,
+        [storeId],
+      ),
+      this.pool.query<{ total: string }>(
+        `
+          select coalesce(sum(greatest(s.total_amount - coalesce(paid.paid_amount, 0), 0)), 0) as total
+          from sales.sales s
+          left join lateral (
+            select coalesce(sum(amount) filter (where status = 'paid'), 0) as paid_amount
+            from sales.sale_payments sp
+            where sp.sale_id = s.id
+          ) paid on true
+          where s.store_id = $1 and s.status = 'completed' and s.payment_status in ('due', 'partial')
+            and (${loc.locationIdFilter}::uuid is null or s.location_id = ${loc.locationIdFilter}::uuid)
+        `,
+        [storeId],
+      ),
+      this.pool.query<{ total: string }>(
+        `
+          select coalesce(sum(greatest(total_amount - paid_amount, 0)), 0) as total
+          from procurement.purchases
+          where store_id = $1 and status <> 'cancelled'
+        `,
+        [storeId],
+      ),
+      this.pool.query<{ total: string }>(
+        `
+          select coalesce(sum(current_balance), 0) as total
+          from finance.bank_accounts
+          where store_id = $1 and status = 'active'
+        `,
+        [storeId],
+      ),
+      this.pool.query<{ cash_in: string; cash_out: string }>(
+        `
+          select
+            coalesce((
+              select sum(sp.amount)
+              from sales.sale_payments sp
+              join sales.sales s on s.id = sp.sale_id
+              where s.store_id = $1 and sp.status = 'paid' and sp.payment_method = 'cash'
+                and (${loc.locationIdFilter}::uuid is null or s.location_id = ${loc.locationIdFilter}::uuid)
+            ), 0) as cash_in,
+            coalesce((
+              select sum(amount)
+              from finance.daily_expenses
+              where store_id = $1 and payment_method = 'cash' and status <> 'void'
+            ), 0) as cash_out
+        `,
+        [storeId],
+      ),
+      this.pool.query<{ product_name: string; sku_code: string; available_qty: string; unit: string | null; threshold: string }>(
+        `
+          with settings as (
+            select coalesce(low_stock_threshold_default, 5) as thr
+            from store.store_settings where store_id = $1
+          )
+          select p.name as product_name, sk.sku_code, b.available_qty, p.unit,
+                 (select thr from settings) as threshold
+          from inventory.balances b
+          join inventory.locations l on l.id = b.location_id
+          join catalog.skus sk on sk.id = b.sku_id
+          join catalog.products p on p.id = sk.product_id
+          where l.store_id = $1
+            and (${loc.locationIdFilter} is null or l.id = ${loc.locationIdFilter}::uuid)
+            and p.status = 'active'
+            and b.available_qty <= coalesce((select thr from settings), 5)
+          order by b.available_qty asc
+          limit 25
+        `,
+        [storeId],
+      ),
+    ]);
+
+    const num = (value: unknown) => Number(value ?? 0);
+    const revenue = num(salesResult.rows[0]?.revenue);
+    const cogs = num(salesResult.rows[0]?.cogs);
+    const expenses = num(expensesResult.rows[0]?.total);
+    const payroll = num(payrollResult.rows[0]?.total);
+    const grossProfit = revenue - cogs;
+    const cashIn = num(collectionsResult.rows[0]?.total);
+    const cashOut = num(purchasesPaidResult.rows[0]?.total) + expenses + payroll;
+
+    return {
+      range,
+      profit: {
+        revenue,
+        cogs,
+        grossProfit,
+        expenses,
+        payroll,
+        opex: expenses + payroll,
+        netProfit: grossProfit - expenses - payroll,
+        orders: Number(salesResult.rows[0]?.orders ?? 0),
+      },
+      cashFlow: {
+        cashIn,
+        cashOut,
+        netCash: cashIn - cashOut,
+        cashSales: num(collectionsResult.rows[0]?.cash),
+      },
+      position: {
+        receivables: num(receivablesResult.rows[0]?.total),
+        payables: num(payablesResult.rows[0]?.total),
+        bankBalance: num(bankResult.rows[0]?.total),
+        cashInHand: num(tillResult.rows[0]?.cash_in) - num(tillResult.rows[0]?.cash_out),
+      },
+      lowStock: lowStockResult.rows.map((row) => ({
+        productName: row.product_name,
+        skuCode: row.sku_code,
+        availableQty: num(row.available_qty),
+        unit: row.unit ?? 'pcs',
+        threshold: Number(row.threshold ?? 5),
+      })),
     };
   }
 

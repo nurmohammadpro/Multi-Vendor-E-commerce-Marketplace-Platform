@@ -1,24 +1,6 @@
-import { getStoreConsoleAccess } from '../../lib/access';
-import { pageShellStyle, sectionLabelStyle, tokenMutedStyle } from '../motocore-theme';
-import { HardwareWorkspace } from './hardware-workspace';
+import { redirect } from 'next/navigation';
 
-export default async function HardwarePage() {
-  const access = await getStoreConsoleAccess();
-
-  return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
-      <div style={{ maxWidth: 900 }}>
-        <div style={sectionLabelStyle}>Hardware</div>
-        <h2 style={{ margin: '8px 0 8px', fontSize: 'clamp(20px, 2vw, 28px)', fontWeight: 500, letterSpacing: '-0.02em' }}>
-          Cashier workstation setup for printers, scanners, and drawer control.
-        </h2>
-        <p style={tokenMutedStyle}>
-          This page mirrors the local workstation setup pattern we verified from AxiomPos: the web app stays on the VPS,
-          while receipt and label printing run through the cashier PC&apos;s local agent.
-        </p>
-      </div>
-
-      <HardwareWorkspace canManageSettings={access.canManageSettings} />
-    </section>
-  );
+// Hardware setup is a tab inside Settings now.
+export default function HardwarePage() {
+  redirect('/settings?tab=hardware');
 }

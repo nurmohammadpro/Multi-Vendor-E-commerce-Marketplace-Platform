@@ -3,11 +3,14 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useState } from 'react';
 import {
   Activity,
   AlertTriangle,
   BarChart3,
   Boxes,
+  Building2,
+  ChevronRight,
   ClipboardCheck,
   CreditCard,
   Landmark,
@@ -17,14 +20,21 @@ import {
   LogOut,
   Package,
   Receipt,
+  Repeat,
   Settings,
   ShoppingCart,
+  ShieldCheck,
+  Tags,
   Truck,
   UserCog,
   Users,
   Wallet,
   Wrench,
+  MapPin,
 } from 'lucide-react';
+import { ThemeToggle } from '@mvp/theme';
+import { trFor } from '../lib/i18n';
+import { BanglaSweep } from './bangla-sweep';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -43,6 +53,11 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -56,19 +71,26 @@ import type { StoreConsoleAccess } from '../lib/access';
 import { canAccessStoreFeature, type StoreConsoleFeature } from '../lib/store-plan';
 import { logoutStoreClient } from '../lib/logout';
 import { PwaClient } from './pwa-client';
+import { RuntimeStatus } from './runtime-status';
 
 type NavItem = {
   href: string;
   label: string;
   permission?: string;
   feature?: StoreConsoleFeature;
+  hideForWholesale?: boolean;
+};
+
+type NavGroup = {
+  label: string;
+  items: NavItem[];
 };
 
 type WorkspaceShellProps = {
   badge: string;
   description?: string;
   access: StoreConsoleAccess;
-  navItems: NavItem[];
+  navItems: NavItem[] | NavGroup[];
   title: string;
   children: ReactNode;
 };
@@ -77,8 +99,20 @@ const iconMap: Record<string, typeof LayoutDashboard> = {
   '/': LayoutDashboard,
   '/catalog': Package,
   '/inventory': Boxes,
+  '/locations': MapPin,
+  '/purchases': Package,
+  '/suppliers': Building2,
+  '/taxonomy': Tags,
   '/approvals': ClipboardCheck,
   '/pos': ShoppingCart,
+  '/sales': Receipt,
+  '/after-sales': Repeat,
+  '/finance': Wallet,
+  '/sales-history': BarChart3,
+  '/returns': Receipt,
+  '/exchange': Repeat,
+  '/warranties': ShieldCheck,
+  '/receivables': Wallet,
   '/customers': Users,
   '/shipping': Truck,
   '/reports': BarChart3,
@@ -93,6 +127,7 @@ const iconMap: Record<string, typeof LayoutDashboard> = {
   '/banking': Landmark,
   '/settings': Settings,
   '/hardware': Wrench,
+  '/help': LifeBuoy,
 };
 
 export function WorkspaceShell({ navItems, title, badge, children, access }: WorkspaceShellProps) {
@@ -100,11 +135,19 @@ export function WorkspaceShell({ navItems, title, badge, children, access }: Wor
 
   return (
     <SidebarProvider>
+      {access.locale === 'bn' ? <BanglaSweep locale="bn" /> : null}
       <div className="flex min-h-screen w-full">
         <AppSidebar access={access} navItems={navItems} pathname={pathname} badge={badge} title={title} />
         <div className="flex flex-1 min-w-0 flex-col">
           <Header access={access} />
-          <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-auto">
+          {access.role === 'unknown' || (access.storeStatus && access.storeStatus !== 'active') ? (
+            <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900 sm:px-6 lg:px-8">
+              {access.role === 'unknown'
+                ? 'This session has limited store access. Some routes may stay hidden until the correct store role is assigned.'
+                : `This store is currently marked as ${access.storeStatus}. Review settings and subscription state before daily operations.`}
+            </div>
+          ) : null}
+          <main className="flex-1 overflow-auto bg-muted p-4 sm:p-6 lg:p-8">
             <div className="w-full">{children}</div>
           </main>
         </div>
@@ -120,47 +163,50 @@ function AppSidebar({
   title,
   access,
 }: {
-  navItems: NavItem[];
+  navItems: NavItem[] | NavGroup[];
   pathname: string;
   badge: string;
   title: string;
   access: StoreConsoleAccess;
 }) {
   const { setOpen, isMobile } = useSidebar();
-  const visibleNavItems = navItems.filter(
-    (item) =>
-      (!item.permission || access.permissions.includes(item.permission))
-      && canAccessStoreFeature(access, item.feature),
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(
+      (Array.isArray(navItems) ? navItems : [])
+        .filter((g): g is NavGroup => 'items' in g)
+        .map((g) => [g.label, true])
+    )
   );
+
+  const t = trFor(access.locale === 'bn' ? 'bn' : 'en');
+  const filterVisible = (item: NavItem) =>
+    (!item.permission || access.permissions.includes(item.permission))
+    && canAccessStoreFeature(access, item.feature)
+    && !(item.hideForWholesale && access.planCode === 'wholesale');
+
+  const visibleNavItems: (NavGroup | NavItem)[] = navItems
+    .map((item: NavItem | NavGroup) => {
+      if ('items' in item) {
+        const visibleItems = (item as NavGroup).items.filter(filterVisible);
+        return { ...item, items: visibleItems } as NavGroup;
+      }
+      return item;
+    })
+    .filter((item: NavItem | NavGroup) => {
+      if ('items' in item) {
+        return (item as NavGroup).items.length > 0;
+      }
+      return filterVisible(item as NavItem);
+    });
+
+  const toggleGroup = (label: string) =>
+    setOpenGroups((prev) => ({ ...prev, [label]: !prev[label] }));
 
   return (
     <Sidebar collapsible="icon" variant="sidebar" className="bg-sidebar border-r border-sidebar-border">
       <SidebarHeader>
-        <div className="flex items-center justify-between gap-1.5 px-1.5 py-1.5">
-          <div className="flex items-center gap-1.5">
-            <div className="flex items-center justify-center size-8 rounded-md border bg-white p-1">
-              {access.storeLogoUrl ? (
-                <img
-                  src={access.storeLogoUrl}
-                  alt={`${access.storeName || 'Store'} logo`}
-                  className="h-full w-full object-contain"
-                />
-              ) : (
-                <img
-                  src="/marketone-logo.svg"
-                  alt="MarketOne logo"
-                  className="h-full w-full object-contain"
-                />
-              )}
-            </div>
-            <div className="flex flex-col group-data-[collapsible=icon]:hidden">
-              <span className="font-semibold text-sm leading-tight">{title}</span>
-              <span className="text-[10px] text-muted-foreground">{badge}</span>
-            </div>
-          </div>
-        </div>
-        <div className="px-2 pb-2 group-data-[collapsible=icon]:hidden">
-          <div className="rounded-md border bg-muted/40 px-2.5 py-2 text-[11px] text-muted-foreground">
+        <div className="px-2 pb-1 group-data-[collapsible=icon]:hidden">
+          <div className="rounded-md border bg-muted/40 px-2 py-1.5 text-[11px] text-muted-foreground">
             <div className="font-medium text-foreground">{access.planName} plan</div>
             <div>{access.storeName || 'Store workspace'}</div>
           </div>
@@ -168,58 +214,59 @@ function AppSidebar({
       </SidebarHeader>
 
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-[10px] font-normal text-muted-foreground">
-            Navigation
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {visibleNavItems.map((item) => {
-                const Icon = iconMap[item.href] || LayoutDashboard;
-                const isActive =
-                  item.href === '/'
-                    ? pathname === '/'
-                    : pathname === item.href || pathname.startsWith(`${item.href}/`);
+        {visibleNavItems.map((group) => {
+          if ('items' in group) {
+            const isOpen = openGroups[group.label] !== false;
+            return (
+              <Collapsible
+                key={group.label}
+                open={isOpen}
+                onOpenChange={() => toggleGroup(group.label)}
+              >
+                <SidebarGroup>
+                  <CollapsibleTrigger asChild>
+                    <SidebarGroupLabel className="cursor-pointer hover:bg-sidebar-accent/50 transition-colors">
+                      <ChevronRight className={`mr-1 size-3 shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`} />
+                      {t(group.label)}
+                    </SidebarGroupLabel>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <SidebarGroupContent>
+                      <SidebarMenu>
+                        {group.items.map((item) => {
+                          const Icon = iconMap[item.href] || LayoutDashboard;
+                          const isActive =
+                            item.href === '/'
+                              ? pathname === '/'
+                              : pathname === item.href || pathname.startsWith(`${item.href}/`);
 
-                return (
-                  <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton
-                      isActive={isActive}
-                      tooltip={item.label}
-                      onClick={() => {
-                        if (isMobile) setOpen(false);
-                      }}
-                      asChild
-                    >
-                      <Link href={item.href}>
-                        <Icon className="size-3.5" />
-                        <span className="text-xs font-normal">{item.label}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+                          return (
+                            <SidebarMenuItem key={item.href}>
+                              <SidebarMenuButton
+                                isActive={isActive}
+                                tooltip={t(item.label)}
+                                onClick={() => {
+                                  if (isMobile) setOpen(false);
+                                }}
+                                asChild
+                              >
+                                <Link href={item.href}>
+                                  <Icon className="size-3" />
+                                  <span className="text-[11px] font-normal">{t(item.label)}</span>
+                                </Link>
+                              </SidebarMenuButton>
+                            </SidebarMenuItem>
+                          );
+                        })}
+                      </SidebarMenu>
+                    </SidebarGroupContent>
+                  </CollapsibleContent>
+                </SidebarGroup>
+              </Collapsible>
+            );
+          }
+        })}
 
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-[10px] font-normal text-muted-foreground">
-            Support
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild tooltip="Get Help">
-                  <Link href="/help">
-                    <LifeBuoy className="size-3.5" />
-                    <span className="text-xs font-normal">Help & Reference</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
       </SidebarContent>
 
       <SidebarFooter />
@@ -250,6 +297,8 @@ function Header({ access }: { access: StoreConsoleAccess }) {
       </div>
 
       <div className="flex items-center gap-1.5 sm:gap-2">
+        <ThemeToggle />
+        <RuntimeStatus />
         <PwaClient />
         <span className="hidden sm:inline-flex items-center rounded-md border bg-muted px-2 py-1 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
           {access.role === 'unknown' ? 'Limited access' : `${access.role} access`}
@@ -262,7 +311,11 @@ function Header({ access }: { access: StoreConsoleAccess }) {
             <Button variant="ghost" size="icon" className="rounded-md size-8 sm:size-9">
               <Avatar className="size-7 sm:size-8">
                 <AvatarFallback className="bg-primary/10 text-primary text-xs border">
-                  ST
+                  {access.userName
+                    ? access.userName.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
+                    : access.userEmail
+                      ? access.userEmail[0].toUpperCase()
+                      : 'U'}
                 </AvatarFallback>
               </Avatar>
             </Button>
@@ -270,8 +323,8 @@ function Header({ access }: { access: StoreConsoleAccess }) {
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuLabel>
               <div className="flex flex-col space-y-1">
-                <p className="text-sm font-medium">Store Operator</p>
-                <p className="text-xs text-muted-foreground">operator@store.dev</p>
+                <p className="text-sm font-medium">{access.userName || 'Store User'}</p>
+                <p className="text-xs text-muted-foreground">{access.userEmail || ''}</p>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />

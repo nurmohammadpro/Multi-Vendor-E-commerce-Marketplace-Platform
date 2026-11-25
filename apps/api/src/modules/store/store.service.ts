@@ -6,6 +6,8 @@ import { hashPassword } from '@mvp/auth';
 
 import type { AdminAuthContext, AuthSession, StoreAuthContext } from '../auth/auth.types.js';
 import { AuditService } from '../audit/audit.service.js';
+import { BillingService } from '../billing/billing.service.js';
+import { computeTrialEnd, DEFAULT_TRIAL_DAYS } from '../billing/billing-cycle.js';
 import { normalizePageQuery, stripPaginationTotal } from '../common/pagination.js';
 import { DATABASE_POOL } from '../database/database.constants.js';
 
@@ -18,6 +20,7 @@ type InviteStaffPayload = {
 type UpdateMembershipPayload = {
   status?: 'active' | 'suspended' | 'removed';
   roleCode?: 'store_owner' | 'store_manager' | 'store_salesman';
+  locationId?: string | null;
   fullName?: string;
   phone?: string | null;
   email?: string | null;
@@ -71,6 +74,7 @@ type CreateStaffMemberPayload = StaffEmploymentProfilePayload & {
   password: string;
   address: string;
   roleCode: 'store_manager' | 'store_salesman';
+  locationId?: string;
 };
 
 type CreateStorePayload = {
@@ -110,6 +114,8 @@ type UpdateStoreSettingsPayload = {
   locale?: 'en' | 'bn';
   receiptFooter?: string | null;
   invoicePrefix?: string | null;
+  receiptType?: 'pos' | 'a5' | 'a4';
+  defaultLocationId?: string | null;
   allowNegativeStock?: boolean;
   lowStockThresholdDefault?: number | null;
 };
@@ -127,6 +133,7 @@ export class StoreService {
   constructor(
     @Inject(DATABASE_POOL) private readonly pool: Pool,
     private readonly auditService: AuditService,
+    private readonly billingService: BillingService,
   ) {}
 
   async createStore(session: AuthSession | null, payload: CreateStorePayload) {
@@ -490,17 +497,19 @@ export class StoreService {
         [tenantId, store.id, ownerUserId, roleId],
       );
 
-      // Create subscription for the selected plan (defaults to 'basic').
+      // Create the subscription for the selected plan (defaults to 'basic').
+      // Every new store starts on the plan's free trial; the trial end is the
+      // subscription's first renewal date. The paid period that follows is
+      // driven by the plan's own billing cycle, never a fixed month.
       const planCode = payload.planCode || 'basic';
-      const planResult = await client.query<{ id: string }>(
-        `select id from billing.plans where tenant_id = $1 and code = $2 and status = 'active' limit 1`,
+      const planResult = await client.query<{ id: string; trial_days: number }>(
+        `select id, trial_days from billing.plans where tenant_id = $1 and code = $2 and status = 'active' limit 1`,
         [tenantId, planCode],
       );
-      const planId = planResult.rows[0]?.id;
-      if (planId) {
+      const plan = planResult.rows[0];
+      if (plan) {
         const now = new Date();
-        const renewalAt = new Date(now);
-        renewalAt.setMonth(renewalAt.getMonth() + 1);
+        const trialEndsAt = computeTrialEnd(plan.trial_days ?? DEFAULT_TRIAL_DAYS, now);
         await client.query(
           `
             insert into billing.subscriptions (
@@ -508,11 +517,15 @@ export class StoreService {
               start_at, renewal_at, auto_renew, created_at, updated_at
             )
             values (
-              gen_random_uuid(), $1, $2, $3, 'active',
+              gen_random_uuid(), $1, $2, $3, 'trial',
               $4, $5, true, now(), now()
             )
           `,
-          [tenantId, store.id, planId, now.toISOString(), renewalAt.toISOString()],
+          [tenantId, store.id, plan.id, now.toISOString(), trialEndsAt],
+        );
+        await client.query(
+          `update store.stores set subscription_status = 'trial', updated_at = now() where id = $1`,
+          [store.id],
         );
       }
 
@@ -611,32 +624,36 @@ export class StoreService {
           coalesce(count(distinct sm.id), 0)::int as staff_count,
           sub.id as subscription_id,
           sub.status as billing_status,
+          sub.plan_code,
+          sub.plan_name,
           sub.start_at as subscription_start_at,
           sub.end_at as subscription_end_at,
           sub.renewal_at as billing_due_at,
           sub.auto_renew as subscription_auto_renew,
           case
             when coalesce(sub.renewal_at, sub.end_at) is null then null
-            else coalesce(sub.renewal_at, sub.end_at) + interval '7 days'
+            else coalesce(sub.renewal_at, sub.end_at) + interval '3 months'
           end as deactivation_review_at,
           case
             when coalesce(sub.renewal_at, sub.end_at) is null then null
-            else coalesce(sub.renewal_at, sub.end_at) + interval '3 months'
+            else coalesce(sub.renewal_at, sub.end_at) + interval '6 months'
           end as delete_eligible_at,
           case
             when s.status = 'inactive'
               and coalesce(sub.renewal_at, sub.end_at) is not null
-              and now() >= coalesce(sub.renewal_at, sub.end_at) + interval '3 months'
+              and now() >= coalesce(sub.renewal_at, sub.end_at) + interval '6 months'
             then true
             else false
           end as can_delete,
           case
             when s.status <> 'inactive'
               and coalesce(sub.renewal_at, sub.end_at) is not null
-              and now() >= coalesce(sub.renewal_at, sub.end_at) + interval '7 days'
+              and now() >= coalesce(sub.renewal_at, sub.end_at) + interval '3 months'
             then true
             else false
-          end as should_deactivate_review
+          end as should_deactivate_review,
+          coalesce(sales_count.cnt, 0) > 0 as has_sales,
+          coalesce(sales_count.cnt, 0) = 0 as can_force_delete
         from store.stores s
         left join store.store_settings ss on ss.store_id = s.id
         left join identity.users u on u.id = s.owner_user_id
@@ -649,12 +666,20 @@ export class StoreService {
             sub.start_at,
             sub.end_at,
             sub.renewal_at,
-            sub.auto_renew
+            sub.auto_renew,
+            p.code as plan_code,
+            p.name as plan_name
           from billing.subscriptions sub
+          join billing.plans p on p.id = sub.plan_id
           where sub.store_id = s.id
           order by coalesce(sub.renewal_at, sub.end_at, sub.start_at) desc nulls last, sub.created_at desc
           limit 1
         ) sub on true
+        left join lateral (
+          select count(*)::int as cnt
+          from sales.sales sal
+          where sal.store_id = s.id
+        ) sales_count on true
         group by
           s.id,
           ss.store_id,
@@ -665,7 +690,10 @@ export class StoreService {
           sub.start_at,
           sub.end_at,
           sub.renewal_at,
-          sub.auto_renew
+          sub.auto_renew,
+          sub.plan_code,
+          sub.plan_name,
+          sales_count.cnt
         order by s.created_at desc
       `,
     );
@@ -782,7 +810,7 @@ export class StoreService {
     return { store };
   }
 
-  async adminDeleteStore(storeId: string, authContext: AdminAuthContext | null, session: AuthSession | null) {
+  async adminDeleteStore(storeId: string, authContext: AdminAuthContext | null, session: AuthSession | null, force = false) {
     this.assertAdminContext(authContext);
     const userId = this.requireUserId(session);
 
@@ -796,6 +824,7 @@ export class StoreService {
       delete_eligible_at: string | null;
       deactivation_review_at: string | null;
       billing_due_at: string | null;
+      has_sales: boolean;
     }>(
       `
         select
@@ -807,13 +836,14 @@ export class StoreService {
           s.subscription_status,
           case
             when coalesce(sub.renewal_at, sub.end_at) is null then null
-            else coalesce(sub.renewal_at, sub.end_at) + interval '3 months'
+            else coalesce(sub.renewal_at, sub.end_at) + interval '6 months'
           end as delete_eligible_at,
           case
             when coalesce(sub.renewal_at, sub.end_at) is null then null
-            else coalesce(sub.renewal_at, sub.end_at) + interval '7 days'
+            else coalesce(sub.renewal_at, sub.end_at) + interval '3 months'
           end as deactivation_review_at,
-          coalesce(sub.renewal_at, sub.end_at) as billing_due_at
+          coalesce(sub.renewal_at, sub.end_at) as billing_due_at,
+          coalesce(sales_count.cnt, 0) > 0 as has_sales
         from store.stores s
         left join lateral (
           select
@@ -824,6 +854,11 @@ export class StoreService {
           order by coalesce(sub.renewal_at, sub.end_at, sub.start_at) desc nulls last, sub.created_at desc
           limit 1
         ) sub on true
+        left join lateral (
+          select count(*)::int as cnt
+          from sales.sales sal
+          where sal.store_id = s.id
+        ) sales_count on true
         where s.id = $1
         limit 1
       `,
@@ -835,16 +870,24 @@ export class StoreService {
       throw new NotFoundException('Store not found');
     }
 
-    if (store.status !== 'inactive') {
-      throw new ForbiddenException('Store must be inactive before deletion');
-    }
+    if (force) {
+      // Force delete: only allowed for stores with no sales data
+      if (store.has_sales) {
+        throw new ForbiddenException('Cannot force-delete a store that has sales data. Deactivate and wait for the standard deletion window instead.');
+      }
+    } else {
+      // Standard deletion: must be inactive + 6 months overdue
+      if (store.status !== 'inactive') {
+        throw new ForbiddenException('Store must be inactive before deletion');
+      }
 
-    if (!store.delete_eligible_at) {
-      throw new ForbiddenException('Store does not have a deletion window yet');
-    }
+      if (!store.delete_eligible_at) {
+        throw new ForbiddenException('Store does not have a deletion window yet');
+      }
 
-    if (new Date(store.delete_eligible_at).getTime() > Date.now()) {
-      throw new ForbiddenException('Store is not yet eligible for deletion');
+      if (new Date(store.delete_eligible_at).getTime() > Date.now()) {
+        throw new ForbiddenException('Store is not yet eligible for deletion');
+      }
     }
 
     await this.pool.query('delete from store.stores where id = $1', [storeId]);
@@ -853,13 +896,14 @@ export class StoreService {
       tenantId: store.tenant_id,
       actorUserId: userId,
       storeId,
-      actionCode: 'platform.store.delete',
+      actionCode: force ? 'platform.store.force_delete' : 'platform.store.delete',
       resourceType: 'store',
       resourceId: storeId,
       after: {
         storeId,
         storeCode: store.store_code,
         storeName: store.name,
+        force,
         deletedAt: new Date().toISOString(),
       },
     });
@@ -867,6 +911,7 @@ export class StoreService {
     return {
       deleted: true,
       storeId,
+      force,
       canDeleteAt: store.delete_eligible_at,
       deactivationReviewAt: store.deactivation_review_at,
       billingDueAt: store.billing_due_at,
@@ -1048,6 +1093,9 @@ export class StoreService {
           locale,
           receipt_footer,
           invoice_prefix,
+          receipt_type,
+          default_location_id,
+          (select l.name from inventory.locations l where l.id = store_settings.default_location_id) as default_location_name,
           allow_negative_stock,
           low_stock_threshold_default
         from store.store_settings
@@ -1083,6 +1131,7 @@ export class StoreService {
       locale: string;
       receipt_footer: string | null;
       invoice_prefix: string | null;
+      receipt_type: 'pos' | 'a5' | 'a4';
       allow_negative_stock: boolean;
       low_stock_threshold_default: number | null;
       updated_at: string;
@@ -1095,6 +1144,8 @@ export class StoreService {
           locale = coalesce($4, locale),
           receipt_footer = case when $5::text is null then receipt_footer else $5 end,
           invoice_prefix = case when $6::text is null then invoice_prefix else $6 end,
+          receipt_type = coalesce($9, receipt_type),
+          default_location_id = case when $10::uuid is null then default_location_id else $10::uuid end,
           allow_negative_stock = coalesce($7, allow_negative_stock),
           low_stock_threshold_default = case when $8::integer is null then low_stock_threshold_default else $8 end,
           updated_at = now()
@@ -1106,6 +1157,8 @@ export class StoreService {
           locale,
           receipt_footer,
           invoice_prefix,
+          receipt_type,
+          default_location_id,
           allow_negative_stock,
           low_stock_threshold_default,
           updated_at
@@ -1119,6 +1172,8 @@ export class StoreService {
         payload.invoicePrefix === undefined ? null : payload.invoicePrefix,
         payload.allowNegativeStock ?? null,
         payload.lowStockThresholdDefault === undefined ? null : payload.lowStockThresholdDefault,
+        payload.receiptType ?? null,
+        payload.defaultLocationId ?? null,
       ],
     );
 
@@ -1162,6 +1217,7 @@ export class StoreService {
             sm.status,
             sm.joined_at,
             sm.created_at,
+            sm.location_id,
             r.code as role_code,
             u.email,
             u.phone,
@@ -1173,12 +1229,14 @@ export class StoreService {
             he.department,
             he.employment_status,
             he.monthly_salary,
+            il.name as location_name,
             count(*) over()::int as total_count
           from access.store_memberships sm
           join access.roles r on r.id = sm.role_id
           join identity.users u on u.id = sm.user_id
           left join identity.user_profiles up on up.user_id = u.id
           left join hr.employees he on he.store_id = sm.store_id and he.user_id = sm.user_id
+          left join inventory.locations il on il.id = sm.location_id
           where sm.store_id = $1
             and (
               $2::text is null
@@ -1218,6 +1276,7 @@ export class StoreService {
     const actorUserId = this.requireUserId(session);
     const actorRole = this.requireStoreActorRole(authContext);
     this.assertCanInviteStaff(actorRole, payload.roleCode);
+    await this.billingService.checkUserLimit(storeId);
 
     const client = await this.pool.connect();
     try {
@@ -1291,6 +1350,20 @@ export class StoreService {
       );
 
       const roleId = await this.findRoleIdWithClient(client, payload.roleCode);
+
+      if (payload.roleCode === 'store_manager') {
+        if (!payload.locationId) {
+          throw new ForbiddenException('A location must be assigned when creating a manager.');
+        }
+        const location = await client.query<{ id: string }>(
+          `select id from inventory.locations where id = $1 and store_id = $2 and status = 'active' limit 1`,
+          [payload.locationId, storeId],
+        );
+        if (!location.rows[0]) {
+          throw new NotFoundException('Assigned location not found or is not active.');
+        }
+      }
+
       await client.query(
         `
           insert into access.store_memberships (
@@ -1299,6 +1372,7 @@ export class StoreService {
             store_id,
             user_id,
             role_id,
+            location_id,
             status,
             joined_at,
             created_at,
@@ -1310,13 +1384,14 @@ export class StoreService {
             $2,
             $3,
             $4,
+            $5,
             'active',
             now(),
             now(),
             now()
           )
         `,
-        [tenantId, storeId, userId, roleId],
+        [tenantId, storeId, userId, roleId, payload.locationId ?? null],
       );
 
       const employee = await this.upsertLinkedEmployee(client, {
@@ -1376,6 +1451,7 @@ export class StoreService {
 
     const actorRole = this.requireStoreActorRole(authContext);
     this.assertCanInviteStaff(actorRole, payload.roleCode);
+    await this.billingService.checkUserLimit(storeId);
 
     const roleId = await this.findRoleId(payload.roleCode);
     const invitationToken = randomBytes(24).toString('hex');
@@ -1450,9 +1526,10 @@ export class StoreService {
       role_id: string;
       status: string;
       tenant_id: string;
+      location_id: string | null;
     }>(
       `
-        select id, user_id, role_id, status, tenant_id
+        select id, user_id, role_id, status, tenant_id, location_id
         from access.store_memberships
         where id = $1
           and store_id = $2
@@ -1533,15 +1610,32 @@ export class StoreService {
         );
       }
 
+      const nextLocationId = payload.locationId !== undefined ? payload.locationId : currentMembership.location_id ?? null;
+
+      if (nextLocationId) {
+        const locCheck = await client.query(
+          'select id from inventory.locations where id = $1 and store_id = $2 limit 1',
+          [nextLocationId, storeId],
+        );
+        if (!locCheck.rows[0]) {
+          throw new ForbiddenException('Location does not belong to this store');
+        }
+      }
+
+      if (nextRoleCode === 'store_manager' && !nextLocationId) {
+        throw new ForbiddenException('A location must be assigned when the role is manager.');
+      }
+
       await client.query(
         `
           update access.store_memberships
           set role_id = $2,
               status = $3,
+              location_id = $4,
               updated_at = now()
           where id = $1
         `,
-        [membershipId, nextRoleId, nextStatus],
+        [membershipId, nextRoleId, nextStatus, nextLocationId ?? null],
       );
 
       const userSnapshot = await client.query<{
@@ -2149,7 +2243,7 @@ export class StoreService {
       canUpdateManager: actorRole === 'store_owner',
       canUpdateSalesman: actorRole === 'store_owner' || actorRole === 'store_manager',
       canRemoveManager: actorRole === 'store_owner',
-      canRemoveSalesman: actorRole === 'store_owner',
+      canRemoveSalesman: actorRole === 'store_owner' || actorRole === 'store_manager',
     };
   }
 
@@ -2181,9 +2275,6 @@ export class StoreService {
         throw new ForbiddenException('Managers can only keep salesmen as salesmen');
       }
 
-      if (payload.status === 'removed') {
-        throw new ForbiddenException('Managers cannot remove salesmen');
-      }
     }
   }
 

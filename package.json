@@ -26,7 +26,6 @@
     "vitest": "^4.1.9"
   },
   "dependencies": {
-    "@fastify/helmet": "^13.0.2",
     "ioredis": "^5.11.1"
   }
 }

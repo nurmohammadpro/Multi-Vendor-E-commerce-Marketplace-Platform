@@ -18,9 +18,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   return NextResponse.json(payload, { status: response.status });
 }
 
-export async function DELETE(_request: NextRequest, context: RouteContext) {
+export async function DELETE(request: NextRequest, context: RouteContext) {
   const { storeId } = await context.params;
-  const response = await requestAdminApi(`/admin/stores/${storeId}`, {
+  const response = await requestAdminApi(`/admin/stores/${storeId}${request.nextUrl.search}`, {
     method: 'DELETE',
   });
   const payload = await response.json().catch(() => ({ ok: false, error: 'Invalid upstream response' }));

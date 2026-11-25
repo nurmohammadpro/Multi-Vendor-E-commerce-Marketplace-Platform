@@ -5,12 +5,34 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   emptyStateStyle,
   fieldStyle,
+  gray800ButtonStyle,
   pageShellStyle,
-  primaryButtonStyle,
   secondaryButtonStyle,
   surfaceCardStyle,
   tokenMutedStyle,
-} from '../motocore-theme';
+} from '../merchflow-theme';
+import { useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
+import { useTheme } from '@mvp/theme';
+import { renderInvoiceFragment } from '../../lib/invoice-template';
+import { renderReceipt } from '../../lib/receipt-template.js';
+
+function scopeDocumentCss(html: string, scopeId: string) {
+  const styleMatch = html.match(/<style>([\s\S]*?)<\/style>/);
+  const css = (styleMatch ? styleMatch[1] : '').replace(/@media print\{[\s\S]*$/, '');
+  const page = html.slice(html.indexOf('<div class="page">'), html.lastIndexOf('</div></body>'));
+  const scope = '#' + scopeId;
+  const scoped = css.split('}').map((chunk) => {
+    const i = chunk.indexOf('{');
+    if (i < 0) return chunk;
+    const sel = chunk.slice(0, i).trim();
+    if (!sel) return chunk;
+    if (sel === 'body') return scope + chunk.slice(i);
+    return scope + ' ' + sel + chunk.slice(i);
+  }).join('}');
+  return '<style>' + scoped + '</style>' + page;
+}
+
+type ReceiptType = 'pos' | 'a5' | 'a4';
 
 type StoreProfile = {
   id: string;
@@ -32,17 +54,29 @@ type StoreSettings = {
   locale: 'en' | 'bn';
   receipt_footer?: string | null;
   invoice_prefix?: string | null;
+  receipt_type?: ReceiptType | null;
+  default_location_id?: string | null;
   allow_negative_stock: boolean;
   low_stock_threshold_default?: number | null;
+  points_per_amount?: number | null;
+  silver_threshold?: number | null;
+  gold_threshold?: number | null;
+  platinum_threshold?: number | null;
 };
+
+const RECEIPT_TYPES: Array<{ key: ReceiptType; label: string; detail: string; scale: number; docWidth: number }> = [
+  { key: 'pos', label: 'POS thermal', detail: '80mm roll — silent print via the local print agent', scale: 0.62, docWidth: 302 },
+  { key: 'a5', label: 'A5 receipt', detail: 'Half-letter laser paper — compact design', scale: 0.48, docWidth: 529 },
+  { key: 'a4', label: 'A4 invoice', detail: 'Full-page invoice for wholesale orders', scale: 0.35, docWidth: 725 },
+];
 
 async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
   const response = await fetch(input, init);
   const payload = (await response.json().catch(() => null)) as T | { error?: string } | null;
   if (!response.ok) {
     const message =
-      payload && typeof payload === 'object' && 'error' in payload && payload.error
-        ? payload.error
+      payload && typeof payload === 'object' && ((payload as any).error || (payload as any).message)
+        ? ((payload as any).error || (payload as any).message)
         : `Request failed with ${response.status}`;
     throw new Error(message);
   }
@@ -50,6 +84,7 @@ async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
 }
 
 export function SettingsWorkspace({ canManageSettings }: { canManageSettings: boolean }) {
+  const compact = useCompactLayout();
   const [profile, setProfile] = useState<StoreProfile | null>(null);
   const [settings, setSettings] = useState<StoreSettings | null>(null);
   const [message, setMessage] = useState('Store settings are ready.');
@@ -70,7 +105,34 @@ export function SettingsWorkspace({ canManageSettings }: { canManageSettings: bo
     invoicePrefix: '',
     allowNegativeStock: false,
     lowStockThresholdDefault: '',
+    pointsPerAmount: '100',
+    silverThreshold: '0',
+    goldThreshold: '500',
+    platinumThreshold: '2000',
   });
+  const [activeTab, setActiveTab] = useState<'identity' | 'operations' | 'appearance'>('identity');
+  const [savingReceipt, setSavingReceipt] = useState(false);
+  const [outlets, setOutlets] = useState<Array<{ id: string; name: string }>>([]);
+  const { theme: currentTheme, setTheme, mode: currentMode, setMode, resolvedMode } = useTheme();
+
+  const THEME_ITEMS: Array<{ id: string; label: string }> = [
+    { id: 'slate-pro', label: 'Slate Pro' },
+    { id: 'stone-sky', label: 'Stone & Sky' },
+    { id: 'emerald-cream', label: 'Emerald & Cream' },
+    { id: 'ocean-sand', label: 'Ocean & Sand' },
+  ];
+  const MODE_ITEMS: Array<{ id: 'light' | 'dark' | 'system'; label: string }> = [
+    { id: 'light', label: 'Light' },
+    { id: 'dark', label: 'Dark' },
+    { id: 'system', label: 'System' },
+  ];
+
+  useEffect(() => {
+    fetch('/api/inventory/locations')
+      .then((r) => r.json())
+      .then((payload) => setOutlets(payload.locations ?? []))
+      .catch(() => setOutlets([]));
+  }, []);
 
   const refresh = async () => {
     const [profilePayload, settingsPayload] = await Promise.all([
@@ -101,6 +163,10 @@ export function SettingsWorkspace({ canManageSettings }: { canManageSettings: bo
         nextSettings?.low_stock_threshold_default === null || nextSettings?.low_stock_threshold_default === undefined
           ? ''
           : String(nextSettings.low_stock_threshold_default),
+      pointsPerAmount: String(nextSettings?.points_per_amount ?? 100),
+      silverThreshold: String(nextSettings?.silver_threshold ?? 0),
+      goldThreshold: String(nextSettings?.gold_threshold ?? 500),
+      platinumThreshold: String(nextSettings?.platinum_threshold ?? 2000),
     });
   };
 
@@ -135,6 +201,10 @@ export function SettingsWorkspace({ canManageSettings }: { canManageSettings: bo
             ? ''
             : String(settings.low_stock_threshold_default)
         )
+      || settingsForm.pointsPerAmount !== String(settings.points_per_amount ?? 100)
+      || settingsForm.silverThreshold !== String(settings.silver_threshold ?? 0)
+      || settingsForm.goldThreshold !== String(settings.gold_threshold ?? 500)
+      || settingsForm.platinumThreshold !== String(settings.platinum_threshold ?? 2000)
     );
   }, [settings, settingsForm]);
 
@@ -189,9 +259,17 @@ export function SettingsWorkspace({ canManageSettings }: { canManageSettings: bo
             settingsForm.lowStockThresholdDefault.trim() === ''
               ? null
               : Number(settingsForm.lowStockThresholdDefault),
+          pointsPerAmount: Number(settingsForm.pointsPerAmount) || 100,
+          silverThreshold: Number(settingsForm.silverThreshold) || 0,
+          goldThreshold: Number(settingsForm.goldThreshold) || 500,
+          platinumThreshold: Number(settingsForm.platinumThreshold) || 2000,
         }),
       });
       await refresh();
+      if (settings?.locale !== settingsForm.locale) {
+        window.location.reload();
+        return;
+      }
       setMessage('Operational settings updated.');
     } catch (error) {
       setMessage((error as Error).message);
@@ -200,9 +278,78 @@ export function SettingsWorkspace({ canManageSettings }: { canManageSettings: bo
     }
   };
 
+  const saveDefaultOutlet = async (defaultLocationId: string | null) => {
+    setSavingReceipt(true);
+    try {
+      await readJson('/api/store/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ defaultLocationId }),
+      });
+      await refresh();
+      setMessage('Default POS outlet updated.');
+    } catch (error) {
+      setMessage((error as Error).message);
+    } finally {
+      setSavingReceipt(false);
+    }
+  };
+
+  const saveReceiptType = async (receiptType: ReceiptType) => {
+    setSavingReceipt(true);
+    try {
+      await readJson('/api/store/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ receiptType, defaultLocationId: settings?.default_location_id ?? null }),
+      });
+      await refresh();
+      setMessage('Receipt type updated.');
+    } catch (error) {
+      setMessage((error as Error).message);
+    } finally {
+      setSavingReceipt(false);
+    }
+  };
+
+  const sampleReceipt = useMemo(() => {
+    const prefix = (settings?.invoice_prefix || 'INV').trim().toUpperCase() || 'INV';
+    return {
+      saleNo: 'SALE-000042',
+      invoiceNo: `${prefix}-0042`,
+      saleDate: new Date().toISOString(),
+      paymentTerms: 'paid' as const,
+      saleType: 'paid' as const,
+      store: {
+        name: profile?.name || 'My Shop',
+        logoUrl: profile?.logo_url || '',
+        phone: profile?.phone || '',
+        email: profile?.email || '',
+        address: profile?.address_text || '',
+        footer: settings?.receipt_footer || '',
+      },
+      customer: { name: 'Sample Customer', phone: '01700-000000' },
+      items: [
+        { name: 'Sample Product A', skuCode: 'SKU-001', qty: 2, unitPrice: 450, lineTotal: 900 },
+        { name: 'Sample Product B', skuCode: 'SKU-002', qty: 1, unitPrice: 1250, lineTotal: 1250 },
+        { name: 'Sample Product C', skuCode: 'SKU-003', qty: 5, unitPrice: 80, lineTotal: 400 },
+        { name: 'Sample Product D', skuCode: 'SKU-004', qty: 3, unitPrice: 150, lineTotal: 450 },
+      ],
+      totals: { subtotal: 3000, discount: 100, vat: 0, tax: 0, shipping: 0, total: 2900, paid: 2900, due: 0, change: 0 },
+      payments: [{ paymentMethod: 'cash', amount: 2900 }],
+      amountInWords: 'Two Thousand Nine Hundred Taka Only',
+    };
+  }, [profile, settings]);
+
+  const receiptPreviews = useMemo(() => ({
+    pos: scopeDocumentCss(renderReceipt(sampleReceipt as any, 'thermal'), 'receipt-preview-pos'),
+    a5: renderInvoiceFragment(sampleReceipt as any, 'a5', 'receipt-preview-a5'),
+    a4: renderInvoiceFragment(sampleReceipt as any, 'a4', 'receipt-preview-a4'),
+  }), [sampleReceipt]);
+
   if (!profile || !settings) {
     return (
-      <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
+      <section style={{ ...pageShellStyle, display: 'grid', gap: 12 }}>
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Loading store settings</h3>
           <p style={tokenMutedStyle}>{message}</p>
@@ -212,8 +359,20 @@ export function SettingsWorkspace({ canManageSettings }: { canManageSettings: bo
   }
 
   return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
-      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
+    <section style={{ ...pageShellStyle, display: 'grid', gap: 10 }}>
+      {compact ? (
+        <WorkspaceTabs
+          active={activeTab}
+          onChange={(key) => setActiveTab(key as 'identity' | 'operations' | 'appearance')}
+          tabs={[
+            { key: 'identity', label: 'Identity' },
+            { key: 'operations', label: 'Operations' },
+            { key: 'appearance', label: 'Appearance' },
+          ]}
+        />
+      ) : null}
+      <section style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(auto-fit, minmax(320px, 1fr))', gap: 10 }}>
+        {!compact || activeTab === 'identity' ? (
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Store identity</h3>
           <div style={{ display: 'grid', gap: 10 }}>
@@ -259,14 +418,41 @@ export function SettingsWorkspace({ canManageSettings }: { canManageSettings: bo
               placeholder="Store logo URL or image data URL"
               disabled={!canManageSettings || loading}
             />
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/svg+xml"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (!file) return;
+                if (!file.type.startsWith('image/')) {
+                  setMessage('Logo must be an image file.');
+                  return;
+                }
+                if (file.size > 1024 * 1024) {
+                  setMessage('Logo must be 1 MB or smaller.');
+                  return;
+                }
+                const reader = new FileReader();
+                reader.onload = () => {
+                  setProfileForm((current) => ({ ...current, logoUrl: String(reader.result || '') }));
+                };
+                reader.readAsDataURL(file);
+                event.target.value = '';
+              }}
+              style={{ ...fieldStyle, fontSize: 12 }}
+              disabled={!canManageSettings || loading}
+            />
+            <div style={{ color: 'var(--muted-foreground)', fontSize: 12, marginTop: -4 }}>
+              Used on receipts and white-label invoices. Upload an image (max 1 MB) or paste a URL above.
+            </div>
             {profileForm.logoUrl ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <img
                   src={profileForm.logoUrl}
                   alt={`${profileForm.name || 'Store'} logo preview`}
-                  style={{ width: 64, height: 64, objectFit: 'contain', borderRadius: 10, border: '1px solid rgba(148, 163, 184, 0.22)', background: '#fff', padding: 6 }}
+                  style={{ width: 64, height: 64, objectFit: 'contain', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--card)', padding: 6 }}
                 />
-                <div style={{ color: '#475569', fontSize: 13 }}>Logo preview</div>
+                <div style={{ color: 'var(--muted-foreground)', fontSize: 13 }}>Logo preview</div>
               </div>
             ) : (
               <div style={emptyStateStyle}>No store logo saved yet.</div>
@@ -274,7 +460,7 @@ export function SettingsWorkspace({ canManageSettings }: { canManageSettings: bo
             <div style={{ display: 'flex', gap: 10 }}>
               <button
                 onClick={() => void saveProfile()}
-                style={primaryButtonStyle}
+                style={gray800ButtonStyle}
                 disabled={!canManageSettings || loading || !dirtyProfile}
               >
                 Save identity
@@ -289,7 +475,9 @@ export function SettingsWorkspace({ canManageSettings }: { canManageSettings: bo
             </div>
           </div>
         </article>
+        ) : null}
 
+        {!compact || activeTab === 'operations' ? (
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Operational defaults</h3>
           <div style={{ display: 'grid', gap: 10 }}>
@@ -320,9 +508,12 @@ export function SettingsWorkspace({ canManageSettings }: { canManageSettings: bo
               value={settingsForm.invoicePrefix}
               onChange={(event) => setSettingsForm((current) => ({ ...current, invoicePrefix: event.target.value }))}
               style={fieldStyle}
-              placeholder="Invoice prefix"
+              placeholder="Invoice prefix (e.g. INV)"
               disabled={!canManageSettings || loading}
             />
+            <div style={{ color: 'var(--muted-foreground)', fontSize: 12, marginTop: -4 }}>
+              Prefixes generated invoice numbers on Wholesale A4 invoices, e.g. {settingsForm.invoicePrefix?.trim()?.toUpperCase() || 'INV'}-0042.
+            </div>
             <textarea
               value={settingsForm.receiptFooter}
               onChange={(event) => setSettingsForm((current) => ({ ...current, receiptFooter: event.target.value }))}
@@ -330,7 +521,26 @@ export function SettingsWorkspace({ canManageSettings }: { canManageSettings: bo
               placeholder="Receipt footer"
               disabled={!canManageSettings || loading}
             />
-            <label style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#0f172a', fontSize: 14 }}>
+            <div style={{ display: 'grid', gap: 4 }}>
+              <label style={{ fontSize: 12, fontWeight: 600 }}>Default POS outlet</label>
+              <select
+                value={settings?.default_location_id ?? ''}
+                onChange={(event) => {
+                  setSettingsForm((current) => ({ ...current }));
+                  void saveDefaultOutlet(event.target.value || null);
+                }}
+                style={fieldStyle}
+                aria-label="Default POS outlet"
+                disabled={!canManageSettings || savingReceipt}
+              >
+                <option value="">First outlet</option>
+                {outlets.map((outlet) => (
+                  <option key={outlet.id} value={outlet.id}>{outlet.name}</option>
+                ))}
+              </select>
+              <div style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>The outlet the POS terminal opens with.</div>
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--foreground)', fontSize: 14 }}>
               <input
                 type="checkbox"
                 checked={settingsForm.allowNegativeStock}
@@ -349,7 +559,7 @@ export function SettingsWorkspace({ canManageSettings }: { canManageSettings: bo
             <div style={{ display: 'flex', gap: 10 }}>
               <button
                 onClick={() => void saveSettings()}
-                style={primaryButtonStyle}
+                style={gray800ButtonStyle}
                 disabled={!canManageSettings || loading || !dirtySettings}
               >
                 Save settings
@@ -364,7 +574,165 @@ export function SettingsWorkspace({ canManageSettings }: { canManageSettings: bo
             </div>
           </div>
         </article>
+        ) : null}
       </section>
+
+      {!compact || activeTab === 'operations' ? (
+      <article style={surfaceCardStyle}>
+        <h3 style={{ marginTop: 0 }}>Customer Loyalty</h3>
+        <div style={{ display: 'grid', gap: 10 }}>
+          <div>
+            <label style={{ fontSize: 12, color: 'var(--muted-foreground)', fontWeight: 500 }}>Points earning rate (per BDT)</label>
+            <input
+              value={settingsForm.pointsPerAmount}
+              onChange={(event) => setSettingsForm((current) => ({ ...current, pointsPerAmount: event.target.value }))}
+              style={fieldStyle}
+              placeholder="100"
+              disabled={!canManageSettings || loading}
+            />
+            <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginTop: 2 }}>Customer earns 1 point for every X BDT spent. Default: 100</div>
+          </div>
+          <div>
+            <label style={{ fontSize: 12, color: 'var(--muted-foreground)', fontWeight: 500 }}>Silver threshold (points)</label>
+            <input
+              value={settingsForm.silverThreshold}
+              onChange={(event) => setSettingsForm((current) => ({ ...current, silverThreshold: event.target.value }))}
+              style={fieldStyle}
+              placeholder="0"
+              disabled={!canManageSettings || loading}
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: 12, color: 'var(--muted-foreground)', fontWeight: 500 }}>Gold threshold (points)</label>
+            <input
+              value={settingsForm.goldThreshold}
+              onChange={(event) => setSettingsForm((current) => ({ ...current, goldThreshold: event.target.value }))}
+              style={fieldStyle}
+              placeholder="500"
+              disabled={!canManageSettings || loading}
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: 12, color: 'var(--muted-foreground)', fontWeight: 500 }}>Platinum threshold (points)</label>
+            <input
+              value={settingsForm.platinumThreshold}
+              onChange={(event) => setSettingsForm((current) => ({ ...current, platinumThreshold: event.target.value }))}
+              style={fieldStyle}
+              placeholder="2000"
+              disabled={!canManageSettings || loading}
+            />
+          </div>
+        </div>
+      </article>
+      ) : null}
+
+      {!compact || activeTab === 'operations' ? (
+      <article style={surfaceCardStyle}>
+        <h3 style={{ marginTop: 0 }}>Receipts &amp; invoices</h3>
+        <p style={{ ...tokenMutedStyle, marginTop: -4 }}>
+          Choose the document printed after every sale. Previews use your store branding — POS thermal
+          prints silently through the print agent; A5 and A4 open the browser print dialog. Wholesale
+          stores printing A4 also get sequential invoice numbers.
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: compact ? '1fr' : 'repeat(3, 1fr)', gap: 12 }}>
+          {RECEIPT_TYPES.map((option) => {
+            const selected = (settings?.receipt_type ?? 'pos') === option.key;
+            return (
+              <label
+                key={option.key}
+                style={{
+                  display: 'grid', gap: 8, padding: 10, borderRadius: 6, cursor: 'pointer', alignContent: 'start',
+                  border: selected ? '2px solid #0f172a' : '1px solid var(--border)',
+                  background: selected ? 'rgba(15,23,42,0.03)' : 'transparent',
+                }}
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, fontSize: 13 }}>
+                  <input
+                    type="radio"
+                    name="receipt-type"
+                    checked={selected}
+                    onChange={() => void saveReceiptType(option.key)}
+                    disabled={!canManageSettings || savingReceipt}
+                    style={{ accentColor: '#0f172a' }}
+                  />
+                  {option.label}
+                </span>
+                <span style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>{option.detail}</span>
+                <span style={{ display: 'block', height: 200, overflow: 'hidden', borderRadius: 6, border: '1px solid var(--border)', background: '#fff' }}>
+                  <span
+                    id={`receipt-preview-${option.key}`}
+                    style={{ display: 'block', transform: `scale(${option.scale})`, transformOrigin: 'top left', width: option.docWidth }}
+                    dangerouslySetInnerHTML={{ __html: receiptPreviews[option.key] }}
+                  />
+                </span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: selected ? '#0f172a' : 'var(--muted-foreground)' }}>
+                  {selected ? '✓ Selected' : 'Select'}
+                </span>
+              </label>
+            );
+          })}
+        </div>
+      </article>
+      ) : null}
+
+      {!compact || activeTab === 'appearance' ? (
+      <section style={{ display: 'grid', gap: 10 }}>
+        <article style={surfaceCardStyle}>
+          <h3 style={{ marginTop: 0 }}>Theme</h3>
+          <div style={{ display: 'grid', gap: 6 }}>
+            {THEME_ITEMS.map((t) => {
+              const active = currentTheme === t.id;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => { setTheme(t.id as any); }}
+                  className="flex w-full items-center justify-between gap-3 whitespace-nowrap rounded-md px-3 py-2 text-sm transition-colors"
+                  style={{
+                    color: active ? 'var(--accent-foreground)' : 'var(--foreground)',
+                    backgroundColor: active ? 'var(--accent)' : 'transparent',
+                    border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
+                  }}
+                  onMouseEnter={(e) => { if (!active) e.currentTarget.style.backgroundColor = 'var(--muted)'; }}
+                  onMouseLeave={(e) => { if (!active) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                >
+                  <span>{t.label}</span>
+                  {active ? <span style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--accent-foreground)' }}>Active</span> : null}
+                </button>
+              );
+            })}
+          </div>
+        </article>
+
+        <article style={surfaceCardStyle}>
+          <h3 style={{ marginTop: 0 }}>Mode</h3>
+          <div style={{ display: 'grid', gap: 6 }}>
+            {MODE_ITEMS.map((m) => {
+              const active = currentMode === m.id;
+              const subtitle = m.id === 'system' ? `Using ${resolvedMode === 'light' ? 'Light' : 'Dark'}` : active ? 'Active' : '';
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => { setMode(m.id); }}
+                  className="flex w-full items-center justify-between gap-3 whitespace-nowrap rounded-md px-3 py-2 text-sm transition-colors"
+                  style={{
+                    color: active ? 'var(--accent-foreground)' : 'var(--foreground)',
+                    backgroundColor: active ? 'var(--accent)' : 'transparent',
+                    border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
+                  }}
+                  onMouseEnter={(e) => { if (!active) e.currentTarget.style.backgroundColor = 'var(--muted)'; }}
+                  onMouseLeave={(e) => { if (!active) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                >
+                  <span>{m.label}</span>
+                  {subtitle ? <span style={{ fontSize: 10, color: active ? 'var(--accent-foreground)' : 'var(--muted-foreground)' }}>{subtitle}</span> : null}
+                </button>
+              );
+            })}
+          </div>
+        </article>
+      </section>
+      ) : null}
 
       <article style={surfaceCardStyle}>
         <h3 style={{ marginTop: 0 }}>Current live configuration</h3>
@@ -378,8 +746,12 @@ export function SettingsWorkspace({ canManageSettings }: { canManageSettings: bo
           <div><strong>Invoice prefix:</strong> {settings.invoice_prefix || '—'}</div>
           <div><strong>Low stock threshold:</strong> {settings.low_stock_threshold_default ?? '—'}</div>
           <div><strong>Negative stock:</strong> {settings.allow_negative_stock ? 'Allowed' : 'Blocked'}</div>
+          <div><strong>Points per:</strong> BDT {settings.points_per_amount ?? 100}</div>
+          <div><strong>Silver:</strong> {settings.silver_threshold ?? 0} pts</div>
+          <div><strong>Gold:</strong> {settings.gold_threshold ?? 500} pts</div>
+          <div><strong>Platinum:</strong> {settings.platinum_threshold ?? 2000} pts</div>
         </div>
-        <p style={{ marginTop: 14, marginBottom: 0, color: '#475569' }}>{message}</p>
+        <p style={{ marginTop: 14, marginBottom: 0, color: 'var(--muted-foreground)' }}>{message}</p>
       </article>
     </section>
   );

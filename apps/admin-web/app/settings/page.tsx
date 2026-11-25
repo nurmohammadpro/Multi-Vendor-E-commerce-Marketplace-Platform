@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -80,6 +81,15 @@ export default function AdminSettingsPage() {
     membershipId: '',
     password: '',
   });
+  const [editForm, setEditForm] = useState({
+    membershipId: '',
+    fullName: '',
+    email: '',
+    phone: '',
+  });
+  const [showPasswordCreate, setShowPasswordCreate] = useState(false);
+  const [showPasswordReset, setShowPasswordReset] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<{ type: 'promote' | 'password'; membershipId: string } | null>(null);
 
   const refresh = async () => {
     const payload = await readJson<{ admins: PlatformAdminRow[] }>('/api/admins');
@@ -107,6 +117,7 @@ export default function AdminSettingsPage() {
   const canCreateAdmin = Boolean(form.fullName.trim() && form.email.trim() && form.password.length >= 10 && !loading);
   const canPromote = Boolean(ownerForm.membershipId && !loading);
   const canResetPassword = Boolean(passwordForm.membershipId && passwordForm.password.length >= 10 && !loading);
+  const canEditAdmin = Boolean(editForm.membershipId && editForm.fullName.trim() && editForm.email.trim() && !loading);
 
   const createAdmin = async () => {
     if (!form.fullName.trim() || !form.email.trim() || form.password.length < 10) {
@@ -128,12 +139,48 @@ export default function AdminSettingsPage() {
       });
       await refresh();
       setForm({ fullName: '', email: '', phone: '', password: '' });
-      setMessage('Platform admin created. That password is the login password for the dashboard.');
+      setMessage('Platform admin created.');
     } catch (error) {
       setMessage((error as Error).message);
     } finally {
       setLoading(false);
     }
+  };
+
+  const editAdmin = async () => {
+    if (!editForm.membershipId || !editForm.fullName.trim() || !editForm.email.trim()) {
+      setMessage('Select an admin and enter name/email.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await readJson(`/api/admins/${editForm.membershipId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fullName: editForm.fullName,
+          email: editForm.email,
+          phone: editForm.phone || undefined,
+        }),
+      });
+      await refresh();
+      setEditForm({ membershipId: '', fullName: '', email: '', phone: '' });
+      setMessage('Platform admin updated.');
+    } catch (error) {
+      setMessage((error as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openEditAdmin = (admin: PlatformAdminRow) => {
+    setEditForm({
+      membershipId: admin.membershipId,
+      fullName: admin.fullName || '',
+      email: admin.email || '',
+      phone: admin.phone || '',
+    });
   };
 
   const promoteToOwner = async () => {
@@ -206,10 +253,6 @@ export default function AdminSettingsPage() {
         <p className="mt-2.5 leading-relaxed text-muted-foreground">
           Restricted owner-level and scoped admin configuration changes belong in this settings area.
         </p>
-        <p className="mt-2 leading-relaxed text-muted-foreground">
-          Bootstrap the first admin with a custom email such as <code>nurprodev@gmail.com</code>, then add more platform
-          admins here later during handover.
-        </p>
       </section>
 
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -222,12 +265,14 @@ export default function AdminSettingsPage() {
               <Input value={form.fullName} onChange={(e) => setForm((v) => ({ ...v, fullName: e.target.value }))} placeholder="Full name" />
               <Input value={form.email} onChange={(e) => setForm((v) => ({ ...v, email: e.target.value }))} placeholder="Email" />
               <Input value={form.phone} onChange={(e) => setForm((v) => ({ ...v, phone: e.target.value }))} placeholder="Phone (optional)" />
-              <Input value={form.password} onChange={(e) => setForm((v) => ({ ...v, password: e.target.value }))} type="password" placeholder="Temporary password" />
+              <div className="relative">
+                <Input value={form.password} onChange={(e) => setForm((v) => ({ ...v, password: e.target.value }))} type={showPasswordCreate ? 'text' : 'password'} placeholder="Temporary password" />
+                <button type="button" onClick={() => setShowPasswordCreate((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" tabIndex={-1} aria-label={showPasswordCreate ? 'Hide password' : 'Show password'}>
+                  {showPasswordCreate ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
               <Button onClick={createAdmin} disabled={!canCreateAdmin}>Create Admin</Button>
             </div>
-            <p className="mt-2.5 text-xs text-muted-foreground leading-relaxed">
-              Use this password as the dashboard login password for the new platform admin.
-            </p>
           </CardContent>
         </Card>
 
@@ -248,7 +293,7 @@ export default function AdminSettingsPage() {
                   </option>
                 ))}
               </select>
-              <Button onClick={promoteToOwner} disabled={!canPromote} variant="outline">
+              <Button onClick={() => setConfirmAction({ type: 'promote', membershipId: ownerForm.membershipId })} disabled={!canPromote} variant="outline">
                 Promote Selected Admin
               </Button>
             </div>
@@ -280,14 +325,16 @@ export default function AdminSettingsPage() {
                   </option>
                 ))}
               </select>
-              <Input value={passwordForm.password} onChange={(e) => setPasswordForm((v) => ({ ...v, password: e.target.value }))} type="password" placeholder="New password" />
-              <Button onClick={resetPassword} disabled={!canResetPassword} variant="outline">
+              <div className="relative">
+                <Input value={passwordForm.password} onChange={(e) => setPasswordForm((v) => ({ ...v, password: e.target.value }))} type={showPasswordReset ? 'text' : 'password'} placeholder="New password" />
+                <button type="button" onClick={() => setShowPasswordReset((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" tabIndex={-1} aria-label={showPasswordReset ? 'Hide password' : 'Show password'}>
+                  {showPasswordReset ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+              <Button onClick={() => setConfirmAction({ type: 'password', membershipId: passwordForm.membershipId })} disabled={!canResetPassword} variant="outline">
                 Update Password
               </Button>
             </div>
-            <p className="mt-2.5 text-xs text-muted-foreground leading-relaxed">
-              This is the password the admin uses to sign into the login screen.
-            </p>
           </CardContent>
         </Card>
 
@@ -418,9 +465,14 @@ export default function AdminSettingsPage() {
                       Base role: {admin.baseRoleCode} · Status: {admin.status}
                     </div>
                   </div>
-                  <div className="text-xs text-muted-foreground text-right">
-                    <div>{new Date(admin.createdAt).toLocaleString()}</div>
-                    <div>{admin.bundleRoleCodes.length ? admin.bundleRoleCodes.join(', ') : 'No bundles'}</div>
+                  <div className="flex items-start gap-2">
+                    <div className="text-xs text-muted-foreground text-right">
+                      <div>{new Date(admin.createdAt).toLocaleString()}</div>
+                      <div>{admin.bundleRoleCodes.length ? admin.bundleRoleCodes.join(', ') : 'No bundles'}</div>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={() => openEditAdmin(admin)}>
+                      Edit
+                    </Button>
                   </div>
                 </div>
               </CardContent>
@@ -443,6 +495,58 @@ export default function AdminSettingsPage() {
           <p className="text-sm text-muted-foreground">{message}</p>
         </CardContent>
       </Card>
+
+      {editForm.membershipId && (
+        <Card className="mt-5">
+          <CardHeader>
+            <CardTitle>Edit Platform Admin</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col gap-2.5">
+              <Input value={editForm.fullName} onChange={(e) => setEditForm((v) => ({ ...v, fullName: e.target.value }))} placeholder="Full name" />
+              <Input value={editForm.email} onChange={(e) => setEditForm((v) => ({ ...v, email: e.target.value }))} placeholder="Email" />
+              <Input value={editForm.phone} onChange={(e) => setEditForm((v) => ({ ...v, phone: e.target.value }))} placeholder="Phone (optional)" />
+              <div className="flex gap-2">
+                <Button onClick={editAdmin} disabled={!canEditAdmin}>Save Changes</Button>
+                <Button onClick={() => setEditForm({ membershipId: '', fullName: '', email: '', phone: '' })} variant="outline">Cancel</Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {confirmAction && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="max-w-md w-full">
+            <CardHeader>
+              <CardTitle>{confirmAction.type === 'promote' ? 'Confirm Promotion' : 'Confirm Password Reset'}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground mb-4">
+                {confirmAction.type === 'promote'
+                  ? 'Are you sure you want to promote this admin to platform owner? This is a powerful role upgrade.'
+                  : 'Are you sure you want to reset this admin\'s password? They will need the new password to log in.'}
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => {
+                    if (confirmAction.type === 'promote') {
+                      void promoteToOwner();
+                    } else {
+                      void resetPassword();
+                    }
+                    setConfirmAction(null);
+                  }}
+                  variant={confirmAction.type === 'promote' ? 'default' : 'destructive'}
+                >
+                  {confirmAction.type === 'promote' ? 'Promote' : 'Reset Password'}
+                </Button>
+                <Button onClick={() => setConfirmAction(null)} variant="outline">Cancel</Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </main>
   );
 }

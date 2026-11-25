@@ -13,12 +13,12 @@ export function Toaster({ ...props }: ToasterProps) {
       toastOptions={{
         classNames: {
           toast:
-            'group toast group-[.toaster]:bg-white group-[.toaster]:text-slate-900 group-[.toaster]:border-slate-200 group-[.toaster]:shadow-lg',
-          description: 'group-[.toast]:text-slate-500',
+            'group toast group-[.toaster]:bg-card group-[.toaster]:text-card-foreground group-[.toaster]:border-border group-[.toaster]:shadow-lg',
+          description: 'group-[.toast]:text-muted-foreground',
           actionButton:
-            'group-[.toast]:bg-slate-900 group-[.toast]:text-slate-50',
+            'group-[.toast]:bg-primary group-[.toast]:text-primary-foreground',
           cancelButton:
-            'group-[.toast]:bg-slate-100 group-[.toast]:text-slate-500',
+            'group-[.toast]:bg-secondary group-[.toast]:text-muted-foreground',
         },
       }}
       {...props}

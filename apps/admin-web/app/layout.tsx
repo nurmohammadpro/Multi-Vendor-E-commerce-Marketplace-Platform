@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { ThemeProvider } from '@mvp/theme';
 
 import './globals.css';
 import { WorkspaceShell } from './workspace-shell';
@@ -6,17 +7,21 @@ import { WorkspaceShell } from './workspace-shell';
 export const metadata = {
   title: 'Admin Console',
   description: 'Phase 1 platform admin operating system',
+  icons: {
+    icon: [{ url: '/favicon.png', sizes: '32x32', type: 'image/png' }],
+    shortcut: ['/favicon.png'],
+  },
 };
 
 const navItems = [
   { href: '/', label: 'Dashboard' },
   { href: '/stores', label: 'Store Ops' },
+  { href: '/billing', label: 'Billing Plans' },
   { href: '/payments', label: 'Payments' },
   { href: '/reports', label: 'Reports' },
-  { href: '/audit', label: 'Audit' },
-  { href: '/session', label: 'Session' },
   { href: '/notifications', label: 'Notifications' },
   { href: '/support', label: 'Support' },
+  { href: '/audit', label: 'Audit' },
   { href: '/settings', label: 'Settings' },
 ];
 
@@ -24,6 +29,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body>
+        <ThemeProvider>
         <WorkspaceShell
           badge="Platform Admin"
           navItems={navItems}
@@ -31,6 +37,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         >
           {children}
         </WorkspaceShell>
+        </ThemeProvider>
       </body>
     </html>
   );

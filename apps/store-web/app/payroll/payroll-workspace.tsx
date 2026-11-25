@@ -1,19 +1,22 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { jsPDF } from 'jspdf';
+import 'jspdf-autotable';
 
 import {
   emptyStateStyle,
   fieldStyle,
   pageShellStyle,
-  secondaryButtonStyle,
+  searchButtonStyle,
+  sectionPanelStyle,
   surfaceCardStyle,
   tableCellStyle,
   tableHeaderCellStyle,
   tableStyle,
   tableWrapStyle,
   tokenMutedStyle,
-} from '../motocore-theme';
+} from '../merchflow-theme';
 import { ListPager, type PaginationState, totalPagesFor } from '../list-pager';
 
 type Employee = {
@@ -55,7 +58,7 @@ type PayrollRun = {
 async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
   const response = await fetch(input, init);
   const payload = (await response.json().catch(() => null)) as T | { error?: string } | null;
-  if (!response.ok) throw new Error(payload && typeof payload === 'object' && 'error' in payload && payload.error ? payload.error : `Request failed with ${response.status}`);
+  if (!response.ok) throw new Error(payload && typeof payload === 'object' && ((payload as any).error || (payload as any).message) ? ((payload as any).error || (payload as any).message) : `Request failed with ${response.status}`);
   return payload as T;
 }
 
@@ -80,11 +83,13 @@ const defaultEmployeeForm = {
   note: '',
 };
 
-export function PayrollWorkspace() {
+export function PayrollWorkspace({ embedded = false }: { embedded?: boolean }) {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [runs, setRuns] = useState<PayrollRun[]>([]);
   const [message, setMessage] = useState('Payroll workflow is ready.');
   const [loading, setLoading] = useState(false);
+  const [subscriptionPlan, setSubscriptionPlan] = useState<string | null>(null);
+  const isPro = subscriptionPlan === 'pro';
   const [employeeSearch, setEmployeeSearch] = useState('');
   const [runSearch, setRunSearch] = useState('');
   const [employeePage, setEmployeePage] = useState(1);
@@ -99,6 +104,50 @@ export function PayrollWorkspace() {
     note: '',
   });
   const [adjustments, setAdjustments] = useState<Record<string, { bonus: string; deduction: string; note: string }>>({});
+
+  // ── Summary state ──
+  const [summary, setSummary] = useState<{
+    totalEmployees: number;
+    currentMonthPaid: number;
+    currentMonthDraftCount: number;
+    currentMonthApprovedCount: number;
+    currentMonthTotal: number;
+  } | null>(null);
+
+  const currentMonthLabel = useMemo(() => {
+    const d = new Date();
+    return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
+  }, []);
+
+  const fetchSummary = async () => {
+    try {
+      const now = new Date();
+      const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+      const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      const monthEnd = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+      const [employeesPayload, runsPayload] = await Promise.all([
+        readJson<{ employees: Employee[]; pagination?: PaginationState }>(`/api/store-ops/payroll/employees?limit=1`),
+        readJson<{ payrollRuns: PayrollRun[] }>(`/api/store-ops/payroll/runs?startDate=${monthStart}&endDate=${monthEnd}&limit=5000`),
+      ]);
+
+      const monthRuns = runsPayload.payrollRuns ?? [];
+      setSummary({
+        totalEmployees: employeesPayload.pagination?.total ?? 0,
+        currentMonthPaid: monthRuns.filter((r) => r.status === 'paid').reduce((s, r) => s + Number(r.total_amount), 0),
+        currentMonthDraftCount: monthRuns.filter((r) => r.status === 'draft').length,
+        currentMonthApprovedCount: monthRuns.filter((r) => r.status === 'approved').length,
+        currentMonthTotal: monthRuns.reduce((s, r) => s + Number(r.total_amount), 0),
+      });
+    } catch { /* summary is non-critical */ }
+  };
+
+  // ── Export state ──
+  const [exportMode, setExportMode] = useState<'monthly' | 'daterange'>('monthly');
+  const [exportMonth, setExportMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [exportStartDate, setExportStartDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [exportEndDate, setExportEndDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [exporting, setExporting] = useState(false);
 
   const refresh = async (nextEmployeePage = employeePage, nextRunPage = runPage) => {
     const employeeParams = new URLSearchParams({ page: String(nextEmployeePage), limit: String(employeePagination.limit) });
@@ -126,7 +175,11 @@ export function PayrollWorkspace() {
   };
 
   useEffect(() => {
-    void refresh(1, 1).catch((error: Error) => setMessage(error.message));
+    void Promise.all([
+      refresh(1, 1),
+      fetchSummary(),
+      readJson<{ subscription?: { plan_code: string } }>('/api/billing/subscription').then((data) => setSubscriptionPlan(data.subscription?.plan_code ?? null)).catch(() => {}),
+    ]).catch((error: Error) => setMessage(error.message));
   }, []);
 
   const saveEmployee = async () => {
@@ -237,12 +290,177 @@ export function PayrollWorkspace() {
     }
   };
 
+  const statusBadgeStyle = (status: string): CSSProperties => {
+    const colors: Record<string, { bg: string; text: string }> = {
+      draft: { bg: '#fef3c7', text: '#92400e' },
+      approved: { bg: '#dbeafe', text: '#1e40af' },
+      paid: { bg: '#d1fae5', text: '#065f46' },
+    };
+    const c = colors[status] ?? { bg: 'var(--muted)', text: 'var(--foreground)' };
+    return {
+      display: 'inline-block',
+      padding: '2px 10px',
+      borderRadius: 999,
+      fontSize: 12,
+      fontWeight: 600,
+      background: c.bg,
+      color: c.text,
+      textTransform: 'capitalize' as const,
+    };
+  };
+
+  const exportDateRange = useMemo(() => {
+    if (exportMode === 'monthly') {
+      const start = `${exportMonth}-01`;
+      const lastDay = new Date(Number(exportMonth.slice(0, 4)), Number(exportMonth.slice(5, 7)), 0).getDate();
+      return { startDate: start, endDate: `${exportMonth}-${String(lastDay).padStart(2, '0')}` };
+    }
+    return { startDate: exportStartDate, endDate: exportEndDate };
+  }, [exportMode, exportMonth, exportStartDate, exportEndDate]);
+
+  const fetchPayrollExportData = async () => {
+    const { startDate, endDate } = exportDateRange;
+    const params = new URLSearchParams({ startDate, endDate, limit: '5000' });
+    const payload = await readJson<{ payrollRuns: PayrollRun[] }>(`/api/store-ops/payroll/runs?${params.toString()}`);
+    return payload.payrollRuns ?? [];
+  };
+
+  const exportCSV = async () => {
+    setExporting(true);
+    try {
+      const data = await fetchPayrollExportData();
+      if (!data.length) { setMessage('No payroll runs found for this period.'); return; }
+
+      const rows = data.map((r) => [
+        r.payroll_no || r.id,
+        r.period_start,
+        r.period_end,
+        String(r.total_employees || r.item_count),
+        Number(r.total_bonus_amount || 0).toFixed(2),
+        Number(r.total_deduction_amount || 0).toFixed(2),
+        Number(r.total_amount).toFixed(2),
+        r.status,
+      ]);
+      const csv = [
+        '﻿Run,Period Start,Period End,Employees,Bonus,Deduction,Total,Status',
+        ...rows.map((r) => r.join(',')),
+      ].join('\n');
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const { startDate, endDate } = exportDateRange;
+      a.download = `payroll-${startDate}_to_${endDate}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setMessage(`Exported ${data.length} payroll run(s) as CSV.`);
+    } catch (error) {
+      setMessage((error as Error).message);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const exportPDF = async () => {
+    setExporting(true);
+    try {
+      const data = await fetchPayrollExportData();
+      if (!data.length) { setMessage('No payroll runs found for this period.'); return; }
+
+      const { startDate, endDate } = exportDateRange;
+      const totalGross = data.reduce((s, r) => s + Number(r.total_amount), 0);
+      const totalBonus = data.reduce((s, r) => s + Number(r.total_bonus_amount || 0), 0);
+      const totalDeduction = data.reduce((s, r) => s + Number(r.total_deduction_amount || 0), 0);
+
+      const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+      const pageWidth = doc.internal.pageSize.getWidth();
+
+      doc.setFontSize(16);
+      doc.text('Payroll Report', pageWidth / 2, 16, { align: 'center' });
+      doc.setFontSize(9);
+      doc.text(`Period: ${startDate} to ${endDate}`, pageWidth / 2, 23, { align: 'center' });
+      doc.text(`Generated: ${new Date().toLocaleDateString('en-BD', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`, pageWidth / 2, 29, { align: 'center' });
+
+      const tableData = data.map((r) => [
+        r.payroll_no || r.id,
+        r.period_start,
+        r.period_end,
+        String(r.total_employees || r.item_count),
+        Number(r.total_bonus_amount || 0).toFixed(2),
+        Number(r.total_deduction_amount || 0).toFixed(2),
+        Number(r.total_amount).toFixed(2),
+        r.status,
+      ]);
+
+      (doc as any).autoTable({
+        startY: 34,
+        head: [['Run', 'Period Start', 'Period End', 'Emp', 'Bonus', 'Deduction', 'Total', 'Status']],
+        body: tableData,
+        foot: [['', '', '', '', totalBonus.toFixed(2), totalDeduction.toFixed(2), totalGross.toFixed(2), '']],
+        theme: 'grid',
+        headStyles: { fillColor: [41, 41, 41], textColor: 255, fontSize: 7, fontStyle: 'bold' },
+        footStyles: { fillColor: [245, 245, 245], textColor: [41, 41, 41], fontSize: 7, fontStyle: 'bold' },
+        bodyStyles: { fontSize: 7 },
+        alternateRowStyles: { fillColor: [252, 252, 252] },
+        columnStyles: {
+          0: { cellWidth: 30 },
+          1: { cellWidth: 22 },
+          2: { cellWidth: 22 },
+          3: { cellWidth: 12 },
+          4: { cellWidth: 20, halign: 'right' },
+          5: { cellWidth: 20, halign: 'right' },
+          6: { cellWidth: 22, halign: 'right' },
+          7: { cellWidth: 16 },
+        },
+        margin: { left: 8, right: 8 },
+      });
+
+      doc.save(`payroll-${startDate}_to_${endDate}.pdf`);
+      setMessage(`Exported ${data.length} payroll run(s) as PDF.`);
+    } catch (error) {
+      setMessage((error as Error).message);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const totalEmployeePages = totalPagesFor(employeePagination);
   const totalRunPages = totalPagesFor(runPagination);
 
   return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
-      <section style={{ display: 'grid', gridTemplateColumns: 'minmax(340px, 1fr) minmax(420px, 1fr)', gap: 16 }}>
+    <section style={embedded ? { display: 'grid', gap: 10 } : { ...pageShellStyle, display: 'grid', gap: 10 }}>
+      {/* ── Payroll Summary Card ── */}
+      {summary ? (
+        <article style={{ ...surfaceCardStyle, padding: '14px 18px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>Payroll Summary — {currentMonthLabel}</h3>
+            <span style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>
+              Total this period: <strong style={{ color: 'var(--foreground)' }}>BDT {summary.currentMonthTotal.toFixed(2)}</strong>
+            </span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
+            <div style={{ background: '#d1fae5', borderRadius: 6, padding: '10px 14px' }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: '#065f46' }}>BDT {summary.currentMonthPaid.toFixed(2)}</div>
+              <div style={{ fontSize: 12, color: '#065f46', marginTop: 2 }}>Paid Out</div>
+            </div>
+            <div style={{ background: '#fef3c7', borderRadius: 6, padding: '10px 14px' }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: '#92400e' }}>{summary.currentMonthDraftCount}</div>
+              <div style={{ fontSize: 12, color: '#92400e', marginTop: 2 }}>Pending Approval</div>
+            </div>
+            <div style={{ background: '#dbeafe', borderRadius: 6, padding: '10px 14px' }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: '#1e40af' }}>{summary.currentMonthApprovedCount}</div>
+              <div style={{ fontSize: 12, color: '#1e40af', marginTop: 2 }}>Approved Unpaid</div>
+            </div>
+            <div style={{ background: '#f3f4f6', borderRadius: 6, padding: '10px 14px' }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--foreground)' }}>{summary.totalEmployees}</div>
+              <div style={{ fontSize: 12, color: 'var(--muted-foreground)', marginTop: 2 }}>Employees on File</div>
+            </div>
+          </div>
+        </article>
+      ) : null}
+
+      <section style={{ ...sectionPanelStyle, gridTemplateColumns: 'minmax(340px, 1fr) minmax(420px, 1fr)' }}>
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Employee Register</h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
@@ -257,10 +475,10 @@ export function PayrollWorkspace() {
             </select>
             <input type="date" value={employeeForm.joinDate} onChange={(event) => setEmployeeForm((current) => ({ ...current, joinDate: event.target.value }))} style={fieldStyle} />
             <input value={employeeForm.employmentType} onChange={(event) => setEmployeeForm((current) => ({ ...current, employmentType: event.target.value }))} style={fieldStyle} placeholder="Employment type" />
-            <input value={employeeForm.designation} onChange={(event) => setEmployeeForm((current) => ({ ...current, designation: event.target.value }))} style={fieldStyle} placeholder="Designation" />
-            <input value={employeeForm.department} onChange={(event) => setEmployeeForm((current) => ({ ...current, department: event.target.value }))} style={fieldStyle} placeholder="Department" />
-            <input value={employeeForm.monthlySalary} onChange={(event) => setEmployeeForm((current) => ({ ...current, monthlySalary: event.target.value }))} style={fieldStyle} placeholder="Monthly salary" />
-            <input value={employeeForm.emergencyContactName} onChange={(event) => setEmployeeForm((current) => ({ ...current, emergencyContactName: event.target.value }))} style={fieldStyle} placeholder="Emergency contact name" />
+            {isPro ? <input value={employeeForm.designation} onChange={(event) => setEmployeeForm((current) => ({ ...current, designation: event.target.value }))} style={fieldStyle} placeholder="Designation" /> : null}
+            {isPro ? <input value={employeeForm.department} onChange={(event) => setEmployeeForm((current) => ({ ...current, department: event.target.value }))} style={fieldStyle} placeholder="Department" /> : null}
+            {isPro ? <input value={employeeForm.monthlySalary} onChange={(event) => setEmployeeForm((current) => ({ ...current, monthlySalary: event.target.value }))} style={fieldStyle} placeholder="Monthly salary" /> : null}
+            {isPro ? <input value={employeeForm.emergencyContactName} onChange={(event) => setEmployeeForm((current) => ({ ...current, emergencyContactName: event.target.value }))} style={fieldStyle} placeholder="Emergency contact name" /> : null}
             <input value={employeeForm.emergencyContactPhone} onChange={(event) => setEmployeeForm((current) => ({ ...current, emergencyContactPhone: event.target.value }))} style={fieldStyle} placeholder="Emergency contact phone" />
           </div>
           <div style={{ display: 'grid', gap: 10, marginTop: 10 }}>
@@ -269,14 +487,14 @@ export function PayrollWorkspace() {
             <textarea value={employeeForm.trainingSummary} onChange={(event) => setEmployeeForm((current) => ({ ...current, trainingSummary: event.target.value }))} style={{ ...fieldStyle, minHeight: 74 }} placeholder="Training and certifications" />
             <textarea value={employeeForm.note} onChange={(event) => setEmployeeForm((current) => ({ ...current, note: event.target.value }))} style={{ ...fieldStyle, minHeight: 74 }} placeholder="Internal note" />
           </div>
-          <button onClick={saveEmployee} style={{ ...secondaryButtonStyle, marginTop: 10 }} disabled={loading}>Save Employee</button>
+          <button onClick={saveEmployee} style={{ ...searchButtonStyle, marginTop: 10 }} disabled={loading}>Save Employee</button>
         </article>
 
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Employees</h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, marginBottom: 12 }}>
             <input value={employeeSearch} onChange={(event) => setEmployeeSearch(event.target.value)} style={fieldStyle} placeholder="Search employee, mobile, email, role" />
-            <button onClick={() => void refresh(1, runPage)} style={secondaryButtonStyle} disabled={loading}>Search</button>
+            <button onClick={() => void refresh(1, runPage)} style={searchButtonStyle} disabled={loading}>Search</button>
           </div>
           {employees.length ? (
             <>
@@ -286,9 +504,9 @@ export function PayrollWorkspace() {
                     <tr>
                       <th style={tableHeaderCellStyle}>Employee</th>
                       <th style={tableHeaderCellStyle}>Role</th>
-                      <th style={tableHeaderCellStyle}>Designation</th>
+                      {isPro ? <th style={tableHeaderCellStyle}>Designation</th> : null}
                       <th style={tableHeaderCellStyle}>Contact</th>
-                      <th style={tableHeaderCellStyle}>Salary</th>
+                      {isPro ? <th style={tableHeaderCellStyle}>Salary</th> : null}
                       <th style={tableHeaderCellStyle}>Status</th>
                     </tr>
                   </thead>
@@ -297,12 +515,12 @@ export function PayrollWorkspace() {
                       <tr key={employee.id}>
                         <td style={tableCellStyle}>
                           {employee.full_name}
-                          <div style={{ color: '#64748b', marginTop: 4 }}>{employee.employee_number || 'Pending ID'}</div>
+                          <div style={{ color: 'var(--muted-foreground)', marginTop: 4 }}>{employee.employee_number || 'Pending ID'}</div>
                         </td>
                         <td style={tableCellStyle}>{employee.role_code}</td>
-                        <td style={tableCellStyle}>{employee.designation || '—'}</td>
+                        {isPro ? <td style={tableCellStyle}>{employee.designation || '—'}</td> : null}
                         <td style={tableCellStyle}>{employee.mobile_no || employee.email || '—'}</td>
-                        <td style={tableCellStyle}>{employee.monthly_salary}</td>
+                        {isPro ? <td style={tableCellStyle}>{employee.monthly_salary}</td> : null}
                         <td style={tableCellStyle}>{employee.employment_status}</td>
                       </tr>
                     ))}
@@ -322,7 +540,7 @@ export function PayrollWorkspace() {
         </article>
       </section>
 
-      <section style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 0.85fr) minmax(460px, 1.15fr)', gap: 16 }}>
+      <section style={{ ...sectionPanelStyle, gridTemplateColumns: 'minmax(320px, 0.85fr) minmax(460px, 1.15fr)' }}>
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Create Payroll Run</h3>
           <div style={{ display: 'grid', gap: 10 }}>
@@ -334,10 +552,10 @@ export function PayrollWorkspace() {
               <option value="paid">Paid</option>
             </select>
             <textarea value={runForm.note} onChange={(event) => setRunForm((current) => ({ ...current, note: event.target.value }))} style={{ ...fieldStyle, minHeight: 88 }} placeholder="Payroll note" />
-            <div style={{ color: '#64748b', fontSize: 13 }}>
+            <div style={{ color: 'var(--muted-foreground)', fontSize: 13 }}>
               Gross: {previewTotals.gross.toFixed(2)} · Bonus: {previewTotals.bonus.toFixed(2)} · Deduction: {previewTotals.deduction.toFixed(2)} · Net: {previewTotals.net.toFixed(2)}
             </div>
-            <button onClick={createRun} style={secondaryButtonStyle} disabled={loading}>Create Payroll Run</button>
+            <button onClick={createRun} style={searchButtonStyle} disabled={loading}>Create Payroll Run</button>
           </div>
         </article>
 
@@ -384,8 +602,28 @@ export function PayrollWorkspace() {
         <h3 style={{ marginTop: 0 }}>Payroll Runs</h3>
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, marginBottom: 12 }}>
           <input value={runSearch} onChange={(event) => setRunSearch(event.target.value)} style={fieldStyle} placeholder="Search payroll no or status" />
-          <button onClick={() => void refresh(employeePage, 1)} style={secondaryButtonStyle} disabled={loading}>Search</button>
+          <button onClick={() => void refresh(employeePage, 1)} style={searchButtonStyle} disabled={loading}>Search</button>
         </div>
+
+        {/* ── Export section ── */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginBottom: 12, padding: 8, background: 'var(--muted)', borderRadius: 6 }}>
+          <select value={exportMode} onChange={(e) => setExportMode(e.target.value as 'monthly' | 'daterange')} style={{ ...fieldStyle, width: 'auto', minWidth: 120, fontSize: 12 }}>
+            <option value="monthly">Monthly</option>
+            <option value="daterange">Date range</option>
+          </select>
+          {exportMode === 'monthly' ? (
+            <input type="month" value={exportMonth} onChange={(e) => setExportMonth(e.target.value)} style={{ ...fieldStyle, width: 'auto', fontSize: 12 }} />
+          ) : (
+            <>
+              <input type="date" value={exportStartDate} onChange={(e) => setExportStartDate(e.target.value)} style={{ ...fieldStyle, width: 'auto', fontSize: 12 }} />
+              <span style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>to</span>
+              <input type="date" value={exportEndDate} onChange={(e) => setExportEndDate(e.target.value)} style={{ ...fieldStyle, width: 'auto', fontSize: 12 }} />
+            </>
+          )}
+          <button onClick={() => void exportCSV()} style={{ ...searchButtonStyle, fontSize: 12 }} disabled={exporting}>CSV</button>
+          <button onClick={() => void exportPDF()} style={{ ...searchButtonStyle, fontSize: 12 }} disabled={exporting}>PDF</button>
+        </div>
+
         {runs.length ? (
           <>
             <div style={tableWrapStyle}>
@@ -411,11 +649,15 @@ export function PayrollWorkspace() {
                       <td style={tableCellStyle}>{run.total_bonus_amount || 0}</td>
                       <td style={tableCellStyle}>{run.total_deduction_amount || 0}</td>
                       <td style={tableCellStyle}>{run.total_amount}</td>
-                      <td style={tableCellStyle}>{run.status}</td>
+                      <td style={tableCellStyle}><span style={statusBadgeStyle(run.status)}>{run.status}</span></td>
                       <td style={tableCellStyle}>
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                          <button onClick={() => void updateRunStatus(run.id, 'approved')} style={secondaryButtonStyle} disabled={loading}>Approve</button>
-                          <button onClick={() => void updateRunStatus(run.id, 'paid')} style={secondaryButtonStyle} disabled={loading}>Mark Paid</button>
+                          {run.status === 'draft' ? (
+                            <button onClick={() => void updateRunStatus(run.id, 'approved')} style={searchButtonStyle} disabled={loading}>Approve</button>
+                          ) : null}
+                          {run.status === 'approved' ? (
+                            <button onClick={() => void updateRunStatus(run.id, 'paid')} style={{ ...searchButtonStyle, background: '#059669', borderColor: '#059669', color: '#fff' }} disabled={loading}>Mark Paid</button>
+                          ) : null}
                         </div>
                       </td>
                     </tr>
@@ -435,10 +677,7 @@ export function PayrollWorkspace() {
         ) : <div style={emptyStateStyle}>No payroll runs created yet.</div>}
       </article>
 
-      <article style={surfaceCardStyle}>
-        <h3 style={{ marginTop: 0 }}>Operator Notes</h3>
-        <p style={tokenMutedStyle}>{message}</p>
-      </article>
+      <p style={tokenMutedStyle}>{message}</p>
     </section>
   );
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { type ChangeEvent, useEffect, useMemo, useState } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -36,6 +37,8 @@ type StoreRow = {
   email?: string | null;
   status: StoreStatus;
   subscription_status: string;
+  plan_code?: string | null;
+  plan_name?: string | null;
   owner_name?: string | null;
   owner_email?: string | null;
   staff_count: number;
@@ -47,6 +50,8 @@ type StoreRow = {
   deactivation_review_at?: string | null;
   delete_eligible_at?: string | null;
   can_delete?: boolean;
+  can_force_delete?: boolean;
+  has_sales?: boolean;
   should_deactivate_review?: boolean;
 };
 
@@ -57,6 +62,7 @@ type BillingPlan = {
   price_amount: string;
   billing_cycle: string;
   features_json: string[];
+  max_users?: number;
 };
 
 type StoreFormState = {
@@ -146,8 +152,14 @@ export function StoresWorkspace() {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [deleteTarget, setDeleteTarget] = useState<StoreRow | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [forceDelete, setForceDelete] = useState(false);
   const [ownerPasswordTarget, setOwnerPasswordTarget] = useState<StoreRow | null>(null);
   const [ownerPassword, setOwnerPassword] = useState('');
+  const [showPasswordOwner, setShowPasswordOwner] = useState(false);
+  const [showPasswordReset, setShowPasswordReset] = useState(false);
+  const [planTarget, setPlanTarget] = useState<StoreRow | null>(null);
+  const [planCode, setPlanCode] = useState('basic');
+  const [planAutoRenew, setPlanAutoRenew] = useState(true);
 
   const refresh = async () => {
     const payload = await readJson<{ stores: StoreRow[] }>('/api/stores');
@@ -322,6 +334,32 @@ export function StoresWorkspace() {
     }
   };
 
+  const beginPlanChange = (store: StoreRow) => {
+    setPlanTarget(store);
+    setPlanCode(store.plan_code || 'basic');
+    setPlanAutoRenew(store.subscription_auto_renew ?? true);
+  };
+
+  const changePlan = async () => {
+    if (!planTarget) return;
+    setLoading(true);
+    try {
+      await readJson(`/api/admin/billing/stores/${planTarget.id}/subscription`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planCode, autoRenew: planAutoRenew }),
+      });
+      await refresh();
+      setPlanTarget(null);
+      const plan = plans.find((p) => p.code === planCode);
+      setMessage(`${planTarget.name} moved to the ${plan?.name || planCode} plan.`);
+    } catch (error) {
+      setMessage((error as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const confirmDelete = async () => {
     if (!deleteTarget) return;
     if (deleteConfirmText.trim() !== deleteTarget.name) {
@@ -331,11 +369,15 @@ export function StoresWorkspace() {
 
     setLoading(true);
     try {
-      await readJson(`/api/stores/${deleteTarget.id}`, { method: 'DELETE' });
+      const url = forceDelete
+        ? `/api/stores/${deleteTarget.id}?force=true`
+        : `/api/stores/${deleteTarget.id}`;
+      await readJson(url, { method: 'DELETE' });
       await refresh();
-      setMessage(`Deleted ${deleteTarget.name}.`);
+      setMessage(forceDelete ? `Force-deleted ${deleteTarget.name}.` : `Deleted ${deleteTarget.name}.`);
       setDeleteTarget(null);
       setDeleteConfirmText('');
+      setForceDelete(false);
     } catch (error) {
       setMessage((error as Error).message);
     } finally {
@@ -398,12 +440,13 @@ export function StoresWorkspace() {
             <div className="space-y-1">
               <div className="text-sm font-medium">Billing guardrails</div>
               <p className="text-sm text-muted-foreground">
-                Stores become review-ready 7 days after the due date. Only inactive stores that stayed overdue for 3 months can be deleted manually.
+                Stores become review-ready 3 months after the due date. Inactive stores that stayed overdue for 6 months can be deleted. Active stores with no sales data can be force-deleted.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Badge variant="secondary">7 days → deactivation review</Badge>
-              <Badge variant="destructive">3 months → delete eligible</Badge>
+              <Badge variant="secondary">3 months → deactivation review</Badge>
+              <Badge variant="destructive">6 months → delete eligible</Badge>
+              <Badge variant="outline">No sales → force delete</Badge>
             </div>
           </div>
         </CardContent>
@@ -414,7 +457,7 @@ export function StoresWorkspace() {
           <CardHeader className="space-y-2">
             <CardTitle>{editingStoreId ? 'Edit store' : 'Create store'}</CardTitle>
             <p className="text-sm text-muted-foreground">
-              Stores start active. Admins may only delete a store after it is inactive and overdue by three months.
+              Stores start active. Admins may delete a store after it is inactive and overdue by 6 months, or force-delete active stores with no sales data.
             </p>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -449,10 +492,13 @@ export function StoresWorkspace() {
               <p className="text-xs text-muted-foreground">
                 This logo will be shown at the top of the store sidebar.
               </p>
-              <Input id="storeLogoFile" type="file" accept="image/*" onChange={(event) => void handleLogoFileChange(event)} />
+              <Input id="storeLogoFile" type="file" accept="image/*" onChange={(event) => void handleLogoFileChange(event)} className="hidden" />
+              <Button variant="outline" type="button" size="sm" onClick={() => document.getElementById('storeLogoFile')?.click()}>
+                Choose file
+              </Button>
               {form.logoUrl ? (
                 <div className="flex items-center gap-3 rounded-md border border-border/60 bg-muted/30 p-3">
-                  <img src={form.logoUrl} alt="Store logo preview" className="h-14 w-14 rounded-md object-contain bg-white p-1" />
+                  <img src={form.logoUrl} alt="Store logo preview" className="h-14 w-14 rounded-md object-contain bg-card p-1" />
                   <Button
                     variant="outline"
                     type="button"
@@ -531,13 +577,18 @@ export function StoresWorkspace() {
               </div>
                 <div className="space-y-2">
                   <Label htmlFor="ownerPassword">Initial password</Label>
-                <Input
-                  id="ownerPassword"
-                  type="password"
-                  value={form.ownerPassword}
-                  onChange={(event) => setForm((current) => ({ ...current, ownerPassword: event.target.value }))}
-                  placeholder="Create a strong password"
-                />
+                <div className="relative">
+                  <Input
+                    id="ownerPassword"
+                    type={showPasswordOwner ? 'text' : 'password'}
+                    value={form.ownerPassword}
+                    onChange={(event) => setForm((current) => ({ ...current, ownerPassword: event.target.value }))}
+                    placeholder="Create a strong password"
+                  />
+                  <button type="button" onClick={() => setShowPasswordOwner((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" tabIndex={-1} aria-label={showPasswordOwner ? 'Hide password' : 'Show password'}>
+                    {showPasswordOwner ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
                 {formErrors.ownerPassword ? <p className="text-xs text-destructive">{formErrors.ownerPassword}</p> : null}
               </div>
             </div>
@@ -656,6 +707,12 @@ export function StoresWorkspace() {
         <div className="flex flex-col gap-4">
           <Card>
             <CardContent className="pt-[var(--erp-card-py)]">
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">
+                  {filteredStores.length} of {stores.length} store{stores.length !== 1 ? 's' : ''}
+                  {statusFilter !== 'all' ? ` (filtered by ${statusFilter})` : ''}
+                </p>
+              </div>
               <div className="grid gap-3 sm:grid-cols-3">
                 <div className="space-y-2">
                   <Label htmlFor="searchStores">Search</Label>
@@ -695,32 +752,69 @@ export function StoresWorkspace() {
               <CardContent className="pt-[var(--erp-card-py)]">
                 <div className="flex flex-col gap-4 lg:flex-row lg:justify-between">
                   <div className="space-y-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <div className="text-lg font-semibold">{store.name}</div>
-                      <Badge variant={statusTone(store.status)}>{store.status}</Badge>
-                      {store.should_deactivate_review ? <Badge variant="secondary">billing overdue</Badge> : null}
-                      {store.can_delete ? <Badge variant="destructive">delete eligible</Badge> : null}
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border bg-card text-sm font-semibold text-muted-foreground overflow-hidden">
+                        {store.logo_url && (store.logo_url.startsWith('data:image') || store.logo_url.startsWith('http')) ? (
+                          <img src={store.logo_url} alt={`${store.name} logo`} className="h-full w-full object-contain" />
+                        ) : (
+                          store.name.charAt(0).toUpperCase()
+                        )}
+                      </div>
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div className="text-lg font-semibold leading-none">{store.name}</div>
+                          <Badge variant={statusTone(store.status)}>{store.status}</Badge>
+                          {store.should_deactivate_review ? <Badge variant="secondary">billing overdue</Badge> : null}
+                          {store.can_delete ? <Badge variant="destructive">delete eligible</Badge> : null}
+                          {store.can_force_delete && !store.can_delete ? <Badge variant="outline">force delete ok</Badge> : null}
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {store.store_code} · {store.slug} · Staff {store.staff_count}
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-sm text-muted-foreground">
-                      {store.store_code} · {store.slug} · Staff {store.staff_count}
-                    </div>
-                    {store.logo_url ? (
-                      <div className="text-xs text-muted-foreground">Logo: {store.logo_url}</div>
-                    ) : null}
                     {store.address_text ? (
-                      <div className="text-xs text-muted-foreground">Address: {store.address_text}</div>
+                      <div className="text-xs text-muted-foreground">
+                        <span className="font-medium">Address:</span> {store.address_text}
+                      </div>
                     ) : null}
                     <div className="text-sm text-muted-foreground">
-                      Owner: {store.owner_name || '—'} · {store.owner_email || store.email || '—'}
+                      <span className="font-medium">Owner:</span> {store.owner_name || '—'} · {store.owner_email || store.email || '—'}
                     </div>
-                    <div className="grid gap-1 text-sm text-muted-foreground sm:grid-cols-2 xl:grid-cols-3">
-                      <div>Subscription: {store.subscription_status}</div>
-                      <div>Billing: {store.billing_status || '—'}</div>
-                      <div>Due: {formatDate(store.billing_due_at)}</div>
-                      <div>Deactivation review: {formatDate(store.deactivation_review_at)}</div>
-                      <div>Delete eligible: {formatDate(store.delete_eligible_at)}</div>
-                      <div>Auto renew: {store.subscription_auto_renew ? 'Yes' : 'No'}</div>
+
+                    <div className="border-t border-border/40 pt-2.5">
+                      <div className="grid gap-x-4 gap-y-1.5 text-sm sm:grid-cols-2 xl:grid-cols-3">
+                        <div className="flex items-center justify-between gap-2 sm:flex-col sm:items-start">
+                          <span className="text-muted-foreground text-xs font-medium">Plan</span>
+                          <span className="font-medium">{store.plan_name || store.plan_code || '—'}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2 sm:flex-col sm:items-start">
+                          <span className="text-muted-foreground text-xs font-medium">Subscription</span>
+                          <span className="font-medium capitalize">{store.subscription_status}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2 sm:flex-col sm:items-start">
+                          <span className="text-muted-foreground text-xs font-medium">Billing</span>
+                          <span className={store.billing_status === 'overdue' ? 'text-destructive font-medium' : 'capitalize'}>{store.billing_status || '—'}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2 sm:flex-col sm:items-start">
+                          <span className="text-muted-foreground text-xs font-medium">Due date</span>
+                          <span>{formatDate(store.billing_due_at)}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2 sm:flex-col sm:items-start">
+                          <span className="text-muted-foreground text-xs font-medium">Deactivation review</span>
+                          <span>{formatDate(store.deactivation_review_at)}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2 sm:flex-col sm:items-start">
+                          <span className="text-muted-foreground text-xs font-medium">Delete eligible</span>
+                          <span>{formatDate(store.delete_eligible_at)}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2 sm:flex-col sm:items-start">
+                          <span className="text-muted-foreground text-xs font-medium">Auto renew</span>
+                          <span className={store.subscription_auto_renew ? 'text-emerald-600 dark:text-emerald-400' : ''}>{store.subscription_auto_renew ? 'Yes' : 'No'}</span>
+                        </div>
+                      </div>
                     </div>
+
                     {store.should_deactivate_review ? (
                       <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-950 dark:text-amber-200">
                         This store is past the billing grace period. Admins may deactivate it now, but it will not be deleted automatically.
@@ -733,12 +827,15 @@ export function StoresWorkspace() {
                     ) : null}
                   </div>
 
-                  <div className="flex flex-wrap items-start gap-2">
+                  <div className="flex flex-wrap items-start gap-1.5">
                     <Button variant="outline" size="sm" onClick={() => beginEdit(store)} disabled={loading || saving}>
                       Edit
                     </Button>
                     <Button variant="outline" size="sm" onClick={() => setOwnerPasswordTarget(store)} disabled={loading || saving}>
-                      Reset owner password
+                      Reset pwd
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => beginPlanChange(store)} disabled={loading || saving || plans.length === 0}>
+                      Plan
                     </Button>
                     <Button
                       variant="outline"
@@ -767,8 +864,8 @@ export function StoresWorkspace() {
                     <Button
                       variant="destructive"
                       size="sm"
-                      onClick={() => setDeleteTarget(store)}
-                      disabled={loading || saving || !store.can_delete}
+                      onClick={() => { setForceDelete(false); setDeleteTarget(store); }}
+                      disabled={loading || saving || (!store.can_delete && !store.can_force_delete)}
                     >
                       Delete
                     </Button>
@@ -790,13 +887,16 @@ export function StoresWorkspace() {
             if (!open) {
               setDeleteTarget(null);
               setDeleteConfirmText('');
+              setForceDelete(false);
             }
           }}>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Delete store</DialogTitle>
                 <DialogDescription>
-                  Type the store name to confirm deletion. This action is only available for inactive stores that are eligible for removal.
+                  {deleteTarget?.can_delete
+                    ? 'Type the store name to confirm deletion. This store is eligible for standard deletion.'
+                    : 'This store is not yet eligible for standard deletion (requires inactive status + 6 months overdue). Force-delete will permanently remove the store and all its data.'}
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-2">
@@ -808,10 +908,28 @@ export function StoresWorkspace() {
                   placeholder={deleteTarget?.name ?? 'Store name'}
                 />
               </div>
+              {deleteTarget && !deleteTarget.can_delete && deleteTarget.can_force_delete && (
+                <div className="flex items-center gap-2 rounded-md border border-destructive/20 bg-destructive/5 p-3">
+                  <input
+                    type="checkbox"
+                    id="forceDelete"
+                    checked={forceDelete}
+                    onChange={(event) => setForceDelete(event.target.checked)}
+                    className="h-4 w-4"
+                  />
+                  <Label htmlFor="forceDelete" className="text-sm font-medium text-destructive">
+                    Force delete (store has no sales data — safe to remove)
+                  </Label>
+                </div>
+              )}
               <DialogFooter>
-                <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
-                <Button variant="destructive" onClick={() => void confirmDelete()} disabled={!deleteTarget || deleteConfirmText.trim() !== deleteTarget.name}>
-                  Delete store
+                <Button variant="outline" onClick={() => { setDeleteTarget(null); setForceDelete(false); }}>Cancel</Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => void confirmDelete()}
+                  disabled={!deleteTarget || deleteConfirmText.trim() !== deleteTarget.name || (forceDelete && !deleteTarget.can_force_delete)}
+                >
+                  {forceDelete ? 'Force delete store' : 'Delete store'}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -832,18 +950,74 @@ export function StoresWorkspace() {
               </DialogHeader>
               <div className="space-y-2">
                 <Label htmlFor="ownerPasswordReset">New password</Label>
-                <Input
-                  id="ownerPasswordReset"
-                  type="password"
-                  value={ownerPassword}
-                  onChange={(event) => setOwnerPassword(event.target.value)}
-                  placeholder="Create a new password"
-                />
+                <div className="relative">
+                  <Input
+                    id="ownerPasswordReset"
+                    type={showPasswordReset ? 'text' : 'password'}
+                    value={ownerPassword}
+                    onChange={(event) => setOwnerPassword(event.target.value)}
+                    placeholder="Create a new password"
+                  />
+                  <button type="button" onClick={() => setShowPasswordReset((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" tabIndex={-1} aria-label={showPasswordReset ? 'Hide password' : 'Show password'}>
+                    {showPasswordReset ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setOwnerPasswordTarget(null)}>Cancel</Button>
                 <Button onClick={() => void rotateOwnerPassword()} disabled={ownerPassword.length < 10}>
                   Update password
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={Boolean(planTarget)} onOpenChange={(open) => {
+            if (!open) setPlanTarget(null);
+          }}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Change subscription plan</DialogTitle>
+                <DialogDescription>
+                  Move {planTarget?.name || 'the store'} to another plan. The current subscription is
+                  cancelled immediately and the new one starts today.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="planSelect">Plan</Label>
+                  <Select value={planCode} onValueChange={(value) => setPlanCode(value)}>
+                    <SelectTrigger id="planSelect">
+                      <SelectValue placeholder="Select a plan" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {plans.map((plan) => (
+                        <SelectItem key={plan.id} value={plan.code}>
+                          {plan.name} ({plan.code}) — BDT {Number(plan.price_amount).toFixed(0)}/{plan.billing_cycle} · {plan.max_users ?? 1} user(s)
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {plans.find((p) => p.code === planCode) ? (
+                    <p className="text-xs text-muted-foreground">
+                      Features: {(plans.find((p) => p.code === planCode)?.features_json ?? []).join(', ')}
+                    </p>
+                  ) : null}
+                </div>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={planAutoRenew}
+                    onChange={(event) => setPlanAutoRenew(event.target.checked)}
+                    className="h-4 w-4"
+                  />
+                  Auto renew
+                </label>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setPlanTarget(null)}>Cancel</Button>
+                <Button onClick={() => void changePlan()} disabled={loading || !planCode}>
+                  Change plan
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -855,7 +1029,7 @@ export function StoresWorkspace() {
             </CardHeader>
             <CardContent className="space-y-2 text-sm text-muted-foreground">
               <p>Active and inactive states are separate from billing eligibility.</p>
-              <p>Stores become review-ready seven days after the subscription due date.</p>
+              <p>Stores become review-ready three months after the subscription due date.</p>
               <p>Admins can only delete stores that are inactive and overdue by three months.</p>
               <p>No store is deleted automatically.</p>
               <p>{message}</p>

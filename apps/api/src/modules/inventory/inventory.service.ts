@@ -3,6 +3,7 @@ import type { Pool, PoolClient } from 'pg';
 
 import type { AuthSession, StoreAuthContext } from '../auth/auth.types.js';
 import { AuditService } from '../audit/audit.service.js';
+import { BillingService } from '../billing/billing.service.js';
 import { normalizePageQuery, stripPaginationTotal } from '../common/pagination.js';
 import { DATABASE_POOL } from '../database/database.constants.js';
 
@@ -11,15 +12,161 @@ export class InventoryService {
   constructor(
     @Inject(DATABASE_POOL) private readonly pool: Pool,
     private readonly auditService: AuditService,
+    private readonly billingService: BillingService,
   ) {}
+
+  private async ensureDefaultLocation(storeId: string) {
+    await this.pool.query(
+      `
+        insert into inventory.locations (
+          id,
+          tenant_id,
+          store_id,
+          code,
+          name,
+          location_type,
+          status,
+          created_at,
+          updated_at
+        )
+        select
+          gen_random_uuid(),
+          s.tenant_id,
+          s.id,
+          'MAIN',
+          'Main Store',
+          'storefront',
+          'active',
+          now(),
+          now()
+        from store.stores s
+        where s.id = $1
+          and not exists (
+            select 1
+            from inventory.locations l
+            where l.store_id = s.id
+              and l.status = 'active'
+          )
+        on conflict (store_id, code)
+        do update set
+          status = 'active',
+          updated_at = now()
+      `,
+      [storeId],
+    );
+  }
+
+  async createLocation(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    session: AuthSession | null,
+    payload: { code: string; name: string; locationType: string; address?: string; phone?: string; email?: string },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const userId = this.requireUserId(session);
+
+    await this.billingService.checkLocationLimit(storeId);
+
+    const tenantResult = await this.pool.query<{ tenant_id: string }>(
+      `select tenant_id from store.stores where id = $1 limit 1`, [storeId],
+    );
+    const tenantId = tenantResult.rows[0].tenant_id;
+
+    const result = await this.pool.query<{ id: string; code: string; name: string; location_type: string; status: string }>(
+      `insert into inventory.locations (id, tenant_id, store_id, code, name, location_type, address, phone, email, status, created_at, updated_at)
+       values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, 'active', now(), now()) returning id, code, name, address, phone, email, location_type, status`,
+      [tenantId, storeId, payload.code, payload.name, payload.locationType, payload.address ?? null, payload.phone ?? null, payload.email ?? null],
+    );
+
+    await this.auditService.recordStoreAction({
+      storeId, actorUserId: userId, actionCode: 'location.create',
+      resourceType: 'location', resourceId: result.rows[0].id, after: result.rows[0],
+    });
+
+    return { location: result.rows[0] };
+  }
+
+  async updateLocation(
+    locationId: string,
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    session: AuthSession | null,
+    payload: { name?: string; code?: string; address?: string; phone?: string; email?: string; status?: string },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const userId = this.requireUserId(session);
+
+    const location = await this.pool.query<{ id: string }>(
+      `select id from inventory.locations where id = $1 and store_id = $2 limit 1`,
+      [locationId, storeId],
+    );
+    if (!location.rows[0]) throw new NotFoundException('Location not found');
+
+    const sets: string[] = [];
+    const values: unknown[] = [];
+    let idx = 1;
+
+    if (payload.name !== undefined) { sets.push(`name = $${idx++}`); values.push(payload.name); }
+    if (payload.code !== undefined) { sets.push(`code = $${idx++}`); values.push(payload.code); }
+    if (payload.address !== undefined) { sets.push(`address = $${idx++}`); values.push(payload.address); }
+    if (payload.phone !== undefined) { sets.push(`phone = $${idx++}`); values.push(payload.phone); }
+    if (payload.email !== undefined) { sets.push(`email = $${idx++}`); values.push(payload.email); }
+    if (payload.status !== undefined) { sets.push(`status = $${idx++}`); values.push(payload.status); }
+
+    if (!sets.length) return { location: location.rows[0] };
+
+    sets.push(`updated_at = now()`);
+
+    const result = await this.pool.query(
+      `update inventory.locations set ${sets.join(', ')} where id = $${idx} and store_id = $${idx + 1} returning id, code, name, address, phone, email, location_type, status`,
+      [...values, locationId, storeId],
+    );
+
+    await this.auditService.recordStoreAction({
+      storeId, actorUserId: userId, actionCode: 'location.update',
+      resourceType: 'location', resourceId: locationId, after: result.rows[0],
+    });
+
+    return { location: result.rows[0] };
+  }
+
+  async deleteLocation(
+    locationId: string,
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    session: AuthSession | null,
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const userId = this.requireUserId(session);
+
+    const location = await this.pool.query<{ id: string }>(
+      `select id from inventory.locations where id = $1 and store_id = $2 limit 1`,
+      [locationId, storeId],
+    );
+    if (!location.rows[0]) throw new NotFoundException('Location not found');
+
+    await this.pool.query(
+      `update inventory.locations set status = 'inactive', updated_at = now() where id = $1`,
+      [locationId],
+    );
+
+    await this.auditService.recordStoreAction({
+      storeId, actorUserId: userId, actionCode: 'location.delete',
+      resourceType: 'location', resourceId: locationId,
+    });
+
+    return { ok: true };
+  }
 
   async listLocations(headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
+    await this.ensureDefaultLocation(storeId);
     const result = await this.pool.query(
       `
-        select id, code, name, location_type, status, created_at
+        select id, code, name, address, phone, email, location_type, status, created_at, updated_at
         from inventory.locations
         where store_id = $1
+          and status = 'active'
         order by created_at asc
       `,
       [storeId],
@@ -28,53 +175,13 @@ export class InventoryService {
     return { locations: result.rows };
   }
 
-  async createLocation(
-    headerStoreId: string | undefined,
-    authContext: StoreAuthContext | null,
-    payload: { code: string; name: string; locationType: string },
-  ) {
-    const storeId = this.assertStoreContext(headerStoreId, authContext);
-    const result = await this.pool.query(
-      `
-        insert into inventory.locations (
-          id, tenant_id, store_id, code, name, location_type, status, created_at, updated_at
-        )
-        select
-          gen_random_uuid(),
-          s.tenant_id,
-          s.id,
-          $2,
-          $3,
-          $4,
-          'active',
-          now(),
-          now()
-        from store.stores s
-        where s.id = $1
-        returning id, code, name, location_type, status
-      `,
-      [storeId, payload.code, payload.name, payload.locationType],
-    );
-
-    const location = result.rows[0];
-    await this.auditService.recordStoreAction({
-      storeId,
-      actorUserId: null,
-      actionCode: 'inventory.location.create',
-      resourceType: 'inventory_location',
-      resourceId: String(location?.id ?? ''),
-      after: location ?? null,
-    });
-
-    return { location };
-  }
-
-  async listBalances(
+    async listBalances(
     headerStoreId: string | undefined,
     authContext: StoreAuthContext | null,
     filters: { locationId?: string; search?: string; page?: number; limit?: number } = {},
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
+    await this.ensureDefaultLocation(storeId);
 
     // Auto-seed zero-balance rows for any active SKU that doesn't have one,
     // so every SKU appears in balances immediately without manual initialization.
@@ -114,6 +221,7 @@ export class InventoryService {
             b.sku_id,
             s.sku_code,
             p.name as product_name,
+            p.is_trackable,
             b.on_hand_qty,
             b.reserved_qty,
             b.available_qty,
@@ -145,88 +253,130 @@ export class InventoryService {
     return { balances: items, pagination: { page, limit, total } };
   }
 
-  async initializeStock(
+  async directAdjustBalance(
     headerStoreId: string | undefined,
     authContext: StoreAuthContext | null,
     session: AuthSession | null,
-    payload: { locationId: string; skuId: string; quantity: number; note?: string },
+    payload: {
+      locationId: string;
+      skuId: string;
+      onHandQty: number;
+      reservedQty: number;
+      damagedQty: number;
+      returnedQty: number;
+      reason: string;
+    },
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
     const userId = this.requireUserId(session);
 
-    const client = await this.pool.connect();
-    try {
-      await client.query('begin');
-
-      const initialized = await client.query(
-        `
-          select id
-          from inventory.stock_initializations
-          where location_id = $1
-            and sku_id = $2
-          limit 1
-        `,
-        [payload.locationId, payload.skuId],
-      );
-
-      if (initialized.rows[0]) {
-        throw new ForbiddenException('Initial stock already exists for this SKU and location');
-      }
-
-      await this.upsertBalance(client, storeId, payload.locationId, payload.skuId, payload.quantity);
-      await this.insertLedger(client, {
-        storeId,
-        locationId: payload.locationId,
-        skuId: payload.skuId,
-        movementType: 'initial',
-        qtyDelta: payload.quantity,
-        referenceType: 'stock_initialization',
-        referenceId: null,
-        note: payload.note ?? null,
-        actorId: userId,
-      });
-
-      await client.query(
-        `
-          insert into inventory.stock_initializations (
-            id, tenant_id, store_id, location_id, sku_id, initialized_by, initialized_at
-          )
-          select
-            gen_random_uuid(),
-            s.tenant_id,
-            s.id,
-            $2,
-            $3,
-            $4,
-            now()
-          from store.stores s
-          where s.id = $1
-        `,
-        [storeId, payload.locationId, payload.skuId, userId],
-      );
-
-      await client.query('commit');
-      await this.auditService.recordStoreAction({
-        storeId,
-        actorUserId: userId,
-        actionCode: 'inventory.stock.initialize',
-        resourceType: 'inventory_balance',
-        resourceId: payload.skuId,
-        after: {
-          locationId: payload.locationId,
-          skuId: payload.skuId,
-          quantity: payload.quantity,
-          note: payload.note ?? null,
-        },
-      });
-      return { ok: true };
-    } catch (error) {
-      await client.query('rollback').catch(() => {});
-      throw error;
-    } finally {
-      client.release();
+    const balance = await this.findBalance(storeId, payload.locationId, payload.skuId);
+    if (!balance) {
+      throw new NotFoundException('Inventory balance not found');
     }
+
+    const currentOnHand = Number(balance.on_hand_qty ?? 0);
+    const newOnHand = payload.onHandQty;
+    const qtyDelta = newOnHand - currentOnHand;
+
+    await this.pool.query(
+      `
+        insert into inventory.balances (
+          id,
+          tenant_id,
+          store_id,
+          location_id,
+          sku_id,
+          on_hand_qty,
+          reserved_qty,
+          damaged_qty,
+          returned_qty,
+          updated_at
+        )
+        values (
+          $1,
+          $2,
+          $3,
+          $4,
+          $5,
+          $6,
+          $7,
+          $8,
+          $9,
+          now()
+        )
+        on conflict (location_id, sku_id) do update set
+          on_hand_qty = EXCLUDED.on_hand_qty,
+          reserved_qty = EXCLUDED.reserved_qty,
+          damaged_qty = EXCLUDED.damaged_qty,
+          returned_qty = EXCLUDED.returned_qty,
+          updated_at = EXCLUDED.updated_at
+      `,
+      [
+        balance.id,
+        balance.tenant_id,
+        storeId,
+        payload.locationId,
+        payload.skuId,
+        payload.onHandQty,
+        payload.reservedQty,
+        payload.damagedQty,
+        payload.returnedQty,
+      ],
+    );
+
+    // Log the adjustment in ledger
+    const movementType = qtyDelta >= 0 ? 'adjustment_in' : 'adjustment_out';
+    await this.pool.query(
+      `
+        insert into inventory.ledger (
+          id,
+          tenant_id,
+          store_id,
+          location_id,
+          sku_id,
+          movement_type,
+          qty_delta,
+          reference_type,
+          reference_id,
+          note,
+          actor_id,
+          created_at
+        )
+        values (
+          gen_random_uuid(),
+          $1,
+          $2,
+          $3,
+          $4,
+          $5,
+          $6,
+          'direct_adjust',
+          gen_random_uuid(),
+          $7,
+          $8,
+          now()
+        )
+      `,
+      [
+        balance.tenant_id,
+        storeId,
+        payload.locationId,
+        payload.skuId,
+        movementType,
+        qtyDelta,
+        payload.reason,
+        userId,
+      ],
+    );
+
+    return {
+      success: true,
+      message: 'Stock adjusted successfully',
+      newBalance: payload.onHandQty,
+    };
   }
+
 
   async requestAdjustment(
     headerStoreId: string | undefined,
@@ -497,7 +647,7 @@ export class InventoryService {
           storeId,
           locationId: request.location_id,
           skuId: request.sku_id,
-          movementType: 'approval_adjustment',
+          movementType: Number(request.qty_delta) >= 0 ? 'adjustment_in' : 'adjustment_out',
           qtyDelta: Number(request.qty_delta),
           referenceType: 'stock_adjustment_request',
           referenceId: requestId,
@@ -517,11 +667,9 @@ export class InventoryService {
   }
 
   private async findBalance(storeId: string, locationId: string, skuId: string) {
-    const result = await this.pool.query<{
-      on_hand_qty: string;
-    }>(
+    const result = await this.pool.query(
       `
-        select on_hand_qty
+        select id, tenant_id, store_id, location_id, sku_id, on_hand_qty, reserved_qty, damaged_qty, returned_qty
         from inventory.balances
         where store_id = $1
           and location_id = $2

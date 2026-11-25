@@ -1,1766 +1,459 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-
-import { ConfirmDialog } from '@/components/confirm-dialog';
+import { Search, Plus, Package, ChevronRight, Loader2, Download, TrendingUp } from 'lucide-react';
+import { toast } from 'sonner';
 import {
   emptyStateStyle,
   fieldStyle,
-  secondaryButtonStyle,
+  gray800ButtonStyle,
+  neutralButtonStyle,
+  pageShellStyle,
+  searchButtonStyle,
+  subtleButtonStyle,
   surfaceCardStyle,
   tableCellStyle,
   tableHeaderCellStyle,
   tableStyle,
   tableWrapStyle,
   tokenMutedStyle,
-} from '../motocore-theme';
-import { ListPager, type PaginationState, totalPagesFor } from '../list-pager';
+} from '../merchflow-theme';
+import { searchRowStyle, WorkspaceTabs } from '../workspace-responsive';
+import { ListPager } from '../list-pager';
+import { ProductForm } from './product-form';
+import { ProductDetail } from './product-detail';
+import { BrandsPanel, CategoriesPanel } from './taxonomy-panels';
 
-type Category = { id: string; parent_id?: string | null; parent_name?: string | null; code: string; name: string; status: string };
-type Brand = { id: string; name: string; status: string };
 type Product = {
   id: string;
   product_code: string;
   name: string;
+  name_bn?: string;
   status: string;
+  unit?: string;
+  is_trackable: boolean;
   has_variants: boolean;
   variant_mode: string;
-  category_name?: string | null;
-  brand_name?: string | null;
+  created_at: string;
+  updated_at: string;
+  category_name?: string;
+  brand_name?: string;
   sku_count: number;
 };
-type VariantRow = {
-  key: string;
-  label: string;
-  skuCode: string;
-  price: string;
-  cost: string;
-  barcode: string;
-};
 
-type VariantOption = {
-  id: string;
-  code: string;
-  label: string;
-  valueText?: string | null;
-  valueNumber?: number | null;
-  colorHex?: string | null;
-  sortOrder: number;
-  status: string;
-};
-type VariantGroup = {
-  id: string;
-  code: string;
-  name: string;
-  input_type: string;
-  sort_order: number;
-  is_required: boolean;
-  status: string;
-  options: VariantOption[];
-};
-type ProductDetail = {
-  product: {
-    id: string;
-    product_code: string;
-    name: string;
-    description?: string | null;
-    status: string;
-    has_variants: boolean;
-    variant_mode: string;
-    category_id?: string | null;
-    brand_id?: string | null;
-  };
-  groups: VariantGroup[];
-  skus: Array<{
-    id: string;
-    sku_code: string;
-    barcode?: string | null;
-    variant_label?: string | null;
-    variant_json?: Record<string, unknown> | null;
-    status: string;
-    sale_price?: string | number | null;
-    on_hand_qty?: string | number | null;
-    available_qty?: string | number | null;
-  }>;
-};
+type View = 'list' | 'create' | 'edit' | 'detail';
+type CatalogTab = 'products' | 'categories' | 'brands';
 
-type VariantMatrixRow = {
-  key: string;
-  skuCode: string;
-  barcode: string;
-  variantLabel: string;
-  variantOptionIds: string[];
-  salePrice: string;
-  costPrice: string;
-  compareAtPrice: string;
-};
-
-const cardStyle = surfaceCardStyle;
-const inputStyle = fieldStyle;
-const buttonStyle = secondaryButtonStyle;
-
-const sanitizeSkuToken = (value: string) =>
-  value
-    .trim()
-    .toUpperCase()
-    .replace(/[^A-Z0-9]+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
-
-const buildVariantCombinations = (groups: VariantGroup[], selectionMap: Record<string, string[]>) => {
-  const selectedGroups = groups
-    .map((group) => {
-      const selectedIds = selectionMap[group.id] !== undefined
-        ? selectionMap[group.id]
-        : group.options.map((option) => option.id);
-      return {
-        group,
-        options: group.options.filter((option) => selectedIds.includes(option.id)),
-      };
-    })
-    .filter((entry) => entry.options.length > 0);
-
-  if (selectedGroups.length === 0) {
-    return [];
-  }
-
-  return selectedGroups.reduce<Array<Array<{ group: VariantGroup; option: VariantOption }>>>(
-    (accumulator, entry) => {
-      if (accumulator.length === 0) {
-        return entry.options.map((option) => [{ group: entry.group, option }]);
-      }
-
-      const next: Array<Array<{ group: VariantGroup; option: VariantOption }>> = [];
-      for (const combo of accumulator) {
-        for (const option of entry.options) {
-          next.push([...combo, { group: entry.group, option }]);
-        }
-      }
-      return next;
-    },
-    [],
-  );
-};
-
-const buildVariantSkuCode = (baseCode: string, combo: Array<{ group: VariantGroup; option: VariantOption }>) => {
-  const suffix = combo.map((entry) => entry.option.code || entry.option.label).join('-');
-  return sanitizeSkuToken([baseCode, suffix].filter(Boolean).join('-')).slice(0, 80);
-};
-
-const buildVariantLabel = (combo: Array<{ group: VariantGroup; option: VariantOption }>) =>
-  combo.map((entry) => `${entry.group.name}: ${entry.option.label}`).join(' / ');
-
-const buildManualVariantSkuCode = (baseCode: string, label: string) =>
-  sanitizeSkuToken([baseCode, label].filter(Boolean).join('-')).slice(0, 80);
-
-async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
-  const response = await fetch(input, init);
-  const payload = (await response.json().catch(() => null)) as T | { error?: string } | null;
-  if (!response.ok) {
-    throw new Error(payload && typeof payload === 'object' && 'error' in payload && payload.error ? payload.error : `Request failed with ${response.status}`);
-  }
-  return payload as T;
-}
-
-export function CatalogWorkspace({
-  canManageCatalog,
-  canApprovePriceChanges,
-}: {
-  canManageCatalog: boolean;
-  canApprovePriceChanges: boolean;
-}) {
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [brands, setBrands] = useState<Brand[]>([]);
+export function CatalogWorkspace({ canManageCatalog }: { canManageCatalog: boolean }) {
+  const [tab, setTab] = useState<CatalogTab>('products');
+  const [view, setView] = useState<View>('list');
+  const [selectedProductId, setSelectedProductId] = useState<string | undefined>(undefined);
   const [products, setProducts] = useState<Product[]>([]);
-  const [selectedProductId, setSelectedProductId] = useState('');
-  const [productDetail, setProductDetail] = useState<ProductDetail | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('Catalog workspace is ready.');
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0 });
 
-  const [categoryForm, setCategoryForm] = useState({ code: '', name: '', parentId: '' });
-  const [editingCategoryId, setEditingCategoryId] = useState('');
-  const [brandForm, setBrandForm] = useState({ name: '' });
-  const [editingBrandId, setEditingBrandId] = useState('');
-  const [productForm, setProductForm] = useState({
-    productCode: '',
-    name: '',
-    description: '',
-    categoryId: '',
-    brandId: '',
-    defaultSkuCode: '',
-    defaultBarcode: '',
-    defaultSalePrice: '',
-    defaultCostPrice: '',
-    hasVariants: false,
-    variantMode: 'none',
-  });
-  const [editingProductId, setEditingProductId] = useState('');
-  const [groupForm, setGroupForm] = useState({
-    code: '',
-    name: '',
-    inputType: 'text',
-  });
-  const [editingGroupId, setEditingGroupId] = useState('');
-  const [optionForm, setOptionForm] = useState({
-    variantGroupId: '',
-    code: '',
-    label: '',
-    valueText: '',
-    colorHex: '',
-  });
-  const [editingOptionId, setEditingOptionId] = useState('');
-  const [skuForm, setSkuForm] = useState({
-    skuCode: '',
-    barcode: '',
-    unitName: '',
-    weightValue: '',
-    weightUnit: '',
-    variantOptionIds: [] as string[],
-  });
-  const [priceForm, setPriceForm] = useState({
-    skuId: '',
-    costPrice: '',
-    salePrice: '',
-    compareAtPrice: '',
-    reason: '',
-  });
-  const [approvalNote, setApprovalNote] = useState('');
-  const [priceChangeRequests, setPriceChangeRequests] = useState<Array<{
-    id: string;
-    sku_id: string;
-    sku_code: string;
-    product_name: string;
-    variant_label?: string | null;
-    current_sale_price: string | number;
-    requested_sale_price: string | number;
-    current_cost_price?: string | number | null;
-    requested_cost_price?: string | number | null;
-    current_compare_at_price?: string | number | null;
-    requested_compare_at_price?: string | number | null;
-    reason: string;
-    status: string;
-    requested_by_name?: string | null;
-    decision_note?: string | null;
-    created_at: string;
-  }>>([]);
-  const [categorySearch, setCategorySearch] = useState('');
-  const [brandSearch, setBrandSearch] = useState('');
-  const [productSearch, setProductSearch] = useState('');
-  const [productStatus, setProductStatus] = useState('');
-  const [priceRequestSearch, setPriceRequestSearch] = useState('');
-  const [priceRequestStatus, setPriceRequestStatus] = useState('');
-  const [categoryPage, setCategoryPage] = useState(1);
-  const [brandPage, setBrandPage] = useState(1);
-  const [productPage, setProductPage] = useState(1);
-  const [priceRequestPage, setPriceRequestPage] = useState(1);
-  const [categoryPagination, setCategoryPagination] = useState<PaginationState>({ page: 1, limit: 8, total: 0 });
-  const [brandPagination, setBrandPagination] = useState<PaginationState>({ page: 1, limit: 8, total: 0 });
-  const [productPagination, setProductPagination] = useState<PaginationState>({ page: 1, limit: 12, total: 0 });
-  const [priceRequestPagination, setPriceRequestPagination] = useState<PaginationState>({ page: 1, limit: 12, total: 0 });
-  const [variantSelection, setVariantSelection] = useState<Record<string, string[]>>({});
-  const [variantRows, setVariantRows] = useState<VariantMatrixRow[]>([]);
-  const [variantPricing, setVariantPricing] = useState({
-    baseSalePrice: '',
-    priceStep: '',
-  });
-  const [productVariantRows, setProductVariantRows] = useState<VariantRow[]>([]);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [confirmTitle, setConfirmTitle] = useState('');
-  const [confirmDescription, setConfirmDescription] = useState('');
-  const [confirmAction, setConfirmAction] = useState<() => void>(() => {});
-
-  const parentMap = useMemo(() => {
-    const map: Record<string, string> = {};
-    for (const c of categories) {
-      if (c.parent_id) map[c.id] = categories.find((p) => p.id === c.parent_id)?.name ?? c.parent_id;
-    }
-    return map;
-  }, [categories]);
-
-  const hierarchicalCategories = useMemo(() => {
-    const children = new Set<string>();
-    for (const c of categories) {
-      if (c.parent_id) children.add(c.parent_id);
-    }
-    const result: Category[] = [];
-    const pushWithChildren = (parent: Category) => {
-      result.push(parent);
-      for (const c of categories) {
-        if (c.parent_id === parent.id) {
-          result.push(c);
-        }
+  const fetchProducts = async (p: number, s: string, status: string) => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ page: String(p), limit: '20' });
+      if (s.trim()) params.set('search', s.trim());
+      if (status) params.set('status', status);
+      const res = await fetch(`/api/catalog/products?${params}`);
+      if (res.ok) {
+        const data = await res.json();
+        setProducts(data.products || []);
+        setPagination(data.pagination || { page: p, limit: 20, total: 0 });
       }
-    };
-    for (const c of categories) {
-      if (!c.parent_id) pushWithChildren(c);
+    } catch {
+      // silently fail
+    } finally {
+      setLoading(false);
     }
-    // also include any orphaned children
-    for (const c of categories) {
-      if (c.parent_id && !categories.some((p) => p.id === c.parent_id)) {
-        result.push(c);
-      }
-    }
-    return result;
-  }, [categories]);
-
-  const parentOptions = useMemo(
-    () => categories.filter((c) => !c.parent_id),
-    [categories],
-  );
-
-  const variantOptionsFlat = useMemo(
-    () =>
-      (productDetail?.groups ?? []).flatMap((group) =>
-        (group.options ?? []).map((option) => ({
-          ...option,
-          groupName: group.name,
-        })),
-      ),
-    [productDetail],
-  );
-  const selectedPriceSku = useMemo(
-    () => productDetail?.skus.find((sku) => sku.id === priceForm.skuId) ?? null,
-    [priceForm.skuId, productDetail],
-  );
-  const selectedSkuHasCurrentPrice = selectedPriceSku?.sale_price !== null && selectedPriceSku?.sale_price !== undefined;
-  const shouldRequestPriceApproval = selectedSkuHasCurrentPrice && !canApprovePriceChanges;
-
-  const refreshBase = async (
-    nextCategoryPage = categoryPage,
-    nextBrandPage = brandPage,
-    nextProductPage = productPage,
-  ) => {
-    const categoryParams = new URLSearchParams({ page: String(nextCategoryPage), limit: String(categoryPagination.limit) });
-    const brandParams = new URLSearchParams({ page: String(nextBrandPage), limit: String(brandPagination.limit) });
-    const productParams = new URLSearchParams({ page: String(nextProductPage), limit: String(productPagination.limit) });
-    if (categorySearch.trim()) categoryParams.set('search', categorySearch.trim());
-    if (brandSearch.trim()) brandParams.set('search', brandSearch.trim());
-    if (productSearch.trim()) productParams.set('search', productSearch.trim());
-    if (productStatus) productParams.set('status', productStatus);
-    const [categoryPayload, brandPayload, productPayload] = await Promise.all([
-      readJson<{ categories: Category[]; pagination?: PaginationState }>(`/api/catalog/categories?${categoryParams.toString()}`),
-      readJson<{ brands: Brand[]; pagination?: PaginationState }>(`/api/catalog/brands?${brandParams.toString()}`),
-      readJson<{ products: Product[]; pagination?: PaginationState }>(`/api/catalog/products?${productParams.toString()}`),
-    ]);
-    setCategories(categoryPayload.categories ?? []);
-    setBrands(brandPayload.brands ?? []);
-    setProducts(productPayload.products ?? []);
-    setCategoryPagination(categoryPayload.pagination ?? { page: nextCategoryPage, limit: categoryPagination.limit, total: categoryPayload.categories?.length ?? 0 });
-    setBrandPagination(brandPayload.pagination ?? { page: nextBrandPage, limit: brandPagination.limit, total: brandPayload.brands?.length ?? 0 });
-    setProductPagination(productPayload.pagination ?? { page: nextProductPage, limit: productPagination.limit, total: productPayload.products?.length ?? 0 });
-    setCategoryPage(categoryPayload.pagination?.page ?? nextCategoryPage);
-    setBrandPage(brandPayload.pagination?.page ?? nextBrandPage);
-    setProductPage(productPayload.pagination?.page ?? nextProductPage);
-  };
-
-  const refreshPriceRequests = async (nextPage = priceRequestPage) => {
-    const params = new URLSearchParams({ page: String(nextPage), limit: String(priceRequestPagination.limit) });
-    if (priceRequestSearch.trim()) params.set('search', priceRequestSearch.trim());
-    if (priceRequestStatus) params.set('status', priceRequestStatus);
-    const payload = await readJson<{ priceChangeRequests: typeof priceChangeRequests; pagination?: PaginationState }>(`/api/catalog/price-change-requests?${params.toString()}`);
-    setPriceChangeRequests(payload.priceChangeRequests ?? []);
-    setPriceRequestPagination(payload.pagination ?? { page: nextPage, limit: priceRequestPagination.limit, total: payload.priceChangeRequests?.length ?? 0 });
-    setPriceRequestPage(payload.pagination?.page ?? nextPage);
-  };
-
-  const refreshDetail = async (productId = selectedProductId) => {
-    if (!productId) {
-      setProductDetail(null);
-      return;
-    }
-    const payload = await readJson<ProductDetail>(`/api/catalog/products/${productId}`);
-    setProductDetail(payload);
   };
 
   useEffect(() => {
-    void refreshBase(1, 1, 1).catch((error: Error) => setMessage(error.message));
-    void refreshPriceRequests(1).catch((error: Error) => setMessage(error.message));
-  }, []);
+    fetchProducts(page, search, statusFilter);
+  }, [page, statusFilter]);
 
-  useEffect(() => {
-    if (selectedProductId) {
-      void refreshDetail(selectedProductId).catch((error: Error) => setMessage(error.message));
+  const handleSearch = () => {
+    setPage(1);
+    fetchProducts(1, search, statusFilter);
+  };
+
+  const handleViewProduct = (productId: string) => {
+    setSelectedProductId(productId);
+    setView('detail');
+  };
+
+  const handleEditProduct = (productId: string) => {
+    setSelectedProductId(productId);
+    setView('edit');
+  };
+
+  const handleFormSuccess = () => {
+    setView('list');
+    setSelectedProductId(undefined);
+    fetchProducts(page, search, statusFilter);
+  };
+
+  const [importingTemplate, setImportingTemplate] = useState(false);
+  const handleImportTemplate = async () => {
+    setImportingTemplate(true);
+    try {
+      const res = await fetch('/api/catalog/starter-template', { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.message || data?.error || 'Import failed');
+      toast.success(`Imported ${data.categoriesCreated ?? 0} categories and ${data.brandsCreated ?? 0} brands`);
+      fetchProducts(page, search, statusFilter);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Import failed');
+    } finally {
+      setImportingTemplate(false);
     }
-  }, [selectedProductId]);
+  };
 
-  useEffect(() => {
-    if (!productDetail) {
-      setVariantSelection({});
-      setVariantRows([]);
-      setVariantPricing({ baseSalePrice: '', priceStep: '' });
-      return;
-    }
+  const [showRevise, setShowRevise] = useState(false);
+  const [reviseScope, setReviseScope] = useState<'category' | 'brand' | 'all'>('category');
+  const [reviseCategoryId, setReviseCategoryId] = useState('');
+  const [reviseBrandId, setReviseBrandId] = useState('');
+  const [reviseBasis, setReviseBasis] = useState<'sale' | 'cost'>('sale');
+  const [reviseMode, setReviseMode] = useState<'increase' | 'decrease' | 'set'>('increase');
+  const [reviseUnit, setReviseUnit] = useState<'amount' | 'percent'>('amount');
+  const [reviseValue, setReviseValue] = useState('');
+  const [revising, setRevising] = useState(false);
+  const [reviseCategories, setReviseCategories] = useState<Array<{ id: string; name: string }>>([]);
+  const [reviseBrands, setReviseBrands] = useState<Array<{ id: string; name: string }>>([]);
 
-    setVariantSelection((current) => {
-      const next: Record<string, string[]> = {};
-      for (const group of productDetail.groups) {
-        const selectedIds = current[group.id] !== undefined
-          ? current[group.id]
-          : group.options.map((option) => option.id);
-        next[group.id] = selectedIds.filter((optionId) =>
-          group.options.some((option) => option.id === optionId),
-        );
-      }
-      return next;
-    });
-
-    setVariantPricing((current) => ({
-      baseSalePrice: current.baseSalePrice || String(productDetail.skus[0]?.sale_price ?? ''),
-      priceStep: current.priceStep,
-    }));
-  }, [productDetail]);
-
-  const openDeleteConfirm = (kind: 'category' | 'brand' | 'product', id: string, name: string) => {
-    setConfirmTitle(`Delete ${kind}`);
-    setConfirmDescription(`Delete ${kind} "${name}"? This cannot be undone.`);
-    setConfirmAction(() => async () => {
-      setConfirmOpen(false);
-      setLoading(true);
+  const openRevise = async () => {
+    setShowRevise((value) => !value);
+    if (!reviseCategories.length || !reviseBrands.length) {
       try {
-        const kindPath = kind === 'category' ? 'categories' : `${kind}s`;
-        await readJson(`/api/catalog/${kindPath}/${id}`, { method: 'DELETE' });
-        if (kind === 'product' && selectedProductId === id) {
-          setSelectedProductId('');
-          setProductDetail(null);
-        }
-        await refreshBase();
-        setMessage(`${kind.charAt(0).toUpperCase() + kind.slice(1)} "${name}" deleted.`);
-      } catch (error) {
-        setMessage((error as Error).message);
-      } finally {
-        setLoading(false);
+        const [catRes, brandRes] = await Promise.all([
+          fetch('/api/catalog/categories?limit=200'),
+          fetch('/api/catalog/brands?limit=200'),
+        ]);
+        if (catRes.ok) setReviseCategories((await catRes.json()).categories ?? []);
+        if (brandRes.ok) setReviseBrands((await brandRes.json()).brands ?? []);
+      } catch {
+        // suggestions are optional
       }
-    });
-    setConfirmOpen(true);
-  };
-
-  const createCategory = async () => {
-    if (!categoryForm.code || !categoryForm.name) return;
-    setLoading(true);
-    try {
-      const body: Record<string, unknown> = {
-        code: categoryForm.code,
-        name: categoryForm.name,
-        status: 'active',
-        sortOrder: 0,
-      };
-      if (categoryForm.parentId) body.parentId = categoryForm.parentId;
-      if (editingCategoryId && categoryForm.parentId) body.parentId = categoryForm.parentId;
-      else if (editingCategoryId && categoryForm.parentId === '') body.parentId = null;
-
-      await readJson(editingCategoryId ? `/api/catalog/categories/${editingCategoryId}` : '/api/catalog/categories', {
-        method: editingCategoryId ? 'PATCH' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      await refreshBase();
-      setCategoryForm({ code: '', name: '', parentId: '' });
-      setEditingCategoryId('');
-      setMessage(editingCategoryId ? 'Category updated.' : 'Category created.');
-    } catch (error) {
-      setMessage((error as Error).message);
-    } finally {
-      setLoading(false);
     }
   };
 
-  const createBrand = async () => {
-    if (!brandForm.name) return;
-    setLoading(true);
+  const applyRevision = async () => {
+    if (!Number(reviseValue)) { toast.error('Enter a revision value.'); return; }
+    if (reviseScope === 'category' && !reviseCategoryId) { toast.error('Select a category.'); return; }
+    if (reviseScope === 'brand' && !reviseBrandId) { toast.error('Select a brand.'); return; }
+    setRevising(true);
     try {
-      await readJson(editingBrandId ? `/api/catalog/brands/${editingBrandId}` : '/api/catalog/brands', {
-        method: editingBrandId ? 'PATCH' : 'POST',
+      const res = await fetch('/api/catalog/prices/bulk-revise', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: brandForm.name,
-          status: 'active',
+          scope: reviseScope,
+          categoryId: reviseScope === 'category' ? reviseCategoryId : undefined,
+          brandId: reviseScope === 'brand' ? reviseBrandId : undefined,
+          basis: reviseBasis,
+          mode: reviseMode,
+          unit: reviseUnit,
+          value: Number(reviseValue),
         }),
       });
-      await refreshBase();
-      setBrandForm({ name: '' });
-      setEditingBrandId('');
-      setMessage(editingBrandId ? 'Brand updated.' : 'Brand created.');
-    } catch (error) {
-      setMessage((error as Error).message);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || data?.message || 'Revision failed');
+      toast.success(`Updated ${data.updated ?? 0} SKU price(s).`);
+      setShowRevise(false);
+      setReviseValue('');
+      fetchProducts(page, search, statusFilter);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Revision failed');
     } finally {
-      setLoading(false);
+      setRevising(false);
     }
   };
 
-  const generateBarcode = () => {
-    const ts = String(Date.now());
-    const rand = String(Math.floor(Math.random() * 1000)).padStart(3, '0');
-    return `2${ts.slice(-9)}${rand}`;
-  };
-
-  const addProductVariantRow = () => {
-    setProductVariantRows((current) => [
-      ...current,
-      { key: String(Date.now()), label: '', skuCode: '', price: '', cost: '', barcode: generateBarcode() },
-    ]);
-  };
-
-  const removeProductVariantRow = (key: string) => {
-    setProductVariantRows((current) => current.filter((row) => row.key !== key));
-  };
-
-  const updateProductVariantRow = (key: string, field: keyof VariantRow, value: string) => {
-    setProductVariantRows((current) =>
-      current.map((row) => (row.key === key ? { ...row, [field]: value } : row)),
+  if (view === 'create' || view === 'edit') {
+    return (
+      <section style={{ ...pageShellStyle, display: 'grid', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button onClick={() => { setView('list'); setSelectedProductId(undefined); }} style={{ ...tokenMutedStyle, cursor: 'pointer', background: 'none', border: 'none', padding: 0, font: 'inherit' }}>
+            Catalog
+          </button>
+          <ChevronRight style={{ width: 12, height: 12, color: 'var(--muted-foreground)' }} />
+          <span style={{ fontSize: 13, fontWeight: 500 }}>{view === 'create' ? 'New Product' : 'Edit Product'}</span>
+        </div>
+        <ProductForm
+          productId={view === 'edit' ? selectedProductId : undefined}
+          onSuccess={handleFormSuccess}
+          onCancel={() => { setView('list'); setSelectedProductId(undefined); }}
+        />
+      </section>
     );
-  };
+  }
 
-  const createProduct = async () => {
-    if (!productForm.productCode || !productForm.name) return;
-    setLoading(true);
-    try {
-      const payload = await readJson<{ product?: { id: string }; id?: string }>(
-        editingProductId
-          ? `/api/catalog/products/${editingProductId}`
-          : '/api/catalog/products',
-        {
-          method: editingProductId ? 'PATCH' : 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            productCode: productForm.productCode,
-            name: productForm.name,
-            description: productForm.description || undefined,
-            categoryId: productForm.categoryId || undefined,
-            brandId: productForm.brandId || undefined,
-            status: 'active',
-            isTrackable: true,
-            hasVariants: productForm.hasVariants,
-            variantMode: productForm.hasVariants ? productForm.variantMode : 'none',
-          }),
-        },
-      );
-
-      const newProductId = payload?.product?.id || payload?.id;
-
-      if (!editingProductId && newProductId) {
-        const liveRows = productVariantRows
-          .map((row) => ({
-            ...row,
-            skuCode: row.skuCode.trim() || buildManualVariantSkuCode(productForm.productCode, row.label),
-          }))
-          .filter((row) => row.skuCode.trim());
-
-        if (!productForm.hasVariants) {
-          await readJson('/api/catalog/skus', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              productId: newProductId,
-              skuCode: productForm.defaultSkuCode.trim() || sanitizeSkuToken(productForm.productCode),
-              barcode: productForm.defaultBarcode || undefined,
-              status: 'active',
-              salePrice: productForm.defaultSalePrice ? Number(productForm.defaultSalePrice) : undefined,
-              costPrice: productForm.defaultCostPrice ? Number(productForm.defaultCostPrice) : undefined,
-            }),
-          });
-        }
-
-        for (const row of liveRows) {
-          await readJson('/api/catalog/skus', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              productId: newProductId,
-              skuCode: row.skuCode,
-              barcode: row.barcode || undefined,
-              variantLabel: row.label || undefined,
-              status: 'active',
-              salePrice: row.price ? Number(row.price) : undefined,
-              costPrice: row.cost ? Number(row.cost) : undefined,
-            }),
-          });
-        }
-      }
-
-      await refreshBase();
-      setProductForm({
-        productCode: '',
-        name: '',
-        description: '',
-        categoryId: '',
-        brandId: '',
-        defaultSkuCode: '',
-        defaultBarcode: '',
-        defaultSalePrice: '',
-        defaultCostPrice: '',
-        hasVariants: false,
-        variantMode: 'none',
-      });
-      setProductVariantRows([]);
-      setEditingProductId('');
-      const variantCount = productVariantRows.filter((r) => r.skuCode.trim()).length;
-      setMessage(
-        editingProductId
-          ? 'Product updated.'
-          : variantCount > 0
-            ? `Product created with ${variantCount} variant(s).`
-            : 'Product created.',
-      );
-    } catch (error) {
-      setMessage((error as Error).message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const createVariantGroup = async () => {
-    if (!selectedProductId || !groupForm.code || !groupForm.name) return;
-    setLoading(true);
-    try {
-      await readJson(editingGroupId ? `/api/catalog/variant-groups/${editingGroupId}` : `/api/catalog/products/${selectedProductId}/variant-groups`, {
-        method: editingGroupId ? 'PATCH' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          code: groupForm.code,
-          name: groupForm.name,
-          inputType: groupForm.inputType,
-          sortOrder: 0,
-          isRequired: true,
-          status: 'active',
-        }),
-      });
-      await refreshDetail(selectedProductId);
-      setGroupForm({ code: '', name: '', inputType: 'text' });
-      setEditingGroupId('');
-      setMessage(editingGroupId ? 'Variant group updated.' : 'Variant group created.');
-    } catch (error) {
-      setMessage((error as Error).message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const createVariantOption = async () => {
-    if (!selectedProductId || !optionForm.variantGroupId || !optionForm.code || !optionForm.label) return;
-    setLoading(true);
-    try {
-      await readJson(editingOptionId ? `/api/catalog/variant-options/${editingOptionId}` : `/api/catalog/products/${selectedProductId}/variant-options`, {
-        method: editingOptionId ? 'PATCH' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          variantGroupId: optionForm.variantGroupId,
-          code: optionForm.code,
-          label: optionForm.label,
-          valueText: optionForm.valueText || undefined,
-          colorHex: optionForm.colorHex || undefined,
-          sortOrder: 0,
-          status: 'active',
-        }),
-      });
-      await refreshDetail(selectedProductId);
-      setOptionForm({ variantGroupId: '', code: '', label: '', valueText: '', colorHex: '' });
-      setEditingOptionId('');
-      setMessage(editingOptionId ? 'Variant option updated.' : 'Variant option created.');
-    } catch (error) {
-      setMessage((error as Error).message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const createSku = async () => {
-    if (!selectedProductId || !skuForm.skuCode) return;
-    setLoading(true);
-    try {
-      await readJson('/api/catalog/skus', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          productId: selectedProductId,
-          skuCode: skuForm.skuCode,
-          barcode: skuForm.barcode || undefined,
-          variantOptionIds: skuForm.variantOptionIds.length ? skuForm.variantOptionIds : undefined,
-          unitName: skuForm.unitName || undefined,
-          weightValue: skuForm.weightValue ? Number(skuForm.weightValue) : undefined,
-          weightUnit: skuForm.weightUnit || undefined,
-          status: 'active',
-        }),
-      });
-      await refreshDetail(selectedProductId);
-      setSkuForm({
-        skuCode: '',
-        barcode: '',
-        unitName: '',
-        weightValue: '',
-        weightUnit: '',
-        variantOptionIds: [],
-      });
-      setMessage('SKU created.');
-    } catch (error) {
-      setMessage((error as Error).message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const createPrice = async () => {
-    if (!priceForm.skuId || !priceForm.salePrice) return;
-    setLoading(true);
-    try {
-      const path = shouldRequestPriceApproval ? '/api/catalog/price-change-requests' : '/api/catalog/prices';
-      await readJson(path, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          skuId: priceForm.skuId,
-          costPrice: priceForm.costPrice ? Number(priceForm.costPrice) : null,
-          salePrice: Number(priceForm.salePrice),
-          compareAtPrice: priceForm.compareAtPrice ? Number(priceForm.compareAtPrice) : null,
-          reason: shouldRequestPriceApproval ? priceForm.reason : undefined,
-        }),
-      });
-      await refreshDetail(selectedProductId);
-      await refreshPriceRequests();
-      setPriceForm({ skuId: '', costPrice: '', salePrice: '', compareAtPrice: '', reason: '' });
-      setMessage(shouldRequestPriceApproval ? 'Price update submitted for owner approval.' : 'Price saved.');
-    } catch (error) {
-      setMessage((error as Error).message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const decidePriceRequest = async (requestId: string, decision: 'approve' | 'reject') => {
-    setLoading(true);
-    try {
-      await readJson(`/api/catalog/price-change-requests/${requestId}/${decision}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          decisionNote: approvalNote || undefined,
-        }),
-      });
-      await refreshPriceRequests();
-      await refreshDetail(selectedProductId);
-      setApprovalNote('');
-      setMessage(`Price request ${decision}d successfully.`);
-    } catch (error) {
-      setMessage((error as Error).message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const buildVariantMatrix = () => {
-    if (!productDetail) {
-      setMessage('Select a product first.');
-      return;
-    }
-
-    const combos = buildVariantCombinations(productDetail.groups, variantSelection);
-    if (!combos.length) {
-      setVariantRows([]);
-      setMessage('Select at least one option in each group to build the matrix.');
-      return;
-    }
-
-    const baseSalePrice = Number(variantPricing.baseSalePrice || 0);
-    const priceStep = Number(variantPricing.priceStep || 0);
-
-    const rows = combos.map((combo, index) => {
-      const variantOptionIds = combo.map((entry) => entry.option.id);
-      const skuCode = buildVariantSkuCode(productDetail.product.product_code, combo);
-      const variantLabel = buildVariantLabel(combo);
-      const nextSalePrice = Number.isFinite(baseSalePrice) ? baseSalePrice + priceStep * index : 0;
-
-      return {
-        key: variantOptionIds.join('|'),
-        skuCode,
-        barcode: generateBarcode(),
-        variantLabel,
-        variantOptionIds,
-        salePrice: nextSalePrice > 0 ? String(nextSalePrice.toFixed(2)) : '',
-        costPrice: '',
-        compareAtPrice: '',
-      };
-    });
-
-    setVariantRows(rows);
-    setMessage(`Built ${rows.length} variant combination(s).`);
-  };
-
-  const updateVariantRow = (
-    key: string,
-    field: 'skuCode' | 'barcode' | 'salePrice' | 'costPrice' | 'compareAtPrice',
-    value: string,
-  ) => {
-    setVariantRows((current) =>
-      current.map((row) => (row.key === key ? { ...row, [field]: value } : row)),
+  if (view === 'detail' && selectedProductId) {
+    return (
+      <section style={{ ...pageShellStyle, display: 'grid', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button onClick={() => { setView('list'); setSelectedProductId(undefined); }} style={{ ...tokenMutedStyle, cursor: 'pointer', background: 'none', border: 'none', padding: 0, font: 'inherit' }}>
+            Catalog
+          </button>
+          <ChevronRight style={{ width: 12, height: 12, color: 'var(--muted-foreground)' }} />
+          <span style={{ fontSize: 13, fontWeight: 500 }}>Product Detail</span>
+        </div>
+        <ProductDetail
+          productId={selectedProductId}
+          onEdit={() => setView('edit')}
+          onBack={() => { setView('list'); setSelectedProductId(undefined); }}
+        />
+      </section>
     );
-  };
-
-  const createVariantRows = async () => {
-    if (!productDetail || !variantRows.length) {
-      setMessage('Build the variant matrix first.');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      let createdCount = 0;
-      for (const row of variantRows) {
-        const skuPayload = {
-          productId: productDetail.product.id,
-          skuCode: row.skuCode,
-          barcode: row.barcode || undefined,
-          variantOptionIds: row.variantOptionIds,
-          status: 'active',
-          salePrice: row.salePrice ? Number(row.salePrice) : undefined,
-          costPrice: row.costPrice ? Number(row.costPrice) : undefined,
-          compareAtPrice: row.compareAtPrice ? Number(row.compareAtPrice) : undefined,
-        };
-        const created = await readJson<{ sku?: { id: string; sku_code: string } }>('/api/catalog/skus', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(skuPayload),
-        });
-        if (created?.sku?.id) {
-          createdCount += 1;
-        }
-      }
-      await refreshDetail(productDetail.product.id);
-      await refreshBase();
-      setVariantRows([]);
-      setMessage(`Created ${createdCount} variant SKU(s) with pricing.`);
-    } catch (error) {
-      setMessage((error as Error).message);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }
 
   return (
-    <section style={{ display: 'grid', gap: 20 }}>
-      {canManageCatalog ? (
-        <section style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.2fr', gap: 16 }}>
-          <article style={cardStyle}>
-            <h3 style={{ marginTop: 0 }}>Category</h3>
-            <select
-              value={categoryForm.parentId}
-              onChange={(e) => setCategoryForm((v) => ({ ...v, parentId: e.target.value }))}
-              style={{ ...inputStyle, marginBottom: 10 }}
-            >
-              <option value="">No parent (top-level)</option>
-              {parentOptions.filter((c) => c.id !== editingCategoryId).map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-            <input value={categoryForm.code} onChange={(e) => setCategoryForm((v) => ({ ...v, code: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Code" />
-            <input value={categoryForm.name} onChange={(e) => setCategoryForm((v) => ({ ...v, name: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Name" />
-            <button onClick={createCategory} style={buttonStyle} disabled={loading}>{editingCategoryId ? 'Save Category' : 'Create Category'}</button>
-          </article>
+    <section style={{ ...pageShellStyle, display: 'grid', gap: 10 }}>
+      <WorkspaceTabs
+        active={tab}
+        onChange={(key) => setTab(key as CatalogTab)}
+        tabs={[
+          { key: 'products', label: 'Products' },
+          { key: 'categories', label: 'Categories' },
+          { key: 'brands', label: 'Brands' },
+        ]}
+      />
 
-          <article style={cardStyle}>
-            <h3 style={{ marginTop: 0 }}>Brand</h3>
-            <input value={brandForm.name} onChange={(e) => setBrandForm({ name: e.target.value })} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Brand name" />
-            <button onClick={createBrand} style={buttonStyle} disabled={loading}>{editingBrandId ? 'Save Brand' : 'Create Brand'}</button>
-          </article>
+      {tab === 'categories' ? <CategoriesPanel canManageCatalog={canManageCatalog} /> : null}
+      {tab === 'brands' ? <BrandsPanel canManageCatalog={canManageCatalog} /> : null}
 
-          <article style={cardStyle}>
-            <h3 style={{ marginTop: 0 }}>Product</h3>
-            <input value={productForm.productCode} onChange={(e) => setProductForm((v) => ({ ...v, productCode: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Product code" />
-            <input value={productForm.name} onChange={(e) => setProductForm((v) => ({ ...v, name: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Product name" />
-            <textarea value={productForm.description} onChange={(e) => setProductForm((v) => ({ ...v, description: e.target.value }))} style={{ ...inputStyle, minHeight: 70, marginBottom: 10 }} placeholder="Description" />
-            <select value={productForm.categoryId} onChange={(e) => setProductForm((v) => ({ ...v, categoryId: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }}>
-              <option value="">No category</option>
-              {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-            </select>
-            <select value={productForm.brandId} onChange={(e) => setProductForm((v) => ({ ...v, brandId: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }}>
-              <option value="">No brand</option>
-              {brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
-            </select>
-            {!productForm.hasVariants ? (
-              <div style={{ ...tableWrapStyle, marginBottom: 10 }}>
-                <table style={tableStyle}>
-                  <thead>
-                    <tr>
-                      <th style={tableHeaderCellStyle}>Default SKU</th>
-                      <th style={tableHeaderCellStyle}>Barcode</th>
-                      <th style={tableHeaderCellStyle}>Selling Price</th>
-                      <th style={tableHeaderCellStyle}>Cost Price</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td style={tableCellStyle}>
-                        <input
-                          value={productForm.defaultSkuCode}
-                          onChange={(e) => setProductForm((v) => ({ ...v, defaultSkuCode: e.target.value }))}
-                          style={{ ...inputStyle, width: '100%' }}
-                          placeholder={sanitizeSkuToken(productForm.productCode || 'SKU')}
-                        />
-                      </td>
-                      <td style={tableCellStyle}>
-                        <input
-                          value={productForm.defaultBarcode}
-                          onChange={(e) => setProductForm((v) => ({ ...v, defaultBarcode: e.target.value }))}
-                          style={{ ...inputStyle, width: '100%' }}
-                          placeholder="Optional barcode"
-                        />
-                      </td>
-                      <td style={tableCellStyle}>
-                        <input
-                          value={productForm.defaultSalePrice}
-                          onChange={(e) => setProductForm((v) => ({ ...v, defaultSalePrice: e.target.value }))}
-                          style={{ ...inputStyle, width: 110 }}
-                          placeholder="0.00"
-                        />
-                      </td>
-                      <td style={tableCellStyle}>
-                        <input
-                          value={productForm.defaultCostPrice}
-                          onChange={(e) => setProductForm((v) => ({ ...v, defaultCostPrice: e.target.value }))}
-                          style={{ ...inputStyle, width: 110 }}
-                          placeholder="0.00"
-                        />
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            ) : null}
-            <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
-              <input type="checkbox" checked={productForm.hasVariants} onChange={(e) => setProductForm((v) => ({ ...v, hasVariants: e.target.checked, variantMode: e.target.checked ? 'single' : 'none' }))} />
-              Has manual variants
-            </label>
-            <select value={productForm.variantMode} onChange={(e) => setProductForm((v) => ({ ...v, variantMode: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} disabled={!productForm.hasVariants}>
-              <option value="none">None</option>
-              <option value="single">Single Variant Axis</option>
-              <option value="multi">Multi Variant Axes</option>
-            </select>
-            {productForm.hasVariants ? (
-              <div style={{ marginBottom: 10 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <div style={{ fontWeight: 600, fontSize: 14 }}>Variant Rows</div>
-                  <button onClick={addProductVariantRow} style={{ ...buttonStyle, fontSize: 12, padding: '4px 10px' }} disabled={loading}>
-                    + Add Row
-                  </button>
-                </div>
-                {productVariantRows.length > 0 ? (
-                  <div style={tableWrapStyle}>
-                    <table style={tableStyle}>
-                      <thead>
-                        <tr>
-                          <th style={tableHeaderCellStyle}>Label</th>
-                          <th style={tableHeaderCellStyle}>SKU Code</th>
-                          <th style={tableHeaderCellStyle}>Selling Price</th>
-                          <th style={tableHeaderCellStyle}>Cost Price</th>
-                          <th style={tableHeaderCellStyle}>Barcode</th>
-                          <th style={tableHeaderCellStyle} />
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {productVariantRows.map((row) => (
-                          <tr key={row.key}>
-                            <td style={tableCellStyle}>
-                              <input
-                                value={row.label}
-                                onChange={(e) => updateProductVariantRow(row.key, 'label', e.target.value)}
-                                style={{ ...inputStyle, width: '100%' }}
-                                placeholder="e.g. Red / XL"
-                              />
-                            </td>
-                            <td style={tableCellStyle}>
-                              <input
-                                value={row.skuCode}
-                                onChange={(e) => updateProductVariantRow(row.key, 'skuCode', e.target.value)}
-                                style={{ ...inputStyle, width: '100%' }}
-                                placeholder={buildManualVariantSkuCode(productForm.productCode || 'SKU', row.label || 'VAR')}
-                              />
-                            </td>
-                            <td style={tableCellStyle}>
-                              <input
-                                value={row.price}
-                                onChange={(e) => updateProductVariantRow(row.key, 'price', e.target.value)}
-                                style={{ ...inputStyle, width: 80 }}
-                                placeholder="0.00"
-                              />
-                            </td>
-                            <td style={tableCellStyle}>
-                              <input
-                                value={row.cost}
-                                onChange={(e) => updateProductVariantRow(row.key, 'cost', e.target.value)}
-                                style={{ ...inputStyle, width: 80 }}
-                                placeholder="0.00"
-                              />
-                            </td>
-                            <td style={tableCellStyle}>
-                              <input
-                                value={row.barcode}
-                                onChange={(e) => updateProductVariantRow(row.key, 'barcode', e.target.value)}
-                                style={{ ...inputStyle, width: '100%' }}
-                                placeholder="Barcode"
-                              />
-                            </td>
-                            <td style={tableCellStyle}>
-                              <button
-                                onClick={() => removeProductVariantRow(row.key)}
-                                style={{ ...buttonStyle, color: '#dc2626', borderColor: '#dc2626', fontSize: 12, padding: '2px 8px' }}
-                                disabled={loading}
-                              >
-                                X
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <div style={{ color: '#94a3b8', fontSize: 13 }}>No variant rows added yet. Click "Add Row" to create ready-to-sell variants with barcode, selling price, and cost price in one step.</div>
-                )}
-              </div>
-            ) : null}
-            <button onClick={createProduct} style={buttonStyle} disabled={loading}>{editingProductId ? 'Save Product' : 'Create Product'}</button>
-          </article>
-        </section>
-      ) : (
-        <article style={cardStyle}>
-          <h3 style={{ marginTop: 0 }}>Read-only catalog access</h3>
-          <p style={{ marginBottom: 0, color: '#475569' }}>
-            Your role can view catalog data, but only owners and managers can create or change catalog records.
-          </p>
-        </article>
-      )}
-
-      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
-        <article style={cardStyle}>
-          <h3 style={{ marginTop: 0 }}>Categories</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, marginBottom: 12 }}>
-            <input value={categorySearch} onChange={(event) => setCategorySearch(event.target.value)} style={inputStyle} placeholder="Search categories" />
-            <button onClick={() => void refreshBase(1, brandPage, productPage)} style={buttonStyle} disabled={loading}>Search</button>
+      {tab === 'products' ? (
+      <>
+      {/* Header */}
+      <article style={surfaceCardStyle}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 15 }}>Product Catalog</h3>
+            <p style={{ ...tokenMutedStyle, marginBottom: 0 }}>{pagination.total} products</p>
           </div>
-          {categories.length ? (
-            <>
-              <div style={tableWrapStyle}>
-                <table style={tableStyle}>
-                  <thead>
-                    <tr>
-                      <th style={tableHeaderCellStyle}>Code</th>
-                      <th style={tableHeaderCellStyle}>Name</th>
-                      <th style={tableHeaderCellStyle}>Parent</th>
-                      <th style={tableHeaderCellStyle}>Status</th>
-                      <th style={tableHeaderCellStyle}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {hierarchicalCategories.map((category) => {
-                      const isChild = !!category.parent_id;
-                      return (
-                      <tr key={category.id}>
-                        <td style={tableCellStyle}>{category.code}</td>
-                        <td style={{ ...tableCellStyle, paddingLeft: isChild ? 24 : undefined }}>
-                          {isChild ? (
-                            <span style={{ color: '#64748b', marginRight: 4 }}>└</span>
-                          ) : null}
-                          {category.name}
-                        </td>
-                        <td style={tableCellStyle}>
-                          {category.parent_id ? (parentMap[category.id] ?? '—') : (
-                            <span style={{ color: '#94a3b8' }}>—</span>
-                          )}
-                        </td>
-                        <td style={tableCellStyle}>{category.status}</td>
-                        <td style={tableCellStyle}>
-                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                            <button
-                              onClick={() => {
-                                setEditingCategoryId(category.id);
-                                setCategoryForm({
-                                  code: category.code,
-                                  name: category.name,
-                                  parentId: category.parent_id ?? '',
-                                });
-                              }}
-                              style={buttonStyle}
-                            >
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => void readJson(`/api/catalog/categories/${category.id}`, {
-                                method: 'PATCH',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ status: category.status === 'inactive' ? 'active' : 'inactive' }),
-                              }).then(() => refreshBase()).then(() => setMessage(`Category ${category.status === 'inactive' ? 'activated' : 'archived'}.`)).catch((error: Error) => setMessage(error.message))}
-                              style={buttonStyle}
-                            >
-                              {category.status === 'inactive' ? 'Activate' : 'Archive'}
-                            </button>
-                            <button
-                              onClick={() => openDeleteConfirm('category', category.id, category.name)}
-                              style={{ ...buttonStyle, color: '#dc2626', borderColor: '#dc2626' }}
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              <ListPager
-                loading={loading}
-                page={categoryPage}
-                pagination={categoryPagination}
-                label="category(s)"
-                onPrevious={() => void refreshBase(Math.max(1, categoryPage - 1), brandPage, productPage)}
-                onNext={() => void refreshBase(Math.min(totalPagesFor(categoryPagination), categoryPage + 1), brandPage, productPage)}
-              />
-            </>
-          ) : <div style={emptyStateStyle}>No categories yet.</div>}
-        </article>
-
-        <article style={cardStyle}>
-          <h3 style={{ marginTop: 0 }}>Brands</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 8, marginBottom: 12 }}>
-            <input value={brandSearch} onChange={(event) => setBrandSearch(event.target.value)} style={inputStyle} placeholder="Search brands" />
-            <button onClick={() => void refreshBase(categoryPage, 1, productPage)} style={buttonStyle} disabled={loading}>Search</button>
-          </div>
-          {brands.length ? (
-            <>
-              <div style={tableWrapStyle}>
-                <table style={tableStyle}>
-                  <thead>
-                    <tr>
-                      <th style={tableHeaderCellStyle}>Brand</th>
-                      <th style={tableHeaderCellStyle}>Status</th>
-                      <th style={tableHeaderCellStyle}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {brands.map((brand) => (
-                      <tr key={brand.id}>
-                        <td style={tableCellStyle}>{brand.name}</td>
-                        <td style={tableCellStyle}>{brand.status}</td>
-                        <td style={tableCellStyle}>
-                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                            <button
-                              onClick={() => {
-                                setEditingBrandId(brand.id);
-                                setBrandForm({ name: brand.name });
-                              }}
-                              style={buttonStyle}
-                            >
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => void readJson(`/api/catalog/brands/${brand.id}`, {
-                                method: 'PATCH',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ status: brand.status === 'inactive' ? 'active' : 'inactive' }),
-                              }).then(() => refreshBase()).then(() => setMessage(`Brand ${brand.status === 'inactive' ? 'activated' : 'archived'}.`)).catch((error: Error) => setMessage(error.message))}
-                              style={buttonStyle}
-                            >
-                              {brand.status === 'inactive' ? 'Activate' : 'Archive'}
-                            </button>
-                            <button
-                              onClick={() => openDeleteConfirm('brand', brand.id, brand.name)}
-                              style={{ ...buttonStyle, color: '#dc2626', borderColor: '#dc2626' }}
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <ListPager
-                loading={loading}
-                page={brandPage}
-                pagination={brandPagination}
-                label="brand(s)"
-                onPrevious={() => void refreshBase(categoryPage, Math.max(1, brandPage - 1), productPage)}
-                onNext={() => void refreshBase(categoryPage, Math.min(totalPagesFor(brandPagination), brandPage + 1), productPage)}
-              />
-            </>
-          ) : <div style={emptyStateStyle}>No brands yet.</div>}
-        </article>
-      </section>
-
-      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
-        <article style={cardStyle}>
-          <h3 style={{ marginTop: 0 }}>Products</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(140px, 180px) auto', gap: 8, marginBottom: 12 }}>
-            <input value={productSearch} onChange={(event) => setProductSearch(event.target.value)} style={inputStyle} placeholder="Search product, code, category, brand" />
-            <select value={productStatus} onChange={(event) => setProductStatus(event.target.value)} style={inputStyle}>
-              <option value="">All statuses</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-              <option value="archived">Archived</option>
-              <option value="out_of_stock">Out of stock</option>
-            </select>
-            <button onClick={() => void refreshBase(categoryPage, brandPage, 1)} style={buttonStyle} disabled={loading}>Search</button>
-          </div>
-          {products.length ? (
-            <>
-              <div style={tableWrapStyle}>
-                <table style={tableStyle}>
-                  <thead>
-                    <tr>
-                      <th style={tableHeaderCellStyle}>Product</th>
-                      <th style={tableHeaderCellStyle}>Code</th>
-                      <th style={tableHeaderCellStyle}>Category</th>
-                      <th style={tableHeaderCellStyle}>Brand</th>
-                      <th style={tableHeaderCellStyle}>Variant Mode</th>
-                      <th style={tableHeaderCellStyle}>SKUs</th>
-                      <th style={tableHeaderCellStyle}>Status</th>
-                      <th style={tableHeaderCellStyle}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {products.map((product) => (
-                      <tr
-                        key={product.id}
-                        onClick={() => setSelectedProductId(product.id)}
-                        style={{ cursor: 'pointer', background: selectedProductId === product.id ? 'rgba(241,245,249,0.9)' : '#fff' }}
-                      >
-                        <td style={tableCellStyle}><strong>{product.name}</strong></td>
-                        <td style={tableCellStyle}>{product.product_code}</td>
-                        <td style={tableCellStyle}>{product.category_name || '—'}</td>
-                        <td style={tableCellStyle}>{product.brand_name || '—'}</td>
-                        <td style={tableCellStyle}>{product.variant_mode}</td>
-                        <td style={tableCellStyle}>{product.sku_count}</td>
-                        <td style={tableCellStyle}>{product.status}</td>
-                        <td style={tableCellStyle}>
-                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                            <button
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                setEditingProductId(product.id);
-                                setProductForm((current) => ({
-                                  ...current,
-                                  productCode: product.product_code,
-                                  name: product.name,
-                                  categoryId: categories.find((item) => item.name === product.category_name)?.id || '',
-                                  brandId: brands.find((item) => item.name === product.brand_name)?.id || '',
-                                  hasVariants: product.has_variants,
-                                  variantMode: product.variant_mode,
-                                }));
-                              }}
-                              style={buttonStyle}
-                            >
-                              Edit
-                            </button>
-                            <button
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                void readJson(`/api/catalog/products/${product.id}`, {
-                                  method: 'PATCH',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ status: product.status === 'archived' ? 'active' : 'archived' }),
-                                }).then(() => refreshBase()).then(() => setMessage(`Product ${product.status === 'archived' ? 'activated' : 'archived'}.`)).catch((error: Error) => setMessage(error.message));
-                              }}
-                              style={buttonStyle}
-                            >
-                              {product.status === 'archived' ? 'Activate' : 'Archive'}
-                            </button>
-                            <button
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                openDeleteConfirm('product', product.id, product.name);
-                              }}
-                              style={{ ...buttonStyle, color: '#dc2626', borderColor: '#dc2626' }}
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <ListPager
-                loading={loading}
-                page={productPage}
-                pagination={productPagination}
-                label="product(s)"
-                onPrevious={() => void refreshBase(categoryPage, brandPage, Math.max(1, productPage - 1))}
-                onNext={() => void refreshBase(categoryPage, brandPage, Math.min(totalPagesFor(productPagination), productPage + 1))}
-              />
-            </>
-          ) : (
-            <div style={emptyStateStyle}>No products yet.</div>
+          {canManageCatalog && (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <button
+                onClick={handleImportTemplate}
+                disabled={importingTemplate}
+                style={{ ...subtleButtonStyle, opacity: importingTemplate ? 0.6 : 1 }}
+              >
+                {importingTemplate
+                  ? <Loader2 style={{ width: 14, height: 14, marginRight: 4, animation: 'spin 1s linear infinite' }} />
+                  : <Download style={{ width: 14, height: 14, marginRight: 4 }} />}
+                Import dealership catalog
+              </button>
+              <button
+                onClick={openRevise}
+                style={subtleButtonStyle}
+              >
+                <TrendingUp style={{ width: 14, height: 14, marginRight: 4 }} />
+                Revise Rates
+              </button>
+              <button
+                onClick={() => setView('create')}
+                style={gray800ButtonStyle}
+              >
+                <Plus style={{ width: 14, height: 14, marginRight: 4 }} />
+                Add Product
+              </button>
+            </div>
           )}
-        </article>
-
-        <article style={cardStyle}>
-          <h3 style={{ marginTop: 0 }}>Product Builder</h3>
-          {!productDetail ? (
-            <p style={{ marginBottom: 0, color: '#475569' }}>Select a product to manage its manual variants, options, SKUs, and prices.</p>
-          ) : (
-            <section style={{ display: 'grid', gap: 16 }}>
-              <div>
-                <div style={{ fontSize: 20, fontWeight: 600 }}>{productDetail.product.name}</div>
-                <div style={{ color: '#475569' }}>
-                  {productDetail.product.product_code} · {productDetail.product.variant_mode} · {productDetail.product.status}
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
-                {canManageCatalog ? (
-                  <article style={{ ...cardStyle, padding: 14 }}>
-                    <h4 style={{ marginTop: 0 }}>Variant Group</h4>
-                    <input value={groupForm.code} onChange={(e) => setGroupForm((v) => ({ ...v, code: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="color / size / front / rear" />
-                    <input value={groupForm.name} onChange={(e) => setGroupForm((v) => ({ ...v, name: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Display name" />
-                    <select value={groupForm.inputType} onChange={(e) => setGroupForm((v) => ({ ...v, inputType: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }}>
-                      <option value="text">Text</option>
-                      <option value="color">Color</option>
-                      <option value="number">Number</option>
-                    </select>
-                    <button onClick={createVariantGroup} style={buttonStyle} disabled={loading}>{editingGroupId ? 'Save Group' : 'Add Group'}</button>
-                  </article>
-                ) : null}
-
-                {canManageCatalog ? (
-                  <article style={{ ...cardStyle, padding: 14 }}>
-                    <h4 style={{ marginTop: 0 }}>Variant Option</h4>
-                    <select value={optionForm.variantGroupId} onChange={(e) => setOptionForm((v) => ({ ...v, variantGroupId: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }}>
-                      <option value="">Select group</option>
-                      {productDetail.groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
-                    </select>
-                    <input value={optionForm.code} onChange={(e) => setOptionForm((v) => ({ ...v, code: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="black / xl / front" />
-                    <input value={optionForm.label} onChange={(e) => setOptionForm((v) => ({ ...v, label: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Label" />
-                    <input value={optionForm.valueText} onChange={(e) => setOptionForm((v) => ({ ...v, valueText: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Value text (optional)" />
-                    <input value={optionForm.colorHex} onChange={(e) => setOptionForm((v) => ({ ...v, colorHex: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="#000000 for color" />
-                    <button onClick={createVariantOption} style={buttonStyle} disabled={loading}>{editingOptionId ? 'Save Option' : 'Add Option'}</button>
-                  </article>
-                ) : null}
-              </div>
-
-              <div style={tableWrapStyle}>
-                <table style={tableStyle}>
-                  <thead>
-                    <tr>
-                      <th style={tableHeaderCellStyle}>Group</th>
-                      <th style={tableHeaderCellStyle}>Code</th>
-                      <th style={tableHeaderCellStyle}>Type</th>
-                      <th style={tableHeaderCellStyle}>Required</th>
-                      <th style={tableHeaderCellStyle}>Options</th>
-                      <th style={tableHeaderCellStyle}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {productDetail.groups.map((group) => (
-                      <tr key={group.id}>
-                        <td style={tableCellStyle}>{group.name}</td>
-                        <td style={tableCellStyle}>{group.code}</td>
-                        <td style={tableCellStyle}>{group.input_type}</td>
-                        <td style={tableCellStyle}>{group.is_required ? 'Yes' : 'No'}</td>
-                        <td style={tableCellStyle}>{group.options.map((option) => option.label).join(', ') || '—'}</td>
-                        <td style={tableCellStyle}>
-                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                            <button
-                              onClick={() => {
-                                setEditingGroupId(group.id);
-                                setGroupForm({ code: group.code, name: group.name, inputType: group.input_type });
-                              }}
-                              style={buttonStyle}
-                            >
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => void readJson(`/api/catalog/variant-groups/${group.id}`, {
-                                method: 'PATCH',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ status: group.status === 'inactive' ? 'active' : 'inactive' }),
-                              }).then(() => refreshDetail(selectedProductId)).then(() => setMessage(`Variant group ${group.status === 'inactive' ? 'activated' : 'archived'}.`)).catch((error: Error) => setMessage(error.message))}
-                              style={buttonStyle}
-                            >
-                              {group.status === 'inactive' ? 'Activate' : 'Archive'}
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div style={tableWrapStyle}>
-                <table style={tableStyle}>
-                  <thead>
-                    <tr>
-                      <th style={tableHeaderCellStyle}>Group</th>
-                      <th style={tableHeaderCellStyle}>Option</th>
-                      <th style={tableHeaderCellStyle}>Code</th>
-                      <th style={tableHeaderCellStyle}>Display Value</th>
-                      <th style={tableHeaderCellStyle}>Status</th>
-                      <th style={tableHeaderCellStyle}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {productDetail.groups.flatMap((group) =>
-                      group.options.map((option) => (
-                        <tr key={option.id}>
-                          <td style={tableCellStyle}>{group.name}</td>
-                          <td style={tableCellStyle}>{option.label}</td>
-                          <td style={tableCellStyle}>{option.code}</td>
-                          <td style={tableCellStyle}>{option.valueText || option.colorHex || option.valueNumber || '—'}</td>
-                          <td style={tableCellStyle}>{option.status}</td>
-                          <td style={tableCellStyle}>
-                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                              <button
-                                onClick={() => {
-                                  setEditingOptionId(option.id);
-                                  setOptionForm({
-                                    variantGroupId: group.id,
-                                    code: option.code,
-                                    label: option.label,
-                                    valueText: option.valueText || '',
-                                    colorHex: option.colorHex || '',
-                                  });
-                                }}
-                                style={buttonStyle}
-                              >
-                                Edit
-                              </button>
-                              <button
-                                onClick={() => void readJson(`/api/catalog/variant-options/${option.id}`, {
-                                  method: 'PATCH',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ status: option.status === 'inactive' ? 'active' : 'inactive' }),
-                                }).then(() => refreshDetail(selectedProductId)).then(() => setMessage(`Variant option ${option.status === 'inactive' ? 'activated' : 'archived'}.`)).catch((error: Error) => setMessage(error.message))}
-                                style={buttonStyle}
-                              >
-                                {option.status === 'inactive' ? 'Activate' : 'Archive'}
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      )),
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              {canManageCatalog ? (
-                <article style={{ ...cardStyle, padding: 14 }}>
-                  <h4 style={{ marginTop: 0 }}>Variant Matrix</h4>
-                  <p style={{ marginTop: 0, color: '#475569' }}>
-                    Pick the options that should form variant combinations, then generate SKU rows with variant-specific prices.
-                  </p>
-
-                  <div style={{ display: 'grid', gap: 14 }}>
-                    {productDetail.groups.map((group) => (
-                      <div key={group.id} style={{ display: 'grid', gap: 8 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
-                          <div style={{ fontWeight: 600 }}>{group.name}</div>
-                          <div style={{ display: 'flex', gap: 8 }}>
-                            <button
-                              onClick={() =>
-                                setVariantSelection((current) => ({
-                                  ...current,
-                                  [group.id]: group.options.map((option) => option.id),
-                                }))
-                              }
-                              style={buttonStyle}
-                            >
-                              Select all
-                            </button>
-                            <button
-                              onClick={() =>
-                                setVariantSelection((current) => ({
-                                  ...current,
-                                  [group.id]: [],
-                                }))
-                              }
-                              style={buttonStyle}
-                            >
-                              Clear
-                            </button>
-                          </div>
-                        </div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                          {group.options.map((option) => {
-                            const selectedIds = variantSelection[group.id] ?? group.options.map((item) => item.id);
-                            const checked = selectedIds.includes(option.id);
-                            return (
-                              <label
-                                key={option.id}
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: 8,
-                                  padding: '6px 10px',
-                                  borderRadius: 8,
-                                  border: checked ? '1px solid #2563eb' : '1px solid rgba(148, 163, 184, 0.22)',
-                                  background: checked ? 'rgba(37, 99, 235, 0.06)' : '#fff',
-                                }}
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={checked}
-                                  onChange={(event) =>
-                                    setVariantSelection((current) => ({
-                                      ...current,
-                                      [group.id]: event.target.checked
-                                        ? [...selectedIds, option.id]
-                                        : selectedIds.filter((id) => id !== option.id),
-                                    }))
-                                  }
-                                />
-                                <span>{option.label}</span>
-                              </label>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginTop: 14 }}>
-                    <input
-                      value={variantPricing.baseSalePrice}
-                      onChange={(event) => setVariantPricing((current) => ({ ...current, baseSalePrice: event.target.value }))}
-                      style={inputStyle}
-                      placeholder="Base sale price"
-                    />
-                    <input
-                      value={variantPricing.priceStep}
-                      onChange={(event) => setVariantPricing((current) => ({ ...current, priceStep: event.target.value }))}
-                      style={inputStyle}
-                      placeholder="Price step per combo"
-                    />
-                    <button onClick={buildVariantMatrix} style={buttonStyle} disabled={loading}>
-                      Build Matrix
-                    </button>
-                    <button onClick={createVariantRows} style={buttonStyle} disabled={loading || variantRows.length === 0}>
-                      Create All SKUs
-                    </button>
-                  </div>
-
-                  {variantRows.length > 0 ? (
-                    <div style={{ ...tableWrapStyle, marginTop: 14 }}>
-                      <table style={tableStyle}>
-                        <thead>
-                          <tr>
-                            <th style={tableHeaderCellStyle}>Variant</th>
-                            <th style={tableHeaderCellStyle}>SKU</th>
-                            <th style={tableHeaderCellStyle}>Barcode</th>
-                            <th style={tableHeaderCellStyle}>Sale Price</th>
-                            <th style={tableHeaderCellStyle}>Cost Price</th>
-                            <th style={tableHeaderCellStyle}>Compare Price</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {variantRows.map((row) => (
-                            <tr key={row.key}>
-                              <td style={tableCellStyle}>
-                                <div style={{ fontWeight: 600 }}>{row.variantLabel}</div>
-                                <div style={{ color: '#64748b', marginTop: 4 }}>{row.variantOptionIds.length} option(s)</div>
-                              </td>
-                              <td style={tableCellStyle}><input value={row.skuCode} onChange={(event) => updateVariantRow(row.key, 'skuCode', event.target.value)} style={inputStyle} placeholder="SKU code" /></td>
-                              <td style={tableCellStyle}><input value={row.barcode} onChange={(event) => updateVariantRow(row.key, 'barcode', event.target.value)} style={inputStyle} placeholder="Barcode" /></td>
-                              <td style={tableCellStyle}><input value={row.salePrice} onChange={(event) => updateVariantRow(row.key, 'salePrice', event.target.value)} style={inputStyle} placeholder="Sale price" /></td>
-                              <td style={tableCellStyle}><input value={row.costPrice} onChange={(event) => updateVariantRow(row.key, 'costPrice', event.target.value)} style={inputStyle} placeholder="Cost price" /></td>
-                              <td style={tableCellStyle}><input value={row.compareAtPrice} onChange={(event) => updateVariantRow(row.key, 'compareAtPrice', event.target.value)} style={inputStyle} placeholder="Compare at price" /></td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : null}
-                </article>
-              ) : null}
-
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
-                {canManageCatalog ? (
-                  <article style={{ ...cardStyle, padding: 14 }}>
-                    <h4 style={{ marginTop: 0 }}>Manual SKU</h4>
-                    <input value={skuForm.skuCode} onChange={(e) => setSkuForm((v) => ({ ...v, skuCode: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="SKU code" />
-                    <input value={skuForm.barcode} onChange={(e) => setSkuForm((v) => ({ ...v, barcode: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Barcode" />
-                    <input value={skuForm.unitName} onChange={(e) => setSkuForm((v) => ({ ...v, unitName: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Unit name" />
-                    <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-                      <input value={skuForm.weightValue} onChange={(e) => setSkuForm((v) => ({ ...v, weightValue: e.target.value }))} style={inputStyle} placeholder="Weight" />
-                      <input value={skuForm.weightUnit} onChange={(e) => setSkuForm((v) => ({ ...v, weightUnit: e.target.value }))} style={inputStyle} placeholder="kg / lb / g" />
-                    </div>
-                    <div style={{ display: 'grid', gap: 6, marginBottom: 10 }}>
-                      {variantOptionsFlat.map((option) => (
-                        <label key={option.id} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                          <input
-                            type="checkbox"
-                            checked={skuForm.variantOptionIds.includes(option.id)}
-                            onChange={(e) =>
-                              setSkuForm((v) => ({
-                                ...v,
-                                variantOptionIds: e.target.checked
-                                  ? [...v.variantOptionIds, option.id]
-                                  : v.variantOptionIds.filter((id) => id !== option.id),
-                              }))
-                            }
-                          />
-                          {option.groupName}: {option.label}
-                        </label>
-                      ))}
-                    </div>
-                    <button onClick={createSku} style={buttonStyle} disabled={loading}>Create SKU</button>
-                  </article>
-                ) : null}
-
-                {canManageCatalog ? (
-                  <article style={{ ...cardStyle, padding: 14 }}>
-                    <h4 style={{ marginTop: 0 }}>Price</h4>
-                    <select value={priceForm.skuId} onChange={(e) => setPriceForm((v) => ({ ...v, skuId: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }}>
-                      <option value="">Select SKU</option>
-                      {productDetail.skus.map((sku) => <option key={sku.id} value={sku.id}>{sku.sku_code}</option>)}
-                    </select>
-                    {selectedPriceSku ? (
-                      <div style={{ marginBottom: 10, color: '#475569', fontSize: 14 }}>
-                        Current price: {selectedSkuHasCurrentPrice ? String(selectedPriceSku.sale_price) : 'No price yet'}
-                        {selectedPriceSku.variant_label ? ` · ${selectedPriceSku.variant_label}` : ''}
-                      </div>
-                    ) : null}
-                    <input value={priceForm.costPrice} onChange={(e) => setPriceForm((v) => ({ ...v, costPrice: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Cost price" />
-                    <input value={priceForm.salePrice} onChange={(e) => setPriceForm((v) => ({ ...v, salePrice: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Sale price" />
-                    <input value={priceForm.compareAtPrice} onChange={(e) => setPriceForm((v) => ({ ...v, compareAtPrice: e.target.value }))} style={{ ...inputStyle, marginBottom: 10 }} placeholder="Compare at price" />
-                    {shouldRequestPriceApproval ? (
-                      <textarea
-                        value={priceForm.reason}
-                        onChange={(e) => setPriceForm((v) => ({ ...v, reason: e.target.value }))}
-                        style={{ ...inputStyle, minHeight: 78, marginBottom: 10 }}
-                        placeholder="Reason for manager price update request"
-                      />
-                    ) : null}
-                    <button
-                      onClick={createPrice}
-                      style={buttonStyle}
-                      disabled={loading || (shouldRequestPriceApproval && priceForm.reason.trim().length < 3)}
-                    >
-                      {shouldRequestPriceApproval ? 'Request Price Approval' : 'Save Price'}
-                    </button>
-                  </article>
-                ) : null}
-              </div>
-
-              <div style={tableWrapStyle}>
-                <table style={tableStyle}>
-                  <thead>
-                    <tr>
-                      <th style={tableHeaderCellStyle}>SKU</th>
-                      <th style={tableHeaderCellStyle}>Variant</th>
-                      <th style={tableHeaderCellStyle}>Status</th>
-                      <th style={tableHeaderCellStyle}>Barcode</th>
-                      <th style={tableHeaderCellStyle}>Available</th>
-                      <th style={tableHeaderCellStyle}>Price</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {productDetail.skus.map((sku) => (
-                      <tr key={sku.id}>
-                        <td style={tableCellStyle}>{sku.sku_code}</td>
-                        <td style={tableCellStyle}>{sku.variant_label || 'No variant label'}</td>
-                        <td style={tableCellStyle}>{sku.status}</td>
-                        <td style={tableCellStyle}>{sku.barcode || '—'}</td>
-                        <td style={tableCellStyle}>{Number(sku.available_qty ?? 0)}</td>
-                        <td style={tableCellStyle}>{sku.sale_price ?? '—'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <article style={{ ...cardStyle, padding: 14 }}>
-                <h4 style={{ marginTop: 0 }}>Price Approval Queue</h4>
-                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(140px, 180px) auto', gap: 8, marginBottom: 12 }}>
-                  <input value={priceRequestSearch} onChange={(event) => setPriceRequestSearch(event.target.value)} style={inputStyle} placeholder="Search product, SKU, variant, reason" />
-                  <select value={priceRequestStatus} onChange={(event) => setPriceRequestStatus(event.target.value)} style={inputStyle}>
-                    <option value="">All statuses</option>
-                    <option value="pending">Pending</option>
-                    <option value="approved">Approved</option>
-                    <option value="rejected">Rejected</option>
-                  </select>
-                  <button onClick={() => void refreshPriceRequests(1)} style={buttonStyle} disabled={loading}>Search</button>
-                </div>
-                {canApprovePriceChanges ? (
-                  <textarea
-                    value={approvalNote}
-                    onChange={(event) => setApprovalNote(event.target.value)}
-                    style={{ ...inputStyle, minHeight: 72, marginBottom: 12 }}
-                    placeholder="Optional approval note"
-                  />
-                ) : null}
-                {priceChangeRequests.length ? (
-                  <>
-                    <div style={tableWrapStyle}>
-                      <table style={tableStyle}>
-                        <thead>
-                          <tr>
-                            <th style={tableHeaderCellStyle}>Product</th>
-                            <th style={tableHeaderCellStyle}>Sale</th>
-                            <th style={tableHeaderCellStyle}>Cost</th>
-                            <th style={tableHeaderCellStyle}>Compare</th>
-                            <th style={tableHeaderCellStyle}>Status</th>
-                            <th style={tableHeaderCellStyle}>Requested By</th>
-                            <th style={tableHeaderCellStyle}>Reason</th>
-                            <th style={tableHeaderCellStyle}>Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {priceChangeRequests.map((request) => (
-                            <tr key={request.id}>
-                              <td style={tableCellStyle}>
-                                {request.product_name} · {request.sku_code}
-                                {request.variant_label ? ` · ${request.variant_label}` : ''}
-                              </td>
-                              <td style={tableCellStyle}>{String(request.current_sale_price)} → {String(request.requested_sale_price)}</td>
-                              <td style={tableCellStyle}>{request.current_cost_price ?? '—'} → {request.requested_cost_price ?? '—'}</td>
-                              <td style={tableCellStyle}>{request.current_compare_at_price ?? '—'} → {request.requested_compare_at_price ?? '—'}</td>
-                              <td style={tableCellStyle}>{request.status}</td>
-                              <td style={tableCellStyle}>{request.requested_by_name || 'User'}</td>
-                              <td style={tableCellStyle}>{request.reason}</td>
-                              <td style={tableCellStyle}>
-                                {canApprovePriceChanges && request.status === 'pending' ? (
-                                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                                    <button onClick={() => decidePriceRequest(request.id, 'approve')} style={buttonStyle} disabled={loading}>Approve</button>
-                                    <button onClick={() => decidePriceRequest(request.id, 'reject')} style={buttonStyle} disabled={loading}>Reject</button>
-                                  </div>
-                                ) : '—'}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                    <ListPager
-                      loading={loading}
-                      page={priceRequestPage}
-                      pagination={priceRequestPagination}
-                      label="request(s)"
-                      onPrevious={() => void refreshPriceRequests(Math.max(1, priceRequestPage - 1))}
-                      onNext={() => void refreshPriceRequests(Math.min(totalPagesFor(priceRequestPagination), priceRequestPage + 1))}
-                    />
-                  </>
-                ) : (
-                  <p style={{ marginBottom: 0, color: '#64748b' }}>No price requests yet.</p>
-                )}
-              </article>
-            </section>
-          )}
-        </article>
-      </section>
-
-      <article style={cardStyle}>
-        <h3 style={{ marginTop: 0 }}>Operator Notes</h3>
-        <p style={{ marginBottom: 0, color: '#475569' }}>{message}</p>
+        </div>
       </article>
 
-      <ConfirmDialog
-        open={confirmOpen}
-        onOpenChange={setConfirmOpen}
-        title={confirmTitle}
-        description={confirmDescription}
-        onAction={confirmAction}
-      />
+      {showRevise ? (
+        <article style={surfaceCardStyle}>
+          <h3 style={{ margin: '0 0 4px', fontSize: 14 }}>Revise Rates</h3>
+          <p style={{ margin: '0 0 10px', color: 'var(--muted-foreground)', fontSize: 12 }}>
+            Apply a price change to every SKU in a category, a brand, or the whole store. The new price takes effect immediately.
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8 }}>
+            <label style={{ display: 'grid', gap: 4 }}>
+              <span style={{ fontSize: 11, fontWeight: 600 }}>Apply to</span>
+              <select value={reviseScope} onChange={(e) => setReviseScope(e.target.value as typeof reviseScope)} style={fieldStyle}>
+                <option value="category">Category</option>
+                <option value="brand">Brand</option>
+                <option value="all">All products</option>
+              </select>
+            </label>
+            {reviseScope === 'category' ? (
+              <label style={{ display: 'grid', gap: 4 }}>
+                <span style={{ fontSize: 11, fontWeight: 600 }}>Category</span>
+                <select value={reviseCategoryId} onChange={(e) => setReviseCategoryId(e.target.value)} style={fieldStyle}>
+                  <option value="">Select category</option>
+                  {reviseCategories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </label>
+            ) : null}
+            {reviseScope === 'brand' ? (
+              <label style={{ display: 'grid', gap: 4 }}>
+                <span style={{ fontSize: 11, fontWeight: 600 }}>Brand</span>
+                <select value={reviseBrandId} onChange={(e) => setReviseBrandId(e.target.value)} style={fieldStyle}>
+                  <option value="">Select brand</option>
+                  {reviseBrands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+              </label>
+            ) : null}
+            <label style={{ display: 'grid', gap: 4 }}>
+              <span style={{ fontSize: 11, fontWeight: 600 }}>Price</span>
+              <select value={reviseBasis} onChange={(e) => setReviseBasis(e.target.value as typeof reviseBasis)} style={fieldStyle}>
+                <option value="sale">Sale price</option>
+                <option value="cost">Cost price</option>
+              </select>
+            </label>
+            <label style={{ display: 'grid', gap: 4 }}>
+              <span style={{ fontSize: 11, fontWeight: 600 }}>Change</span>
+              <select value={reviseMode} onChange={(e) => setReviseMode(e.target.value as typeof reviseMode)} style={fieldStyle}>
+                <option value="increase">Increase</option>
+                <option value="decrease">Decrease</option>
+                <option value="set">Set to</option>
+              </select>
+            </label>
+            <label style={{ display: 'grid', gap: 4 }}>
+              <span style={{ fontSize: 11, fontWeight: 600 }}>Unit</span>
+              <select value={reviseUnit} onChange={(e) => setReviseUnit(e.target.value as typeof reviseUnit)} style={fieldStyle} disabled={reviseMode === 'set'}>
+                <option value="amount">Amount (৳)</option>
+                <option value="percent">Percent (%)</option>
+              </select>
+            </label>
+            <label style={{ display: 'grid', gap: 4 }}>
+              <span style={{ fontSize: 11, fontWeight: 600 }}>Value</span>
+              <input type="number" min="0" value={reviseValue} onChange={(e) => setReviseValue(e.target.value)} style={fieldStyle} placeholder="0.00" />
+            </label>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10 }}>
+            <button onClick={() => setShowRevise(false)} style={neutralButtonStyle}>Cancel</button>
+            <button onClick={() => void applyRevision()} style={gray800ButtonStyle} disabled={revising}>{revising ? 'Applying…' : 'Apply revision'}</button>
+          </div>
+        </article>
+      ) : null}
+
+      {/* Filters */}
+      <article style={surfaceCardStyle}>
+        <div style={{ ...searchRowStyle, gap: 6 }}>
+          <div style={{ position: 'relative', flex: 3, minWidth: 0 }}>
+            <Search style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', width: 14, height: 14, color: 'var(--muted-foreground)' }} />
+            <input
+              type="text"
+              placeholder="Search products..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+              style={{ ...fieldStyle, width: '100%', paddingLeft: 28 }}
+            />
+          </div>
+          <select
+            value={statusFilter}
+            onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+            style={{ ...fieldStyle, flex: 1, minWidth: 100, maxWidth: 130 }}
+          >
+            <option value="">All Status</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+          <button onClick={handleSearch} style={searchButtonStyle} disabled={loading}>Search</button>
+        </div>
+      </article>
+
+      {/* Product Table */}
+      <article style={surfaceCardStyle}>
+        <div style={tableWrapStyle}>
+          <table style={tableStyle}>
+            <thead>
+              <tr>
+                <th style={tableHeaderCellStyle}>Product</th>
+                <th style={tableHeaderCellStyle}>Category</th>
+                <th style={tableHeaderCellStyle}>Brand</th>
+                <th style={tableHeaderCellStyle}>Unit</th>
+                <th style={{ ...tableHeaderCellStyle, textAlign: 'center' }}>SKUs</th>
+                <th style={{ ...tableHeaderCellStyle, textAlign: 'center' }}>Status</th>
+                <th style={{ ...tableHeaderCellStyle, textAlign: 'right' }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={7} style={{ ...tableCellStyle, textAlign: 'center', padding: '32px 10px' }}>
+                    <Loader2 style={{ width: 16, height: 16, margin: '0 auto', animation: 'spin 1s linear infinite', color: 'var(--muted-foreground)' }} />
+                  </td>
+                </tr>
+              ) : products.length === 0 ? (
+                <tr>
+                  <td colSpan={7} style={emptyStateStyle}>
+                    No products found
+                  </td>
+                </tr>
+              ) : (
+                products.map((product) => (
+                  <tr
+                    key={product.id}
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => handleViewProduct(product.id)}
+                  >
+                    <td style={tableCellStyle}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Package style={{ width: 14, height: 14, color: 'var(--muted-foreground)', flexShrink: 0 }} />
+                        <div>
+                          <div style={{ fontWeight: 500 }}>{product.name}</div>
+                          <div style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>{product.product_code}{product.unit ? ` · ${product.unit}` : ''}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td style={tableCellStyle}>{product.category_name || '—'}</td>
+                    <td style={tableCellStyle}>{product.brand_name || '—'}</td>
+                    <td style={tableCellStyle}>{product.unit || 'pcs'}</td>
+                    <td style={{ ...tableCellStyle, textAlign: 'center' }}>{product.sku_count}</td>
+                    <td style={{ ...tableCellStyle, textAlign: 'center' }}>
+                      <span style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        borderRadius: 4,
+                        padding: '2px 8px',
+                        fontSize: 11,
+                        fontWeight: 500,
+                        background: product.status === 'active' ? 'var(--success)' : 'var(--muted)',
+                        color: product.status === 'active' ? 'var(--success-foreground)' : 'var(--muted-foreground)',
+                      }}>
+                        {product.status}
+                      </span>
+                    </td>
+                    <td style={{ ...tableCellStyle, textAlign: 'right' }}>
+                      {canManageCatalog && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleEditProduct(product.id); }}
+                          style={{ ...subtleButtonStyle, fontSize: 11, padding: '4px 8px' }}
+                        >
+                          Edit
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      {/* Pagination */}
+      {pagination.total > pagination.limit && (
+        <ListPager
+          page={pagination.page}
+          pagination={pagination}
+          onPrevious={() => setPage((p) => Math.max(1, p - 1))}
+          onNext={() => setPage((p) => p + 1)}
+          label="products"
+        />
+      )}
+      </>
+      ) : null}
     </section>
   );
 }

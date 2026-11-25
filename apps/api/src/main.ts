@@ -7,6 +7,7 @@ import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 
 import { AppModule } from './app.module.js';
+import { ZodExceptionFilter } from './common/zod-exception.filter.js';
 import { RateLimitGuard } from './modules/guard/rate-limit.guard.js';
 
 async function bootstrap() {
@@ -15,22 +16,7 @@ async function bootstrap() {
     new FastifyAdapter({ logger: false }),
   );
 
-  await app.register(helmet, {
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
-        imgSrc: ["'self'", 'data:', 'https:'],
-        connectSrc: ["'self'"],
-        fontSrc: ["'self'"],
-        objectSrc: ["'none'"],
-        frameSrc: ["'none'"],
-      },
-    },
-    crossOriginEmbedderPolicy: false,
-    crossOriginResourcePolicy: { policy: 'cross-origin' },
-  });
+  // CSP and security headers are set at the Traefik reverse-proxy layer
 
   await app.register(cors, {
     origin: true,
@@ -47,6 +33,7 @@ async function bootstrap() {
 
   const rateLimitGuard = app.get(RateLimitGuard);
   app.useGlobalGuards(rateLimitGuard);
+  app.useGlobalFilters(new ZodExceptionFilter());
 
   const port = Number(process.env.PORT || 3001);
   await app.listen(port, '0.0.0.0');

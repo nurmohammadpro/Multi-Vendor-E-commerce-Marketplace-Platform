@@ -37,7 +37,7 @@ const adminCreateStoreSchema = createStoreSchema.extend({
   ownerEmail: z.string().email().optional(),
   ownerPhone: z.string().min(8).max(30).optional(),
   ownerPassword: z.string().min(10),
-  planCode: z.enum(['basic', 'standard', 'pro']).default('basic'),
+  planCode: z.enum(['basic', 'standard', 'pro', 'wholesale']).default('basic'),
 }).refine((value) => Boolean(value.ownerEmail || value.ownerPhone), {
   message: 'ownerEmail or ownerPhone is required',
 });
@@ -62,6 +62,8 @@ const updateStoreSettingsSchema = z.object({
   locale: z.enum(['en', 'bn']).optional(),
   receiptFooter: z.string().nullable().optional(),
   invoicePrefix: z.string().max(20).nullable().optional(),
+  receiptType: z.enum(['pos', 'a5', 'a4']).optional(),
+  defaultLocationId: z.string().uuid().nullable().optional(),
   allowNegativeStock: z.boolean().optional(),
   lowStockThresholdDefault: z.number().int().nonnegative().nullable().optional(),
 });
@@ -108,11 +110,13 @@ const createStaffMemberSchema = z.object({
   password: z.string().min(10),
   address: z.string().min(1).max(1000),
   roleCode: z.enum(['store_manager', 'store_salesman']),
+  locationId: z.string().uuid().optional(),
 }).extend(employeeAccessProfileSchema.shape);
 
 const updateMembershipSchema = z.object({
   status: z.enum(['active', 'suspended', 'removed']).optional(),
   roleCode: z.enum(['store_owner', 'store_manager', 'store_salesman']).optional(),
+  locationId: z.string().uuid().nullable().optional(),
   fullName: z.string().min(1).max(200).optional(),
   phone: z.string().min(8).max(30).nullable().optional(),
   email: z.string().email().nullable().optional(),
@@ -121,6 +125,7 @@ const updateMembershipSchema = z.object({
 }).extend(employeeAccessProfileSchema.partial().shape).refine((value) => Boolean(
   value.status
   || value.roleCode
+  || value.locationId !== undefined
   || value.fullName
   || value.phone !== undefined
   || value.email !== undefined
@@ -360,8 +365,9 @@ export class AdminStoreController {
     @Param('storeId') storeId: string,
     @CurrentAuthContext() authContext: AdminAuthContext | null,
     @CurrentAuthSession() session: AuthSession | null,
+    @Query('force') force?: string,
   ) {
-    return this.storeService.adminDeleteStore(storeId, authContext, session);
+    return this.storeService.adminDeleteStore(storeId, authContext, session, force === 'true');
   }
 
   @Post(':storeId/owner-password')

@@ -5,15 +5,20 @@ import { useEffect, useState } from 'react';
 import {
   emptyStateStyle,
   fieldStyle,
+  gray800ButtonStyle,
+  neutralButtonStyle,
   pageShellStyle,
-  secondaryButtonStyle,
+  searchButtonStyle,
+  sectionPanelStyle,
   surfaceCardStyle,
+  tableActionButtonStyle,
   tableCellStyle,
   tableHeaderCellStyle,
   tableStyle,
   tableWrapStyle,
   tokenMutedStyle,
-} from '../motocore-theme';
+} from '../merchflow-theme';
+import { searchRowStyle, stackedFilterGridStyle, useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
 
 type Courier = {
   id: string;
@@ -57,13 +62,12 @@ type Pagination = {
 
 const cardStyle = surfaceCardStyle;
 const inputStyle = fieldStyle;
-const buttonStyle = secondaryButtonStyle;
 
 async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
   const response = await fetch(input, init);
   const payload = (await response.json().catch(() => null)) as T | { error?: string } | null;
   if (!response.ok) {
-    throw new Error(payload && typeof payload === 'object' && 'error' in payload && payload.error ? payload.error : `Request failed with ${response.status}`);
+    throw new Error(payload && typeof payload === 'object' && ((payload as any).error || (payload as any).message) ? ((payload as any).error || (payload as any).message) : `Request failed with ${response.status}`);
   }
   return payload as T;
 }
@@ -75,6 +79,7 @@ export function ShippingWorkspace({
   canManageShipping: boolean;
   canViewShipping: boolean;
 }) {
+  const compact = useCompactLayout();
   const [couriers, setCouriers] = useState<Courier[]>([]);
   const [shipments, setShipments] = useState<Shipment[]>([]);
   const [selectedShipment, setSelectedShipment] = useState<ShipmentDetail | null>(null);
@@ -97,6 +102,7 @@ export function ShippingWorkspace({
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 20, total: 0 });
   const canCreateShipment = Boolean(form.customerName.trim() && form.customerPhone.trim() && form.deliveryAddress.trim() && !loading);
+  const [activeTab, setActiveTab] = useState<'create' | 'shipments' | 'timeline'>('shipments');
 
   const refresh = async (nextPage = 1) => {
     const params = new URLSearchParams({
@@ -137,6 +143,7 @@ export function ShippingWorkspace({
     }
     setLoading(true);
     try {
+      const trackingNo = form.trackingNo.trim() || `SHIP-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
       await readJson('/api/shipping/shipments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -149,7 +156,7 @@ export function ShippingWorkspace({
           district: form.district || undefined,
           area: form.area || undefined,
           deliveryFee: Number(form.deliveryFee || 0),
-          trackingNo: form.trackingNo || undefined,
+          trackingNo,
           note: form.note || undefined,
         }),
       });
@@ -197,7 +204,7 @@ export function ShippingWorkspace({
 
   if (!canViewShipping) {
     return (
-      <section style={{ display: 'grid', gap: 16 }}>
+      <section style={{ display: 'grid', gap: 10 }}>
         <article style={cardStyle}>
           <h3 style={{ marginTop: 0 }}>Shipping access limited</h3>
           <p style={tokenMutedStyle}>Your role can’t view shipment timelines or courier operations.</p>
@@ -207,8 +214,20 @@ export function ShippingWorkspace({
   }
 
   return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
-      <article style={cardStyle}>
+    <section style={{ ...pageShellStyle, display: 'grid', gap: 10 }}>
+      {compact ? (
+        <WorkspaceTabs
+          active={activeTab}
+          onChange={(key) => setActiveTab(key as 'create' | 'shipments' | 'timeline')}
+          tabs={[
+            { key: 'shipments', label: 'Shipments' },
+            { key: 'create', label: 'Create' },
+            { key: 'timeline', label: 'Timeline' },
+          ]}
+        />
+      ) : null}
+      {(!compact || activeTab === 'create') ? (
+      <article style={{ ...cardStyle, ...sectionPanelStyle }}>
         <h3 style={{ marginTop: 0 }}>Create Shipment</h3>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
           <input value={form.saleId} onChange={(e) => setForm((v) => ({ ...v, saleId: e.target.value }))} style={inputStyle} placeholder="Sale ID (optional)" />
@@ -225,14 +244,16 @@ export function ShippingWorkspace({
           <input value={form.note} onChange={(e) => setForm((v) => ({ ...v, note: e.target.value }))} style={inputStyle} placeholder="Note" />
         </div>
         <textarea value={form.deliveryAddress} onChange={(e) => setForm((v) => ({ ...v, deliveryAddress: e.target.value }))} style={{ ...inputStyle, minHeight: 90, marginTop: 10, marginBottom: 10 }} placeholder="Delivery address" />
-        <button onClick={createShipment} style={buttonStyle} disabled={!canCreateShipment || !canManageShipping}>Create Shipment</button>
+        <button onClick={createShipment} style={gray800ButtonStyle} disabled={!canCreateShipment || !canManageShipping}>Create Shipment</button>
       </article>
+      ) : null}
 
-      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
+      <section style={{ ...sectionPanelStyle, gridTemplateColumns: compact ? '1fr' : 'repeat(auto-fit, minmax(320px, 1fr))' }}>
+        {!compact || activeTab === 'shipments' ? (
         <article style={cardStyle}>
           <h3 style={{ marginTop: 0 }}>Shipments</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) minmax(180px, 200px) auto', gap: 10, marginBottom: 12 }}>
-            <input value={search} onChange={(event) => setSearch(event.target.value)} style={inputStyle} placeholder="Search shipment, customer, phone" />
+          <div style={{ ...searchRowStyle, marginBottom: 12 }}>
+            <input value={search} onChange={(event) => setSearch(event.target.value)} style={{ ...inputStyle, flex: 1, width: 'auto' }} placeholder="Search shipment, customer, phone" />
             <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} style={inputStyle}>
               <option value="">All statuses</option>
               <option value="pending">Pending</option>
@@ -243,7 +264,7 @@ export function ShippingWorkspace({
               <option value="failed">Failed</option>
               <option value="returned">Returned</option>
             </select>
-            <button onClick={() => void refresh(1)} style={secondaryButtonStyle} disabled={loading}>Apply</button>
+            <button onClick={() => void refresh(1)} style={searchButtonStyle} disabled={loading}>Apply</button>
           </div>
           {shipments.length ? (
             <div style={tableWrapStyle}>
@@ -263,11 +284,11 @@ export function ShippingWorkspace({
                   {shipments.map((shipment) => (
                     <tr key={shipment.id}>
                       <td style={tableCellStyle}>
-                        <button onClick={() => void loadShipment(shipment.id)} style={secondaryButtonStyle}>{shipment.shipment_no}</button>
+                        <button onClick={() => void loadShipment(shipment.id)} style={tableActionButtonStyle}>{shipment.shipment_no}</button>
                       </td>
                       <td style={tableCellStyle}>
                         {shipment.customer_name}
-                        <div style={{ color: '#64748b', marginTop: 4 }}>{shipment.customer_phone}</div>
+                        <div style={{ color: 'var(--muted-foreground)', marginTop: 4 }}>{shipment.customer_phone}</div>
                       </td>
                       <td style={tableCellStyle}>{shipment.courier_name || 'No courier'}</td>
                       <td style={tableCellStyle}>{shipment.delivery_fee}</td>
@@ -298,12 +319,14 @@ export function ShippingWorkspace({
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginTop: 12 }}>
             <span style={tokenMutedStyle}>Page {page} of {totalPages} · {pagination.total} shipment(s)</span>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => void refresh(Math.max(1, page - 1))} style={secondaryButtonStyle} disabled={loading || page <= 1}>Previous</button>
-              <button onClick={() => void refresh(Math.min(totalPages, page + 1))} style={secondaryButtonStyle} disabled={loading || page >= totalPages}>Next</button>
+              <button onClick={() => void refresh(Math.max(1, page - 1))} style={neutralButtonStyle} disabled={loading || page <= 1}>Previous</button>
+              <button onClick={() => void refresh(Math.min(totalPages, page + 1))} style={neutralButtonStyle} disabled={loading || page >= totalPages}>Next</button>
             </div>
           </div>
         </article>
+        ) : null}
 
+        {!compact || activeTab === 'timeline' ? (
         <article style={cardStyle}>
           <h3 style={{ marginTop: 0 }}>Shipment Timeline</h3>
           {!selectedShipment ? (
@@ -312,8 +335,8 @@ export function ShippingWorkspace({
             <section style={{ display: 'grid', gap: 10 }}>
               <div>
                 <div style={{ fontWeight: 600 }}>{selectedShipment.shipment.shipment_no}</div>
-                <div style={{ color: '#475569' }}>{selectedShipment.shipment.customer_name} · {selectedShipment.shipment.status}</div>
-                <div style={{ color: '#64748b' }}>{selectedShipment.shipment.delivery_address}</div>
+                <div style={{ color: 'var(--muted-foreground)' }}>{selectedShipment.shipment.customer_name} · {selectedShipment.shipment.status}</div>
+                <div style={{ color: 'var(--muted-foreground)' }}>{selectedShipment.shipment.delivery_address}</div>
               </div>
               {selectedShipment.events.length ? (
                 <div style={tableWrapStyle}>
@@ -342,12 +365,10 @@ export function ShippingWorkspace({
             </section>
           )}
         </article>
+        ) : null}
       </section>
 
-      <article style={cardStyle}>
-        <h3 style={{ marginTop: 0 }}>Operator Notes</h3>
-        <p style={{ marginBottom: 0, color: '#475569' }}>{message}</p>
-      </article>
+      <p style={tokenMutedStyle}>{message}</p>
     </section>
   );
 }

@@ -5,15 +5,21 @@ import { useEffect, useState } from 'react';
 import {
   emptyStateStyle,
   fieldStyle,
+  gray800ButtonStyle,
+  neutralButtonStyle,
   pageShellStyle,
+  searchButtonStyle,
+  sectionPanelStyle,
   secondaryButtonStyle,
   surfaceCardStyle,
+  tableActionButtonStyle,
   tableCellStyle,
   tableHeaderCellStyle,
   tableStyle,
   tableWrapStyle,
   tokenMutedStyle,
-} from '../motocore-theme';
+} from '../merchflow-theme';
+import { searchRowStyle, stackedFilterGridStyle, useCompactLayout, WorkspaceTabs } from '../workspace-responsive';
 
 type TicketType = 'support' | 'dispute';
 
@@ -51,7 +57,7 @@ async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
   const response = await fetch(input, init);
   const payload = (await response.json().catch(() => null)) as T | { error?: string } | null;
   if (!response.ok) {
-    throw new Error(payload && typeof payload === 'object' && 'error' in payload && payload.error ? payload.error : `Request failed with ${response.status}`);
+    throw new Error(payload && typeof payload === 'object' && ((payload as any).error || (payload as any).message) ? ((payload as any).error || (payload as any).message) : `Request failed with ${response.status}`);
   }
   return payload as T;
 }
@@ -63,6 +69,7 @@ export function SupportWorkspace({
   canUseSupport: boolean;
   kind: TicketType;
 }) {
+  const compact = useCompactLayout();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [selectedTicket, setSelectedTicket] = useState<TicketDetail | null>(null);
   const [message, setMessage] = useState(kind === 'dispute' ? 'Dispute workspace is ready.' : 'Support workspace is ready.');
@@ -77,6 +84,7 @@ export function SupportWorkspace({
   const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 20, total: 0 });
+  const [activeTab, setActiveTab] = useState<'new' | 'tickets' | 'conversation'>('tickets');
 
   const refresh = async (nextPage = 1) => {
     const params = new URLSearchParams({
@@ -167,7 +175,7 @@ export function SupportWorkspace({
 
   if (!canUseSupport) {
     return (
-      <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
+      <section style={{ ...pageShellStyle, display: 'grid', gap: 10 }}>
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Access limited</h3>
           <p style={tokenMutedStyle}>This module is not available for the current role or subscription.</p>
@@ -177,8 +185,20 @@ export function SupportWorkspace({
   }
 
   return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
-      <section style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 1fr) minmax(360px, 1.1fr)', gap: 16 }}>
+    <section style={{ ...pageShellStyle, display: 'grid', gap: 10 }}>
+      {compact ? (
+        <WorkspaceTabs
+          active={activeTab}
+          onChange={(key) => setActiveTab(key as 'new' | 'tickets' | 'conversation')}
+          tabs={[
+            { key: 'tickets', label: kind === 'dispute' ? 'Cases' : 'Tickets' },
+            { key: 'new', label: kind === 'dispute' ? 'Open Case' : 'New Ticket' },
+            { key: 'conversation', label: 'Conversation' },
+          ]}
+        />
+      ) : null}
+      <section style={{ ...sectionPanelStyle, gridTemplateColumns: compact ? '1fr' : 'minmax(320px, 1fr) minmax(360px, 1.1fr)' }}>
+        {!compact || activeTab === 'new' ? (
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>{kind === 'dispute' ? 'Open dispute case' : 'Open support ticket'}</h3>
           <div style={{ display: 'grid', gap: 10 }}>
@@ -204,16 +224,18 @@ export function SupportWorkspace({
               style={{ ...fieldStyle, minHeight: 120 }}
               placeholder={kind === 'dispute' ? 'Describe the refund, returned items, and customer context.' : 'Describe the support issue clearly.'}
             />
-            <button onClick={createTicket} style={secondaryButtonStyle} disabled={loading}>
+            <button onClick={createTicket} style={gray800ButtonStyle} disabled={loading}>
               {kind === 'dispute' ? 'Create dispute case' : 'Create support ticket'}
             </button>
           </div>
         </article>
+        ) : null}
 
+        {!compact || activeTab === 'tickets' ? (
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>{kind === 'dispute' ? 'Open cases' : 'Open tickets'}</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) minmax(160px, 180px) auto', gap: 10, marginBottom: 12 }}>
-            <input value={search} onChange={(event) => setSearch(event.target.value)} style={fieldStyle} placeholder="Search ticket no, subject, opener" />
+          <div style={{ ...searchRowStyle, marginBottom: 12 }}>
+            <input value={search} onChange={(event) => setSearch(event.target.value)} style={{ ...fieldStyle, flex: 1, width: 'auto' }} placeholder="Search ticket no, subject, opener" />
             <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} style={fieldStyle}>
               <option value="">All statuses</option>
               <option value="open">Open</option>
@@ -221,7 +243,7 @@ export function SupportWorkspace({
               <option value="resolved">Resolved</option>
               <option value="closed">Closed</option>
             </select>
-            <button onClick={() => void refresh(1)} style={secondaryButtonStyle} disabled={loading}>Apply</button>
+            <button onClick={() => void refresh(1)} style={searchButtonStyle} disabled={loading}>Apply</button>
           </div>
           {tickets.length ? (
             <div style={tableWrapStyle}>
@@ -238,14 +260,14 @@ export function SupportWorkspace({
                 </thead>
                 <tbody>
                   {tickets.map((ticket) => (
-                    <tr key={ticket.id} style={{ background: selectedTicket?.ticket.id === ticket.id ? 'rgba(241,245,249,0.9)' : '#fff' }}>
+                    <tr key={ticket.id} style={{ background: selectedTicket?.ticket.id === ticket.id ? 'var(--muted)' : 'var(--card)' }}>
                       <td style={tableCellStyle}>{ticket.ticket_no}</td>
                       <td style={tableCellStyle}>{ticket.subject}</td>
                       <td style={tableCellStyle}>{ticket.priority}</td>
                       <td style={tableCellStyle}>{ticket.status}</td>
                       <td style={tableCellStyle}>{new Date(ticket.created_at).toLocaleString()}</td>
                       <td style={tableCellStyle}>
-                        <button onClick={() => void loadTicket(ticket.id)} style={secondaryButtonStyle}>Open</button>
+                        <button onClick={() => void loadTicket(ticket.id)} style={tableActionButtonStyle}>Open</button>
                       </td>
                     </tr>
                   ))}
@@ -260,20 +282,22 @@ export function SupportWorkspace({
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginTop: 12 }}>
             <span style={tokenMutedStyle}>Page {page} of {totalPages} · {pagination.total} ticket(s)</span>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => void refresh(Math.max(1, page - 1))} style={secondaryButtonStyle} disabled={loading || page <= 1}>Previous</button>
-              <button onClick={() => void refresh(Math.min(totalPages, page + 1))} style={secondaryButtonStyle} disabled={loading || page >= totalPages}>Next</button>
+              <button onClick={() => void refresh(Math.max(1, page - 1))} style={neutralButtonStyle} disabled={loading || page <= 1}>Previous</button>
+              <button onClick={() => void refresh(Math.min(totalPages, page + 1))} style={neutralButtonStyle} disabled={loading || page >= totalPages}>Next</button>
             </div>
           </div>
         </article>
+        ) : null}
       </section>
 
+      {(!compact || activeTab === 'conversation') ? (
       <article style={surfaceCardStyle}>
         <h3 style={{ marginTop: 0 }}>Conversation</h3>
         {selectedTicket ? (
           <div style={{ display: 'grid', gap: 12 }}>
             <div>
               <div style={{ fontWeight: 600 }}>{selectedTicket.ticket.subject}</div>
-              <div style={{ color: '#64748b' }}>
+              <div style={{ color: 'var(--muted-foreground)' }}>
                 {selectedTicket.ticket.ticket_no} · {selectedTicket.ticket.priority} · {selectedTicket.ticket.status}
               </div>
             </div>
@@ -309,7 +333,7 @@ export function SupportWorkspace({
               style={{ ...fieldStyle, minHeight: 100 }}
               placeholder="Reply to this ticket"
             />
-            <button onClick={sendReply} style={secondaryButtonStyle} disabled={loading}>
+            <button onClick={sendReply} style={gray800ButtonStyle} disabled={loading}>
               Send reply
             </button>
           </div>
@@ -317,11 +341,9 @@ export function SupportWorkspace({
           <div style={emptyStateStyle}>Select a ticket to read the conversation and reply.</div>
         )}
       </article>
+      ) : null}
 
-      <article style={surfaceCardStyle}>
-        <h3 style={{ marginTop: 0 }}>Operator Notes</h3>
-        <p style={tokenMutedStyle}>{message}</p>
-      </article>
+      <p style={tokenMutedStyle}>{message}</p>
     </section>
   );
 }

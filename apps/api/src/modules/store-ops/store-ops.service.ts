@@ -1,7 +1,8 @@
-import { ForbiddenException, Inject, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
-import type { Pool } from 'pg';
+import { ConflictException, ForbiddenException, Inject, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import type { Pool, PoolClient } from 'pg';
 
 import type { AuthSession, StoreAuthContext } from '../auth/auth.types.js';
+import { assertLocationInStore } from '../common/location-scope.js';
 import { normalizePageQuery, stripPaginationTotal } from '../common/pagination.js';
 import { DATABASE_POOL } from '../database/database.constants.js';
 
@@ -37,11 +38,12 @@ export class StoreOpsService {
   async listCustomers(
     headerStoreId: string | undefined,
     authContext: StoreAuthContext | null,
-    filters: { query?: string; page?: number; limit?: number } = {},
+    filters: { query?: string; page?: number; limit?: number; locationId?: string } = {},
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
     const { page, limit, offset } = normalizePageQuery(filters);
     const query = filters.query?.trim() || null;
+    const locationFilter = filters.locationId?.trim() || null;
 
     const result = await this.pool.query(
       `
@@ -142,7 +144,8 @@ export class StoreOpsService {
   async listDueSales(
     headerStoreId: string | undefined,
     authContext: StoreAuthContext | null,
-    filters: { query?: string; page?: number; limit?: number } = {},
+    filters: {
+      locationId?: string; query?: string; page?: number; limit?: number } = {},
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
     const { page, limit, offset } = normalizePageQuery(filters);
@@ -174,6 +177,8 @@ export class StoreOpsService {
             where sp.sale_id = s.id
           ) paid on true
           where s.store_id = $1
+            and ($2::uuid is null or s.location_id = $2::uuid)
+            and ($2::uuid is null or s.location_id = $2::uuid)
             and s.status = 'completed'
             and s.payment_status in ('due', 'partial')
             and (
@@ -183,6 +188,7 @@ export class StoreOpsService {
               or coalesce(s.customer_phone, '') ilike '%' || $2::text || '%'
               or coalesce(s.customer_shop_name, '') ilike '%' || $2::text || '%'
             )
+            and ($5::uuid is null or s.location_id = $5::uuid)
           order by coalesce(s.due_date, s.created_at::date) asc, s.created_at desc
           limit $3
           offset $4
@@ -195,8 +201,9 @@ export class StoreOpsService {
     return { dueSales: items, pagination: { page, limit, total } };
   }
 
-  async getDueSalesAging(headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
+  async getDueSalesAging(headerStoreId: string | undefined, authContext: StoreAuthContext | null, locationId?: string) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const locationFilter = locationId?.trim() || null;
 
     const result = await this.pool.query(
       `
@@ -213,6 +220,7 @@ export class StoreOpsService {
           where s.store_id = $1
             and s.status = 'completed'
             and s.payment_status in ('due', 'partial')
+            and ($2::uuid is null or s.location_id = $2::uuid)
         )
         select
           coalesce(sum(outstanding_due_amount) filter (where aging_days = 0), 0) as today_amount,
@@ -227,7 +235,7 @@ export class StoreOpsService {
           count(*) filter (where aging_days > 90)::int as days_90_plus_count
         from due_sales
       `,
-      [storeId],
+      [storeId, locationFilter],
     );
 
     return { aging: result.rows[0] ?? null };
@@ -240,6 +248,7 @@ export class StoreOpsService {
     const [
       pendingStockResult,
       pendingPriceResult,
+      pendingReturnResult,
       dueCollectionsResult,
       cashSalesResult,
       cashDueCollectionsResult,
@@ -262,6 +271,15 @@ export class StoreOpsService {
           from catalog.price_change_requests
           where store_id = $1
             and status = 'pending'
+        `,
+        [storeId],
+      ),
+      this.pool.query<{ pending_return_count: number }>(
+        `
+          select count(*)::int as pending_return_count
+          from sales.sale_returns
+          where store_id = $1
+            and status = 'pending_approval'
         `,
         [storeId],
       ),
@@ -364,6 +382,7 @@ export class StoreOpsService {
 
     const pendingStockApprovals = Number(pendingStockResult.rows[0]?.pending_stock_count ?? 0);
     const pendingPriceApprovals = Number(pendingPriceResult.rows[0]?.pending_price_count ?? 0);
+    const pendingReturnApprovals = Number(pendingReturnResult.rows[0]?.pending_return_count ?? 0);
     const todayDueCollectionsAmount = Number(dueCollectionsResult.rows[0]?.today_due_collection_amount ?? 0);
     const todayDueCollectionsCount = Number(dueCollectionsResult.rows[0]?.today_due_collection_count ?? 0);
     const todayCashSalesAmount = Number(cashSalesResult.rows[0]?.today_cash_sales_amount ?? 0);
@@ -380,7 +399,8 @@ export class StoreOpsService {
       overview: {
         pendingStockApprovals,
         pendingPriceApprovals,
-        totalPendingApprovals: pendingStockApprovals + pendingPriceApprovals,
+        totalPendingApprovals: pendingStockApprovals + pendingPriceApprovals + pendingReturnApprovals,
+        pendingReturnApprovals,
         todayDueCollectionsAmount,
         todayDueCollectionsCount,
         todayCashSalesAmount,
@@ -552,15 +572,1570 @@ export class StoreOpsService {
     };
   }
 
-  async listExpenses(
+  async listSuppliers(
     headerStoreId: string | undefined,
     authContext: StoreAuthContext | null,
-    filters: { search?: string; page?: number; limit?: number } = {},
+    filters: { search?: string; status?: string; page?: number; limit?: number } = {},
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
     this.assertAllowedRoles(authContext, ['store_owner', 'store_manager']);
     const { page, limit, offset } = normalizePageQuery(filters);
     const search = filters.search?.trim() || null;
+    const status = filters.status?.trim() || null;
+
+    const result = await this.pool.query(
+      `
+        select *
+        from (
+          select
+            s.*,
+            coalesce(p.purchase_count, 0)::int as purchase_count,
+            coalesce(p.total_payable_amount, 0) as total_payable_amount,
+            count(*) over()::int as total_count
+          from procurement.suppliers s
+          left join lateral (
+            select
+              count(*) as purchase_count,
+              coalesce(sum(greatest(total_amount - paid_amount, 0)), 0) as total_payable_amount
+            from procurement.purchases p
+            where p.supplier_id = s.id
+              and p.status <> 'cancelled'
+          ) p on true
+          where s.store_id = $1
+            and ($2::text is null or s.status = $2::text)
+            and (
+              $3::text is null
+              or s.company_name ilike '%' || $3::text || '%'
+              or coalesce(s.contact_name, '') ilike '%' || $3::text || '%'
+              or coalesce(s.phone, '') ilike '%' || $3::text || '%'
+              or coalesce(s.email::text, '') ilike '%' || $3::text || '%'
+            )
+          order by s.updated_at desc, s.created_at desc
+          limit $4
+          offset $5
+        ) suppliers
+      `,
+      [storeId, status, search, limit, offset],
+    );
+
+    const { items, total } = stripPaginationTotal(result.rows);
+    return { suppliers: items, pagination: { page, limit, total } };
+  }
+
+  async createSupplier(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    session: AuthSession | null,
+    payload: {
+      supplierType: 'supplier' | 'importer' | 'company';
+      companyName: string;
+      contactName?: string;
+      phone?: string;
+      email?: string;
+      address?: string;
+      note?: string;
+      openingPayableAmount: number;
+      status: 'active' | 'inactive';
+    },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    this.assertAllowedRoles(authContext, ['store_owner', 'store_manager']);
+    const tenantId = session?.user.tenantId ?? '';
+
+    const result = await this.pool.query(
+      `
+        insert into procurement.suppliers (
+          id, tenant_id, store_id, supplier_type, company_name, contact_name, phone, email, address, note, opening_payable_amount, status, created_at, updated_at
+        )
+        values (
+          gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7::citext, $8, $9, $10, $11, now(), now()
+        )
+        returning *
+      `,
+      [
+        tenantId,
+        storeId,
+        payload.supplierType,
+        payload.companyName,
+        payload.contactName ?? null,
+        payload.phone ?? null,
+        payload.email ?? null,
+        payload.address ?? null,
+        payload.note ?? null,
+        payload.openingPayableAmount,
+        payload.status,
+      ],
+    );
+
+    return { supplier: result.rows[0] };
+  }
+
+  async updateSupplier(
+    supplierId: string,
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    payload: Partial<{
+      supplierType: 'supplier' | 'importer' | 'company';
+      companyName: string;
+      contactName: string | null;
+      phone: string | null;
+      email: string | null;
+      address: string | null;
+      note: string | null;
+      openingPayableAmount: number;
+      status: 'active' | 'inactive';
+    }>,
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    this.assertAllowedRoles(authContext, ['store_owner', 'store_manager']);
+
+    const result = await this.pool.query(
+      `
+        update procurement.suppliers
+        set
+          supplier_type = coalesce($3, supplier_type),
+          company_name = coalesce($4, company_name),
+          contact_name = case when $5::varchar is null then contact_name else $5::varchar end,
+          phone = case when $6::varchar is null then phone else $6::varchar end,
+          email = case when $7::citext is null then email else $7::citext end,
+          address = case when $8::text is null then address else $8::text end,
+          note = case when $9::text is null then note else $9::text end,
+          opening_payable_amount = coalesce($10, opening_payable_amount),
+          status = coalesce($11, status),
+          updated_at = now()
+        where id = $1
+          and store_id = $2
+        returning *
+      `,
+      [
+        supplierId,
+        storeId,
+        payload.supplierType ?? null,
+        payload.companyName ?? null,
+        payload.contactName === undefined ? null : payload.contactName,
+        payload.phone === undefined ? null : payload.phone,
+        payload.email === undefined ? null : payload.email,
+        payload.address === undefined ? null : payload.address,
+        payload.note === undefined ? null : payload.note,
+        payload.openingPayableAmount ?? null,
+        payload.status ?? null,
+      ],
+    );
+
+    if (!result.rows[0]) throw new NotFoundException('Supplier not found');
+    return { supplier: result.rows[0] };
+  }
+
+  async listPurchases(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    filters: { search?: string; status?: string; page?: number; limit?: number } = {},
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    this.assertAllowedRoles(authContext, ['store_owner', 'store_manager']);
+    const { page, limit, offset } = normalizePageQuery(filters);
+    const search = filters.search?.trim() || null;
+    const status = filters.status?.trim() || null;
+
+    const result = await this.pool.query(
+      `
+        select *
+        from (
+          select
+            p.id,
+            p.purchase_no,
+            p.purchase_date,
+            p.invoice_no,
+            p.total_amount,
+            p.paid_amount,
+            p.payment_status,
+            p.status,
+            p.note,
+            p.order_ref,
+            p.expected_date,
+            p.deposit_amount,
+            p.deposit_reference,
+            p.shipped_at,
+            p.truck_no,
+            p.challan_no,
+            p.created_at,
+            s.company_name as supplier_name,
+            l.name as location_name,
+            count(pi.id)::int as item_count,
+            count(*) over()::int as total_count
+          from procurement.purchases p
+          join procurement.suppliers s on s.id = p.supplier_id
+          join inventory.locations l on l.id = p.location_id
+          left join procurement.purchase_items pi on pi.purchase_id = p.id
+          where p.store_id = $1
+            and ($2::text is null or p.status = $2::text)
+            and (
+              $3::text is null
+              or p.purchase_no ilike '%' || $3::text || '%'
+              or coalesce(p.invoice_no, '') ilike '%' || $3::text || '%'
+              or s.company_name ilike '%' || $3::text || '%'
+            )
+          group by p.id, s.company_name, l.name
+          order by p.purchase_date desc, p.created_at desc
+          limit $4
+          offset $5
+        ) purchases
+      `,
+      [storeId, status, search, limit, offset],
+    );
+
+    const { items, total } = stripPaginationTotal(result.rows);
+    return { purchases: items, pagination: { page, limit, total } };
+  }
+
+  async getReceiveSummary(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    params: {
+      fromDate?: string;
+      toDate?: string;
+      productId?: string;
+      supplierId?: string;
+      locationId?: string;
+      groupBy?: 'product' | 'supplier' | 'location' | 'date';
+    },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+
+    // Build date filters
+    const dateConditions: string[] = [];
+    const queryParams: any[] = [storeId];
+    let paramIndex = 2;
+
+    if (params.fromDate) {
+      dateConditions.push(`p.purchase_date >= $${paramIndex++}::date`);
+      queryParams.push(params.fromDate);
+    }
+    if (params.toDate) {
+      dateConditions.push(`p.purchase_date <= $${paramIndex++}::date`);
+      queryParams.push(params.toDate);
+    }
+
+    const dateFilter = dateConditions.length > 0 ? `and ${dateConditions.join(' and ')}` : '';
+
+    // Build additional filters
+    const filters: string[] = [];
+    if (params.productId) {
+      filters.push(`pi.sku_id in (select id from catalog.skus where product_id = $${paramIndex++})`);
+      queryParams.push(params.productId);
+    }
+    if (params.supplierId) {
+      filters.push(`p.supplier_id = $${paramIndex++}`);
+      queryParams.push(params.supplierId);
+    }
+    if (params.locationId) {
+      filters.push(`p.location_id = $${paramIndex++}`);
+      queryParams.push(params.locationId);
+    }
+
+    const additionalFilters = filters.length > 0 ? `and ${filters.join(' and ')}` : '';
+
+    // Build group by clause
+    let groupByClause: string;
+    let selectFields: string;
+
+    switch (params.groupBy) {
+      case 'product':
+        groupByClause = 'group by p.id, pi.product_name_snapshot, pi.sku_code_snapshot';
+        selectFields = `
+          pi.product_name_snapshot as product_name,
+          pi.sku_code_snapshot as sku_code,
+          coalesce(sum(pi.qty), 0) as total_quantity,
+          coalesce(sum(pi.line_total), 0) as total_value,
+          count(distinct p.id) as purchase_count
+        `;
+        break;
+      case 'supplier':
+        groupByClause = 'group by s.id, s.company_name';
+        selectFields = `
+          s.id as supplier_id,
+          s.company_name as supplier_name,
+          coalesce(sum(pi.qty), 0) as total_quantity,
+          coalesce(sum(pi.line_total), 0) as total_value,
+          count(distinct p.id) as purchase_count
+        `;
+        break;
+      case 'location':
+        groupByClause = 'group by l.id, l.name, l.code';
+        selectFields = `
+          l.id as location_id,
+          l.name as location_name,
+          l.code as location_code,
+          coalesce(sum(pi.qty), 0) as total_quantity,
+          coalesce(sum(pi.line_total), 0) as total_value,
+          count(distinct p.id) as purchase_count
+        `;
+        break;
+      case 'date':
+        groupByClause = 'group by p.purchase_date';
+        selectFields = `
+          p.purchase_date as receive_date,
+          coalesce(sum(pi.qty), 0) as total_quantity,
+          coalesce(sum(pi.line_total), 0) as total_value,
+          count(distinct p.id) as purchase_count
+        `;
+        break;
+      default:
+        groupByClause = 'group by p.id, pi.product_name_snapshot, pi.sku_code_snapshot';
+        selectFields = `
+          pi.product_name_snapshot as product_name,
+          pi.sku_code_snapshot as sku_code,
+          coalesce(sum(pi.qty), 0) as total_quantity,
+          coalesce(sum(pi.line_total), 0) as total_value,
+          count(distinct p.id) as purchase_count
+        `;
+    }
+
+    const query = `
+      select
+        ${selectFields}
+      from procurement.purchases p
+      left join procurement.purchase_items pi on pi.purchase_id = p.id
+      left join procurement.suppliers s on s.id = p.supplier_id
+      left join inventory.locations l on l.id = p.location_id
+      where p.store_id = $1
+        and (p.status = 'received' or p.status = 'partially_received' or p.status = 'fully_received')
+        ${dateFilter}
+        ${additionalFilters}
+      ${groupByClause}
+      order by total_quantity desc
+    `;
+
+    const result = await this.pool.query(query, queryParams);
+
+    return {
+      groupBy: params.groupBy || 'product',
+      filters: {
+        fromDate: params.fromDate || null,
+        toDate: params.toDate || null,
+        productId: params.productId || null,
+        supplierId: params.supplierId || null,
+        locationId: params.locationId || null,
+      },
+      summary: result.rows,
+      totalRecords: result.rows.length,
+    };
+  }
+
+  async getPurchase(purchaseId: string, headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    this.assertAllowedRoles(authContext, ['store_owner', 'store_manager']);
+
+    const purchaseResult = await this.pool.query(
+      `
+        select
+          p.*,
+          s.company_name as supplier_name,
+          s.contact_name as supplier_contact_name,
+          s.phone as supplier_phone,
+          l.name as location_name
+        from procurement.purchases p
+        join procurement.suppliers s on s.id = p.supplier_id
+        join inventory.locations l on l.id = p.location_id
+        where p.id = $1
+          and p.store_id = $2
+        limit 1
+      `,
+      [purchaseId, storeId],
+    );
+
+    const purchase = purchaseResult.rows[0];
+    if (!purchase) throw new NotFoundException('Purchase not found');
+
+    const [itemsResult, paymentsResult, deliveriesResult] = await Promise.all([
+      this.pool.query(
+        `
+          select id, sku_id, product_name_snapshot, sku_code_snapshot, variant_label_snapshot, qty, estimated_qty, received_qty, unit_cost, line_total, batch_no, expiry_date
+          from procurement.purchase_items
+          where purchase_id = $1
+          order by created_at asc
+        `,
+        [purchaseId],
+      ),
+      this.pool.query(
+        `
+          select id, payment_method, amount, reference_no, status, note, paid_at, created_at, payment_kind
+          from procurement.purchase_payments
+          where purchase_id = $1
+          order by created_at desc
+        `,
+        [purchaseId],
+      ),
+      this.pool.query(
+        `
+          select d.id, d.delivery_no, d.truck_no, d.driver_name, d.driver_phone, d.challan_no,
+                 d.delivery_cost, d.received_qty, d.delivered_at, d.note
+          from procurement.purchase_deliveries d
+          where d.purchase_id = $1
+          order by d.delivered_at desc
+        `,
+        [purchaseId],
+      ),
+    ]);
+
+    return { purchase, items: itemsResult.rows, payments: paymentsResult.rows, deliveries: deliveriesResult.rows };
+  }
+
+  async createPurchase(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    session: AuthSession | null,
+    payload: {
+      supplierId: string;
+      locationId?: string;
+      purchaseDate: string;
+      invoiceNo?: string;
+      discountAmount: number;
+      taxAmount: number;
+      shippingAmount: number;
+      note?: string;
+      paymentMethod?: 'cash' | 'card' | 'mfs' | 'bank_transfer';
+      paidAmount: number;
+      paymentReferenceNo?: string;
+      paymentNote?: string;
+      status?: 'draft' | 'confirmed' | 'shipped' | 'partially_received' | 'fully_received' | 'received';
+      orderRef?: string;
+      expectedDate?: string;
+      depositAmount?: number;
+      depositReference?: string;
+      items: Array<{ skuId: string; qty: number; unitCost: number; estimatedQty?: number; batchNo?: string; expiryDate?: string }>;
+    },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    this.assertAllowedRoles(authContext, ['store_owner', 'store_manager']);
+    const userId = this.requireUserId(session);
+    const locationId = payload.locationId ?? await this.getDefaultInventoryLocationId(storeId);
+    await assertLocationInStore(this.pool, locationId, storeId);
+    const purchaseNo = await this.generatePurchaseNumber(storeId, payload.purchaseDate);
+    const purchaseStatus = payload.status ?? 'confirmed';
+    const depositAmount = Math.max(payload.depositAmount ?? 0, 0);
+    const paymentKind = depositAmount > 0 ? 'deposit' : 'settlement';
+    const paymentReference = depositAmount > 0
+      ? (payload.depositReference ?? payload.paymentReferenceNo ?? null)
+      : (payload.paymentReferenceNo ?? null);
+
+    const supplierExists = await this.pool.query<{ id: string }>(
+      `select id from procurement.suppliers where id = $1 and store_id = $2 limit 1`,
+      [payload.supplierId, storeId],
+    );
+    if (!supplierExists.rows[0]) throw new NotFoundException('Supplier not found');
+
+    // For draft purchases, skip SKU validation and allow empty items
+    const skuMap = new Map<string, { id: string; sku_code: string; product_name: string; variant_label: string | null }>();
+    if (payload.items.length > 0) {
+      const skuResult = await this.pool.query<{
+        id: string;
+        sku_code: string;
+        product_name: string;
+        variant_label: string | null;
+      }>(
+        `
+          select
+            s.id,
+            s.sku_code,
+            p.name as product_name,
+            s.variant_label
+          from catalog.skus s
+          join catalog.products p on p.id = s.product_id
+          where p.store_id = $1
+            and s.id = any($2::uuid[])
+        `,
+        [storeId, payload.items.map((item) => item.skuId)],
+      );
+
+      if (skuResult.rows.length !== payload.items.length) {
+        throw new NotFoundException('One or more SKUs were not found for this store');
+      }
+
+      for (const row of skuResult.rows) {
+        skuMap.set(row.id, row);
+      }
+    }
+
+    const skuResult = await this.pool.query<{
+      id: string;
+      sku_code: string;
+      product_name: string;
+      variant_label: string | null;
+    }>(
+      `
+        select
+          s.id,
+          s.sku_code,
+          p.name as product_name,
+          s.variant_label
+        from catalog.skus s
+        join catalog.products p on p.id = s.product_id
+        where p.store_id = $1
+          and s.id = any($2::uuid[])
+      `,
+      [storeId, payload.items.map((item) => item.skuId)],
+    );
+
+    if (skuResult.rows.length !== payload.items.length) {
+      throw new NotFoundException('One or more SKUs were not found for this store');
+    }
+
+    // Calculate totals (skip for empty draft purchases)
+    const subtotalAmount = payload.items.length > 0
+      ? payload.items.reduce((sum, item) => sum + item.qty * item.unitCost, 0)
+      : 0;
+    const totalAmount = subtotalAmount - payload.discountAmount + payload.taxAmount + payload.shippingAmount;
+    const paidAmount = Math.min((payload.paidAmount ?? 0) + depositAmount, totalAmount);
+    const paymentStatus = paidAmount <= 0 ? 'pending' : paidAmount >= totalAmount ? 'paid' : 'partial';
+
+    const client = await this.pool.connect();
+    try {
+      await client.query('begin');
+
+      const purchaseResult = await client.query<{ id: string }>(
+        `
+          insert into procurement.purchases (
+            id, tenant_id, store_id, supplier_id, location_id, purchase_no, purchase_date, invoice_no,
+            subtotal_amount, discount_amount, tax_amount, shipping_amount, total_amount, paid_amount,
+            payment_status, status, note, created_by, received_at, created_at, updated_at,
+            received_items_qty, total_items_qty
+          )
+          select
+            gen_random_uuid(),
+            s.tenant_id,
+            s.id,
+            $2, $3, $4, $5, $6,
+            $7, $8, $9, $10, $11, $12,
+            $13, $14, $15, $16,
+            case when $14 = 'received' then now() else null end,
+            now(), now(),
+            case when $14 = 'received' then $17 else 0 end,
+            $17
+          from store.stores s
+          where s.id = $1
+          returning id
+        `,
+        [
+          storeId,
+          payload.supplierId,
+          locationId,
+          purchaseNo,
+          payload.purchaseDate,
+          payload.invoiceNo ?? null,
+          subtotalAmount,
+          payload.discountAmount,
+          payload.taxAmount,
+          payload.shippingAmount,
+          totalAmount,
+          paidAmount,
+          paymentStatus,
+          purchaseStatus,
+          payload.note ?? null,
+          userId,
+          payload.items.length,
+        ],
+      );
+
+      const purchaseId = purchaseResult.rows[0].id;
+
+      if (payload.orderRef || payload.expectedDate || depositAmount > 0) {
+        await client.query(
+          `
+            update procurement.purchases
+            set order_ref = coalesce($2, order_ref),
+                expected_date = coalesce($3::date, expected_date),
+                deposit_amount = $4::numeric,
+                deposit_reference = $5,
+                deposit_paid_at = case when $4::numeric > 0 then now() else deposit_paid_at end,
+                updated_at = now()
+            where id = $1
+          `,
+          [purchaseId, payload.orderRef ?? null, payload.expectedDate ?? null, depositAmount, payload.depositReference ?? null],
+        );
+      }
+
+      // Only process items if not a draft purchase
+      if (purchaseStatus !== 'draft' && payload.items.length > 0) {
+        for (const item of payload.items) {
+          const sku = skuMap.get(item.skuId);
+          if (!sku) continue;
+          const lineTotal = item.qty * item.unitCost;
+
+          await client.query(
+            `
+              insert into procurement.purchase_items (
+                id, purchase_id, sku_id, product_name_snapshot, sku_code_snapshot, variant_label_snapshot, qty, unit_cost, line_total, batch_no, expiry_date, estimated_qty, received_qty, created_at
+              )
+              values (
+                gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 0, now()
+              )
+            `,
+            [
+              purchaseId,
+              item.skuId,
+              sku.product_name,
+              sku.sku_code,
+              sku.variant_label,
+              item.qty,
+              item.unitCost,
+              lineTotal,
+              item.batchNo?.trim() || null,
+              item.expiryDate ?? null,
+              item.estimatedQty ?? item.qty,
+            ],
+          );
+
+          await client.query(
+            `
+              insert into inventory.balances (
+                id, tenant_id, store_id, location_id, sku_id, on_hand_qty, reserved_qty, damaged_qty, returned_qty, updated_at
+              )
+              select
+                gen_random_uuid(),
+                s.tenant_id,
+                s.id,
+                $2, $3, $4, 0, 0, 0, now()
+              from store.stores s
+              where s.id = $1
+              on conflict (location_id, sku_id)
+              do update set
+                on_hand_qty = inventory.balances.on_hand_qty + excluded.on_hand_qty,
+                updated_at = now()
+            `,
+            [storeId, locationId, item.skuId, item.qty],
+          );
+
+          await client.query(
+            `
+              insert into inventory.ledger (
+                id, tenant_id, store_id, location_id, sku_id, movement_type, qty_delta, reference_type, reference_id, note, actor_id, created_at
+              )
+              select
+                gen_random_uuid(),
+                s.tenant_id,
+                s.id,
+                $2, $3, 'purchase_receive', $4, 'purchase', $5, $6, $7, now()
+              from store.stores s
+              where s.id = $1
+            `,
+            [storeId, locationId, item.skuId, item.qty, purchaseId, `Purchase receive ${purchaseNo}`, userId],
+          );
+        }
+
+        if (paidAmount > 0) {
+          await client.query(
+            `
+              insert into procurement.purchase_payments (
+                id, purchase_id, payment_method, amount, reference_no, status, note, paid_at, created_by, created_at, payment_kind
+              )
+              values (
+                gen_random_uuid(), $1, $2, $3, $4, 'paid', $5, now(), $6, now(), $7
+              )
+            `,
+            [purchaseId, payload.paymentMethod ?? 'cash', paidAmount, paymentReference, payload.paymentNote ?? null, userId, paymentKind],
+          );
+        }
+      } else if (payload.items.length > 0) {
+        // For draft purchases, still create the purchase items but don't update inventory
+        for (const item of payload.items) {
+          const sku = skuMap.get(item.skuId);
+          if (!sku) continue;
+          const lineTotal = item.qty * item.unitCost;
+
+          await client.query(
+            `
+              insert into procurement.purchase_items (
+                id, purchase_id, sku_id, product_name_snapshot, sku_code_snapshot, variant_label_snapshot, qty, unit_cost, line_total, batch_no, expiry_date, estimated_qty, received_qty, created_at
+              )
+              values (
+                gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 0, now()
+              )
+            `,
+            [
+              purchaseId,
+              item.skuId,
+              sku.product_name,
+              sku.sku_code,
+              sku.variant_label,
+              item.qty,
+              item.unitCost,
+              lineTotal,
+              item.batchNo?.trim() || null,
+              item.expiryDate ?? null,
+              item.estimatedQty ?? item.qty,
+            ],
+          );
+        }
+
+        if (paidAmount > 0) {
+          await client.query(
+            `
+              insert into procurement.purchase_payments (
+                id, purchase_id, payment_method, amount, reference_no, status, note, paid_at, created_by, created_at, payment_kind
+              )
+              values (
+                gen_random_uuid(), $1, $2, $3, $4, 'paid', $5, now(), $6, now(), $7
+              )
+            `,
+            [purchaseId, payload.paymentMethod ?? 'cash', paidAmount, paymentReference, payload.paymentNote ?? null, userId, paymentKind],
+          );
+        }
+      }
+
+      await client.query('commit');
+      return { purchaseId, purchaseNo, totalAmount, paidAmount, paymentStatus, status: purchaseStatus };
+    } catch (error) {
+      await client.query('rollback').catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async updatePurchase(
+    purchaseId: string,
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    payload: {
+      status?: 'draft' | 'confirmed' | 'shipped' | 'partially_received' | 'fully_received' | 'received' | 'cancelled';
+      invoiceNo?: string;
+      discountAmount?: number;
+      taxAmount?: number;
+      shippingAmount?: number;
+      note?: string;
+      orderRef?: string;
+      expectedDate?: string;
+      truckNo?: string;
+      challanNo?: string;
+      driverName?: string;
+      driverPhone?: string;
+      deliveryCost?: number;
+    },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    this.assertAllowedRoles(authContext, ['store_owner', 'store_manager']);
+
+    // Get current purchase
+    const currentResult = await this.pool.query<{
+      id: string;
+      status: string;
+      subtotal_amount: number;
+      discount_amount: number;
+      tax_amount: number;
+      shipping_amount: number;
+      total_amount: number;
+    }>(
+      'select id, status, subtotal_amount, discount_amount, tax_amount, shipping_amount, total_amount from procurement.purchases where id = $1 and store_id = $2',
+      [purchaseId, storeId],
+    );
+
+    if (currentResult.rows.length === 0) {
+      throw new NotFoundException('Purchase not found');
+    }
+
+    const current = currentResult.rows[0];
+
+    // Validate status transitions for enhanced workflow
+    const validTransitions: Record<string, string[]> = {
+      draft: ['confirmed', 'shipped', 'cancelled'],
+      confirmed: ['shipped', 'partially_received', 'fully_received', 'cancelled'],
+      shipped: ['partially_received', 'fully_received', 'cancelled'],
+      partially_received: ['partially_received', 'fully_received', 'cancelled'],
+      fully_received: ['cancelled'],
+      received: ['cancelled'], // Legacy support
+      cancelled: [],
+    };
+
+    if (payload.status && payload.status !== current.status) {
+      const allowedTransitions = validTransitions[current.status] || [];
+      if (!allowedTransitions.includes(payload.status)) {
+        throw new ForbiddenException(`Cannot transition from ${current.status} to ${payload.status}`);
+      }
+    }
+
+    const client = await this.pool.connect();
+    try {
+      await client.query('begin');
+
+      // Build update query
+      const updates: string[] = [];
+      const values: any[] = [];
+      let paramIndex = 1;
+
+      if (payload.status !== undefined) {
+        updates.push(`status = $${paramIndex++}`);
+        values.push(payload.status);
+        if (payload.status === 'confirmed') {
+          updates.push(`confirmed_at = coalesce(confirmed_at, $${paramIndex++})`);
+          values.push(new Date().toISOString());
+        }
+        if (payload.status === 'shipped') {
+          updates.push(`shipped_at = coalesce(shipped_at, $${paramIndex++})`);
+          values.push(new Date().toISOString());
+        }
+        if (payload.status === 'received' || payload.status === 'partially_received' || payload.status === 'fully_received') {
+          updates.push(`received_at = $${paramIndex++}`);
+          values.push(new Date().toISOString());
+        }
+      }
+
+      if (payload.invoiceNo !== undefined) {
+        updates.push(`invoice_no = $${paramIndex++}`);
+        values.push(payload.invoiceNo);
+      }
+
+      if (payload.discountAmount !== undefined) {
+        updates.push(`discount_amount = $${paramIndex++}`);
+        values.push(payload.discountAmount);
+      }
+
+      if (payload.taxAmount !== undefined) {
+        updates.push(`tax_amount = $${paramIndex++}`);
+        values.push(payload.taxAmount);
+      }
+
+      if (payload.shippingAmount !== undefined) {
+        updates.push(`shipping_amount = $${paramIndex++}`);
+        values.push(payload.shippingAmount);
+      }
+
+      if (payload.note !== undefined) {
+        updates.push(`note = $${paramIndex++}`);
+        values.push(payload.note);
+      }
+
+      if (payload.orderRef !== undefined) {
+        updates.push(`order_ref = $${paramIndex++}`);
+        values.push(payload.orderRef);
+      }
+
+      if (payload.expectedDate !== undefined) {
+        updates.push(`expected_date = $${paramIndex++}::date`);
+        values.push(payload.expectedDate);
+      }
+
+      if (payload.truckNo !== undefined) {
+        updates.push(`truck_no = $${paramIndex++}`);
+        values.push(payload.truckNo);
+      }
+
+      if (payload.challanNo !== undefined) {
+        updates.push(`challan_no = $${paramIndex++}`);
+        values.push(payload.challanNo);
+      }
+
+      if (payload.driverName !== undefined) {
+        updates.push(`driver_name = $${paramIndex++}`);
+        values.push(payload.driverName);
+      }
+
+      if (payload.driverPhone !== undefined) {
+        updates.push(`driver_phone = $${paramIndex++}`);
+        values.push(payload.driverPhone);
+      }
+
+      if (payload.deliveryCost !== undefined) {
+        updates.push(`delivery_cost = $${paramIndex++}`);
+        values.push(payload.deliveryCost);
+      }
+
+      updates.push(`updated_at = $${paramIndex++}`);
+      values.push(new Date().toISOString());
+
+      // Recalculate total if amounts changed
+      if (payload.discountAmount !== undefined || payload.taxAmount !== undefined || payload.shippingAmount !== undefined) {
+        const newSubtotal = current.subtotal_amount;
+        const newDiscount = payload.discountAmount !== undefined ? payload.discountAmount : current.discount_amount;
+        const newTax = payload.taxAmount !== undefined ? payload.taxAmount : current.tax_amount;
+        const newShipping = payload.shippingAmount !== undefined ? payload.shippingAmount : current.shipping_amount;
+        const newTotal = newSubtotal - newDiscount + newTax + newShipping;
+
+        updates.push(`total_amount = $${paramIndex++}`);
+        values.push(newTotal);
+      }
+
+      values.push(purchaseId, storeId);
+
+      if (updates.length > 0) {
+        await client.query(
+          `update procurement.purchases set ${updates.join(', ')} where id = $${paramIndex++} and store_id = $${paramIndex++}`,
+          values,
+        );
+      }
+
+      await client.query('commit');
+      return { success: true, message: 'Purchase updated successfully' };
+    } catch (error) {
+      await client.query('rollback').catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async createPurchasePayment(
+    purchaseId: string,
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    session: AuthSession | null,
+    payload: {
+      amount: number;
+      paymentMethod: 'cash' | 'card' | 'mfs' | 'bank_transfer';
+      referenceNo?: string;
+      note?: string;
+      paymentKind?: 'deposit' | 'settlement';
+    },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    this.assertAllowedRoles(authContext, ['store_owner', 'store_manager']);
+    const userId = this.requireUserId(session);
+
+    const purchaseResult = await this.pool.query<{ id: string; purchase_no: string; total_amount: string; paid_amount: string; status: string }>(
+      `
+        select id, purchase_no, total_amount, paid_amount, status
+        from procurement.purchases
+        where id = $1
+          and store_id = $2
+        limit 1
+      `,
+      [purchaseId, storeId],
+    );
+
+    const purchase = purchaseResult.rows[0];
+    if (!purchase) throw new NotFoundException('Purchase not found');
+    if (purchase.status === 'cancelled') throw new ForbiddenException('Cancelled purchases cannot receive payments');
+
+    const outstanding = Math.max(Number(purchase.total_amount) - Number(purchase.paid_amount), 0);
+    if (outstanding <= 0) {
+      throw new ForbiddenException('This purchase is already fully paid');
+    }
+
+    const appliedAmount = Math.min(payload.amount, outstanding);
+    const nextPaidAmount = Number(purchase.paid_amount) + appliedAmount;
+    const nextStatus = nextPaidAmount >= Number(purchase.total_amount) ? 'paid' : 'partial';
+
+    const client = await this.pool.connect();
+    try {
+      await client.query('begin');
+      await client.query(
+        `
+          insert into procurement.purchase_payments (
+            id, purchase_id, payment_method, amount, reference_no, status, note, paid_at, created_by, created_at, payment_kind
+          )
+          values (
+            gen_random_uuid(), $1, $2, $3, $4, 'paid', $5, now(), $6, now(), $7
+          )
+        `,
+        [purchaseId, payload.paymentMethod, appliedAmount, payload.referenceNo ?? null, payload.note ?? null, userId, payload.paymentKind ?? 'settlement'],
+      );
+      await client.query(
+        `
+          update procurement.purchases
+          set
+            paid_amount = $2,
+            payment_status = $3,
+            deposit_amount = case when $4 = 'deposit' then deposit_amount + $5 else deposit_amount end,
+            deposit_reference = case when $4 = 'deposit' then $6 else deposit_reference end,
+            deposit_paid_at = case when $4 = 'deposit' then now() else deposit_paid_at end,
+            updated_at = now()
+          where id = $1
+        `,
+        [purchaseId, nextPaidAmount, nextStatus, payload.paymentKind ?? 'settlement', appliedAmount, payload.referenceNo ?? null],
+      );
+      await client.query('commit');
+    } catch (error) {
+      await client.query('rollback').catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+
+    return {
+      purchaseId,
+      purchaseNo: purchase.purchase_no,
+      paidAmount: appliedAmount,
+      outstandingAmount: Math.max(Number(purchase.total_amount) - nextPaidAmount, 0),
+      paymentStatus: nextStatus,
+    };
+  }
+
+  async receivePurchaseDelivery(
+    purchaseId: string,
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    session: AuthSession | null,
+    payload: {
+      locationId?: string;
+      truckNo?: string;
+      challanNo?: string;
+      driverName?: string;
+      driverPhone?: string;
+      deliveryCost?: number;
+      note?: string;
+      items: Array<{ purchaseItemId: string; qty: number }>;
+    },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    this.assertAllowedRoles(authContext, ['store_owner', 'store_manager']);
+    const userId = this.requireUserId(session);
+
+    const purchaseResult = await this.pool.query<{ id: string; purchase_no: string; status: string; location_id: string }>(
+      `select id, purchase_no, status, location_id from procurement.purchases where id = $1 and store_id = $2 limit 1`,
+      [purchaseId, storeId],
+    );
+    const purchase = purchaseResult.rows[0];
+    if (!purchase) throw new NotFoundException('Purchase order not found');
+    if (purchase.status === 'cancelled') throw new ForbiddenException('Cancelled orders cannot receive deliveries');
+
+    const deliverable = payload.items.filter((line) => Number(line.qty) > 0);
+    if (deliverable.length === 0) {
+      throw new ForbiddenException('A delivery needs at least one line with a quantity');
+    }
+    const locationId = payload.locationId ?? purchase.location_id;
+    await assertLocationInStore(this.pool, locationId, storeId);
+
+    const client = await this.pool.connect();
+    try {
+      await client.query('begin');
+
+      const tenantResult = await client.query<{ tenant_id: string }>(
+        'select tenant_id from store.stores where id = $1 limit 1',
+        [storeId],
+      );
+      const tenantId = tenantResult.rows[0]?.tenant_id;
+
+      const itemsResult = await client.query<{
+        id: string;
+        sku_id: string;
+        product_id: string | null;
+        unit_cost: string;
+        qty: string;
+        received_qty: string;
+        sku_code_snapshot: string;
+      }>(
+        `
+          select pi.id, pi.sku_id, pi.unit_cost, pi.qty, pi.received_qty, pi.sku_code_snapshot, sk.product_id
+          from procurement.purchase_items pi
+          left join catalog.skus sk on sk.id = pi.sku_id
+          where pi.purchase_id = $1 and pi.id = any($2::uuid[])
+        `,
+        [purchaseId, deliverable.map((line) => line.purchaseItemId)],
+      );
+      const itemMap = new Map(itemsResult.rows.map((row) => [row.id, row]));
+
+      const deliveryCount = await client.query<{ n: string }>(
+        `select count(*)::text as n from procurement.purchase_deliveries where purchase_id = $1`,
+        [purchaseId],
+      );
+      const deliveryNo = `DEL-${purchase.purchase_no}-${Number(deliveryCount.rows[0]?.n ?? 0) + 1}`;
+
+      let receivedTotal = 0;
+      const lines: Array<{ purchaseItemId: string; skuId: string; productId: string | null; qty: number; unitCost: number; skuCode: string }> = [];
+      for (const line of deliverable) {
+        const item = itemMap.get(line.purchaseItemId);
+        if (!item) throw new NotFoundException('A delivery line references an item that is not on this order');
+        lines.push({
+          purchaseItemId: item.id,
+          skuId: item.sku_id,
+          productId: item.product_id,
+          qty: Number(line.qty),
+          unitCost: Number(item.unit_cost ?? 0),
+          skuCode: item.sku_code_snapshot,
+        });
+        receivedTotal += Number(line.qty);
+      }
+
+      const deliveryResult = await client.query<{ id: string }>(
+        `
+          insert into procurement.purchase_deliveries (
+            id, tenant_id, store_id, purchase_id, delivery_no, truck_no, driver_name, driver_phone,
+            challan_no, delivery_cost, received_qty, delivered_at, note, created_by, created_at
+          )
+          values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now(), $11, $12, now())
+          returning id
+        `,
+        [
+          tenantId,
+          storeId,
+          purchaseId,
+          deliveryNo,
+          payload.truckNo ?? null,
+          payload.driverName ?? null,
+          payload.driverPhone ?? null,
+          payload.challanNo ?? null,
+          payload.deliveryCost ?? 0,
+          receivedTotal,
+          payload.note ?? null,
+          userId,
+        ],
+      );
+      const deliveryId = deliveryResult.rows[0].id;
+      const today = new Date().toISOString().slice(0, 10);
+
+      for (const line of lines) {
+        await client.query(
+          `insert into procurement.purchase_delivery_items (id, delivery_id, purchase_item_id, qty, created_at)
+           values (gen_random_uuid(), $1, $2, $3, now())`,
+          [deliveryId, line.purchaseItemId, line.qty],
+        );
+
+        await client.query(
+          `update procurement.purchase_items
+           set qty = received_qty + $2, received_qty = received_qty + $2, line_total = (received_qty + $2) * unit_cost
+           where id = $1`,
+          [line.purchaseItemId, line.qty],
+        );
+
+        await client.query(
+          `
+            insert into inventory.balances (id, tenant_id, store_id, location_id, sku_id, on_hand_qty, reserved_qty, damaged_qty, returned_qty, updated_at)
+            select gen_random_uuid(), s.tenant_id, s.id, $2, $3, $4, 0, 0, 0, now()
+            from store.stores s where s.id = $1
+            on conflict (location_id, sku_id) do update set
+              on_hand_qty = inventory.balances.on_hand_qty + excluded.on_hand_qty,
+              updated_at = now()
+          `,
+          [storeId, locationId, line.skuId, line.qty],
+        );
+
+        await client.query(
+          `
+            insert into inventory.ledger (id, tenant_id, store_id, location_id, sku_id, movement_type, qty_delta, reference_type, reference_id, note, actor_id, created_at)
+            select gen_random_uuid(), s.tenant_id, s.id, $2, $3, 'purchase_receive', $4, 'purchase', $5, $6, $7, now()
+            from store.stores s where s.id = $1
+          `,
+          [storeId, locationId, line.skuId, line.qty, purchaseId, `Delivery ${deliveryNo} — ${line.skuCode}`, userId],
+        );
+
+        await this.addReceiveBatch(client, tenantId, storeId, line.skuId, line.productId ?? line.skuId, purchaseId, null, line.qty, line.unitCost, today, 0);
+      }
+
+      const totalsResult = await client.query<{ subtotal: string }>(
+        `select coalesce(sum(line_total), 0) as subtotal from procurement.purchase_items where purchase_id = $1`,
+        [purchaseId],
+      );
+      const newSubtotal = Number(totalsResult.rows[0]?.subtotal ?? 0);
+      const currentResult = await client.query<{ discount_amount: string; tax_amount: string; shipping_amount: string; delivery_cost: string }>(
+        `select discount_amount, tax_amount, shipping_amount, delivery_cost from procurement.purchases where id = $1`,
+        [purchaseId],
+      );
+      const cur = currentResult.rows[0];
+      const newTotal = newSubtotal - Number(cur?.discount_amount ?? 0) + Number(cur?.tax_amount ?? 0) + Number(cur?.shipping_amount ?? 0) + Number(cur?.delivery_cost ?? 0);
+
+      const progressResult = await client.query<{ fully: boolean }>(
+        `select bool_and(received_qty > 0 and received_qty >= coalesce(estimated_qty, qty)) as fully
+         from procurement.purchase_items where purchase_id = $1`,
+        [purchaseId],
+      );
+      const fullyReceived = Boolean(progressResult.rows[0]?.fully);
+      const nextStatus = fullyReceived ? 'fully_received' : 'partially_received';
+
+      await client.query(
+        `
+          update procurement.purchases
+          set subtotal_amount = $2,
+              total_amount = $3,
+              status = $4,
+              received_at = now(),
+              total_items_qty = (select count(*) from procurement.purchase_items where purchase_id = $1),
+              received_items_qty = (select count(*) from procurement.purchase_items where purchase_id = $1 and received_qty > 0),
+              paid_amount = least(paid_amount, $3),
+              payment_status = case
+                when least(paid_amount, $3) >= $3 then 'paid'
+                when least(paid_amount, $3) > 0 then 'partial'
+                else 'pending'
+              end,
+              updated_at = now()
+          where id = $1
+        `,
+        [purchaseId, newSubtotal, newTotal, nextStatus],
+      );
+
+      await client.query('commit');
+      return { deliveryId, deliveryNo, receivedQty: receivedTotal, status: nextStatus, totalAmount: newTotal };
+    } catch (error) {
+      await client.query('rollback').catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async listPayables(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    filters: { search?: string; page?: number; limit?: number; sortBy?: string; sortDir?: string } = {},
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    this.assertAllowedRoles(authContext, ['store_owner', 'store_manager']);
+    const { page, limit, offset } = normalizePageQuery(filters);
+    const search = filters.search?.trim() || null;
+
+    const sortBy = ['supplier_name', 'purchase_date', 'outstanding_amount', 'aging_days'].includes(filters.sortBy ?? '') ? filters.sortBy! : 'purchase_date';
+    const sortDir = filters.sortDir === 'asc' ? 'asc' : 'desc';
+
+    const result = await this.pool.query(
+      `
+        select *
+        from (
+          select
+            p.id,
+            p.purchase_no,
+            p.purchase_date,
+            p.invoice_no,
+            p.total_amount,
+            p.paid_amount,
+            greatest(p.total_amount - p.paid_amount, 0) as outstanding_amount,
+            p.payment_status,
+            s.company_name as supplier_name,
+            s.phone as supplier_phone,
+            greatest((current_date - p.purchase_date), 0) as aging_days,
+            count(*) over()::int as total_count
+          from procurement.purchases p
+          join procurement.suppliers s on s.id = p.supplier_id
+          where p.store_id = $1
+            and p.status <> 'cancelled'
+            and greatest(p.total_amount - p.paid_amount, 0) > 0
+            and (
+              $2::text is null
+              or p.purchase_no ilike '%' || $2::text || '%'
+              or coalesce(p.invoice_no, '') ilike '%' || $2::text || '%'
+              or s.company_name ilike '%' || $2::text || '%'
+              or coalesce(s.phone, '') ilike '%' || $2::text || '%'
+            )
+          order by ${sortBy} ${sortDir}, p.created_at desc
+          limit $3
+          offset $4
+        ) payables
+      `,
+      [storeId, search, limit, offset],
+    );
+
+    const { items, total } = stripPaginationTotal(result.rows);
+    return { payables: items, pagination: { page, limit, total } };
+  }
+
+  async getPayablesAging(headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    this.assertAllowedRoles(authContext, ['store_owner', 'store_manager']);
+
+    const result = await this.pool.query(
+      `
+        with payables as (
+          select
+            greatest(total_amount - paid_amount, 0) as outstanding_amount,
+            greatest((current_date - purchase_date), 0) as aging_days
+          from procurement.purchases
+          where store_id = $1
+            and status <> 'cancelled'
+            and greatest(total_amount - paid_amount, 0) > 0
+          union all
+          select
+            opening_payable_amount as outstanding_amount,
+            0 as aging_days
+          from procurement.suppliers
+          where store_id = $1
+            and status = 'active'
+            and opening_payable_amount > 0
+        )
+        select
+          coalesce(sum(outstanding_amount) filter (where aging_days = 0), 0) as today_amount,
+          count(*) filter (where aging_days = 0)::int as today_count,
+          coalesce(sum(outstanding_amount) filter (where aging_days between 1 and 7), 0) as days_7_amount,
+          count(*) filter (where aging_days between 1 and 7)::int as days_7_count,
+          coalesce(sum(outstanding_amount) filter (where aging_days between 8 and 30), 0) as days_30_amount,
+          count(*) filter (where aging_days between 8 and 30)::int as days_30_count,
+          coalesce(sum(outstanding_amount) filter (where aging_days between 31 and 90), 0) as days_90_amount,
+          count(*) filter (where aging_days between 31 and 90)::int as days_90_count,
+          coalesce(sum(outstanding_amount) filter (where aging_days > 90), 0) as days_90_plus_amount,
+          count(*) filter (where aging_days > 90)::int as days_90_plus_count
+        from payables
+      `,
+      [storeId],
+    );
+
+    return { aging: result.rows[0] ?? null };
+  }
+
+  async getSupplierLedger(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    filters: { supplierId?: string; fromDate?: string; toDate?: string },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    this.assertAllowedRoles(authContext, ['store_owner', 'store_manager']);
+    const { supplierId, fromDate, toDate } = filters;
+
+    if (!supplierId) {
+      throw new Error('supplierId is required');
+    }
+
+    // Supplier info
+    const supplierResult = await this.pool.query(
+      `select id, company_name, phone, email, address, opening_payable_amount
+       from procurement.suppliers where id = $1 and store_id = $2`,
+      [supplierId, storeId],
+    );
+    if (!supplierResult.rows.length) {
+      throw new NotFoundException('Supplier not found');
+    }
+    const supplier = supplierResult.rows[0];
+
+    // Opening balance before the fromDate
+    const openingResult = await this.pool.query(
+      `
+        select
+          coalesce(sum(greatest(total_amount - paid_amount, 0)), 0) as purchase_outstanding
+        from procurement.purchases
+        where supplier_id = $1
+          and store_id = $2
+          and status <> 'cancelled'
+          and purchase_date < $3::date
+      `,
+      [supplierId, storeId, fromDate || '1900-01-01'],
+    );
+    const openingPurchasesOutstanding = Number(openingResult.rows[0]?.purchase_outstanding ?? 0);
+    const openingBalance = Number(supplier.opening_payable_amount ?? 0) + openingPurchasesOutstanding;
+
+    // Transactions within the date range
+    const txResult = await this.pool.query(
+      `
+        select
+          p.purchase_date as tx_date,
+          p.purchase_no as tx_ref,
+          p.invoice_no,
+          p.total_amount as purchase_total,
+          p.paid_amount as purchase_paid,
+          greatest(p.total_amount - p.paid_amount, 0) as purchase_outstanding,
+          p.payment_status,
+          'purchase' as tx_type,
+          p.id as source_id
+        from procurement.purchases p
+        where p.supplier_id = $1
+          and p.store_id = $2
+          and p.status <> 'cancelled'
+          and p.purchase_date between $3::date and $4::date
+        union all
+        select
+          pp.paid_at::date as tx_date,
+          p.purchase_no as tx_ref,
+          null as invoice_no,
+          null as purchase_total,
+          pp.amount as purchase_paid,
+          null as purchase_outstanding,
+          pp.status as payment_status,
+          'payment' as tx_type,
+          pp.id as source_id
+        from procurement.purchase_payments pp
+        join procurement.purchases p on p.id = pp.purchase_id
+        where p.supplier_id = $1
+          and p.store_id = $2
+          and p.status <> 'cancelled'
+          and pp.status = 'paid'
+          and pp.paid_at::date between $3::date and $4::date
+        order by tx_date asc, tx_type, source_id
+      `,
+      [supplierId, storeId, fromDate || '1900-01-01', toDate || '2099-12-31'],
+    );
+
+    // Balance after each transaction
+    let runningBalance = openingBalance;
+    const transactions = (txResult.rows ?? []).map((row: any) => {
+      if (row.tx_type === 'purchase') {
+        const debit = Number(row.purchase_total ?? 0);
+        const credit = Number(row.purchase_paid ?? 0);
+        runningBalance = runningBalance + debit - credit;
+        return {
+          tx_date: row.tx_date,
+          tx_ref: row.tx_ref,
+          invoice_no: row.invoice_no,
+          tx_type: 'purchase',
+          debit,
+          credit,
+          runningBalance: Math.round(runningBalance * 100) / 100,
+        };
+      }
+      // payment
+      const credit = Number(row.purchase_paid ?? 0);
+      runningBalance -= credit;
+      return {
+        tx_date: row.tx_date,
+        tx_ref: row.tx_ref,
+        invoice_no: null,
+        tx_type: 'payment',
+        credit,
+        debit: 0,
+        runningBalance: Math.round(runningBalance * 100) / 100,
+      };
+    });
+
+    // Closing balance = last running balance
+    const closingBalance = transactions.length > 0
+      ? transactions[transactions.length - 1].runningBalance
+      : openingBalance;
+
+    return {
+      supplier: {
+        id: supplier.id,
+        companyName: supplier.company_name,
+        phone: supplier.phone,
+        email: supplier.email,
+        address: supplier.address,
+      },
+      fromDate: fromDate || null,
+      toDate: toDate || null,
+      openingBalance: Math.round(openingBalance * 100) / 100,
+      closingBalance: Math.round(closingBalance * 100) / 100,
+      transactions,
+    };
+  }
+
+  async getCustomerLedger(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    filters: { customerId?: string; fromDate?: string; toDate?: string },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    this.assertAllowedRoles(authContext, ['store_owner', 'store_manager']);
+    const { customerId, fromDate, toDate } = filters;
+
+    if (!customerId) {
+      throw new Error('customerId is required');
+    }
+
+    // Customer info
+    const customerResult = await this.pool.query(
+      `select id, full_name, mobile_no as phone, email, address, opening_receivable_amount
+       from store.customers where id = $1 and store_id = $2`,
+      [customerId, storeId],
+    );
+    if (!customerResult.rows.length) {
+      throw new NotFoundException('Customer not found');
+    }
+    const customer = customerResult.rows[0];
+
+    // Opening balance before the fromDate
+    const openingResult = await this.pool.query(
+      `
+        select
+          coalesce(sum(greatest(total_amount - paid_amount - returned_amount, 0)), 0) as sales_outstanding
+        from sales.sales
+        where customer_id = $1
+          and store_id = $2
+          and status <> 'cancelled'
+          and sale_date < $3::date
+      `,
+      [customerId, storeId, fromDate || '1900-01-01'],
+    );
+    const openingSalesOutstanding = Number(openingResult.rows[0]?.sales_outstanding ?? 0);
+    const openingBalance = Number(customer.opening_receivable_amount ?? 0) + openingSalesOutstanding;
+
+    // Transactions within the date range
+    const txResult = await this.pool.query(
+      `
+        select
+          s.sale_date as tx_date,
+          s.sale_no as tx_ref,
+          s.invoice_no,
+          s.total_amount as sale_total,
+          s.paid_amount as sale_paid,
+          s.returned_amount as sale_returned,
+          greatest(s.total_amount - s.paid_amount - s.returned_amount, 0) as sale_outstanding,
+          s.payment_status,
+          'sale' as tx_type,
+          s.id as source_id
+        from sales.sales s
+        where s.customer_id = $1
+          and s.store_id = $2
+          and s.status <> 'cancelled'
+          and s.sale_date between $3::date and $4::date
+        union all
+        select
+          sp.paid_at::date as tx_date,
+          s.sale_no as tx_ref,
+          null as invoice_no,
+          null as sale_total,
+          sp.amount as sale_paid,
+          null as sale_returned,
+          null as sale_outstanding,
+          sp.status as payment_status,
+          'payment' as tx_type,
+          sp.id as source_id
+        from sales.sale_payments sp
+        join sales.sales s on s.id = sp.sale_id
+        where s.customer_id = $1
+          and s.store_id = $2
+          and s.status <> 'cancelled'
+          and sp.status = 'paid'
+          and sp.paid_at::date between $3::date and $4::date
+        order by tx_date asc, tx_type, source_id
+      `,
+      [customerId, storeId, fromDate || '1900-01-01', toDate || '2099-12-31'],
+    );
+
+    // Balance after each transaction
+    let runningBalance = openingBalance;
+    const transactions = (txResult.rows ?? []).map((row: any) => {
+      if (row.tx_type === 'sale') {
+        const debit = Number(row.sale_total ?? 0);
+        const credit = Number(row.sale_paid ?? 0) + Number(row.sale_returned ?? 0);
+        runningBalance = runningBalance + debit - credit;
+        return {
+          tx_date: row.tx_date,
+          tx_ref: row.tx_ref,
+          invoice_no: row.invoice_no,
+          tx_type: 'sale',
+          debit,
+          credit,
+          runningBalance: Math.round(runningBalance * 100) / 100,
+        };
+      }
+      // payment
+      const credit = Number(row.sale_paid ?? 0);
+      runningBalance = runningBalance - credit;
+      return {
+        tx_date: row.tx_date,
+        tx_ref: row.tx_ref,
+        invoice_no: row.invoice_no,
+        tx_type: 'payment',
+        debit: 0,
+        credit,
+        runningBalance: Math.round(runningBalance * 100) / 100,
+      };
+    });
+
+    // Closing balance = last running balance
+    const closingBalance = transactions.length > 0
+      ? transactions[transactions.length - 1].runningBalance
+      : openingBalance;
+
+    return {
+      customer: {
+        id: customer.id,
+        fullName: customer.full_name,
+        phone: customer.phone,
+        email: customer.email,
+        address: customer.address,
+      },
+      fromDate: fromDate || null,
+      toDate: toDate || null,
+      openingBalance: Math.round(openingBalance * 100) / 100,
+      closingBalance: Math.round(closingBalance * 100) / 100,
+      transactions,
+    };
+  }
+
+  async listExpenses(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    filters: { search?: string; page?: number; limit?: number; locationId?: string } = {},
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    this.assertAllowedRoles(authContext, ['store_owner', 'store_manager']);
+    const { page, limit, offset } = normalizePageQuery(filters);
+    const search = filters.search?.trim() || null;
+    const locationFilter = filters.locationId?.trim() || null;
 
     const result = await this.pool.query(
       `
@@ -586,12 +2161,13 @@ export class StoreOpsService {
               or category_name ilike '%' || $2::text || '%'
               or coalesce(note, '') ilike '%' || $2::text || '%'
             )
+            and ($5::uuid is null or location_id = $5::uuid)
           order by expense_date desc, created_at desc
           limit $3
           offset $4
         ) expenses
       `,
-      [storeId, search, limit, offset],
+      [storeId, search, limit, offset, locationFilter],
     );
 
     const { items, total } = stripPaginationTotal(result.rows);
@@ -619,12 +2195,12 @@ export class StoreOpsService {
     const result = await this.pool.query(
       `
         insert into finance.daily_expenses (
-          id, tenant_id, store_id, expense_date, category_name, title, amount, payment_method, note, status, recorded_by, created_at, updated_at
+          id, tenant_id, store_id, location_id, expense_date, category_name, title, amount, payment_method, note, status, recorded_by, created_at, updated_at
         )
-        select gen_random_uuid(), $2, $1, $3, $4, $5, $6, $7, $8, $9, $10, now(), now()
+        select gen_random_uuid(), $2, $1, $11, $3, $4, $5, $6, $7, $8, $9, $10, now(), now()
         returning *
       `,
-      [storeId, session?.user.tenantId ?? '', payload.expenseDate, payload.categoryName, payload.title, payload.amount, payload.paymentMethod, payload.note ?? null, payload.status, userId],
+      [storeId, session?.user.tenantId ?? '', payload.expenseDate, payload.categoryName, payload.title, payload.amount, payload.paymentMethod, payload.note ?? null, payload.status, userId, (payload as any).locationId ?? null],
     );
 
     return { expense: result.rows[0] };
@@ -670,15 +2246,77 @@ export class StoreOpsService {
     return { expense: result.rows[0] };
   }
 
+  async listExpenseCategories(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const result = await this.pool.query(
+      `
+        select id, name, status, created_at
+        from finance.expense_categories
+        where store_id = $1
+        order by name asc
+      `,
+      [storeId],
+    );
+    return { categories: result.rows };
+  }
+
+  async createExpenseCategory(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    payload: { name: string },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    this.assertAllowedRoles(authContext, ['store_owner', 'store_manager']);
+    const result = await this.pool.query(
+      `
+        insert into finance.expense_categories (id, tenant_id, store_id, name, created_at, updated_at)
+        select gen_random_uuid(), s.tenant_id, s.id, $2, now(), now()
+        from store.stores s
+        where s.id = $1
+        returning id, name, status, created_at
+      `,
+      [storeId, payload.name],
+    );
+    return { category: result.rows[0] };
+  }
+
+  async updateExpenseCategory(
+    categoryId: string,
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    payload: { name?: string; status?: string },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    this.assertAllowedRoles(authContext, ['store_owner', 'store_manager']);
+    const result = await this.pool.query(
+      `
+        update finance.expense_categories
+        set name = coalesce($3, name),
+            status = coalesce($4, status),
+            updated_at = now()
+        where id = $1
+          and store_id = $2
+        returning id, name, status, created_at
+      `,
+      [categoryId, storeId, payload.name ?? null, payload.status ?? null],
+    );
+    if (!result.rows[0]) throw new NotFoundException('Expense category not found');
+    return { category: result.rows[0] };
+  }
+
   async listEmployees(
     headerStoreId: string | undefined,
     authContext: StoreAuthContext | null,
-    filters: { search?: string; page?: number; limit?: number } = {},
+    filters: { search?: string; page?: number; limit?: number; locationId?: string } = {},
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
     this.assertAllowedRoles(authContext, ['store_owner', 'store_manager']);
     const { page, limit, offset } = normalizePageQuery(filters);
     const search = filters.search?.trim() || null;
+    const locationFilter = filters.locationId?.trim() || null;
     const result = await this.pool.query(
       `
         select *
@@ -963,12 +2601,14 @@ export class StoreOpsService {
   async listPayrollRuns(
     headerStoreId: string | undefined,
     authContext: StoreAuthContext | null,
-    filters: { search?: string; page?: number; limit?: number } = {},
+    filters: { search?: string; page?: number; limit?: number; startDate?: string; endDate?: string } = {},
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
     this.assertAllowedRoles(authContext, ['store_owner']);
     const { page, limit, offset } = normalizePageQuery(filters);
     const search = filters.search?.trim() || null;
+    const startDate = filters.startDate?.trim() || null;
+    const endDate = filters.endDate?.trim() || null;
     const result = await this.pool.query(
       `
         select *
@@ -985,13 +2625,15 @@ export class StoreOpsService {
               or coalesce(pr.payroll_no, '') ilike '%' || $2::text || '%'
               or coalesce(pr.status, '') ilike '%' || $2::text || '%'
             )
+            and ($3::date is null or pr.period_start >= $3::date)
+            and ($4::date is null or pr.period_end <= $4::date)
           group by pr.id
           order by pr.period_end desc, pr.created_at desc
-          limit $3
-          offset $4
+          limit $5
+          offset $6
         ) payroll_runs
       `,
-      [storeId, search, limit, offset],
+      [storeId, search, startDate, endDate, limit, offset],
     );
     const { items, total } = stripPaginationTotal(result.rows);
     return { payrollRuns: items, pagination: { page, limit, total } };
@@ -1464,6 +3106,886 @@ export class StoreOpsService {
     return `PAY-${prefix}-${Date.now().toString().slice(-6)}`;
   }
 
+  private async getDefaultInventoryLocationId(storeId: string) {
+    const locationResult = await this.pool.query<{ id: string }>(
+      `
+        select id
+        from inventory.locations
+        where store_id = $1
+          and status = 'active'
+        order by
+          case when location_type = 'storefront' then 0 when location_type = 'warehouse' then 1 else 2 end,
+          created_at asc
+        limit 1
+      `,
+      [storeId],
+    );
+
+    const locationId = locationResult.rows[0]?.id;
+    if (!locationId) {
+      throw new NotFoundException('Create an active inventory location before receiving purchases');
+    }
+
+    return locationId;
+  }
+
+  private async syncSkuPricesOnReceive(
+    client: PoolClient,
+    tenantId: string,
+    storeId: string,
+    skuId: string,
+    unitCost?: number,
+    sellPrice?: number,
+  ) {
+    const nextCost = unitCost && unitCost > 0 ? String(unitCost) : null;
+    const nextSell = sellPrice && sellPrice > 0 ? String(sellPrice) : null;
+    const latest = await client.query<{ cost_price: string; sale_price: string }>(
+      `select cost_price, sale_price from catalog.prices
+       where sku_id = $1
+       order by effective_from desc, created_at desc
+       limit 1`,
+      [skuId],
+    );
+    const prev = latest.rows[0];
+    if (!prev) {
+      await client.query(
+        `insert into catalog.prices (id, tenant_id, store_id, sku_id, sale_price, cost_price, effective_from, created_at)
+         values (gen_random_uuid(), $1, $2, $3, $4, $5, now(), now())`,
+        [tenantId, storeId, skuId, nextSell ?? '0', nextCost ?? '0'],
+      );
+      return;
+    }
+    const costChanged = nextCost !== null && Number(prev.cost_price) !== Number(nextCost);
+    const sellChanged = nextSell !== null && Number(prev.sale_price) !== Number(nextSell);
+    if (!costChanged && !sellChanged) return;
+    await client.query(
+      `insert into catalog.prices (id, tenant_id, store_id, sku_id, sale_price, cost_price, effective_from, created_at)
+       values (gen_random_uuid(), $1, $2, $3, $4, $5, now(), now())`,
+      [tenantId, storeId, skuId, nextSell ?? String(prev.sale_price), nextCost ?? String(prev.cost_price)],
+    );
+  }
+
+  private async addReceiveBatch(
+    client: PoolClient,
+    tenantId: string,
+    storeId: string,
+    skuId: string,
+    productId: string,
+    purchaseId: string,
+    supplierId: string | null,
+    qty: number,
+    unitCost: number,
+    receivedDate: string,
+    serialCount: number,
+  ) {
+    const batchCode = `B-${purchaseId.slice(0, 8)}-${skuId.slice(0, 8)}`;
+    await client.query(
+      `insert into inventory.stock_batches (id, tenant_id, store_id, batch_code, supplier_id, product_id, sku_id, received_date, received_quantity, current_quantity, serial_count, unit_cost, status, created_at, updated_at)
+       values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7::date, $8, $8, $9, $10, 'active', now(), now())
+       on conflict (store_id, batch_code) do update set
+         received_quantity = inventory.stock_batches.received_quantity + $8,
+         current_quantity = inventory.stock_batches.current_quantity + $8,
+         serial_count = inventory.stock_batches.serial_count + $9,
+         updated_at = now()`,
+      [tenantId, storeId, batchCode, supplierId, productId, skuId, receivedDate, qty, serialCount, unitCost],
+    );
+  }
+
+  private async generatePurchaseNumber(storeId: string, purchaseDate: string) {
+    const storeResult = await this.pool.query<{ store_code: string }>(
+      `
+        select store_code
+        from store.stores
+        where id = $1
+        limit 1
+      `,
+      [storeId],
+    );
+
+    const prefix = (storeResult.rows[0]?.store_code ?? 'STORE')
+      .replace(/[^A-Za-z0-9]/g, '')
+      .toUpperCase()
+      .slice(0, 6) || 'STORE';
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const countResult = await this.pool.query<{ total: string }>(
+        `
+          select count(*)::text as total
+          from procurement.purchases
+          where store_id = $1
+            and to_char(purchase_date, 'YYYYMM') = to_char($2::date, 'YYYYMM')
+        `,
+        [storeId, purchaseDate],
+      );
+      const candidate = `PUR-${prefix}-${purchaseDate.slice(0, 7).replace('-', '')}-${String(Number(countResult.rows[0]?.total ?? '0') + 1 + attempt).padStart(3, '0')}`;
+      const existing = await this.pool.query<{ id: string }>(
+        `
+          select id
+          from procurement.purchases
+          where store_id = $1
+            and purchase_no = $2
+          limit 1
+        `,
+        [storeId, candidate],
+      );
+      if (!existing.rows[0]) {
+        return candidate;
+      }
+    }
+
+    return `PUR-${prefix}-${Date.now().toString().slice(-6)}`;
+  }
+
+
+
+  async quickReceive(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    session: AuthSession | null,
+    payload: {
+      productName: string;
+      categoryId?: string;
+      brandId?: string;
+      supplierId: string;
+      locationId: string;
+      salePrice: number;
+      purchaseQty: number;
+      unitCost: number;
+      paidAmount: number;
+      paymentMethod: string;
+      paymentReference?: string;
+      hasVariants: boolean;
+      variantLabels?: string[];
+      variantPrices?: number[];
+      variantCosts?: number[];
+      isTrackable?: boolean;
+      unit?: string;
+      note?: string;
+    },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    await assertLocationInStore(this.pool, payload.locationId, storeId);
+    const userId = this.requireUserId(session);
+    const client = await this.pool.connect();
+
+    try {
+      await client.query('begin');
+
+      // Resolve tenant
+      const tenantResult = await client.query<{ tenant_id: string; store_code: string }>(
+        `select tenant_id, store_code from store.stores where id = $1 limit 1`, [storeId],
+      );
+      const { tenant_id: tenantId } = tenantResult.rows[0];
+
+      // Trim name and generate product code
+      const productName = payload.productName.trim();
+      const baseCode = productName.replace(/[^A-Za-z0-9]/g, '-').toUpperCase().slice(0, 28) || 'PRODUCT';
+      const productCode = `${baseCode}-${Date.now().toString(36).slice(-4).toUpperCase()}`;
+      const categoryId = payload.categoryId || null;
+      const brandId = payload.brandId || null;
+
+      // Resolve brand and category codes for SKU generation
+      const brandCode = await this.resolveBrandCode(client, brandId);
+      const categoryCode = await this.resolveCategoryCode(client, categoryId);
+
+      // Generate purchase number (use same logic as createPurchase)
+      const today = new Date().toISOString().slice(0, 10);
+      const purchaseNo = await this.generatePurchaseNumber(storeId, today);
+
+      // Calculate totals
+      const subtotal = payload.purchaseQty * payload.unitCost;
+      const totalAmount = subtotal;
+      const paidAmount = Math.min(payload.paidAmount, totalAmount);
+      const isFullyPaid = paidAmount >= totalAmount;
+
+      // 1. Create product — Quick Add makes simple non-variant products; trackable
+      // only when explicitly requested (serial intake comes through Receive Stock).
+      const productResult = await client.query<{ id: string }>(
+        `insert into catalog.products (id, tenant_id, store_id, product_code, name, category_id, brand_id, has_variants, variant_mode, is_trackable, unit, status, created_at, updated_at)
+         values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'active', now(), now()) returning id`,
+        [tenantId, storeId, productCode, productName, categoryId, brandId, payload.hasVariants, payload.hasVariants ? 'single' : 'none', payload.isTrackable ?? false, (payload.unit ?? '').trim() || 'pcs'],
+      );
+      const productId = productResult.rows[0].id;
+
+      // 2. Create SKU(s)
+      const skus: Array<{ id: string; skuCode: string; label: string | null; price: number; cost: number; qty: number }> = [];
+
+      if (payload.hasVariants && payload.variantLabels?.length) {
+        for (let i = 0; i < payload.variantLabels.length; i++) {
+          const label = payload.variantLabels[i].trim();
+          const price = payload.variantPrices?.[i] ?? payload.salePrice;
+          const cost = payload.variantCosts?.[i] ?? payload.unitCost;
+          const vTs = Date.now() + i;
+          const vBarcode = '2' + String(vTs).slice(-9) + String(Math.floor(Math.random() * 1000)).padStart(3, '0');
+          const spec = this.encodeSkuSpec(label, productName);
+          const skuCode = await this.findUniqueSkuCode(client, storeId, brandCode, categoryCode, spec);
+          const skuResult = await client.query<{ id: string }>(
+            `insert into catalog.skus (id, tenant_id, store_id, product_id, sku_code, variant_label, barcode, status, created_at, updated_at)
+             values (gen_random_uuid(), $1, $2, $3, $4, $5, 'active', now(), now()) returning id`,
+            [tenantId, storeId, productId, skuCode, label, vBarcode],
+          );
+          // Insert price record
+          await client.query(
+            `insert into catalog.prices (id, tenant_id, store_id, sku_id, sale_price, cost_price, effective_from, created_at)
+             values (gen_random_uuid(), $1, $2, $3, $4, $5, now(), now())`,
+            [tenantId, storeId, skuResult.rows[0].id, String(price), String(cost)],
+          );
+          skus.push({ id: skuResult.rows[0].id, skuCode, label, price, cost, qty: 1 });
+        }
+      } else {
+        const ts = Date.now();
+        const barcode = '2' + String(ts).slice(-9) + String(Math.floor(Math.random() * 1000)).padStart(3, '0');
+        const spec = this.encodeSkuSpec(null, productName);
+        const skuCode = await this.findUniqueSkuCode(client, storeId, brandCode, categoryCode, spec);
+        const skuResult = await client.query<{ id: string }>(
+          `insert into catalog.skus (id, tenant_id, store_id, product_id, sku_code, barcode, status, created_at, updated_at)
+           values (gen_random_uuid(), $1, $2, $3, $4, $5, 'active', now(), now()) returning id`,
+          [tenantId, storeId, productId, skuCode, barcode],
+        );
+        // Insert price record
+        await client.query(
+          `insert into catalog.prices (id, tenant_id, store_id, sku_id, sale_price, cost_price, effective_from, created_at)
+           values (gen_random_uuid(), $1, $2, $3, $4, $5, now(), now())`,
+          [tenantId, storeId, skuResult.rows[0].id, String(payload.salePrice), String(payload.unitCost)],
+        );
+        skus.push({ id: skuResult.rows[0].id, skuCode, label: null, price: payload.salePrice, cost: payload.unitCost, qty: payload.purchaseQty });
+      }
+
+      // 3. Create purchase record
+      const purchaseResult = await client.query<{ id: string }>(
+        `insert into procurement.purchases (id, tenant_id, store_id, supplier_id, location_id, purchase_no, purchase_date, status, subtotal_amount, discount_amount, tax_amount, shipping_amount, total_amount, paid_amount, payment_status, note, created_by, received_at, created_at, updated_at)
+         values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, 'received', $7, 0, 0, 0, $8, $9, $10, $11, $12, now(), now(), now()) returning id`,
+        [tenantId, storeId, payload.supplierId, payload.locationId, purchaseNo, today, subtotal, totalAmount, paidAmount, paidAmount <= 0 ? 'pending' : isFullyPaid ? 'paid' : 'partial', payload.note || null, userId],
+      );
+      const purchaseId = purchaseResult.rows[0].id;
+
+      // 4. Create purchase items, update balances, write ledger
+      for (const sku of skus) {
+        const lineTotal = sku.qty * sku.cost;
+        await client.query(
+          `insert into procurement.purchase_items (id, purchase_id, sku_id, product_name_snapshot, sku_code_snapshot, qty, unit_cost, line_total, created_at)
+           values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, now())`,
+          [purchaseId, sku.id, productName, sku.skuCode, sku.qty, sku.cost, lineTotal],
+        );
+
+        // Upsert inventory balance
+        await client.query(
+          `insert into inventory.balances (id, tenant_id, store_id, location_id, sku_id, on_hand_qty, updated_at)
+           values (gen_random_uuid(), $1, $2, $3, $4, $5, now())
+           on conflict (location_id, sku_id) do update set on_hand_qty = inventory.balances.on_hand_qty + $5, updated_at = now()`,
+          [tenantId, storeId, payload.locationId, sku.id, sku.qty],
+        );
+
+        // Write ledger
+        await client.query(
+          `insert into inventory.ledger (id, tenant_id, store_id, location_id, sku_id, movement_type, qty_delta, reference_type, reference_id, note, actor_id, created_at)
+           values (gen_random_uuid(), $1, $2, $3, $4, 'purchase_receive', $5, 'purchase', $6, $7, $8, now())`,
+          [tenantId, storeId, payload.locationId, sku.id, sku.qty, purchaseId, `Quick receive ${purchaseNo}`, userId],
+        );
+
+        // FIFO batch layer for non-serialized costing
+        await this.addReceiveBatch(client, tenantId, storeId, sku.id, productId, purchaseId, payload.supplierId, sku.qty, sku.cost, today, 0);
+      }
+
+      // 5. Record payment if paid
+      if (paidAmount > 0) {
+        await client.query(
+          `insert into procurement.purchase_payments (id, purchase_id, payment_method, amount, reference_no, status, paid_at, created_by, created_at)
+           values (gen_random_uuid(), $1, $2, $3, $4, 'paid', now(), $5, now())`,
+          [purchaseId, payload.paymentMethod, paidAmount, payload.paymentReference || null, userId],
+        );
+      }
+
+      await client.query('commit');
+
+      return {
+        product: { id: productId, name: productName, productCode },
+        purchase: { id: purchaseId, purchaseNo, totalAmount, paidAmount },
+        skus,
+        stockUpdated: true,
+      };
+    } catch (error) {
+      await client.query('rollback').catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async receiveWithTracking(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    session: AuthSession | null,
+    payload: {
+      productId: string;
+      skuId?: string;
+      supplierId: string;
+      locationId: string;
+      unitCost?: number;
+      sellPrice?: number;
+      batchNo?: string;
+      expiryDate?: string;
+      qty?: number;
+      trackingValuesList?: Record<string, string>[];
+    },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    await assertLocationInStore(this.pool, payload.locationId, storeId);
+    const userId = this.requireUserId(session);
+    const client = await this.pool.connect();
+
+    try {
+      await client.query('begin');
+
+      // Resolve tenant
+      const tenantResult = await client.query<{ tenant_id: string }>(
+        'select tenant_id from store.stores where id = $1 limit 1', [storeId],
+      );
+      const { tenant_id: tenantId } = tenantResult.rows[0];
+
+      // 1. Validate product exists and belongs to this store
+      const productResult = await client.query<{ id: string; name: string; is_trackable: boolean }>(
+        `select id, name, is_trackable from catalog.products where id = $1 and store_id = $2`,
+        [payload.productId, storeId],
+      );
+      if (productResult.rows.length === 0) throw new Error('Product not found');
+      const product = productResult.rows[0];
+
+      // 2. Resolve SKU (use provided skuId or get the first/default SKU)
+      let skuId = payload.skuId;
+      let skuCode: string;
+      if (skuId) {
+        const skuResult = await client.query<{ id: string; sku_code: string }>(
+          `select id, sku_code from catalog.skus where id = $1 and product_id = $2`,
+          [skuId, payload.productId],
+        );
+        if (skuResult.rows.length === 0) throw new Error('SKU not found for this product');
+        skuCode = skuResult.rows[0].sku_code;
+      } else {
+        const skuResult = await client.query<{ id: string; sku_code: string }>(
+          `select id, sku_code from catalog.skus where product_id = $1 and status = 'active' order by created_at asc limit 1`,
+          [payload.productId],
+        );
+        if (skuResult.rows.length === 0) throw new Error('No active SKU found for this product');
+        skuId = skuResult.rows[0].id;
+        skuCode = skuResult.rows[0].sku_code;
+      }
+
+      // 3. Resolve tracking profile (if product has one)
+      let trackingProfileId: string | null = null;
+      const profileResult = await client.query<{ id: string }>(
+        `select tp.id from catalog.tracking_profiles tp
+         join catalog.products p on p.category_id = tp.category_id
+         where p.id = $1 and tp.is_global = false
+         union
+         select tp.id from catalog.tracking_profiles tp
+         where tp.is_global = true and not exists (
+           select 1 from catalog.tracking_profiles tp2
+           join catalog.products p2 on p2.category_id = tp2.category_id
+           where p2.id = $1 and tp2.is_global = false
+         )
+         limit 1`,
+        [payload.productId],
+      );
+      if (profileResult.rows.length > 0) {
+        trackingProfileId = profileResult.rows[0].id;
+      }
+
+      // 4. Generate purchase number
+      const today = new Date().toISOString().slice(0, 10);
+      const purchaseNo = await this.generatePurchaseNumber(storeId, today);
+
+      // 5. Determine quantity and costs
+      const isTracked = (payload.trackingValuesList?.length ?? 0) > 0;
+      const unitCost = payload.unitCost ?? 0;
+      const qty = isTracked ? payload.trackingValuesList!.length : (payload.qty ?? 1);
+      const lineTotal = unitCost * qty;
+
+      // 6. Create purchase record with proper totals
+      const purchaseResult = await client.query<{ id: string }>(
+        `insert into procurement.purchases (id, tenant_id, store_id, supplier_id, location_id, purchase_no, purchase_date, status, subtotal_amount, discount_amount, tax_amount, shipping_amount, total_amount, paid_amount, payment_status, note, created_by, received_at, created_at, updated_at)
+         values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, 'received', $7, 0, 0, 0, $8, 0, 'pending', $9, $10, now(), now(), now()) returning id`,
+        [tenantId, storeId, payload.supplierId, payload.locationId, purchaseNo, today, lineTotal, lineTotal, `Receive ${qty} unit(s) of ${product.name}`, userId],
+      );
+      const purchaseId = purchaseResult.rows[0].id;
+
+      // 7. Create purchase item with proper cost, batch, and expiry
+      await client.query(
+        `insert into procurement.purchase_items (id, purchase_id, sku_id, product_name_snapshot, sku_code_snapshot, qty, unit_cost, line_total, batch_no, expiry_date, created_at)
+         values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, now())`,
+        [purchaseId, skuId, product.name, skuCode, qty, unitCost, lineTotal, payload.batchNo?.trim() || null, payload.expiryDate || null],
+      );
+
+      // 8. Create device serials with tracking values for each unit (only for tracked products)
+      const createdSerials: Array<{ id: string; serialNumber: string; imeiNumber?: string }> = [];
+      if (isTracked) {
+        for (const trackingValues of payload.trackingValuesList!) {
+        // Determine serial number and IMEI from tracking values
+        const serialNumber = trackingValues['serial_number'] || trackingValues['serial'] || `SN-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+        const imeiNumber = trackingValues['imei'] || trackingValues['imei_number'] || undefined;
+
+        // Validate global IMEI uniqueness with enhanced error handling
+        if (imeiNumber) {
+          try {
+            const existingImei = await client.query(
+              'select id, serial_number, sku_id from inventory.device_serials where imei_number = $1',
+              [imeiNumber],
+            );
+            if (existingImei.rows.length > 0) {
+              const existing = existingImei.rows[0];
+              throw new ConflictException(
+                `IMEI ${imeiNumber} already exists in the system. ` +
+                `Previously registered as serial ${existing.serial_number} for SKU ${existing.sku_id}. ` +
+                `Please use a different device or contact support if this appears to be an error.`
+              );
+            }
+          } catch (imeiError: any) {
+            if (imeiError instanceof ConflictException) {
+              throw imeiError;
+            }
+            throw new Error(`Failed to validate IMEI uniqueness: ${imeiError.message}`);
+          }
+        }
+
+        const serialResult = await client.query<{ id: string }>(
+          `insert into inventory.device_serials (id, tenant_id, store_id, sku_id, serial_number, imei_number, tracking_values, tracking_profile_id, current_location_id, status, received_date, created_at, updated_at)
+           values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, 'in_stock', now(), now(), now()) returning id`,
+          [
+            tenantId,
+            storeId,
+            skuId,
+            serialNumber,
+            imeiNumber || null,
+            JSON.stringify(trackingValues),
+            trackingProfileId,
+            payload.locationId,
+          ],
+        );
+        createdSerials.push({ id: serialResult.rows[0].id, serialNumber, imeiNumber });
+        }
+      }
+
+      // 8b. Mark the product/SKU as serial-tracked so POS prompts for serials.
+      if (isTracked) {
+        const hasImei = payload.trackingValuesList!.some((tv) => tv['imei'] || tv['imei_number']);
+        await client.query(
+          `update catalog.products set is_trackable = true, serial_tracking_enabled = true, updated_at = now() where id = $1`,
+          [product.id],
+        );
+        await client.query(
+          `update catalog.skus set requires_serial = true, requires_imei = requires_imei or $2, updated_at = now() where id = $1`,
+          [skuId, hasImei],
+        );
+      }
+
+      // 9. Update inventory balance with enhanced error handling
+      try {
+        await client.query(
+          `insert into inventory.balances (id, tenant_id, store_id, location_id, sku_id, on_hand_qty, updated_at)
+             values (gen_random_uuid(), $1, $2, $3, $4, $5, now())
+             on conflict (location_id, sku_id) do update set on_hand_qty = inventory.balances.on_hand_qty + $5, updated_at = now()`,
+          [tenantId, storeId, payload.locationId, skuId, qty],
+        );
+      } catch (balanceError: any) {
+        if (balanceError.code === '23503') {
+          throw new ConflictException('Invalid location or SKU reference');
+        } else if (balanceError.code === '23505') {
+          throw new ConflictException('Balance record already exists for this location and SKU combination');
+        }
+        throw new Error(`Failed to update inventory balance: ${balanceError.message}`);
+      }
+
+      // 10. Write ledger entries with enhanced error handling
+      if (isTracked) {
+        for (const serial of createdSerials) {
+          try {
+            await client.query(
+              `insert into inventory.ledger (id, tenant_id, store_id, location_id, sku_id, movement_type, qty_delta, reference_type, reference_id, note, actor_id, created_at)
+                 values (gen_random_uuid(), $1, $2, $3, $4, 'purchase_receive', 1, 'purchase', $5, $6, $7, now())`,
+              [tenantId, storeId, payload.locationId, skuId, purchaseId, `Receive ${serial.serialNumber}${serial.imeiNumber ? ` (IMEI: ${serial.imeiNumber})` : ''}`, userId],
+            );
+          } catch (ledgerError: any) {
+            if (ledgerError.code === '23503') {
+              throw new ConflictException('Invalid reference to location, SKU, or purchase in ledger entry');
+            } else if (ledgerError.code === '23514') {
+              throw new ConflictException('Invalid movement type for ledger entry');
+            }
+            throw new Error(`Failed to create ledger entry for ${serial.serialNumber}: ${ledgerError.message}`);
+          }
+        }
+      } else {
+        // Single ledger entry for non-tracked bulk receive
+        try {
+          await client.query(
+            `insert into inventory.ledger (id, tenant_id, store_id, location_id, sku_id, movement_type, qty_delta, reference_type, reference_id, note, actor_id, created_at)
+               values (gen_random_uuid(), $1, $2, $3, $4, 'purchase_receive', $5, 'purchase', $6, $7, $8, now())`,
+            [tenantId, storeId, payload.locationId, skuId, qty, purchaseId, `Receive ${qty} unit(s) of ${product.name}`, userId],
+          );
+        } catch (ledgerError: any) {
+          if (ledgerError.code === '23503') {
+            throw new ConflictException('Invalid reference to location, SKU, or purchase in ledger entry');
+          } else if (ledgerError.code === '23514') {
+            throw new ConflictException('Invalid movement type for ledger entry');
+          }
+          throw new Error(`Failed to create ledger entry: ${ledgerError.message}`);
+        }
+      }
+
+      // Sync per-SKU prices (cost + sell) into the price history
+      await this.syncSkuPricesOnReceive(client, tenantId, storeId, skuId, unitCost, payload.sellPrice);
+      // FIFO batch layer for non-serialized costing
+      await this.addReceiveBatch(client, tenantId, storeId, skuId, product.id, purchaseId, payload.supplierId, qty, unitCost, today, isTracked ? qty : 0);
+
+      await client.query('commit');
+
+      return {
+        product: { id: product.id, name: product.name },
+        purchase: { id: purchaseId, purchaseNo, totalAmount: lineTotal, unitCost },
+        sku: { id: skuId, skuCode },
+        serials: createdSerials,
+        stockUpdated: true,
+        unitsReceived: qty,
+      };
+    } catch (error) {
+      await client.query('rollback').catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async receiveBulk(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    session: AuthSession | null,
+    payload: {
+      items: Array<{
+        productId: string;
+        skuId?: string;
+        supplierId: string;
+        locationId: string;
+        unitCost?: number;
+        sellPrice?: number;
+        batchNo?: string;
+        expiryDate?: string;
+        qty?: number;
+        trackingValuesList?: Record<string, string>[];
+      }>;
+    },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    for (const item of payload.items) {
+      await assertLocationInStore(this.pool, item.locationId, storeId);
+    }
+    const userId = this.requireUserId(session);
+    const client = await this.pool.connect();
+
+    try {
+      await client.query('begin');
+
+      const tenantResult = await client.query<{ tenant_id: string }>(
+        'select tenant_id from store.stores where id = $1 limit 1', [storeId],
+      );
+      const tenantId = tenantResult.rows[0].tenant_id;
+
+      const results = [];
+      const errors = [];
+
+      // Process each item in the bulk receive
+      for (let i = 0; i < payload.items.length; i++) {
+        const item = payload.items[i];
+
+        try {
+          // Validate and get product info
+          const productResult = await client.query<{ id: string; name: string; is_trackable: boolean }>(
+            `select id, name, is_trackable from catalog.products where id = $1 and store_id = $2`,
+            [item.productId, storeId],
+          );
+
+          if (productResult.rows.length === 0) {
+            errors.push({ index: i, error: `Product ${item.productId} not found` });
+            continue;
+          }
+
+          const product = productResult.rows[0];
+
+          // Resolve SKU
+          let skuId = item.skuId;
+          let skuCode: string;
+          if (skuId) {
+            const skuResult = await client.query<{ id: string; sku_code: string }>(
+              `select id, sku_code from catalog.skus where id = $1 and product_id = $2`,
+              [skuId, item.productId],
+            );
+            if (skuResult.rows.length === 0) {
+              errors.push({ index: i, error: `SKU ${item.skuId} not found for this product` });
+              continue;
+            }
+            skuCode = skuResult.rows[0].sku_code;
+          } else {
+            const skuResult = await client.query<{ id: string; sku_code: string }>(
+              `select id, sku_code from catalog.skus where product_id = $1 and status = 'active' order by created_at asc limit 1`,
+              [item.productId],
+            );
+            if (skuResult.rows.length === 0) {
+              errors.push({ index: i, error: `No active SKU found for this product` });
+              continue;
+            }
+            skuId = skuResult.rows[0].id;
+            skuCode = skuResult.rows[0].sku_code;
+          }
+
+          // Generate purchase number for each item
+          const today = new Date().toISOString().slice(0, 10);
+          const purchaseNo = await this.generatePurchaseNumber(storeId, today);
+
+          // Calculate costs
+          const isTracked = (item.trackingValuesList?.length ?? 0) > 0;
+          const unitCost = item.unitCost ?? 0;
+          const qty = isTracked ? item.trackingValuesList!.length : (item.qty ?? 1);
+          const lineTotal = unitCost * qty;
+
+          // Create purchase record
+          const purchaseResult = await client.query<{ id: string }>(
+            `insert into procurement.purchases (id, tenant_id, store_id, supplier_id, location_id, purchase_no, purchase_date, status, subtotal_amount, discount_amount, tax_amount, shipping_amount, total_amount, paid_amount, payment_status, note, created_by, received_at, created_at, updated_at)
+             values (gen_random_uuid(), (select tenant_id from store.stores where id = $1), $1, $2, $3, $4, $5, 'received', $6, 0, 0, 0, $7, 0, 'pending', $8, $9, now(), now(), now()) returning id`,
+            [storeId, item.supplierId, item.locationId, purchaseNo, today, lineTotal, lineTotal, `Bulk receive ${qty} unit(s) of ${product.name}`, userId],
+          );
+          const purchaseId = purchaseResult.rows[0].id;
+
+          // Create purchase item
+          await client.query(
+            `insert into procurement.purchase_items (id, purchase_id, sku_id, product_name_snapshot, sku_code_snapshot, qty, unit_cost, line_total, batch_no, expiry_date, created_at)
+             values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, now())`,
+            [purchaseId, skuId, product.name, skuCode, qty, unitCost, lineTotal, item.batchNo?.trim() || null, item.expiryDate || null],
+          );
+
+          // Create device serials and update inventory (tracked products only)
+          const createdSerials: Array<{ id: string; serialNumber: string; imeiNumber?: string }> = [];
+
+          if (isTracked) {
+            for (const trackingValues of item.trackingValuesList!) {
+            const serialNumber = trackingValues['serial_number'] || trackingValues['serial'] || `SN-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+            const imeiNumber = trackingValues['imei'] || trackingValues['imei_number'] || undefined;
+
+            if (imeiNumber) {
+              const existingImei = await client.query(
+                'select id from inventory.device_serials where imei_number = $1',
+                [imeiNumber],
+              );
+              if (existingImei.rows.length > 0) {
+                throw new Error(`IMEI ${imeiNumber} already exists in the system`);
+              }
+            }
+
+            const serialResult = await client.query<{ id: string }>(
+              `insert into inventory.device_serials (id, tenant_id, store_id, sku_id, serial_number, imei_number, tracking_values, current_location_id, status, received_date, created_at, updated_at)
+               values (gen_random_uuid(), (select tenant_id from store.stores where id = $1), $1, $2, $3, $4, $5, $6, 'in_stock', now(), now(), now()) returning id`,
+              [storeId, skuId, serialNumber, imeiNumber || null, JSON.stringify(trackingValues), item.locationId],
+            );
+              createdSerials.push({ id: serialResult.rows[0].id, serialNumber, imeiNumber });
+            }
+            }
+
+          // Mark the product/SKU as serial-tracked so POS prompts for serials.
+          if (isTracked) {
+            const hasImei = item.trackingValuesList!.some((tv) => tv['imei'] || tv['imei_number']);
+            await client.query(
+              `update catalog.products set is_trackable = true, serial_tracking_enabled = true, updated_at = now() where id = $1`,
+              [product.id],
+            );
+            await client.query(
+              `update catalog.skus set requires_serial = true, requires_imei = requires_imei or $2, updated_at = now() where id = $1`,
+              [skuId, hasImei],
+            );
+          }
+
+          // Update inventory balance
+          await client.query(
+            `insert into inventory.balances (id, tenant_id, store_id, location_id, sku_id, on_hand_qty, updated_at)
+             values (gen_random_uuid(), (select tenant_id from store.stores where id = $1), $1, $2, $3, $4, now())
+             on conflict (location_id, sku_id) do update set on_hand_qty = inventory.balances.on_hand_qty + $4, updated_at = now()`,
+            [storeId, item.locationId, skuId, qty],
+          );
+
+          // Write ledger entries
+          if (isTracked) {
+            for (const serial of createdSerials) {
+              await client.query(
+                `insert into inventory.ledger (id, tenant_id, store_id, location_id, sku_id, movement_type, qty_delta, reference_type, reference_id, note, actor_id, created_at)
+                 values (gen_random_uuid(), (select tenant_id from store.stores where id = $1), $1, $2, $3, 'purchase_receive', 1, 'purchase', $4, $5, $6, now())`,
+                [storeId, item.locationId, skuId, purchaseId, `Bulk receive ${serial.serialNumber}${serial.imeiNumber ? ` (IMEI: ${serial.imeiNumber})` : ''}`, userId],
+              );
+            }
+          } else {
+            // Single ledger entry for non-tracked bulk receive
+            await client.query(
+              `insert into inventory.ledger (id, tenant_id, store_id, location_id, sku_id, movement_type, qty_delta, reference_type, reference_id, note, actor_id, created_at)
+               values (gen_random_uuid(), (select tenant_id from store.stores where id = $1), $1, $2, $3, 'purchase_receive', $4, 'purchase', $5, $6, $7, now())`,
+              [storeId, item.locationId, skuId, qty, purchaseId, `Bulk receive ${qty} unit(s) of ${product.name}`, userId],
+            );
+          }
+
+          await this.syncSkuPricesOnReceive(client, tenantId, storeId, skuId, unitCost, item.sellPrice);
+          await this.addReceiveBatch(client, tenantId, storeId, skuId, product.id, purchaseId, item.supplierId, qty, unitCost, today, isTracked ? qty : 0);
+
+          results.push({
+            index: i,
+            productId: product.id,
+            productName: product.name,
+            purchaseId,
+            purchaseNo,
+            unitsReceived: qty,
+            success: true,
+          });
+        } catch (error) {
+          errors.push({
+            index: i,
+            error: (error as Error).message,
+          });
+        }
+      }
+
+      await client.query('commit');
+
+      return {
+        success: true,
+        processed: payload.items.length,
+        successful: results.length,
+        failed: errors.length,
+        results,
+        errors,
+      };
+    } catch (error) {
+      await client.query('rollback').catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async quickExchange(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    session: AuthSession | null,
+    payload: {
+      productName: string;
+      customerName: string;
+      customerPhone: string;
+      customerEmail?: string;
+      categoryId?: string;
+      brandId?: string;
+      salePrice: number;
+      unitCost: number;
+      hasVariants: boolean;
+      variantLabels?: string[];
+      variantPrices?: number[];
+      variantCosts?: number[];
+      isTrackable?: boolean;
+      note?: string;
+    },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const userId = this.requireUserId(session);
+    const client = await this.pool.connect();
+
+    try {
+      await client.query('begin');
+
+      const tenantResult = await client.query<{ tenant_id: string; store_code: string }>(
+        'select tenant_id, store_code from store.stores where id = $1 limit 1', [storeId],
+      );
+      const tenantId = tenantResult.rows[0].tenant_id;
+
+      const productName = payload.productName.trim();
+      const baseCode = productName.replace(/[^A-Za-z0-9]/g, '-').toUpperCase().slice(0, 28) || 'EXCHANGE';
+      const productCode = `${baseCode}-${Date.now().toString(36).slice(-4).toUpperCase()}`;
+      const categoryId = payload.categoryId || null;
+      const brandId = payload.brandId || null;
+
+      // Resolve brand and category codes for SKU generation
+      const brandCode = await this.resolveBrandCode(client, brandId);
+      const categoryCode = await this.resolveCategoryCode(client, categoryId);
+
+      // 1. Create exchange product
+      const productResult = await client.query<{ id: string }>(
+        `insert into catalog.products (id, tenant_id, store_id, product_code, name, category_id, brand_id, has_variants, variant_mode, is_trackable, product_type, status, created_at, updated_at)
+         values (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, 'exchange', 'active', now(), now()) returning id`,
+        [tenantId, storeId, productCode, productName, categoryId, brandId, payload.hasVariants, payload.hasVariants ? 'single' : 'none', payload.isTrackable ?? true],
+      );
+      const productId = productResult.rows[0].id;
+
+      // 2. Create SKU(s) + prices (no inventory or purchase)
+      const skus: Array<{ id: string; skuCode: string; label: string | null; price: number; cost: number }> = [];
+
+      if (payload.hasVariants && payload.variantLabels?.length) {
+        for (let i = 0; i < payload.variantLabels.length; i++) {
+          const label = payload.variantLabels[i].trim();
+          const price = payload.variantPrices?.[i] ?? payload.salePrice;
+          const cost = payload.variantCosts?.[i] ?? payload.unitCost;
+          const vTs = Date.now() + i;
+          const vBarcode = '2' + String(vTs).slice(-9) + String(Math.floor(Math.random() * 1000)).padStart(3, '0');
+          const spec = this.encodeSkuSpec(label, productName);
+          const skuCode = await this.findUniqueSkuCode(client, storeId, brandCode, categoryCode, spec);
+          const skuResult = await client.query<{ id: string }>(
+            `insert into catalog.skus (id, tenant_id, store_id, product_id, sku_code, variant_label, barcode, status, created_at, updated_at)
+             values (gen_random_uuid(), $1, $2, $3, $4, $5, 'active', now(), now()) returning id`,
+            [tenantId, storeId, productId, skuCode, label, vBarcode],
+          );
+          await client.query(
+            `insert into catalog.prices (id, tenant_id, store_id, sku_id, sale_price, cost_price, effective_from, created_at)
+             values (gen_random_uuid(), $1, $2, $3, $4, $5, now(), now())`,
+            [tenantId, storeId, skuResult.rows[0].id, String(price), String(cost)],
+          );
+          skus.push({ id: skuResult.rows[0].id, skuCode, label, price, cost });
+        }
+      } else {
+        const ts = Date.now();
+        const spec = this.encodeSkuSpec(null, productName);
+        const skuCode = await this.findUniqueSkuCode(client, storeId, brandCode, categoryCode, spec);
+        const barcode = '2' + String(ts).slice(-9) + String(Math.floor(Math.random() * 1000)).padStart(3, '0');
+        const skuResult = await client.query<{ id: string }>(
+          `insert into catalog.skus (id, tenant_id, store_id, product_id, sku_code, barcode, status, created_at, updated_at)
+           values (gen_random_uuid(), $1, $2, $3, $4, $5, 'active', now(), now()) returning id`,
+          [tenantId, storeId, productId, skuCode, barcode],
+        );
+        await client.query(
+          `insert into catalog.prices (id, tenant_id, store_id, sku_id, sale_price, cost_price, effective_from, created_at)
+           values (gen_random_uuid(), $1, $2, $3, $4, $5, now(), now())`,
+          [tenantId, storeId, skuResult.rows[0].id, String(payload.salePrice), String(payload.unitCost)],
+        );
+        skus.push({ id: skuResult.rows[0].id, skuCode, label: null, price: payload.salePrice, cost: payload.unitCost });
+      }
+
+      // 3. Record exchange product metadata — store customer info in product description
+      const customerInfo = [
+        `Exchange from: ${payload.customerName}`,
+        `Phone: ${payload.customerPhone}`,
+        payload.customerEmail ? `Email: ${payload.customerEmail}` : null,
+        payload.note ? `Note: ${payload.note}` : null,
+      ].filter(Boolean).join('\n');
+
+      await client.query(
+        `update catalog.products set description = $1, updated_at = now() where id = $2`,
+        [customerInfo, productId],
+      );
+
+      await client.query('commit');
+
+      return {
+        product: { id: productId, name: productName, productCode },
+        skus,
+        customer: { name: payload.customerName, phone: payload.customerPhone, email: payload.customerEmail },
+      };
+    } catch (error) {
+      await client.query('rollback').catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+
   private assertStoreContext(headerStoreId: string | undefined, authContext: StoreAuthContext | null) {
     if (!authContext || authContext.type !== 'store') {
       throw new ForbiddenException('Store context is required');
@@ -1535,5 +4057,152 @@ export class StoreOpsService {
     return Number(cashSalesResult.rows[0]?.today_cash_sales_amount ?? 0)
       + Number(cashDueCollectionsResult.rows[0]?.today_cash_due_collection_amount ?? 0)
       - Number(cashExpensesResult.rows[0]?.today_cash_expense_amount ?? 0);
+  }
+
+  private async resolveBrandCode(client: PoolClient, brandId: string | null): Promise<string> {
+    if (!brandId) return 'GEN';
+    const result = await client.query<{ name: string }>('select name from catalog.brands where id = $1 limit 1', [brandId]);
+    if (!result.rows[0]) return 'GEN';
+    return result.rows[0].name.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 3).padEnd(3, 'X');
+  }
+
+  private async resolveCategoryCode(client: PoolClient, categoryId: string | null): Promise<string> {
+    if (!categoryId) return 'GN';
+    const result = await client.query<{ code: string }>('select code from catalog.categories where id = $1 limit 1', [categoryId]);
+    if (!result.rows[0]) return 'GN';
+    return result.rows[0].code.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 2).padEnd(2, 'X');
+  }
+
+  private encodeSkuSpec(variantLabel: string | null, productName: string): string {
+    if (variantLabel) {
+      const upper = variantLabel.toUpperCase();
+      let position = '';
+      if (/^FRONT\b/.test(upper) || /\bFRONT\b/.test(upper)) position = 'F';
+      else if (/^REAR\b/.test(upper) || /\bREAR\b/.test(upper)) position = 'R';
+      const widthMatch = upper.match(/(\d{2,3})/);
+      if (widthMatch) {
+        const width = widthMatch[1];
+        const widthCode = width.length >= 3 ? width.slice(0, 2) : width.padStart(2, '0');
+        if (position) return `${position}${widthCode}`;
+      }
+      return upper.replace(/[^A-Z0-9]/g, '').slice(0, 3).padEnd(3, 'X');
+    }
+    const upper = productName.toUpperCase();
+    const words = upper.split(/[^A-Z0-9]+/).filter(w => w.length > 0);
+    if (words.length > 1 && /^[A-Z]{2,6}$/.test(words[0])) {
+      const rest = words.slice(1).join('');
+      return rest.slice(0, 3).padEnd(3, 'X');
+    }
+    return upper.replace(/[^A-Z0-9]/g, '').slice(0, 3).padEnd(3, 'X');
+  }
+
+  private async findUniqueSkuCode(
+    client: PoolClient,
+    storeId: string,
+    brandCode: string,
+    categoryCode: string,
+    spec: string,
+  ): Promise<string> {
+    const base = `${brandCode}-${categoryCode}-${spec}`.slice(0, 80);
+    const result = await client.query(
+      'select 1 from catalog.skus where store_id = $1 and sku_code = $2 limit 1',
+      [storeId, base],
+    );
+    if (!result.rows.length) return base;
+    for (let i = 2; i <= 99; i++) {
+      const candidate = `${brandCode}-${categoryCode}-${spec.slice(0, 2)}${i}`.slice(0, 80);
+      const r = await client.query(
+        'select 1 from catalog.skus where store_id = $1 and sku_code = $2 limit 1',
+        [storeId, candidate],
+      );
+      if (!r.rows.length) return candidate;
+    }
+    return `${brandCode}-${categoryCode}-${spec.slice(0, 1)}${Date.now().toString(36).slice(-2).toUpperCase()}`.slice(0, 80);
+  }
+
+
+  // Customer-wise pricing: price overrides per SKU for a specific customer.
+  async getCustomerPrices(
+    customerId: string,
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const result = await this.pool.query(
+      `
+        select cp.sku_id, cp.price, sk.sku_code, sk.variant_label,
+               p.name as product_name, p.unit,
+               coalesce((select pr.sale_price from catalog.prices pr
+                 where pr.sku_id = cp.sku_id
+                 order by pr.effective_from desc, pr.created_at desc limit 1), 0) as default_price
+        from catalog.customer_prices cp
+        join catalog.skus sk on sk.id = cp.sku_id
+        join catalog.products p on p.id = sk.product_id
+        where cp.store_id = $1 and cp.customer_id = $2
+        order by p.name asc
+      `,
+      [storeId, customerId],
+    );
+    return { prices: result.rows };
+  }
+
+  async setCustomerPrices(
+    customerId: string,
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    session: AuthSession | null,
+    payload: { items: Array<{ skuId: string; price: number | null }> },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    this.assertAllowedRoles(authContext, ['store_owner', 'store_manager']);
+    this.requireUserId(session);
+
+    const tenantResult = await this.pool.query<{ tenant_id: string }>(
+      'select tenant_id from store.stores where id = $1 limit 1',
+      [storeId],
+    );
+    const tenantId = tenantResult.rows[0]?.tenant_id;
+    if (!tenantId) throw new NotFoundException('Store not found');
+
+    const customerCheck = await this.pool.query(
+      'select id from store.customers where id = $1 and store_id = $2 limit 1',
+      [customerId, storeId],
+    );
+    if (!customerCheck.rows[0]) throw new NotFoundException('Customer not found');
+
+    const client = await this.pool.connect();
+    try {
+      await client.query('begin');
+      let upserted = 0;
+      let removed = 0;
+      for (const item of payload.items ?? []) {
+        if (item.price === null || item.price === undefined) {
+          const del = await client.query(
+            'delete from catalog.customer_prices where customer_id = $1 and sku_id = $2',
+            [customerId, item.skuId],
+          );
+          removed += del.rowCount ?? 0;
+          continue;
+        }
+        await client.query(
+          `
+            insert into catalog.customer_prices (id, tenant_id, store_id, customer_id, sku_id, price, updated_at)
+            values (gen_random_uuid(), $1, $2, $3, $4, $5, now())
+            on conflict (customer_id, sku_id) do update set
+              price = excluded.price,
+              updated_at = now()
+          `,
+          [tenantId, storeId, customerId, item.skuId, item.price],
+        );
+        upserted += 1;
+      }
+      await client.query('commit');
+      return { upserted, removed };
+    } catch (error) {
+      await client.query('rollback').catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 }

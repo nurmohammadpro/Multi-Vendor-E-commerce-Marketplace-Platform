@@ -1,5 +1,6 @@
+import { renderInvoice, renderInvoiceFragment } from "./invoice-template.js";
 export const DEFAULT_PRINT_AGENT_URL =
-  process.env.NEXT_PUBLIC_PRINT_AGENT_URL || 'http://127.0.0.1:17658';
+  process.env.NEXT_PUBLIC_PRINT_AGENT_URL || 'http://127.0.0.1:17668';
 
 export type PrintAgentHealth = {
   ok: boolean;
@@ -18,9 +19,34 @@ export type PrintAgentHealth = {
   };
 };
 
+export type PrintAgentPrinter = {
+  name: string;
+  isDefault?: boolean;
+  driverName?: string | null;
+  portName?: string | null;
+};
+
+export type PrintAgentPrinterList = {
+  ok: boolean;
+  printers: PrintAgentPrinter[];
+  defaults?: {
+    receiptPrinterName?: string | null;
+    labelPrinterName?: string | null;
+  };
+};
+
 export type ReceiptPayload = {
   saleId?: string | null;
   saleNo?: string | null;
+  invoiceNo?: string | null;
+  saleDate?: string | null;
+  paymentTerms?: 'paid' | 'due' | 'cod' | null;
+  saleType?: 'paid' | 'due' | 'exchange' | null;
+  paymentStatus?: string | null;
+  dueDate?: string | null;
+  note?: string | null;
+  preparedBy?: string | null;
+  amountInWords?: string | null;
   store?: {
     name?: string | null;
     logoUrl?: string | null;
@@ -28,6 +54,8 @@ export type ReceiptPayload = {
     email?: string | null;
     address?: string | null;
     footer?: string | null;
+    receiptType?: 'pos' | 'a5' | 'a4' | null;
+    invoicePrefix?: string | null;
   };
   customer?: {
     name?: string | null;
@@ -39,13 +67,18 @@ export type ReceiptPayload = {
   items?: Array<{
     name?: string | null;
     skuCode?: string | null;
+    variantLabel?: string | null;
+    barcode?: string | null;
     qty?: number;
     unitPrice?: number;
+    discountAmount?: number;
     lineTotal?: number;
+    isExchangeItem?: boolean;
   }>;
   totals?: {
     subtotal?: number;
     discount?: number;
+    vat?: number;
     tax?: number;
     shipping?: number;
     total?: number;
@@ -57,11 +90,26 @@ export type ReceiptPayload = {
     paymentMethod?: string | null;
     amount?: number;
     status?: string | null;
+    referenceNo?: string | null;
+    paidAt?: string | null;
   }>;
+  exchange?: {
+    productName?: string | null;
+    skuCode?: string | null;
+    amount?: number;
+  };
   printedAt?: string | null;
 };
 
 const money = (value: number | undefined | null) => Number(value ?? 0).toFixed(2);
+
+function grossSubtotal(items: ReceiptPayload['items']) {
+  return (items ?? []).reduce((sum, item) => sum + (item.isExchangeItem ? 0 : Number(item.lineTotal ?? 0)), 0);
+}
+
+function exAmount(exchange: ReceiptPayload['exchange']) {
+  return exchange ? Number(exchange.amount ?? 0) : 0;
+}
 const RECEIPT_COLUMNS = 32;
 const ESC = 0x1b;
 const GS = 0x1d;
@@ -83,40 +131,69 @@ export async function fetchPrintAgentHealth(baseUrl = DEFAULT_PRINT_AGENT_URL) {
   return (await response.json()) as PrintAgentHealth;
 }
 
+export async function fetchPrintAgentPrinters(baseUrl = DEFAULT_PRINT_AGENT_URL) {
+  const response = await fetch(`${baseUrl}/printers`, { method: 'GET' });
+  if (!response.ok) {
+    throw new Error(`Print agent printers failed with ${response.status}`);
+  }
+  return (await response.json()) as PrintAgentPrinterList;
+}
+
 export function formatReceiptText(receipt: ReceiptPayload) {
+  const t = receipt.totals ?? {};
+  const total = Number(t.total ?? 0);
+  const discount = Number(t.discount ?? 0);
+  const vat = Number(t.vat ?? 0);
+  const tax = Number(t.tax ?? 0);
+  const paid = Number(t.paid ?? 0);
+  const due = Number(t.due ?? 0);
+  const items = receipt.items ?? [];
+  const gst = grossSubtotal(items);
+  const exa = exAmount(receipt.exchange);
+  const payments = receipt.payments ?? [];
+
+  const columns = RECEIPT_COLUMNS;
+  const sep = '-'.repeat(columns);
+
   const lines = [
     receipt.store?.name || 'Store',
-    receipt.saleNo ? `Receipt: ${receipt.saleNo}` : 'Receipt',
-    receipt.printedAt ? `Printed: ${new Date(receipt.printedAt).toLocaleString()}` : null,
+    'Sales Receipt',
+    receipt.saleNo ? `Invoice No: ${receipt.saleNo}` : null,
+    receipt.printedAt ? `Date: ${new Date(receipt.printedAt).toLocaleString()}` : null,
     receipt.customer?.name ? `Customer: ${receipt.customer.name}` : null,
     receipt.customer?.phone ? `Phone: ${receipt.customer.phone}` : null,
-    receipt.customer?.email ? `Email: ${receipt.customer.email}` : null,
     receipt.customer?.shopName ? `Shop: ${receipt.customer.shopName}` : null,
-    receipt.customer?.address ? `Address: ${receipt.customer.address}` : null,
-    '------------------------------',
-    ...(receipt.items ?? []).flatMap((item) => [
-      item.name || 'Item',
-      `${item.qty ?? 0} x ${money(item.unitPrice)} = ${money(item.lineTotal)}`,
-      item.skuCode ? `SKU: ${item.skuCode}` : null,
-    ]),
-    '------------------------------',
-    `Subtotal: ${money(receipt.totals?.subtotal)}`,
-    `Discount: ${money(receipt.totals?.discount)}`,
-    `Tax: ${money(receipt.totals?.tax)}`,
-    `Shipping: ${money(receipt.totals?.shipping)}`,
-    `Total: ${money(receipt.totals?.total)}`,
-    `Paid: ${money(receipt.totals?.paid)}`,
-    `Due: ${money(receipt.totals?.due)}`,
-    `Change: ${money(receipt.totals?.change)}`,
-    ...(receipt.payments?.length
-      ? [
-          '------------------------------',
-          ...receipt.payments.map(
-            (payment) =>
-              `${payment.paymentMethod || 'payment'}${payment.status ? ` (${payment.status})` : ''}: ${money(payment.amount)}`,
-          ),
-        ]
-      : []),
+    sep,
+    'Item                     Qty     Total',
+    sep,
+    ...items.flatMap((item) => {
+      const rows: (string | null)[] = [item.name || 'Item'];
+      const right = `${item.qty ?? 0}  ${money(item.lineTotal)}`;
+      if (item.variantLabel) {
+        rows.push(padLine(`  ${item.variantLabel}`, right));
+      } else {
+        rows.push(padLine('', right));
+      }
+      if (item.skuCode) rows.push(`  SKU: ${item.skuCode}`);
+      return rows;
+    }),
+    sep,
+    padLine('Sub Total', money(gst)),
+    '',
+    ...(exa > 0 ? [padLine('Exchange (Optional)', `-${money(exa)}`)] : []),
+    ...(discount > 0 ? [padLine('Discount (Optional)', `-${money(discount)}`)] : []),
+    ...(vat > 0 ? [padLine('VAT (Optional)', money(vat))] : []),
+    ...(tax > 0 ? [padLine('Tax (Optional)', money(tax))] : []),
+    sep,
+    padLine('Net Payable', money(total)),
+    '',
+    ...(payments.length ? ['Payment:', ...payments.map((p) => padLine(p.paymentMethod || 'payment', money(p.amount)))] : []),
+    sep,
+    padLine('Due', money(due)),
+    sep,
+    ...(receipt.amountInWords ? [receipt.amountInWords] : []),
+    ...(receipt.preparedBy ? [`Seller: ${receipt.preparedBy}`] : []),
+    receipt.note ? `Note: ${receipt.note}` : null,
     receipt.store?.footer || 'Thank you',
   ];
 
@@ -231,6 +308,17 @@ async function buildEscPosReceipt(receipt: ReceiptPayload) {
     chunks.push(...encoder.encode(`${sanitizeReceiptText(value)}\n`));
   };
 
+  const t = receipt.totals ?? {};
+  const total = Number(t.total ?? 0);
+  const discount = Number(t.discount ?? 0);
+  const vat = Number(t.vat ?? 0);
+  const tax = Number(t.tax ?? 0);
+  const due = Number(t.due ?? 0);
+  const gst = grossSubtotal(receipt.items);
+  const exa = exAmount(receipt.exchange);
+  const payments = receipt.payments ?? [];
+  const sep = '-'.repeat(RECEIPT_COLUMNS);
+
   if (receipt.store?.logoUrl) {
     try {
       chunks.push(ESC, 0x61, 1);
@@ -247,9 +335,10 @@ async function buildEscPosReceipt(receipt: ReceiptPayload) {
       pushText(centerText(wrapped), 1);
     }
   }
-  pushText('-'.repeat(RECEIPT_COLUMNS));
-  pushText(receipt.saleNo ? padLine('Receipt', receipt.saleNo) : 'Receipt');
-  pushText(`Printed: ${sanitizeReceiptText(receipt.printedAt ? new Date(receipt.printedAt).toLocaleString() : new Date().toLocaleString())}`);
+  pushText(sep);
+  pushText(centerText('Sales Receipt'), 1);
+  pushText(receipt.saleNo ? padLine('Invoice No', receipt.saleNo) : '');
+  pushText(`Date: ${sanitizeReceiptText(receipt.printedAt ? new Date(receipt.printedAt).toLocaleString() : new Date().toLocaleString())}`);
   if (receipt.customer?.name) pushText(`Customer: ${receipt.customer.name}`);
   if (receipt.customer?.phone) pushText(`Phone: ${receipt.customer.phone}`);
   if (receipt.customer?.shopName) pushText(`Shop: ${receipt.customer.shopName}`);
@@ -258,38 +347,50 @@ async function buildEscPosReceipt(receipt: ReceiptPayload) {
       pushText(wrapped);
     }
   }
-  pushText('-'.repeat(RECEIPT_COLUMNS));
+  pushText(sep);
+  pushText(padLine('Item', 'Qty  Total'));
+  pushText(sep);
 
   for (const item of receipt.items ?? []) {
     pushText(sanitizeReceiptText(item.name || 'Item'));
-    pushText(padLine(`${Number(item.qty ?? 0)} x ${money(item.unitPrice)}`, money(item.lineTotal)));
-    if (item.skuCode) pushText(`SKU: ${item.skuCode}`);
+    const right = `${item.qty ?? 0}  ${money(item.lineTotal)}`;
+    if (item.variantLabel) {
+      pushText(padLine(`  ${item.variantLabel}`, right));
+    } else {
+      pushText(padLine('', right));
+    }
+    if (item.skuCode) pushText(`  SKU: ${item.skuCode}`);
   }
 
-  pushText('-'.repeat(RECEIPT_COLUMNS));
-  pushText(padLine('Subtotal', money(receipt.totals?.subtotal)));
-  pushText(padLine('Discount', money(receipt.totals?.discount)));
-  pushText(padLine('Tax', money(receipt.totals?.tax)));
-  pushText(padLine('Shipping', money(receipt.totals?.shipping)));
-  pushText(padLine('Total', money(receipt.totals?.total)));
-  pushText(padLine('Paid', money(receipt.totals?.paid)));
-  pushText(padLine('Due', money(receipt.totals?.due)));
-  if ((receipt.totals?.change ?? 0) > 0) {
-    pushText(padLine('Change', money(receipt.totals?.change)));
-  }
-  if (receipt.payments?.length) {
-    pushText('-'.repeat(RECEIPT_COLUMNS));
-    for (const payment of receipt.payments) {
-      pushText(
-        padLine(
-          `${payment.paymentMethod || 'payment'}${payment.status ? ` (${payment.status})` : ''}`,
-          money(payment.amount),
-        ),
-      );
+  pushText(sep);
+  pushText(padLine('Sub Total', money(gst)));
+  pushText('');
+  if (exa > 0) pushText(padLine('Exchange (Optional)', `-${money(exa)}`));
+  if (discount > 0) pushText(padLine('Discount (Optional)', `-${money(discount)}`));
+  if (vat > 0) pushText(padLine('VAT (Optional)', money(vat)));
+  if (tax > 0) pushText(padLine('Tax (Optional)', money(tax)));
+  pushText(sep);
+  pushText(padLine('Net Payable', money(total)));
+  pushText('');
+
+  if (payments.length) {
+    pushText('Payment:');
+    for (const p of payments) {
+      pushText(padLine(p.paymentMethod || 'payment', money(p.amount)));
     }
   }
+
+  pushText(sep);
+  pushText(padLine('Due', money(due)));
+  pushText(sep);
+
+  if (receipt.amountInWords) {
+    pushText(sanitizeReceiptText(receipt.amountInWords));
+  }
+  if (receipt.preparedBy) {
+    pushText(`Seller: ${sanitizeReceiptText(receipt.preparedBy)}`);
+  }
   if (receipt.store?.footer) {
-    pushText('-'.repeat(RECEIPT_COLUMNS));
     for (const wrapped of wrapText(receipt.store.footer)) {
       pushText(centerText(wrapped), 1);
     }
@@ -308,133 +409,61 @@ function bytesToBase64(bytes: Uint8Array) {
   return btoa(binary);
 }
 
-export function renderInvoiceHtml(receipt: ReceiptPayload) {
-  const storeMeta = [
-    receipt.store?.phone,
-    receipt.store?.email,
-    receipt.store?.address,
-  ].filter(Boolean) as string[];
+export type InvoicePrintMode = 'pos' | 'a5' | 'a4';
 
-  const itemRows = (receipt.items ?? [])
-    .map((item) => `
-      <tr>
-        <td>${escapeHtml(item.name || 'Item')}</td>
-        <td>${escapeHtml(item.skuCode || '—')}</td>
-        <td>${Number(item.qty ?? 0)}</td>
-        <td>${money(item.unitPrice)}</td>
-        <td>${money(item.lineTotal)}</td>
-      </tr>
-    `)
-    .join('');
-
-  const payments = (receipt.payments ?? [])
-    .map((payment) => `
-      <li>${escapeHtml(payment.paymentMethod || 'payment')}${payment.status ? ` (${escapeHtml(payment.status)})` : ''}: ${money(payment.amount)}</li>
-    `)
-    .join('');
-
-  return `<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <title>${escapeHtml(receipt.saleNo || 'Invoice')}</title>
-    <style>
-      body { font-family: Arial, sans-serif; margin: 0; background: #f8fafc; color: #0f172a; }
-      .page { max-width: 820px; margin: 0 auto; background: #fff; padding: 32px; }
-      .header { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; }
-      .brand { display: flex; gap: 16px; align-items: center; }
-      .brand-logo { width: 72px; height: 72px; object-fit: contain; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; padding: 6px; }
-      .brand-name { font-size: 24px; font-weight: 700; margin: 0 0 6px; }
-      .brand-meta { margin: 0; color: #475569; font-size: 13px; line-height: 1.5; }
-      .invoice-meta { text-align: right; }
-      .invoice-title { margin: 0 0 8px; font-size: 28px; font-weight: 700; }
-      .section { margin-top: 24px; }
-      .section h2 { margin: 0 0 12px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.12em; color: #64748b; }
-      table { width: 100%; border-collapse: collapse; }
-      th, td { padding: 12px 10px; border-bottom: 1px solid #e2e8f0; font-size: 14px; text-align: left; }
-      th { color: #475569; font-weight: 600; background: #f8fafc; }
-      .totals { margin-left: auto; width: 320px; }
-      .totals-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0; }
-      .totals-row.total { font-size: 18px; font-weight: 700; border-bottom: 0; padding-top: 14px; }
-      .customer, .payments { color: #334155; font-size: 14px; line-height: 1.6; }
-      @media print {
-        body { background: #fff; }
-        .page { max-width: none; margin: 0; padding: 20px; }
-      }
-    </style>
-  </head>
-  <body>
-    <div class="page">
-      <div class="header">
-        <div class="brand">
-          ${receipt.store?.logoUrl ? `<img src="${escapeHtml(receipt.store.logoUrl)}" alt="Store logo" class="brand-logo" />` : ''}
-          <div>
-            <p class="brand-name">${escapeHtml(receipt.store?.name || 'Store')}</p>
-            ${storeMeta.map((line) => `<p class="brand-meta">${escapeHtml(line)}</p>`).join('')}
-          </div>
-        </div>
-        <div class="invoice-meta">
-          <p class="invoice-title">Invoice</p>
-          <p class="brand-meta">No: ${escapeHtml(receipt.saleNo || '—')}</p>
-          <p class="brand-meta">Printed: ${escapeHtml(receipt.printedAt ? new Date(receipt.printedAt).toLocaleString() : new Date().toLocaleString())}</p>
-        </div>
-      </div>
-
-      <div class="section">
-        <h2>Customer</h2>
-        <div class="customer">
-          <div>${escapeHtml(receipt.customer?.name || 'Walk-in customer')}</div>
-          ${receipt.customer?.phone ? `<div>${escapeHtml(receipt.customer.phone)}</div>` : ''}
-          ${receipt.customer?.email ? `<div>${escapeHtml(receipt.customer.email)}</div>` : ''}
-          ${receipt.customer?.shopName ? `<div>${escapeHtml(receipt.customer.shopName)}</div>` : ''}
-          ${receipt.customer?.address ? `<div>${escapeHtml(receipt.customer.address)}</div>` : ''}
-        </div>
-      </div>
-
-      <div class="section">
-        <h2>Items</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Item</th>
-              <th>SKU</th>
-              <th>Qty</th>
-              <th>Unit</th>
-              <th>Total</th>
-            </tr>
-          </thead>
-          <tbody>${itemRows}</tbody>
-        </table>
-      </div>
-
-      <div class="section totals">
-        <div class="totals-row"><span>Subtotal</span><span>${money(receipt.totals?.subtotal)}</span></div>
-        <div class="totals-row"><span>Discount</span><span>${money(receipt.totals?.discount)}</span></div>
-        <div class="totals-row"><span>Tax</span><span>${money(receipt.totals?.tax)}</span></div>
-        <div class="totals-row"><span>Shipping</span><span>${money(receipt.totals?.shipping)}</span></div>
-        <div class="totals-row"><span>Paid</span><span>${money(receipt.totals?.paid)}</span></div>
-        <div class="totals-row"><span>Due</span><span>${money(receipt.totals?.due)}</span></div>
-        <div class="totals-row total"><span>Total</span><span>${money(receipt.totals?.total)}</span></div>
-      </div>
-
-      ${payments ? `<div class="section"><h2>Payments</h2><ul class="payments">${payments}</ul></div>` : ''}
-      ${receipt.store?.footer ? `<div class="section"><h2>Footer</h2><div class="customer">${escapeHtml(receipt.store.footer)}</div></div>` : ''}
-    </div>
-  </body>
-</html>`;
+// Paper document mode for a receipt payload: the store's configured receipt
+// type when present ('pos' still renders as A5 in a browser — thermal printing
+// goes through the local agent's ESC/POS path instead).
+export function resolvePrintMode(receipt: ReceiptPayload, mode?: InvoicePrintMode): 'a5' | 'a4' {
+  if (mode === 'a4' || mode === 'a5') return mode;
+  return receipt.store?.receiptType === 'a4' ? 'a4' : 'a5';
 }
 
-export function openInvoicePrintWindow(receipt: ReceiptPayload) {
-  const printWindow = window.open('', '_blank', 'noopener,noreferrer');
-  if (!printWindow) {
-    throw new Error('Popup blocked while opening the invoice window.');
-  }
+export function renderInvoiceHtml(receipt: ReceiptPayload, mode?: InvoicePrintMode) {
+  return renderInvoice(receipt as any, resolvePrintMode(receipt, mode));
+}
 
-  printWindow.document.open();
-  printWindow.document.write(renderInvoiceHtml(receipt));
-  printWindow.document.close();
-  printWindow.focus();
-  printWindow.print();
+// Markup for embedding a print document inside an already-rendered page.
+// `renderInvoice` returns a whole HTML document whose stylesheet resets every
+// margin on the host page, so anything embedded in the UI goes through this
+// instead: the document CSS is rewritten to a single id scope and the caller
+// puts that id on the wrapper element.
+export function renderInvoicePreview(receipt: ReceiptPayload, mode: InvoicePrintMode | undefined, scopeId: string) {
+  return renderInvoiceFragment(receipt as any, resolvePrintMode(receipt, mode), scopeId);
+}
+
+export function openInvoicePrintWindow(receipt: ReceiptPayload, mode?: InvoicePrintMode) {
+  if (typeof document === 'undefined') {
+    return false;
+  }
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = '0';
+  iframe.setAttribute('aria-hidden', 'true');
+  iframe.srcdoc = renderInvoiceHtml(receipt, mode);
+  document.body.appendChild(iframe);
+
+  const cleanup = () => {
+    window.setTimeout(() => {
+      iframe.remove();
+    }, 1200);
+  };
+
+  iframe.onload = () => {
+    const frameWindow = iframe.contentWindow;
+    if (!frameWindow) {
+      cleanup();
+      return;
+    }
+    frameWindow.focus();
+    frameWindow.print();
+    cleanup();
+  };
+  return true;
 }
 
 export async function printReceipt(receipt: ReceiptPayload, printerName?: string, baseUrl = DEFAULT_PRINT_AGENT_URL) {
@@ -470,6 +499,20 @@ export async function printReceipt(receipt: ReceiptPayload, printerName?: string
   return response.json().catch(() => ({ ok: true }));
 }
 
+export function downloadReceiptHtml(receipt: ReceiptPayload, mode?: InvoicePrintMode) {
+  const saleNo = receipt.invoiceNo || receipt.saleNo || 'receipt';
+  const html = renderInvoiceHtml(receipt, mode);
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${saleNo}.html`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 export async function printLabel(payload: {
   text: string;
   printerName?: string;
@@ -485,6 +528,91 @@ export async function printLabel(payload: {
   if (!response.ok) {
     const result = (await response.json().catch(() => null)) as { error?: string } | null;
     throw new Error(result?.error || `Label print failed with ${response.status}`);
+  }
+
+  return response.json().catch(() => ({ ok: true }));
+}
+
+export type ProductLabelPayload = {
+  sku: string;
+  productName: string;
+  storeName: string;
+  sellingPrice?: number | null;
+  printerName?: string;
+  widthMm?: number;
+  heightMm?: number;
+  gap?: number;
+  barcodeType?: string;
+  copies?: number;
+  border?: boolean;
+};
+
+export async function printProductLabel(
+  payload: ProductLabelPayload,
+  baseUrl = DEFAULT_PRINT_AGENT_URL,
+) {
+  const response = await fetch(`${baseUrl}/print/label-product`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const result = (await response.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(result?.error || `Product label print failed with ${response.status}`);
+  }
+
+  return response.json().catch(() => ({ ok: true }));
+}
+
+export type BatchLabelPayload = {
+  items: Array<{
+    sku: string;
+    productName: string;
+    storeName: string;
+    sellingPrice?: number | null;
+    copies?: number;
+  }>;
+  printerName?: string;
+  widthMm?: number;
+  heightMm?: number;
+  gap?: number;
+  barcodeType?: string;
+  copies?: number;
+  border?: boolean;
+};
+
+export async function printProductLabelBatch(
+  payload: BatchLabelPayload,
+  baseUrl = DEFAULT_PRINT_AGENT_URL,
+) {
+  const response = await fetch(`${baseUrl}/print/label-product-batch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const result = (await response.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(result?.error || `Batch label print failed with ${response.status}`);
+  }
+
+  return response.json().catch(() => ({ ok: true }));
+}
+
+export async function printTsplLabel(
+  payload: { base64: string; printerName?: string },
+  baseUrl = DEFAULT_PRINT_AGENT_URL,
+) {
+  const response = await fetch(`${baseUrl}/print/label-tspl`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const result = (await response.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(result?.error || `TSPL label print failed with ${response.status}`);
   }
 
   return response.json().catch(() => ({ ok: true }));

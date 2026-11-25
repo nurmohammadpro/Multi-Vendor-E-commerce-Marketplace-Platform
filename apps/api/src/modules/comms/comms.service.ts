@@ -142,7 +142,7 @@ export class CommsService {
           if (notif.channel === 'email' && user?.email && this.emailProvider) {
             const result = await this.emailProvider.send({
               to: user.email,
-              subject: notif.title || 'Market One Notification',
+              subject: notif.title || 'Merch Flow Notification',
               textBody: notif.body,
             });
             if (result.status === 'sent') {

@@ -9,7 +9,7 @@ import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
 
 import { fetchStoreApi, isStoreApiConfigured } from '../../lib/api';
-import { pageShellStyle, sectionLabelStyle, tokenMutedStyle } from '../motocore-theme';
+import { pageShellStyle } from '../merchflow-theme';
 import { LogoutButton } from './logout-button';
 
 type SessionProfile = {
@@ -38,28 +38,13 @@ export default async function StoreSessionPage() {
   const configured = await isStoreApiConfigured();
 
   return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
-      <div style={{ maxWidth: 900 }}>
-        <div style={sectionLabelStyle}>Session status</div>
-        <h2 style={{ margin: '8px 0 8px', fontSize: 'clamp(20px, 2vw, 28px)', fontWeight: 500, letterSpacing: '-0.02em' }}>
-          See exactly which identity and permissions are active.
-        </h2>
-        <p style={tokenMutedStyle}>
-          This closes the last UX gap by making the auth/session state visible to the operator instead of hidden.
-        </p>
-        <p className="text-sm text-muted-foreground mt-2">
-          {configured
-            ? 'The session endpoint is reachable.'
-            : 'Set `API_BASE_URL`, `STORE_DEMO_BEARER_TOKEN`, and `STORE_DEMO_STORE_ID` to inspect a live session.'}
-        </p>
-      </div>
-
+    <section style={{ ...pageShellStyle, display: 'grid', gap: 12 }}>
       <Separator />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard title="Status" value={profile?.user?.status ?? '—'} note="Identity status from the auth service." />
-        <MetricCard title="Contexts" value={profile?.contexts?.length ?? 0} note="Available operating contexts for this account." />
-        <MetricCard title="Permissions" value={profile?.permissions?.length ?? 0} note="Granted permissions expanded from roles." />
+        <MetricCard title="Status" value={profile?.user?.status ?? '—'} />
+        <MetricCard title="Contexts" value={profile?.contexts?.length ?? 0} />
+        <MetricCard title="Permissions" value={profile?.permissions?.length ?? 0} />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -137,10 +122,6 @@ export default async function StoreSessionPage() {
               </Button>
               <LogoutButton />
             </div>
-            <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
-              The session view makes auth state visible, which helps operators debug context issues, expired tokens, and
-              permission mismatches without leaving the workspace.
-            </p>
           </CardContent>
         </Card>
       </div>
@@ -151,11 +132,9 @@ export default async function StoreSessionPage() {
 function MetricCard({
   title,
   value,
-  note,
 }: {
   title: string;
   value: string | number;
-  note: string;
 }) {
   return (
     <Card>
@@ -166,7 +145,6 @@ function MetricCard({
       </CardHeader>
       <CardContent className="pt-0">
         <div className="text-2xl font-semibold tracking-tight">{value}</div>
-        <p className="text-xs text-muted-foreground mt-1">{note}</p>
       </CardContent>
     </Card>
   );

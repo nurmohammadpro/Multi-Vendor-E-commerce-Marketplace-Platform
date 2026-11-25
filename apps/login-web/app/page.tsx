@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, Mail, Lock } from 'lucide-react';
+import { Eye, EyeOff, Loader2, Mail, Lock } from 'lucide-react';
 
-import { getWorkspaceUrl, hasOnlyAdminContext, hasOnlyStoreContext, login, storeToken } from '@/lib/auth';
+import { getWorkspaceUrl, hasOnlyAdminContext, hasOnlyStoreContext, login, storeStoreId, storeToken } from '@/lib/auth';
+import { ThemeToggle } from '@mvp/theme';
 import { IntroSplash } from './intro-splash';
 
 type FormErrors = {
@@ -24,6 +25,7 @@ export default function LoginPage() {
   const [errors, setErrors] = useState<FormErrors>({});
   const [loading, setLoading] = useState(false);
   const [splashComplete, setSplashComplete] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     if (!splashComplete) {
@@ -69,13 +71,15 @@ export default function LoginPage() {
       storeToken(data.accessToken);
 
       if (loginRole === 'admin' && hasOnlyAdminContext(data.contexts)) {
-        window.location.href = `${getWorkspaceUrl('admin')}?token=${data.accessToken}`;
+        storeStoreId(null);
+        window.location.href = getWorkspaceUrl('admin');
         return;
       }
 
       if (loginRole === 'store' && hasOnlyStoreContext(data.contexts)) {
         const ctx = data.contexts[0];
-        window.location.href = `${getWorkspaceUrl('store')}?token=${data.accessToken}&storeId=${ctx.type === 'store' ? ctx.storeId : ""}`;
+        storeStoreId(ctx.type === 'store' ? ctx.storeId : null);
+        window.location.href = getWorkspaceUrl('store');
         return;
       }
 
@@ -93,6 +97,11 @@ export default function LoginPage() {
     <>
       <IntroSplash onComplete={() => setSplashComplete(true)} />
       <div className={`login-shell flex min-h-screen items-center justify-center bg-background px-4 ${splashComplete ? 'login-shell--ready' : ''}`}>
+        {/* Theme toggle — top-right corner */}
+        <div className="fixed top-4 right-4 z-50">
+          <ThemeToggle />
+        </div>
+
         <div
           aria-hidden="true"
           className={`login-ambient-glow ${splashComplete ? 'login-ambient-glow--ready' : ''}`}
@@ -104,12 +113,12 @@ export default function LoginPage() {
             <div className="border-b border-border px-6 py-6">
               <div className="mb-5 flex flex-col items-center">
                 <img
-                  src="/marketone-logo.svg"
-                  alt="Market One logo"
+                  src="/merchflow-logo.svg"
+                  alt="Merchant Flow logo"
                   className={`login-brand-logo h-16 w-16 object-contain ${splashComplete ? 'login-brand-logo--ready' : ''}`}
                 />
                 <p className={`login-brand-text mt-3 text-center text-xs font-medium uppercase tracking-[0.28em] text-muted-foreground ${splashComplete ? 'login-brand-text--ready' : ''}`}>
-                  Market One BD
+                  Merchant Flow
                 </p>
               </div>
             {/* Role toggle */}
@@ -139,8 +148,7 @@ export default function LoginPage() {
               </div>
 
               <h2
-                className={`login-stagger login-stagger--2 text-center text-2xl font-semibold tracking-tight ${splashComplete ? 'login-stagger--ready' : ''}`}
-                style={{ color: 'rgb(17, 17, 17)' }}
+                className={`login-stagger login-stagger--2 text-center text-2xl font-semibold tracking-tight text-foreground ${splashComplete ? 'login-stagger--ready' : ''}`}
               >
                 {loginRole === 'admin' ? 'Admin sign in' : 'Store sign in'}
               </h2>
@@ -179,7 +187,7 @@ export default function LoginPage() {
                     disabled={loading || !splashComplete}
                     autoComplete="username"
                     autoFocus={false}
-                    className="file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground border-input w-full min-w-0 rounded-md border bg-transparent px-3 py-2.5 text-sm shadow-xs transition-[color,box-shadow] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] h-11 pl-9"
+                    className="file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground border-input w-full min-w-0 rounded-md border bg-transparent px-3 py-2.5 text-sm shadow-xs transition-[color,box-shadow,border-color] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] h-11 pl-9 hover:border-[var(--input-hover)]"
                   />
                 </div>
                 {errors.identifier && (
@@ -206,14 +214,23 @@ export default function LoginPage() {
                   <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <input
                     id="password"
-                    type="password"
+                    type={showPassword ? 'text' : 'password'}
                     placeholder="Enter your password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     disabled={loading || !splashComplete}
                     autoComplete="current-password"
-                    className="file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground border-input w-full min-w-0 rounded-md border bg-transparent px-3 py-2.5 text-sm shadow-xs transition-[color,box-shadow] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] h-11 pl-9"
+                    className="file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground border-input w-full min-w-0 rounded-md border bg-transparent px-3 py-2.5 text-sm shadow-xs transition-[color,box-shadow,border-color] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] h-11 pl-9 pr-10 hover:border-[var(--input-hover)]"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1"
+                    tabIndex={-1}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
                 </div>
                 {errors.password && (
                   <p className="text-xs text-destructive">{errors.password}</p>
@@ -224,7 +241,6 @@ export default function LoginPage() {
                 type="submit"
                 disabled={loading || !splashComplete}
                 className={`login-stagger login-stagger--6 inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] bg-primary text-primary-foreground hover:bg-primary/90 px-3 py-2.5 h-11 w-full ${splashComplete ? 'login-stagger--ready' : ''}`}
-                style={{ backgroundColor: 'rgb(17, 17, 17)', color: 'rgb(255, 255, 255)' }}
               >
                 {loading ? (
                   <>

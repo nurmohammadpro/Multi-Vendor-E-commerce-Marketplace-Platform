@@ -3,8 +3,11 @@
 import { useEffect, useRef, useState } from 'react';
 
 import {
+  accentButtonStyle,
   emptyStateStyle,
   fieldStyle,
+  metricLabelStyle,
+  metricValueStyle,
   pageShellStyle,
   secondaryButtonStyle,
   surfaceCardStyle,
@@ -13,7 +16,7 @@ import {
   tableStyle,
   tableWrapStyle,
   tokenMutedStyle,
-} from '../motocore-theme';
+} from '../merchflow-theme';
 
 type StockAdjustmentRequest = {
   id: string;
@@ -49,6 +52,7 @@ type PriceChangeRequest = {
 type OwnerOverview = {
   pendingStockApprovals: number;
   pendingPriceApprovals: number;
+  pendingReturnApprovals: number;
   totalPendingApprovals: number;
   todayDueCollectionsAmount: string | number;
   todayDueCollectionsCount: number;
@@ -70,13 +74,32 @@ type OwnerOverview = {
   }>;
 };
 
+type PendingReturnRequest = {
+  id: string;
+  sale_id: string;
+  sale_no: string;
+  refund_amount: string | number;
+  reason: string;
+  created_at: string;
+  customer_name?: string | null;
+  customer_phone?: string | null;
+  requested_by_name?: string | null;
+  return_items?: Array<{
+    productName: string;
+    skuCode: string;
+    qty: number;
+    restockToInventory: boolean;
+    lineRefundAmount: number;
+  }>;
+};
+
 async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
   const response = await fetch(input, init);
   const payload = (await response.json().catch(() => null)) as T | { error?: string } | null;
   if (!response.ok) {
     const message =
-      payload && typeof payload === 'object' && 'error' in payload && payload.error
-        ? payload.error
+      payload && typeof payload === 'object' && ((payload as any).error || (payload as any).message)
+        ? ((payload as any).error || (payload as any).message)
         : `Request failed with ${response.status}`;
     throw new Error(message);
   }
@@ -87,6 +110,7 @@ export function ApprovalsWorkspace({ canApproveInventory }: { canApproveInventor
   const [overview, setOverview] = useState<OwnerOverview | null>(null);
   const [stockRequests, setStockRequests] = useState<StockAdjustmentRequest[]>([]);
   const [priceRequests, setPriceRequests] = useState<PriceChangeRequest[]>([]);
+  const [returnRequests, setReturnRequests] = useState<PendingReturnRequest[]>([]);
   const [decisionNote, setDecisionNote] = useState('');
   const [countedCashAmount, setCountedCashAmount] = useState('');
   const [cashCountNote, setCashCountNote] = useState('');
@@ -113,10 +137,11 @@ export function ApprovalsWorkspace({ canApproveInventory }: { canApproveInventor
   const refresh = async () => {
     const refreshId = latestRefreshId.current + 1;
     latestRefreshId.current = refreshId;
-    const [overviewPayload, stockPayload, pricePayload] = await Promise.all([
+    const [overviewPayload, stockPayload, pricePayload, returnPayload] = await Promise.all([
       readJson<{ overview: OwnerOverview }>('/api/store-ops/owner-overview'),
       readJson<{ adjustmentRequests: StockAdjustmentRequest[] }>('/api/inventory/adjustments?status=pending'),
       readJson<{ priceChangeRequests: PriceChangeRequest[] }>('/api/catalog/price-change-requests?status=pending'),
+      readJson<{ returnRequests: PendingReturnRequest[] }>('/api/pos/returns/pending-approvals'),
     ]);
 
     if (refreshId !== latestRefreshId.current) {
@@ -126,6 +151,7 @@ export function ApprovalsWorkspace({ canApproveInventory }: { canApproveInventor
     applyOverview(overviewPayload.overview ?? null);
     setStockRequests(stockPayload.adjustmentRequests ?? []);
     setPriceRequests(pricePayload.priceChangeRequests ?? []);
+    setReturnRequests(returnPayload.returnRequests ?? []);
   };
 
   useEffect(() => {
@@ -142,7 +168,7 @@ export function ApprovalsWorkspace({ canApproveInventory }: { canApproveInventor
       });
       await refresh();
       setDecisionNote('');
-      setMessage(`Stock request ${decision}d successfully.`);
+      setMessage(`Stock request ${decision === 'approve' ? 'approved' : 'rejected'} successfully.`);
     } catch (error) {
       setMessage((error as Error).message);
     } finally {
@@ -160,7 +186,25 @@ export function ApprovalsWorkspace({ canApproveInventory }: { canApproveInventor
       });
       await refresh();
       setDecisionNote('');
-      setMessage(`Price request ${decision}d successfully.`);
+      setMessage(`Price request ${decision === 'approve' ? 'approved' : 'rejected'} successfully.`);
+    } catch (error) {
+      setMessage((error as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const decideReturn = async (returnId: string, decision: 'approve' | 'reject') => {
+    setLoading(true);
+    try {
+      await readJson(`/api/pos/returns/${returnId}/${decision}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ decisionNote: decisionNote || undefined }),
+      });
+      await refresh();
+      setDecisionNote('');
+      setMessage(`Return request ${decision === 'approve' ? 'approved' : 'rejected'} successfully.`);
     } catch (error) {
       setMessage((error as Error).message);
     } finally {
@@ -197,7 +241,7 @@ export function ApprovalsWorkspace({ canApproveInventory }: { canApproveInventor
 
   if (!canApproveInventory) {
     return (
-      <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
+      <section style={{ ...pageShellStyle, display: 'grid', gap: 12 }}>
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Approvals access limited</h3>
           <p style={tokenMutedStyle}>Only store owners can approve stock and price changes.</p>
@@ -207,32 +251,37 @@ export function ApprovalsWorkspace({ canApproveInventory }: { canApproveInventor
   }
 
   return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
-      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
+    <section style={{ ...pageShellStyle, display: 'grid', gap: 12 }}>
+      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
         <article style={surfaceCardStyle}>
-          <div style={{ fontSize: 12, color: '#64748b' }}>Cash variance</div>
-          <div style={{ fontSize: 22, fontWeight: 600 }}>{overview?.cashVarianceAmount ?? '—'}</div>
-          <div style={{ color: '#64748b' }}>
+          <div style={metricLabelStyle}>Cash variance</div>
+          <div style={metricValueStyle}>{overview?.cashVarianceAmount ?? '—'}</div>
+          <div style={{ color: 'var(--muted-foreground)' }}>
             Expected {overview?.expectedCashAmount ?? 0} · Counted {overview?.countedCashAmount ?? 'Not counted yet'}
           </div>
-          <div style={{ color: '#64748b', marginTop: 4 }}>
+          <div style={{ color: 'var(--muted-foreground)', marginTop: 4 }}>
             Sales {overview?.todayCashSalesAmount ?? 0} + due {overview?.todayCashDueCollectionsAmount ?? 0} - expenses {overview?.todayCashExpenseAmount ?? 0}
           </div>
         </article>
         <article style={surfaceCardStyle}>
-          <div style={{ fontSize: 12, color: '#64748b' }}>Today&apos;s due collections</div>
-          <div style={{ fontSize: 22, fontWeight: 600 }}>{overview?.todayDueCollectionsAmount ?? '—'}</div>
-          <div style={{ color: '#64748b' }}>{overview?.todayDueCollectionsCount ?? 0} collection(s)</div>
+          <div style={metricLabelStyle}>Today&apos;s due collections</div>
+          <div style={metricValueStyle}>{overview?.todayDueCollectionsAmount ?? '—'}</div>
+          <div style={{ color: 'var(--muted-foreground)' }}>{overview?.todayDueCollectionsCount ?? 0} collection(s)</div>
         </article>
         <article style={surfaceCardStyle}>
-          <div style={{ fontSize: 12, color: '#64748b' }}>Pending stock approvals</div>
-          <div style={{ fontSize: 22, fontWeight: 600 }}>{overview?.pendingStockApprovals ?? '—'}</div>
-          <div style={{ color: '#64748b' }}>Quantity updates waiting on owner action.</div>
+          <div style={metricLabelStyle}>Pending stock approvals</div>
+          <div style={metricValueStyle}>{overview?.pendingStockApprovals ?? '—'}</div>
+          <div style={{ color: 'var(--muted-foreground)' }}>Quantity updates waiting on owner action.</div>
         </article>
         <article style={surfaceCardStyle}>
-          <div style={{ fontSize: 12, color: '#64748b' }}>Pending price approvals</div>
-          <div style={{ fontSize: 22, fontWeight: 600 }}>{overview?.pendingPriceApprovals ?? '—'}</div>
-          <div style={{ color: '#64748b' }}>Pricing changes waiting on owner action.</div>
+          <div style={metricLabelStyle}>Pending price approvals</div>
+          <div style={metricValueStyle}>{overview?.pendingPriceApprovals ?? '—'}</div>
+          <div style={{ color: 'var(--muted-foreground)' }}>Pricing changes waiting on owner action.</div>
+        </article>
+        <article style={surfaceCardStyle}>
+          <div style={metricLabelStyle}>Pending return approvals</div>
+          <div style={metricValueStyle}>{overview?.pendingReturnApprovals ?? '—'}</div>
+          <div style={{ color: 'var(--muted-foreground)' }}>High-value return requests (&ge; BDT 5,000) needing approval.</div>
         </article>
       </section>
 
@@ -244,7 +293,7 @@ export function ApprovalsWorkspace({ canApproveInventory }: { canApproveInventor
           style={{ ...fieldStyle, minHeight: 84 }}
           placeholder="Optional note shared with the manager"
         />
-        <p style={{ marginBottom: 0, marginTop: 10, color: '#475569' }}>
+        <p style={{ marginBottom: 0, marginTop: 10, color: 'var(--muted-foreground)' }}>
           {message} Total pending items: {overview?.totalPendingApprovals ?? 0}.
         </p>
       </article>
@@ -252,12 +301,12 @@ export function ApprovalsWorkspace({ canApproveInventory }: { canApproveInventor
       <article style={surfaceCardStyle}>
         <h3 style={{ marginTop: 0 }}>Cash count</h3>
         <div style={{ display: 'grid', gap: 12 }}>
-          <div style={{ color: '#475569' }}>
+          <div style={{ color: 'var(--muted-foreground)' }}>
             Count today&apos;s drawer cash once the owner finishes counting. The saved value becomes the real counted-vs-expected variance.
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
             <label style={{ display: 'grid', gap: 6 }}>
-              <span style={{ fontSize: 12, color: '#64748b' }}>Counted cash amount</span>
+              <span style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>Counted cash amount</span>
               <input
                 type="number"
                 min="0"
@@ -272,7 +321,7 @@ export function ApprovalsWorkspace({ canApproveInventory }: { canApproveInventor
               />
             </label>
             <label style={{ display: 'grid', gap: 6 }}>
-              <span style={{ fontSize: 12, color: '#64748b' }}>Cash count note</span>
+              <span style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>Cash count note</span>
               <input
                 value={cashCountNote}
                 onChange={(event) => {
@@ -285,7 +334,7 @@ export function ApprovalsWorkspace({ canApproveInventory }: { canApproveInventor
             </label>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <button onClick={() => void saveCashCount()} style={secondaryButtonStyle} disabled={loading}>
+            <button onClick={() => void saveCashCount()} style={accentButtonStyle} disabled={loading}>
               Save cash count
             </button>
             <span style={tokenMutedStyle}>
@@ -332,7 +381,7 @@ export function ApprovalsWorkspace({ canApproveInventory }: { canApproveInventor
         )}
       </article>
 
-      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 16 }}>
+      <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 10 }}>
         <article style={surfaceCardStyle}>
           <h3 style={{ marginTop: 0 }}>Pending stock updates</h3>
           {stockRequests.length ? (
@@ -362,7 +411,7 @@ export function ApprovalsWorkspace({ canApproveInventory }: { canApproveInventor
                       <td style={tableCellStyle}>{request.reason}</td>
                       <td style={tableCellStyle}>
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                          <button onClick={() => void decideStock(request.id, 'approve')} style={secondaryButtonStyle} disabled={loading}>Approve</button>
+                          <button onClick={() => void decideStock(request.id, 'approve')} style={accentButtonStyle} disabled={loading}>Approve</button>
                           <button onClick={() => void decideStock(request.id, 'reject')} style={secondaryButtonStyle} disabled={loading}>Reject</button>
                         </div>
                       </td>
@@ -406,7 +455,7 @@ export function ApprovalsWorkspace({ canApproveInventory }: { canApproveInventor
                       <td style={tableCellStyle}>{request.reason}</td>
                       <td style={tableCellStyle}>
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                          <button onClick={() => void decidePrice(request.id, 'approve')} style={secondaryButtonStyle} disabled={loading}>Approve</button>
+                          <button onClick={() => void decidePrice(request.id, 'approve')} style={accentButtonStyle} disabled={loading}>Approve</button>
                           <button onClick={() => void decidePrice(request.id, 'reject')} style={secondaryButtonStyle} disabled={loading}>Reject</button>
                         </div>
                       </td>
@@ -420,6 +469,50 @@ export function ApprovalsWorkspace({ canApproveInventory }: { canApproveInventor
           )}
         </article>
       </section>
+
+      {/* Pending return approvals */}
+      <article style={surfaceCardStyle}>
+        <h3 style={{ marginTop: 0 }}>Pending return approvals</h3>
+        {returnRequests.length ? (
+          <div style={tableWrapStyle}>
+            <table style={tableStyle}>
+              <thead>
+                <tr>
+                  <th style={tableHeaderCellStyle}>Sale</th>
+                  <th style={tableHeaderCellStyle}>Customer</th>
+                  <th style={tableHeaderCellStyle}>Refund Amount</th>
+                  <th style={tableHeaderCellStyle}>Reason</th>
+                  <th style={tableHeaderCellStyle}>Requested By</th>
+                  <th style={tableHeaderCellStyle}>Date</th>
+                  <th style={tableHeaderCellStyle}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {returnRequests.map((request) => (
+                  <tr key={request.id}>
+                    <td style={tableCellStyle}><strong>{request.sale_no}</strong></td>
+                    <td style={tableCellStyle}>{request.customer_name || request.customer_phone || '—'}</td>
+                    <td style={{ ...tableCellStyle, fontWeight: 600, color: '#dc2626' }}>
+                      BDT {Number(request.refund_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </td>
+                    <td style={tableCellStyle}>{request.reason}</td>
+                    <td style={tableCellStyle}>{request.requested_by_name || 'User'}</td>
+                    <td style={tableCellStyle}>{new Date(request.created_at).toLocaleDateString()}</td>
+                    <td style={tableCellStyle}>
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        <button onClick={() => void decideReturn(request.id, 'approve')} style={accentButtonStyle} disabled={loading}>Approve</button>
+                        <button onClick={() => void decideReturn(request.id, 'reject')} style={secondaryButtonStyle} disabled={loading}>Reject</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div style={emptyStateStyle}>No pending return approvals.</div>
+        )}
+      </article>
     </section>
   );
 }

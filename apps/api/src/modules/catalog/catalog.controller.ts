@@ -8,6 +8,7 @@ import { PermissionsGuard } from '../rbac/permissions.guard.js';
 import { CatalogService } from './catalog.service.js';
 
 const createProductSchema = z.object({
+  unit: z.string().max(20).optional(),
   categoryId: z.string().uuid().optional(),
   brandId: z.string().uuid().optional(),
   productCode: z.string().min(1).max(50),
@@ -21,6 +22,7 @@ const createProductSchema = z.object({
 });
 
 const updateProductSchema = z.object({
+  unit: z.string().max(20).nullable().optional(),
   categoryId: z.string().uuid().nullable().optional(),
   brandId: z.string().uuid().nullable().optional(),
   name: z.string().min(1).max(250).optional(),
@@ -104,6 +106,16 @@ const createPriceSchema = z.object({
   compareAtPrice: z.number().nonnegative().nullable().optional(),
   effectiveFrom: z.string().datetime().optional(),
   effectiveTo: z.string().datetime().nullable().optional(),
+});
+
+const bulkRevisePricesSchema = z.object({
+  scope: z.enum(['category', 'brand', 'all']),
+  categoryId: z.string().uuid().nullable().optional(),
+  brandId: z.string().uuid().nullable().optional(),
+  basis: z.enum(['sale', 'cost']).default('sale'),
+  mode: z.enum(['increase', 'decrease', 'set']),
+  unit: z.enum(['amount', 'percent']).default('amount'),
+  value: z.number().nonnegative(),
 });
 
 const createPriceChangeRequestSchema = z.object({
@@ -368,6 +380,17 @@ export class CatalogController {
     return this.catalogService.deleteProduct(productId, headerStoreId, authContext);
   }
 
+  @Post('starter-template')
+  @RequireContext('store')
+  @RequirePermissions('catalog.manage')
+  importStarterTemplate(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @CurrentAuthSession() session: AuthSession | null,
+  ) {
+    return this.catalogService.importStarterTemplate(headerStoreId, authContext, session);
+  }
+
   @Get('products/:productId/variants')
   @RequireContext('store')
   @RequirePermissions('inventory.view')
@@ -502,6 +525,23 @@ export class CatalogController {
       authContext,
       session,
       createPriceSchema.parse(payload),
+    );
+  }
+
+  @Post('prices/bulk-revise')
+  @RequireContext('store')
+  @RequirePermissions('catalog.manage')
+  bulkRevisePrices(
+    @Headers('x-store-id') headerStoreId: string | undefined,
+    @CurrentAuthContext() authContext: StoreAuthContext | null,
+    @CurrentAuthSession() session: AuthSession | null,
+    @Body() payload: unknown,
+  ) {
+    return this.catalogService.bulkRevisePrices(
+      headerStoreId,
+      authContext,
+      session,
+      bulkRevisePricesSchema.parse(payload),
     );
   }
 

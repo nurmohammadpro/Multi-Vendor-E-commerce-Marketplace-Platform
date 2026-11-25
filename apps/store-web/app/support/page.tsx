@@ -1,20 +1,36 @@
+import type { ReactNode } from 'react';
+
 import { getStoreConsoleAccess } from '../../lib/access';
-import { pageShellStyle, sectionLabelStyle, tokenMutedStyle } from '../motocore-theme';
+import { pageShellStyle } from '../merchflow-theme';
+import { WorkspaceTabHost } from '../workspace-responsive';
+import StoreHelpPage from '../help/page';
 import { SupportWorkspace } from './support-workspace';
 
-export default async function StoreSupportPage() {
+export default async function StoreSupportPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ tab?: string }>;
+}) {
   const access = await getStoreConsoleAccess();
+  const params = (await searchParams) ?? {};
+
+  const tabs: Array<{ key: string; label: string }> = [];
+  const panels: Record<string, ReactNode> = {};
+
+  if (access.canUseSupport) {
+    tabs.push({ key: 'tickets', label: 'Tickets' });
+    panels.tickets = <SupportWorkspace canUseSupport={access.canUseSupport} kind="support" />;
+  }
+  if (access.canUseDisputes) {
+    tabs.push({ key: 'disputes', label: 'Disputes' });
+    panels.disputes = <SupportWorkspace canUseSupport={access.canUseDisputes} kind="dispute" />;
+  }
+  tabs.push({ key: 'help', label: 'Help & Reference' });
+  panels.help = <StoreHelpPage />;
 
   return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 20 }}>
-      <div style={{ maxWidth: 900 }}>
-        <div style={sectionLabelStyle}>Support</div>
-        <h2 style={{ margin: '8px 0 8px', fontSize: 'clamp(20px, 2vw, 28px)', fontWeight: 500, letterSpacing: '-0.02em' }}>Store support desk</h2>
-        <p style={tokenMutedStyle}>
-          Operators can open technical, billing, and operational support threads without leaving the store console.
-        </p>
-      </div>
-      <SupportWorkspace canUseSupport={access.canUseSupport} kind="support" />
+    <section style={{ ...pageShellStyle, display: 'grid', gap: 12 }}>
+      <WorkspaceTabHost tabs={tabs} panels={panels} initialTab={params.tab} />
     </section>
   );
 }

@@ -34,7 +34,7 @@ function SheetOverlay({ className, ...props }: React.ComponentProps<typeof Sheet
 }
 
 const sheetVariants = cva(
-  'bg-background data-[state=open]:animate-in data-[state=closed]:animate-out fixed z-50 flex flex-col gap-[var(--erp-dialog-gap)] shadow-lg transition ease-in-out',
+  'bg-background data-[state=open]:animate-in data-[state=closed]:animate-out fixed z-50 flex flex-col gap-[var(--erp-dialog-gap)] shadow-md transition ease-in-out',
   {
     variants: {
       side: {

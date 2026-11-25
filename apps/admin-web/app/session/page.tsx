@@ -38,11 +38,8 @@ export default async function AdminSessionPage() {
           Session status
         </span>
         <h2 className="m-0 text-3xl font-semibold leading-tight tracking-tight">
-          See which admin identity and permissions are active.
+          Admin identity and permissions
         </h2>
-        <p className="text-muted-foreground leading-relaxed">
-          This gives operators a direct answer when something feels like a permission or token issue.
-        </p>
         <p className="text-sm text-muted-foreground">
           {configured
             ? 'The session endpoint is reachable.'
@@ -59,7 +56,6 @@ export default async function AdminSessionPage() {
           </CardHeader>
           <CardContent className="pt-0">
             <div className="text-2xl font-semibold tracking-tight">{profile?.user?.status ?? '—'}</div>
-            <p className="text-xs text-muted-foreground mt-1">Identity status from the auth service.</p>
           </CardContent>
         </Card>
         <Card>
@@ -70,7 +66,6 @@ export default async function AdminSessionPage() {
           </CardHeader>
           <CardContent className="pt-0">
             <div className="text-2xl font-semibold tracking-tight">{profile?.contexts?.length ?? 0}</div>
-            <p className="text-xs text-muted-foreground mt-1">Available operating contexts for this account.</p>
           </CardContent>
         </Card>
         <Card>
@@ -81,7 +76,6 @@ export default async function AdminSessionPage() {
           </CardHeader>
           <CardContent className="pt-0">
             <div className="text-2xl font-semibold tracking-tight">{profile?.permissions?.length ?? 0}</div>
-            <p className="text-xs text-muted-foreground mt-1">Granted permissions expanded from roles.</p>
           </CardContent>
         </Card>
       </section>
@@ -167,10 +161,6 @@ export default async function AdminSessionPage() {
               </Button>
               <LogoutButton />
             </div>
-            <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
-              The session view makes auth state visible, which helps operators debug context issues, expired tokens, and
-              permission mismatches without leaving the workspace.
-            </p>
           </CardContent>
         </Card>
       </section>

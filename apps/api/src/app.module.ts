@@ -8,6 +8,7 @@ import { BillingModule } from './modules/billing/billing.module.js';
 import { CatalogModule } from './modules/catalog/catalog.module.js';
 import { CommsModule } from './modules/comms/comms.module.js';
 import { DatabaseModule } from './modules/database/database.module.js';
+import { GuardModule } from './modules/guard/guard.module.js';
 import { InventoryModule } from './modules/inventory/inventory.module.js';
 import { OpsModule } from './modules/ops/ops.module.js';
 import { PaymentsModule } from './modules/payments/payments.module.js';
@@ -27,6 +28,7 @@ import { SupportModule } from './modules/support/support.module.js';
     AuditModule,
     DatabaseModule,
     RedisModule,
+    GuardModule,
     CommsModule,
     AuthModule,
     RbacModule,

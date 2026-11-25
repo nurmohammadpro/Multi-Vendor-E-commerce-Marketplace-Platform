@@ -6,6 +6,7 @@ import {
   emptyStateStyle,
   fieldStyle,
   pageShellStyle,
+  searchButtonStyle,
   secondaryButtonStyle,
   surfaceCardStyle,
   tableCellStyle,
@@ -13,7 +14,7 @@ import {
   tableStyle,
   tableWrapStyle,
   tokenMutedStyle,
-} from '../motocore-theme';
+} from '../merchflow-theme';
 
 type AuditLog = {
   id: string;
@@ -41,7 +42,7 @@ async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
   const response = await fetch(input, init);
   const payload = (await response.json().catch(() => null)) as T | { error?: string } | null;
   if (!response.ok) {
-    throw new Error(payload && typeof payload === 'object' && 'error' in payload && payload.error ? payload.error : `Request failed with ${response.status}`);
+    throw new Error(payload && typeof payload === 'object' && ((payload as any).error || (payload as any).message) ? ((payload as any).error || (payload as any).message) : `Request failed with ${response.status}`);
   }
   return payload as T;
 }
@@ -85,14 +86,14 @@ export function ActivityWorkspace() {
   const totalPages = Math.max(1, Math.ceil((pagination.total || 0) / (pagination.limit || 20)));
 
   return (
-    <section style={{ ...pageShellStyle, display: 'grid', gap: 16 }}>
+    <section style={{ ...pageShellStyle, display: 'grid', gap: 10 }}>
       <article style={surfaceCardStyle}>
         <h3 style={{ marginTop: 0 }}>Activity filters</h3>
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1.4fr) repeat(2, minmax(180px, 1fr)) auto', gap: 10 }}>
           <input value={search} onChange={(event) => setSearch(event.target.value)} style={fieldStyle} placeholder="Search action, resource, or record id" />
           <input value={actionCode} onChange={(event) => setActionCode(event.target.value)} style={fieldStyle} placeholder="Action code" />
           <input value={resourceType} onChange={(event) => setResourceType(event.target.value)} style={fieldStyle} placeholder="Resource type" />
-          <button onClick={() => void refresh(1)} style={secondaryButtonStyle} disabled={loading}>Apply</button>
+          <button onClick={() => void refresh(1)} style={searchButtonStyle} disabled={loading}>Apply</button>
         </div>
       </article>
 
@@ -100,29 +101,31 @@ export function ActivityWorkspace() {
         <h3 style={{ marginTop: 0 }}>Audit trail</h3>
         {logs.length ? (
           <div style={tableWrapStyle}>
-            <table style={tableStyle}>
+            <table style={{ ...tableStyle, tableLayout: 'fixed' }}>
               <thead>
                 <tr>
-                  <th style={tableHeaderCellStyle}>Time</th>
-                  <th style={tableHeaderCellStyle}>Action</th>
-                  <th style={tableHeaderCellStyle}>Resource</th>
-                  <th style={tableHeaderCellStyle}>Record</th>
-                  <th style={tableHeaderCellStyle}>Actor</th>
-                  <th style={tableHeaderCellStyle}>After</th>
+                  <th style={{ ...tableHeaderCellStyle, width: '15%' }}>Time</th>
+                  <th style={{ ...tableHeaderCellStyle, width: '13%' }}>Action</th>
+                  <th style={{ ...tableHeaderCellStyle, width: '12%' }}>Resource</th>
+                  <th style={{ ...tableHeaderCellStyle, width: '20%' }}>Record</th>
+                  <th style={{ ...tableHeaderCellStyle, width: '16%' }}>Actor</th>
+                  <th style={{ ...tableHeaderCellStyle, width: '24%' }}>After</th>
                 </tr>
               </thead>
               <tbody>
                 {logs.map((log) => (
                   <tr key={log.id}>
                     <td style={tableCellStyle}>{new Date(log.created_at).toLocaleString()}</td>
-                    <td style={tableCellStyle}>{log.action_code}</td>
-                    <td style={tableCellStyle}>{log.resource_type}</td>
-                    <td style={tableCellStyle}>{log.resource_id || '—'}</td>
-                    <td style={tableCellStyle}>{log.actor_type}{log.actor_user_id ? ` · ${log.actor_user_id}` : ''}</td>
+                    <td style={tableCellStyle}>{humanizeAuditCode(log.action_code)}</td>
+                    <td style={tableCellStyle}>{humanizeAuditCode(log.resource_type)}</td>
+                    <td style={{ ...tableCellStyle, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 0 }} title={log.resource_id || '—'}>
+                      {log.resource_id || '—'}
+                    </td>
+                    <td style={{ ...tableCellStyle, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 0 }} title={`${log.actor_type}${log.actor_user_id ? ` · ${log.actor_user_id}` : ''}`}>
+                      {log.actor_type}{log.actor_user_id ? ` · ${log.actor_user_id}` : ''}
+                    </td>
                     <td style={tableCellStyle}>
-                      <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontSize: 12, color: '#475569' }}>
-                        {JSON.stringify(log.after_json ?? {}, null, 2)}
-                      </pre>
+                      <AuditAfterCell value={log.after_json} />
                     </td>
                   </tr>
                 ))}
@@ -141,10 +144,90 @@ export function ActivityWorkspace() {
         </div>
       </article>
 
-      <article style={surfaceCardStyle}>
-        <h3 style={{ marginTop: 0 }}>Operator Notes</h3>
-        <p style={tokenMutedStyle}>{message}</p>
-      </article>
+      <p style={tokenMutedStyle}>{message}</p>
     </section>
   );
+}
+
+function AuditAfterCell({ value }: { value?: Record<string, unknown> | null }) {
+  if (!value || !Object.keys(value).length) {
+    return <span style={{ color: 'var(--muted-foreground)', fontSize: 12 }}>No recorded field changes</span>;
+  }
+
+  const entries = Object.entries(value)
+    .filter(([, entryValue]) => entryValue !== null && entryValue !== undefined && entryValue !== '')
+    .slice(0, 6);
+
+  if (!entries.length) {
+    return <span style={{ color: 'var(--muted-foreground)', fontSize: 12 }}>No recorded field changes</span>;
+  }
+
+  return (
+    <div style={{ display: 'grid', gap: 6 }}>
+      {entries.map(([key, entryValue]) => (
+        <div
+          key={key}
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '110px minmax(0, 1fr)',
+            gap: 8,
+            alignItems: 'start',
+            fontSize: 12,
+          }}
+        >
+          <span
+            style={{
+              color: 'var(--muted-foreground)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.08em',
+              fontSize: 11,
+            }}
+          >
+            {humanizeAuditKey(key)}
+          </span>
+          <span style={{ color: 'var(--foreground)', wordBreak: 'break-word' }}>
+            {formatAuditValue(entryValue)}
+          </span>
+        </div>
+      ))}
+      {Object.keys(value).length > entries.length ? (
+        <span style={{ color: 'var(--muted-foreground)', fontSize: 11 }}>
+          +{Object.keys(value).length - entries.length} more field(s)
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function humanizeAuditKey(key: string) {
+  return key
+    .replaceAll(/_/g, ' ')
+    .replaceAll(/([a-z0-9])([A-Z])/g, '$1 $2');
+}
+
+function humanizeAuditCode(value: string) {
+  return humanizeAuditKey(value.replaceAll('.', ' '))
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function formatAuditValue(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (value === null || value === undefined) return '—';
+  if (Array.isArray(value)) {
+    if (!value.length) return '—';
+    return value
+      .slice(0, 3)
+      .map((item) => formatAuditValue(item))
+      .join(', ')
+      + (value.length > 3 ? ` +${value.length - 3} more` : '');
+  }
+  if (typeof value === 'object') {
+    const objectEntries = Object.entries(value as Record<string, unknown>).slice(0, 3);
+    if (!objectEntries.length) return '—';
+    return objectEntries
+      .map(([entryKey, entryValue]) => `${humanizeAuditKey(entryKey)}: ${formatAuditValue(entryValue)}`)
+      .join(' · ');
+  }
+  return String(value);
 }

@@ -35,7 +35,7 @@ assert_json() {
 }
 
 echo "============================================"
-echo " Market One BD - API Functional Test Suite"
+echo " App Brainer - API Functional Test Suite"
 echo "============================================"
 echo ""
 

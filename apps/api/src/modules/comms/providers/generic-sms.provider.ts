@@ -11,7 +11,7 @@ export class GenericSmsProvider implements SmsProvider {
   constructor(config: { apiUrl: string; apiKey: string; senderId?: string }) {
     this.apiUrl = config.apiUrl;
     this.apiKey = config.apiKey;
-    this.senderId = config.senderId || 'MarketOne';
+    this.senderId = config.senderId || 'MerchFlow';
   }
 
   async send(input: SendSmsInput): Promise<SmsResult> {

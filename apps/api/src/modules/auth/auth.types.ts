@@ -22,6 +22,7 @@ export type AuthSession = {
     tenantId: string;
     email: string | null;
     phone: string | null;
+    fullName: string | null;
     preferredLocale: string;
     status: string;
   };

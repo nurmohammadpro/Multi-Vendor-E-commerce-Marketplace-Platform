@@ -57,9 +57,7 @@ export class CatalogService {
             count(*) over()::int as total_count
           from catalog.categories c
           left join catalog.categories parent on parent.id = c.parent_id
-          where c.tenant_id = (
-            select tenant_id from store.stores where id = $1
-          )
+          where c.store_id = $1
             and (
               $2::text is null
               or c.code ilike '%' || $2::text || '%'
@@ -88,7 +86,7 @@ export class CatalogService {
       `
         delete from catalog.categories
         where id = $1
-          and tenant_id = (select tenant_id from store.stores where id = $2)
+          and store_id = $2
         returning id
       `,
       [categoryId, storeId],
@@ -120,6 +118,7 @@ export class CatalogService {
         insert into catalog.categories (
           id,
           tenant_id,
+          store_id,
           parent_id,
           code,
           name,
@@ -132,6 +131,7 @@ export class CatalogService {
         select
           gen_random_uuid(),
           s.tenant_id,
+          s.id,
           $2,
           $3,
           $4,
@@ -142,7 +142,7 @@ export class CatalogService {
           now()
         from store.stores s
         where s.id = $1
-        returning id, parent_id, code, name, name_bn, status, sort_order
+        returning id, store_id, parent_id, code, name, name_bn, status, sort_order
       `,
       [storeId, payload.parentId ?? null, payload.code, payload.name, payload.nameBn ?? null, payload.status, payload.sortOrder],
     );
@@ -176,7 +176,7 @@ export class CatalogService {
           sort_order = coalesce($8, sort_order),
           updated_at = now()
         where id = $1
-          and tenant_id = (select tenant_id from store.stores where id = $2)
+          and store_id = $2
         returning id, parent_id, code, name, name_bn, status, sort_order
       `,
       [
@@ -220,9 +220,7 @@ export class CatalogService {
             updated_at,
             count(*) over()::int as total_count
           from catalog.brands
-          where tenant_id = (
-            select tenant_id from store.stores where id = $1
-          )
+          where store_id = $1
             and (
               $2::text is null
               or name ilike '%' || $2::text || '%'
@@ -250,7 +248,7 @@ export class CatalogService {
       `
         delete from catalog.brands
         where id = $1
-          and tenant_id = (select tenant_id from store.stores where id = $2)
+          and store_id = $2
         returning id
       `,
       [brandId, storeId],
@@ -279,6 +277,7 @@ export class CatalogService {
         insert into catalog.brands (
           id,
           tenant_id,
+          store_id,
           name,
           name_bn,
           status,
@@ -288,6 +287,7 @@ export class CatalogService {
         select
           gen_random_uuid(),
           s.tenant_id,
+          s.id,
           $2,
           $3,
           $4,
@@ -295,7 +295,7 @@ export class CatalogService {
           now()
         from store.stores s
         where s.id = $1
-        returning id, name, name_bn, status
+        returning id, store_id, name, name_bn, status
       `,
       [storeId, payload.name, payload.nameBn ?? null, payload.status],
     );
@@ -323,7 +323,7 @@ export class CatalogService {
           status = coalesce($5, status),
           updated_at = now()
         where id = $1
-          and tenant_id = (select tenant_id from store.stores where id = $2)
+          and store_id = $2
         returning id, name, name_bn, status
       `,
       [
@@ -362,6 +362,8 @@ export class CatalogService {
             pr.cost_price,
             pr.sale_price,
             pr.compare_at_price,
+            pr.discount_type,
+            pr.discount_value,
             pr.effective_from,
             pr.effective_to
           from catalog.prices pr
@@ -394,6 +396,7 @@ export class CatalogService {
           p.name_bn as product_name_bn,
           p.has_variants,
           p.variant_mode,
+          p.is_trackable,
           b.name as brand_name,
           c.name as category_name,
           lp.cost_price,
@@ -455,6 +458,7 @@ export class CatalogService {
             p.product_code,
             p.name,
             p.name_bn,
+            p.unit,
             p.status,
             p.is_trackable,
             p.has_variants,
@@ -502,6 +506,13 @@ export class CatalogService {
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
 
+    // Resolve tenantId from store
+    const storeResult = await this.pool.query<{ tenant_id: string }>(
+      'select tenant_id from store.stores where id = $1 limit 1',
+      [storeId],
+    );
+    const tenantId = storeResult.rows[0]?.tenant_id;
+
     const productResult = await this.pool.query(
       `
         select
@@ -509,6 +520,7 @@ export class CatalogService {
           p.product_code,
           p.name,
           p.name_bn,
+          p.unit,
           p.description,
           p.status,
           p.is_trackable,
@@ -579,6 +591,8 @@ export class CatalogService {
             pr.cost_price,
             pr.sale_price,
             pr.compare_at_price,
+            pr.discount_type,
+            pr.discount_value,
             pr.effective_from,
             pr.effective_to
           from catalog.prices pr
@@ -624,10 +638,48 @@ export class CatalogService {
       [productId, storeId],
     );
 
+    // Fetch tracking profile for this product's category (or global fallback)
+    const trackingResult = await this.pool.query(
+      `
+        with product_category as (
+          select p.product_category_id from catalog.products p where p.id = $1
+        )
+        select tp.id, tp.name, tp.is_global, tp.category_id,
+          coalesce(
+            json_agg(
+              json_build_object(
+                'id', tf.id,
+                'profileId', tf.profile_id,
+                'fieldKey', tf.field_key,
+                'fieldLabel', tf.field_label,
+                'fieldType', tf.field_type,
+                'isRequired', tf.is_required,
+                'isUnique', tf.is_unique,
+                'validationRules', tf.validation_rules,
+                'sortOrder', tf.sort_order
+              ) order by tf.sort_order
+            ) filter (where tf.id is not null),
+            '[]'::json
+          ) as fields
+        from catalog.tracking_profiles tp
+        left join catalog.tracking_fields tf on tf.profile_id = tp.id
+        where tp.tenant_id = $2
+          and tp.status = 'active'
+          and (
+            tp.category_id = (select product_category_id from product_category)
+            or (tp.is_global = true and (select product_category_id from product_category) is null)
+          )
+        group by tp.id
+        limit 1
+      `,
+      [productId, tenantId],
+    );
+
     return {
       product,
       groups: groupsResult.rows,
       skus: skuResult.rows,
+      trackingProfile: trackingResult.rows[0] || null,
     };
   }
 
@@ -669,6 +721,7 @@ export class CatalogService {
       isTrackable: boolean;
       hasVariants: boolean;
       variantMode: 'none' | 'single' | 'multi';
+      unit?: string;
     },
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
@@ -691,6 +744,7 @@ export class CatalogService {
           is_trackable,
           has_variants,
           variant_mode,
+          unit,
           created_by,
           updated_by,
           created_at,
@@ -710,6 +764,7 @@ export class CatalogService {
           $9,
           $10,
           $11,
+          $13,
           $12,
           $12,
           now(),
@@ -731,6 +786,7 @@ export class CatalogService {
         payload.hasVariants,
         payload.variantMode,
         userId,
+        (payload.unit ?? '').trim() || 'pcs',
       ],
     );
 
@@ -754,6 +810,7 @@ export class CatalogService {
       isTrackable?: boolean;
       hasVariants?: boolean;
       variantMode?: 'none' | 'single' | 'multi';
+      unit?: string | null;
     },
   ) {
     const storeId = this.assertStoreContext(headerStoreId, authContext);
@@ -795,6 +852,7 @@ export class CatalogService {
           is_trackable = coalesce($9, is_trackable),
           has_variants = $10,
           variant_mode = $11,
+          unit = coalesce($13, unit),
           updated_by = $12,
           updated_at = now()
         where id = $1
@@ -814,6 +872,7 @@ export class CatalogService {
         hasVariants,
         variantMode,
         userId,
+        payload.unit === undefined ? null : (payload.unit ?? '').trim() || null,
       ],
     );
 
@@ -829,7 +888,7 @@ export class CatalogService {
 
     const productResult = await this.pool.query(
       `
-        select id, product_code, name, has_variants, variant_mode, status
+        select id, product_code, name, has_variants, variant_mode, is_trackable, status
         from catalog.products
         where id = $1
           and store_id = $2
@@ -1241,6 +1300,8 @@ export class CatalogService {
       costPrice?: number | null;
       salePrice?: number;
       compareAtPrice?: number | null;
+      discountType?: string | null;
+      discountValue?: number | null;
       effectiveFrom?: string;
       effectiveTo?: string | null;
       status: string;
@@ -1340,6 +1401,8 @@ export class CatalogService {
               cost_price,
               sale_price,
               compare_at_price,
+              discount_type,
+              discount_value,
               effective_from,
               effective_to,
               created_at,
@@ -1355,8 +1418,10 @@ export class CatalogService {
               $5,
               $6,
               $7,
+              $8,
+              $9,
               now(),
-              $8
+              $10
             from store.stores s
             where s.id = $1
             returning id, sku_id, sale_price, effective_from, effective_to
@@ -1367,6 +1432,8 @@ export class CatalogService {
             payload.costPrice ?? null,
             payload.salePrice,
             payload.compareAtPrice ?? null,
+            payload.discountType ?? null,
+            payload.discountValue ?? null,
             payload.effectiveFrom ?? new Date().toISOString(),
             payload.effectiveTo ?? null,
             userId,
@@ -1519,6 +1586,8 @@ export class CatalogService {
       costPrice?: number | null;
       salePrice: number;
       compareAtPrice?: number | null;
+      discountType?: string | null;
+      discountValue?: number | null;
       effectiveFrom?: string;
       effectiveTo?: string | null;
     },
@@ -1551,6 +1620,8 @@ export class CatalogService {
           cost_price,
           sale_price,
           compare_at_price,
+          discount_type,
+          discount_value,
           effective_from,
           effective_to,
           created_at,
@@ -1566,8 +1637,10 @@ export class CatalogService {
           $5,
           $6,
           $7,
+          $8,
+          $9,
           now(),
-          $8
+          $10
         from store.stores s
         where s.id = $1
         returning id, sku_id, sale_price, effective_from, effective_to
@@ -1578,6 +1651,8 @@ export class CatalogService {
         payload.costPrice ?? null,
         payload.salePrice,
         payload.compareAtPrice ?? null,
+        payload.discountType ?? null,
+        payload.discountValue ?? null,
         payload.effectiveFrom ?? new Date().toISOString(),
         payload.effectiveTo ?? null,
         userId,
@@ -1587,6 +1662,84 @@ export class CatalogService {
     return {
       price: result.rows[0],
     };
+  }
+
+  /**
+   * Bulk rate revision: adjust the sale or cost price for every SKU in a
+   * category, a brand, or the whole store — by a fixed amount or a percentage,
+   * or set an absolute price. Writes a new catalog.prices row per SKU
+   * effective now (no schema change).
+   */
+  async bulkRevisePrices(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    session: AuthSession | null,
+    payload: {
+      scope: 'category' | 'brand' | 'all';
+      categoryId?: string | null;
+      brandId?: string | null;
+      basis: 'sale' | 'cost';
+      mode: 'increase' | 'decrease' | 'set';
+      unit: 'amount' | 'percent';
+      value: number;
+    },
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    const userId = this.requireUserId(session);
+
+    const value = Number(payload.value);
+    if (!Number.isFinite(value) || value < 0 || value === 0) {
+      throw new ForbiddenException('Enter a revision value greater than zero');
+    }
+    if (payload.mode === 'set' && payload.unit === 'percent') {
+      throw new ForbiddenException('Use an amount when setting a fixed price');
+    }
+
+    const categoryId = payload.scope === 'category' ? payload.categoryId ?? null : null;
+    const brandId = payload.scope === 'brand' ? payload.brandId ?? null : null;
+
+    const basis = payload.basis === 'cost' ? 'cost' : 'sale';
+    const base = `coalesce(${basis === 'cost' ? 'l.cost_price' : 'l.sale_price'}, 0)`;
+    let revision: string;
+    if (payload.unit === 'percent') {
+      const factor = payload.mode === 'decrease' ? 1 - value / 100 : 1 + value / 100;
+      revision = `greatest(round(${base} * ${factor}, 2), 0)`;
+    } else if (payload.mode === 'set') {
+      revision = `round(${value}, 2)`;
+    } else {
+      const op = payload.mode === 'decrease' ? '-' : '+';
+      revision = `greatest(round(${base} ${op} ${value}, 2), 0)`;
+    }
+
+    const result = await this.pool.query(
+      `
+        insert into catalog.prices (
+          id, tenant_id, store_id, sku_id, cost_price, sale_price, compare_at_price,
+          discount_type, discount_value, effective_from, created_at, created_by
+        )
+        select
+          gen_random_uuid(), s.tenant_id, s.id, l.sku_id,
+          ${basis === 'cost' ? revision : 'l.cost_price'},
+          ${basis === 'sale' ? revision : 'l.sale_price'},
+          l.compare_at_price, l.discount_type, l.discount_value,
+          now(), now(), $4
+        from (
+          select distinct on (pr.sku_id)
+            pr.sku_id, pr.cost_price, pr.sale_price, pr.compare_at_price, pr.discount_type, pr.discount_value
+          from catalog.prices pr
+          join catalog.skus sk on sk.id = pr.sku_id
+          join catalog.products p on p.id = sk.product_id
+          where pr.store_id = $1
+            and ($2::uuid is null or p.category_id = $2)
+            and ($3::uuid is null or p.brand_id = $3)
+          order by pr.sku_id, pr.effective_from desc, pr.created_at desc
+        ) l
+        join store.stores s on s.id = $1
+      `,
+      [storeId, categoryId, brandId, userId],
+    );
+
+    return { updated: result.rowCount ?? 0 };
   }
 
   async listPriceChangeRequests(
@@ -1837,6 +1990,8 @@ export class CatalogService {
               cost_price,
               sale_price,
               compare_at_price,
+              discount_type,
+              discount_value,
               effective_from,
               effective_to,
               created_at,
@@ -1852,8 +2007,10 @@ export class CatalogService {
               $5,
               $6,
               $7,
+              $8,
+              $9,
               now(),
-              $8
+              $10
             from store.stores s
             where s.id = $1
             returning id
@@ -1864,6 +2021,8 @@ export class CatalogService {
             request.requested_cost_price === null ? null : Number(request.requested_cost_price),
             Number(request.requested_sale_price),
             request.requested_compare_at_price === null ? null : Number(request.requested_compare_at_price),
+            null, // discount_type — not yet captured in price_change_requests
+            null, // discount_value
             request.requested_effective_from,
             request.requested_effective_to,
             userId,
@@ -2091,5 +2250,89 @@ export class CatalogService {
       throw new UnauthorizedException('Missing auth session');
     }
     return session.user.id;
+  }
+
+
+  // One-click dealership starter catalog: common Bangladeshi wholesale
+  // categories and brands. Existing names (case-insensitive) are skipped.
+  async importStarterTemplate(
+    headerStoreId: string | undefined,
+    authContext: StoreAuthContext | null,
+    session: AuthSession | null,
+  ) {
+    const storeId = this.assertStoreContext(headerStoreId, authContext);
+    this.requireUserId(session);
+
+    const tenantResult = await this.pool.query<{ tenant_id: string }>(
+      'select tenant_id from store.stores where id = $1 limit 1',
+      [storeId],
+    );
+    const tenantId = tenantResult.rows[0]?.tenant_id;
+    if (!tenantId) throw new NotFoundException('Store not found');
+
+    const STARTER_CATEGORIES: Array<{ code: string; name: string }> = [
+      { code: 'ROD', name: 'Rod & Rebar' },
+      { code: 'CEM', name: 'Cement' },
+      { code: 'SAND', name: 'Sand & Aggregates' },
+      { code: 'BRK', name: 'Brick & Blocks' },
+      { code: 'PNT', name: 'Paint & Putty' },
+      { code: 'TIL', name: 'Tiles & Ceramics' },
+      { code: 'SAN', name: 'Sanitary Ware' },
+      { code: 'PIP', name: 'Pipes & Plumbing' },
+      { code: 'GAS', name: 'Gas & Cylinders' },
+      { code: 'GLS', name: 'Glass & Sheet' },
+      { code: 'THAI', name: 'Thai-Aluminium & Profiles' },
+      { code: 'WIRE', name: 'Wire & Cable' },
+      { code: 'ELC', name: 'Electrical Fittings' },
+      { code: 'LGT', name: 'Lighting' },
+      { code: 'ELEC', name: 'Electronics' },
+      { code: 'FOOD', name: 'Consumer Foods' },
+      { code: 'APPL', name: 'Home Appliances' },
+    ];
+    const STARTER_BRANDS = [
+      'BSRM', 'KSRM', 'AKS', 'CSR', 'Queen', 'Seven Circle', 'Crown', 'Fresh', 'Shah Cement',
+      'Berger', 'Asian Paints', 'Rak', 'Fu-Wang', 'Akij', 'MAX', 'RFL', 'Marathon', 'Nasir Glass',
+      'PHP', 'HNS', 'Walton', 'Vision', 'Transcom',
+    ].map((name) => name.trim()).filter(Boolean);
+
+    const existingCats = await this.pool.query<{ lower_name: string }>(
+      "select lower(name) as lower_name from catalog.categories where store_id = $1",
+      [storeId],
+    );
+    const existingBrands = await this.pool.query<{ lower_name: string }>(
+      "select lower(name) as lower_name from catalog.brands where store_id = $1",
+      [storeId],
+    );
+    const catNames = new Set(existingCats.rows.map((r) => r.lower_name));
+    const brandNames = new Set(existingBrands.rows.map((r) => r.lower_name));
+
+    let categoriesCreated = 0;
+    for (const cat of STARTER_CATEGORIES) {
+      if (catNames.has(cat.name.toLowerCase())) continue;
+      await this.pool.query(
+        `insert into catalog.categories (id, tenant_id, store_id, code, name, status, created_at, updated_at)
+         select gen_random_uuid(), $1, $2, $3, $4, 'active', now(), now()
+         where not exists (
+           select 1 from catalog.categories
+           where store_id = $2 and (code = $3 or lower(name) = lower($4))
+         )`,
+        [tenantId, storeId, cat.code, cat.name],
+      );
+      categoriesCreated += 1;
+    }
+
+    let brandsCreated = 0;
+    for (const brand of STARTER_BRANDS) {
+      if (brandNames.has(brand.toLowerCase())) continue;
+      await this.pool.query(
+        `insert into catalog.brands (id, tenant_id, store_id, name, status, created_at, updated_at)
+         select gen_random_uuid(), $1, $2, $3, 'active', now(), now()
+         where not exists (select 1 from catalog.brands where store_id = $2 and lower(name) = lower($3))`,
+        [tenantId, storeId, brand],
+      );
+      brandsCreated += 1;
+    }
+
+    return { categoriesCreated, brandsCreated };
   }
 }

@@ -1,7 +1,7 @@
 param(
   [string]$PrinterName = "",
   [string]$LabelPrinterName = "",
-  [int]$Port = 17658
+  [int]$Port = 17668
 )
 
 $ErrorActionPreference = "Stop"
