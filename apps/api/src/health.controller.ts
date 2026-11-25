@@ -35,7 +35,7 @@ export class HealthController {
 
     // The server is up as long as it's responding. Degraded deps don't make it unhealthy.
     return {
-      ok: true,
+      ok: allOk,
       service: 'api',
       timestamp: new Date().toISOString(),
       checks,
